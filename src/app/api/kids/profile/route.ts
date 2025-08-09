@@ -32,62 +32,61 @@ export async function POST(request: NextRequest) {
     if (existingChild.length > 0) {
       childId = existingChild[0].id
       
-      // Update existing profile
+      // Update existing profile with only known columns
       await db.query(`
         UPDATE profiles SET
           birthdate = $2,
-          grade = $3,
-          emoji = $4,
-          favorite_colors = $5,
-          favorite_foods = $6,
-          favorite_animals = $7,
-          favorite_activities = $8,
-          favorite_subjects = $9,
-          preferred_chores = $10,
-          dream_job = $11,
-          learning_style = $12,
-          theme_preference = $13,
+          emoji = $3,
           updated_at = NOW()
         WHERE id = $1
       `, [
         childId,
         birthdate,
-        grade,
-        avatarEmoji,
-        JSON.stringify(favoriteColors),
-        JSON.stringify(favoriteFoods),
-        JSON.stringify(favoriteAnimals || []),
-        JSON.stringify(favoriteActivities),
-        JSON.stringify(favoriteSubjects),
-        JSON.stringify(preferredChores),
-        dreamJob,
-        learningStyle,
-        themePreference || 'fun'
+        avatarEmoji
+      ])
+      
+      // Store additional profile data in a separate JSON field
+      await db.query(`
+        UPDATE profiles SET
+          profile_data = $2
+        WHERE id = $1
+      `, [
+        childId,
+        JSON.stringify({
+          grade,
+          favoriteColors,
+          favoriteFoods,
+          favoriteAnimals: favoriteAnimals || [],
+          favoriteActivities,
+          favoriteSubjects,
+          preferredChores,
+          dreamJob,
+          learningStyle,
+          themePreference: themePreference || 'fun'
+        })
       ])
     } else {
-      // Create new profile
+      // Create new profile with only known columns
       const newChild = await db.query(`
-        INSERT INTO profiles (
-          first_name, role, birthdate, grade, emoji,
-          favorite_colors, favorite_foods, favorite_animals,
-          favorite_activities, favorite_subjects, preferred_chores,
-          dream_job, learning_style, theme_preference
-        ) VALUES ($1, 'child', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO profiles (first_name, role, birthdate, emoji, profile_data)
+        VALUES ($1, 'child', $2, $3, $4)
         RETURNING id
       `, [
         name,
         birthdate,
-        grade,
         avatarEmoji,
-        JSON.stringify(favoriteColors),
-        JSON.stringify(favoriteFoods),
-        JSON.stringify(favoriteAnimals || []),
-        JSON.stringify(favoriteActivities),
-        JSON.stringify(favoriteSubjects),
-        JSON.stringify(preferredChores),
-        dreamJob,
-        learningStyle,
-        themePreference || 'fun'
+        JSON.stringify({
+          grade,
+          favoriteColors,
+          favoriteFoods,
+          favoriteAnimals: favoriteAnimals || [],
+          favoriteActivities,
+          favoriteSubjects,
+          preferredChores,
+          dreamJob,
+          learningStyle,
+          themePreference: themePreference || 'fun'
+        })
       ])
       
       childId = newChild[0].id

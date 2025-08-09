@@ -65,7 +65,19 @@ export default function KidProfileForm({ onSubmit, kidName }: KidProfileFormProp
     { name: 'Cookies', emoji: '🍪' },
     { name: 'Sandwiches', emoji: '🥪' },
     { name: 'Chicken', emoji: '🍗' },
-    { name: 'Pancakes', emoji: '🥞' }
+    { name: 'Pancakes', emoji: '🥞' },
+    { name: 'Sushi', emoji: '🍣' },
+    { name: 'Donuts', emoji: '🍩' },
+    { name: 'French Fries', emoji: '🍟' },
+    { name: 'Hot Dogs', emoji: '🌭' },
+    { name: 'Waffles', emoji: '🧇' },
+    { name: 'Cereal', emoji: '🥣' },
+    { name: 'Salad', emoji: '🥗' },
+    { name: 'Soup', emoji: '🍲' },
+    { name: 'Bagels', emoji: '🥯' },
+    { name: 'Cheese', emoji: '🧀' },
+    { name: 'Yogurt', emoji: '🍨' },
+    { name: 'Smoothies', emoji: '🥤' }
   ]
 
   const animals = [
@@ -87,7 +99,19 @@ export default function KidProfileForm({ onSubmit, kidName }: KidProfileFormProp
     { name: 'Video Games', emoji: '🎮' },
     { name: 'Cooking', emoji: '👨‍🍳' },
     { name: 'Building/Legos', emoji: '🧱' },
-    { name: 'Nature/Outdoors', emoji: '🌳' }
+    { name: 'Nature/Outdoors', emoji: '🌳' },
+    { name: 'Dancing', emoji: '💃' },
+    { name: 'Swimming', emoji: '🏊' },
+    { name: 'Biking', emoji: '🚴' },
+    { name: 'Skateboarding', emoji: '🛹' },
+    { name: 'Photography', emoji: '📸' },
+    { name: 'Writing Stories', emoji: '✍️' },
+    { name: 'Crafts', emoji: '✂️' },
+    { name: 'Board Games', emoji: '🎲' },
+    { name: 'Martial Arts', emoji: '🥋' },
+    { name: 'Hiking', emoji: '🥾' },
+    { name: 'Gardening', emoji: '🌱' },
+    { name: 'Science Experiments', emoji: '🔬' }
   ]
 
   const subjects = [
@@ -98,7 +122,19 @@ export default function KidProfileForm({ onSubmit, kidName }: KidProfileFormProp
     { name: 'PE/Sports', emoji: '🏃' },
     { name: 'Music', emoji: '🎼' },
     { name: 'History', emoji: '📜' },
-    { name: 'Recess', emoji: '🛝' }
+    { name: 'Recess', emoji: '🛝' },
+    { name: 'Welding', emoji: '🔥' },
+    { name: 'Shop Class', emoji: '🔨' },
+    { name: 'Home Economics', emoji: '🏠' },
+    { name: 'Computer Science', emoji: '💻' },
+    { name: 'Drama/Theater', emoji: '🎭' },
+    { name: 'Foreign Language', emoji: '🌍' },
+    { name: 'Photography', emoji: '📷' },
+    { name: 'Woodworking', emoji: '🪵' },
+    { name: 'Auto Shop', emoji: '🚗' },
+    { name: 'Culinary Arts', emoji: '👨‍🍳' },
+    { name: 'Journalism', emoji: '📰' },
+    { name: 'Band/Orchestra', emoji: '🎺' }
   ]
 
   const chores = [
@@ -111,10 +147,20 @@ export default function KidProfileForm({ onSubmit, kidName }: KidProfileFormProp
     { name: 'Cleaning bathrooms', emoji: '🛁' },
     { name: 'Helping with cooking', emoji: '👨‍🍳' },
     { name: 'Vacuuming', emoji: '🧹' },
-    { name: 'Yard work', emoji: '🌱' }
+    { name: 'Yard work', emoji: '🌱' },
+    { name: 'Wiping counters', emoji: '🧽' },
+    { name: 'Loading dishwasher', emoji: '🍽️' },
+    { name: 'Making beds', emoji: '🛏️' },
+    { name: 'Dusting', emoji: '🪶' },
+    { name: 'Sweeping floors', emoji: '🧹' },
+    { name: 'Car washing', emoji: '🚗' }
   ]
 
-  const avatars = ['😊', '😎', '🤠', '🦸', '🧙', '🦄', '🐱', '🐶', '🦁', '🐸', '🦋', '⭐']
+  const avatars = [
+    '😊', '😎', '🤠', '🦸', '🧙', '🦄', '🐱', '🐶', '🦁', '🐸', '🦋', '⭐',
+    '🌟', '🚀', '🎭', '🎨', '🎪', '🦖', '🐧', '🦊', '🐻', '🐼', '🦝', '🐨',
+    '🌺', '🍎', '🎸', '⚽', '🎮', '📚', '🎯', '🌈', '🔥', '💎', '🎺', '🏆'
+  ]
 
   const handleArrayToggle = (field: string, value: string) => {
     const currentArray = formData[field as keyof typeof formData] as string[]
