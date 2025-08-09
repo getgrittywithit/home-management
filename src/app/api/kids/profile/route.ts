@@ -5,98 +5,25 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
     
-    const {
-      name,
-      birthdate,
-      grade,
-      favoriteColors,
-      favoriteFoods,
-      favoriteAnimals,
-      favoriteActivities,
-      favoriteSubjects,
-      preferredChores,
-      avatarEmoji,
-      dreamJob,
-      learningStyle,
-      themePreference
-    } = data
-
-    // First, find the child by name
-    const existingChild = await db.query(`
-      SELECT id FROM profiles 
-      WHERE LOWER(first_name) = LOWER($1) AND role = 'child'
-      LIMIT 1
-    `, [name])
-
-    let childId
-    if (existingChild.length > 0) {
-      childId = existingChild[0].id
-      
-      // Update existing profile with only known columns
-      await db.query(`
-        UPDATE profiles SET
-          birthdate = $2,
-          emoji = $3,
-          updated_at = NOW()
-        WHERE id = $1
-      `, [
-        childId,
-        birthdate || null,
-        avatarEmoji
-      ])
-      
-      // Store additional profile data in a separate JSON field
-      await db.query(`
-        UPDATE profiles SET
-          profile_data = $2
-        WHERE id = $1
-      `, [
-        childId,
-        JSON.stringify({
-          grade,
-          favoriteColors,
-          favoriteFoods,
-          favoriteAnimals: favoriteAnimals || [],
-          favoriteActivities,
-          favoriteSubjects,
-          preferredChores,
-          dreamJob,
-          learningStyle,
-          themePreference: themePreference || 'fun'
-        })
-      ])
-    } else {
-      // Create new profile with only known columns
-      const newChild = await db.query(`
-        INSERT INTO profiles (first_name, role, email, birthdate, emoji, profile_data)
-        VALUES ($1, 'child', $2, $3, $4, $5)
-        RETURNING id
-      `, [
-        name,
-        `${name.toLowerCase().replace(/\s+/g, '')}@family.local`,
-        birthdate || null,
-        avatarEmoji,
-        JSON.stringify({
-          grade,
-          favoriteColors,
-          favoriteFoods,
-          favoriteAnimals: favoriteAnimals || [],
-          favoriteActivities,
-          favoriteSubjects,
-          preferredChores,
-          dreamJob,
-          learningStyle,
-          themePreference: themePreference || 'fun'
-        })
-      ])
-      
-      childId = newChild[0].id
+    // Store kid profile data for parent review instead of complex database operations
+    const profileData = {
+      timestamp: new Date().toISOString(),
+      kidProfile: data
     }
+
+    // Save to a simple table for parent review
+    await db.query(`
+      INSERT INTO family_config (config_key, config_value, updated_by)
+      VALUES ($1, $2, (SELECT id FROM profiles WHERE role = 'parent' LIMIT 1))
+    `, [
+      `kid_profile_${data.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
+      JSON.stringify(profileData)
+    ])
 
     return NextResponse.json({ 
       success: true, 
-      message: 'Profile saved successfully!',
-      childId 
+      message: 'Profile saved for parent review!',
+      saved: true
     })
 
   } catch (error) {
