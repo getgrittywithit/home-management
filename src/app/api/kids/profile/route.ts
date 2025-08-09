@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error saving kid profile:', error)
-    console.error('Request data:', { name, birthdate, grade, avatarEmoji })
+    console.error('Request data:', { name: name, birthdate: birthdate, grade: grade, avatarEmoji: avatarEmoji })
     return NextResponse.json(
       { error: 'Failed to save profile', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
