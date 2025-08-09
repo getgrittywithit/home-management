@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { 
   Users, Home, Calendar, Droplets, DollarSign, 
-  ChevronRight, Clock, Shield, Activity, BookOpen,
-  User, Settings
+  ChevronRight, Clock, Shield, Activity, Settings
 } from 'lucide-react'
 import Link from 'next/link'
 
