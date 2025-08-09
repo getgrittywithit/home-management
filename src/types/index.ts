@@ -309,3 +309,105 @@ export interface SaleEntry {
   fees?: number
   notes?: string
 }
+
+// Kid Portal Types
+export type ChecklistCategory = 'hygiene' | 'chores' | 'backpack' | 'events'
+
+export interface DailyChecklistItem {
+  id: string
+  child_id: string
+  date: string
+  category: ChecklistCategory
+  title: string
+  description?: string
+  completed: boolean
+  completed_at?: string
+  priority: number
+  estimated_minutes?: number
+  created_at: string
+}
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export type MealRequestStatus = 'pending' | 'approved' | 'denied' | 'prepared'
+
+export interface MealRequest {
+  id: string
+  child_id: string
+  meal_type: MealType
+  request_date: string
+  meal_description: string
+  special_notes?: string
+  status: MealRequestStatus
+  approved_by?: string
+  approved_at?: string
+  created_at: string
+}
+
+export type NotePriority = 'urgent' | 'normal' | 'low'
+
+export interface KidNote {
+  id: string
+  child_id: string
+  recipient_id?: string
+  subject: string
+  message: string
+  priority: NotePriority
+  read: boolean
+  read_at?: string
+  replied: boolean
+  parent_reply?: string
+  replied_at?: string
+  created_at: string
+}
+
+export type KidEventType = 'personal' | 'social' | 'academic' | 'activity'
+export type EventRequestStatus = 'pending' | 'approved' | 'denied' | 'needs_info'
+
+export interface KidCalendarRequest {
+  id: string
+  child_id: string
+  title: string
+  description?: string
+  start_time: string
+  end_time?: string
+  location?: string
+  event_type: KidEventType
+  requires_ride: boolean
+  contact_info?: string
+  gear_needed?: string
+  status: EventRequestStatus
+  approved_by?: string
+  approval_notes?: string
+  approved_at?: string
+  family_event_id?: string
+  created_at: string
+}
+
+export type AchievementType = 'chore_streak' | 'perfect_day' | 'helpful' | 'responsible'
+
+export interface KidAchievement {
+  id: string
+  child_id: string
+  achievement_type: AchievementType
+  title: string
+  description?: string
+  points_earned: number
+  badge_icon?: string
+  earned_date: string
+  created_at: string
+}
+
+export interface KidPortalData {
+  profile: Profile
+  todaysChecklist: DailyChecklistItem[]
+  todaysEvents: FamilyEvent[]
+  weekEvents: FamilyEvent[]
+  zones: Zone[]
+  tokens: TokensAvailable
+  achievements?: KidAchievement[]
+  pendingRequests?: {
+    meals: MealRequest[]
+    events: KidCalendarRequest[]
+    notes: KidNote[]
+  }
+}
