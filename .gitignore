@@ -39,4 +39,8 @@ next-env.d.ts
 # scripts for local setup
 /src/scripts/
 check-profile-columns.js
-*.js
+
+# Allow config files
+!tailwind.config.js
+!postcss.config.js
+!next.config.js
