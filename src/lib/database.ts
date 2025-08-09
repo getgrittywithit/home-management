@@ -8,32 +8,46 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY'
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Direct PostgreSQL connection for server-side operations
-export const pgPool = new Pool({
+// Use connection pooling with limited connections
+const poolConfig = {
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres.vhqgzgqklwrjmglaezmh:71jd4xNjFaBufBAA@aws-0-us-east-2.pooler.supabase.com:5432/postgres',
   ssl: {
     rejectUnauthorized: false
-  }
-})
+  },
+  max: 3, // Maximum number of clients in the pool
+  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+  connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection cannot be established
+}
 
-// Helper function to execute queries
+export const pgPool = new Pool(poolConfig)
+
+// Helper function to execute queries with proper connection handling
 export async function query(text: string, params?: any[]) {
-  const client = await pgPool.connect()
+  let client
   try {
+    client = await pgPool.connect()
     const result = await client.query(text, params)
     return result.rows
   } catch (error) {
     console.error('Database query error:', error)
     throw error
   } finally {
-    client.release()
+    if (client) {
+      client.release()
+    }
   }
+}
+
+// Single query helper that manages its own connection
+async function singleQuery(text: string, params?: any[]): Promise<any[]> {
+  return query(text, params)
 }
 
 // Database helper functions
 export const db = {
   // Family Events
   async getUpcomingEvents(limit = 10) {
-    return query(`
+    return singleQuery(`
       SELECT 
         fe.*,
         child.first_name as child_name,
@@ -50,7 +64,7 @@ export const db = {
   },
 
   async getTodaysEvents() {
-    return query(`
+    return singleQuery(`
       SELECT 
         fe.*,
         child.first_name as child_name,
@@ -65,12 +79,12 @@ export const db = {
 
   // Water Management
   async getWaterStatus() {
-    const result = await query('SELECT * FROM water_status LIMIT 1')
+    const result = await singleQuery('SELECT * FROM water_status LIMIT 1')
     return result[0] || { jugs_full: 0, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 0 }
   },
 
   async updateWaterJug(jugNumber: number, status: 'full' | 'empty' | 'in_use') {
-    return query(`
+    return singleQuery(`
       UPDATE water_jugs 
       SET status = $1, updated_at = NOW(),
           last_filled_date = CASE WHEN $1 = 'full' THEN CURRENT_DATE ELSE last_filled_date END
@@ -81,11 +95,11 @@ export const db = {
 
   // Ride Tokens
   async getTokensToday() {
-    return query('SELECT * FROM tokens_available_today ORDER BY first_name')
+    return singleQuery('SELECT * FROM tokens_available_today ORDER BY first_name')
   },
 
   async useTokens(childId: string, tokensUsed: number) {
-    return query(`
+    return singleQuery(`
       INSERT INTO ride_tokens (child_id, date, tokens_used, week_start)
       VALUES ($1, CURRENT_DATE, $2, date_trunc('week', CURRENT_DATE))
       ON CONFLICT (child_id, date) 
@@ -96,7 +110,7 @@ export const db = {
 
   // On-Call Schedule
   async getTodaysOnCall() {
-    const result = await query(`
+    const result = await singleQuery(`
       SELECT 
         ocs.date,
         p.first_name as on_call_parent
@@ -109,7 +123,7 @@ export const db = {
   },
 
   async setOnCall(date: string, parentId: string) {
-    return query(`
+    return singleQuery(`
       INSERT INTO on_call_schedule (date, on_call_parent_id, manually_set)
       VALUES ($1, $2, true)
       ON CONFLICT (date)
@@ -120,7 +134,7 @@ export const db = {
 
   // Money Tracking
   async getTodaysRevenue() {
-    const result = await query(`
+    const result = await singleQuery(`
       SELECT COALESCE(SUM(net_amount), 0) as total
       FROM money_sales 
       WHERE date = CURRENT_DATE
@@ -130,7 +144,7 @@ export const db = {
 
   async logSale(channel: string, product: string, grossAmount: number, fees = 0) {
     const netAmount = grossAmount - fees
-    return query(`
+    return singleQuery(`
       INSERT INTO money_sales (date, channel, product, gross_amount, fees, net_amount)
       VALUES (CURRENT_DATE, $1, $2, $3, $4, $5)
       RETURNING *
@@ -139,7 +153,7 @@ export const db = {
 
   // Family Profiles
   async getAllProfiles() {
-    return query(`
+    return singleQuery(`
       SELECT * FROM profiles 
       ORDER BY 
         CASE role 
@@ -152,7 +166,7 @@ export const db = {
   },
 
   async getChildren() {
-    return query(`
+    return singleQuery(`
       SELECT * FROM profiles 
       WHERE role = 'child' 
       ORDER BY first_name
@@ -160,7 +174,7 @@ export const db = {
   },
 
   async getParents() {
-    return query(`
+    return singleQuery(`
       SELECT * FROM profiles 
       WHERE role = 'parent' 
       ORDER BY first_name
@@ -169,7 +183,7 @@ export const db = {
 
   // Zone Management
   async getZoneStatus() {
-    return query(`
+    return singleQuery(`
       SELECT 
         z.*,
         primary_assignee.first_name as primary_name,
@@ -191,14 +205,14 @@ export const db = {
 
   // Configuration
   async getConfig(key: string) {
-    const result = await query(`
+    const result = await singleQuery(`
       SELECT value FROM family_config WHERE key = $1
     `, [key])
     return result[0]?.value
   },
 
   async setConfig(key: string, value: string, updatedBy?: string) {
-    return query(`
+    return singleQuery(`
       INSERT INTO family_config (key, value, updated_by)
       VALUES ($1, $2, $3)
       ON CONFLICT (key)
@@ -207,6 +221,11 @@ export const db = {
     `, [key, value, updatedBy])
   },
 
-  // Direct query method for custom queries
-  query
+  // Direct query method for custom queries (use sparingly)
+  query: singleQuery
+}
+
+// Cleanup function for graceful shutdown
+export async function closeDatabase() {
+  await pgPool.end()
 }

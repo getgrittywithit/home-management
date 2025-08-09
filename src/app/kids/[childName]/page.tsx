@@ -23,14 +23,13 @@ async function getKidData(childName: string) {
 
     const childProfile = child[0]
 
-    // Get today's checklist
+    // Get data sequentially to avoid connection pool issues
     const checklist = await db.query(`
       SELECT * FROM daily_checklist_items
       WHERE child_id = $1 AND date = CURRENT_DATE
       ORDER BY priority ASC, category ASC, title ASC
     `, [childProfile.id])
 
-    // Get today's events
     const events = await db.query(`
       SELECT 
         fe.*,
@@ -42,7 +41,6 @@ async function getKidData(childName: string) {
       ORDER BY fe.start_time ASC
     `, [childProfile.id])
 
-    // Get this week's calendar events  
     const weekEvents = await db.query(`
       SELECT 
         fe.*,
@@ -55,7 +53,6 @@ async function getKidData(childName: string) {
       ORDER BY fe.start_time ASC
     `, [childProfile.id])
 
-    // Get zone assignments
     const zones = await db.query(`
       SELECT 
         z.*,
@@ -66,7 +63,6 @@ async function getKidData(childName: string) {
       ORDER BY z.cadence ASC, z.name ASC
     `, [childProfile.id])
 
-    // Get ride tokens remaining
     const tokens = await db.query(`
       SELECT * FROM tokens_available_today
       WHERE child_id = $1

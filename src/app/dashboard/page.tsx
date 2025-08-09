@@ -2,23 +2,16 @@ import Dashboard from '@/components/Dashboard'
 import { db } from '@/lib/database'
 import { DashboardData } from '@/types'
 
+// Optimize data fetching with sequential queries to avoid connection pool exhaustion
 async function getDashboardData(): Promise<DashboardData> {
   try {
-    const [
-      onCallParent,
-      waterStatus,
-      todaysEvents,
-      tokensRemaining,
-      todaysRevenue,
-      zoneStatus
-    ] = await Promise.all([
-      db.getTodaysOnCall(),
-      db.getWaterStatus(),
-      db.getTodaysEvents(),
-      db.getTokensToday(),
-      db.getTodaysRevenue(),
-      db.getZoneStatus()
-    ])
+    // Fetch data sequentially to avoid connection pool issues
+    const onCallParent = await db.getTodaysOnCall()
+    const waterStatus = await db.getWaterStatus()
+    const todaysEvents = await db.getTodaysEvents()
+    const tokensRemaining = await db.getTokensToday()
+    const todaysRevenue = await db.getTodaysRevenue()
+    const zoneStatus = await db.getZoneStatus()
 
     // Calculate weekly and monthly revenue
     const weeklyRevenue = await db.query(`
