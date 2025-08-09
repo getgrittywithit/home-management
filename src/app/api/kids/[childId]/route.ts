@@ -3,10 +3,10 @@ import { db } from '@/lib/database'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { childId: string } }
+  context: { params: Promise<{ childId: string }> }
 ) {
   try {
-    const childId = params.childId
+    const { childId } = await context.params
 
     // Get child profile
     const child = await db.query(`
@@ -57,10 +57,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { childId: string } }
+  context: { params: Promise<{ childId: string }> }
 ) {
   try {
-    const childId = params.childId
+    const { childId } = await context.params
     const { action, data } = await request.json()
 
     switch (action) {
@@ -76,12 +76,12 @@ export async function POST(
         return NextResponse.json({ success: true })
 
       case 'request_meal':
-        const { mealType, description, specialNotes, requestDate } = data
+        const { mealType, description: mealDescription, specialNotes, requestDate } = data
         const mealRequest = await db.query(`
           INSERT INTO meal_requests (child_id, meal_type, request_date, meal_description, special_notes)
           VALUES ($1, $2, $3, $4, $5)
           RETURNING *
-        `, [childId, mealType, requestDate, description, specialNotes])
+        `, [childId, mealType, requestDate, mealDescription, specialNotes])
         
         return NextResponse.json({ mealRequest: mealRequest[0] })
 
@@ -98,7 +98,7 @@ export async function POST(
       case 'request_event':
         const { 
           title, 
-          description, 
+          description: eventDescription, 
           startTime, 
           endTime, 
           location, 
@@ -116,7 +116,7 @@ export async function POST(
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING *
         `, [
-          childId, title, description, startTime, endTime,
+          childId, title, eventDescription, startTime, endTime,
           location, eventType, requiresRide, contactInfo, gearNeeded
         ])
         

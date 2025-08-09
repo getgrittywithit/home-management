@@ -3,9 +3,9 @@ import { db } from '@/lib/database'
 import { notFound } from 'next/navigation'
 
 interface KidPageProps {
-  params: {
+  params: Promise<{
     childName: string
-  }
+  }>
 }
 
 async function getKidData(childName: string) {
@@ -88,7 +88,8 @@ async function getKidData(childName: string) {
 }
 
 export default async function KidPage({ params }: KidPageProps) {
-  const kidData = await getKidData(params.childName)
+  const { childName } = await params
+  const kidData = await getKidData(childName)
   
   if (!kidData) {
     notFound()
