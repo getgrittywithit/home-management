@@ -68,11 +68,12 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new profile with only known columns
       const newChild = await db.query(`
-        INSERT INTO profiles (first_name, role, birthdate, emoji, profile_data)
-        VALUES ($1, 'child', $2, $3, $4)
+        INSERT INTO profiles (first_name, role, email, birthdate, emoji, profile_data)
+        VALUES ($1, 'child', $2, $3, $4, $5)
         RETURNING id
       `, [
         name,
+        `${name.toLowerCase().replace(/\s+/g, '')}@family.local`,
         birthdate || null,
         avatarEmoji,
         JSON.stringify({
