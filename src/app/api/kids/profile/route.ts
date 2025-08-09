@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         WHERE id = $1
       `, [
         childId,
-        birthdate,
+        birthdate || null,
         avatarEmoji
       ])
       
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         RETURNING id
       `, [
         name,
-        birthdate,
+        birthdate || null,
         avatarEmoji,
         JSON.stringify({
           grade,
