@@ -29,14 +29,30 @@ export default function KidProfileForm({ onSubmit, kidName }: KidProfileFormProp
   const totalSteps = 7
 
   const colors = [
-    { name: 'Red', value: 'red', emoji: '❤️' },
-    { name: 'Blue', value: 'blue', emoji: '💙' },
-    { name: 'Green', value: 'green', emoji: '💚' },
-    { name: 'Purple', value: 'purple', emoji: '💜' },
-    { name: 'Pink', value: 'pink', emoji: '🩷' },
-    { name: 'Yellow', value: 'yellow', emoji: '💛' },
-    { name: 'Orange', value: 'orange', emoji: '🧡' },
-    { name: 'Rainbow', value: 'rainbow', emoji: '🌈' }
+    { name: 'Red', value: '#FF0000', bgColor: 'bg-red-500' },
+    { name: 'Rose', value: '#FF007F', bgColor: 'bg-rose-500' },
+    { name: 'Pink', value: '#FF69B4', bgColor: 'bg-pink-500' },
+    { name: 'Fuchsia', value: '#FF00FF', bgColor: 'bg-fuchsia-500' },
+    { name: 'Purple', value: '#8B00FF', bgColor: 'bg-purple-500' },
+    { name: 'Violet', value: '#4B0082', bgColor: 'bg-violet-500' },
+    { name: 'Indigo', value: '#4169E1', bgColor: 'bg-indigo-500' },
+    { name: 'Blue', value: '#0000FF', bgColor: 'bg-blue-500' },
+    { name: 'Sky Blue', value: '#00BFFF', bgColor: 'bg-sky-500' },
+    { name: 'Cyan', value: '#00FFFF', bgColor: 'bg-cyan-500' },
+    { name: 'Teal', value: '#008080', bgColor: 'bg-teal-500' },
+    { name: 'Green', value: '#00FF00', bgColor: 'bg-green-500' },
+    { name: 'Lime', value: '#32CD32', bgColor: 'bg-lime-500' },
+    { name: 'Yellow', value: '#FFFF00', bgColor: 'bg-yellow-500' },
+    { name: 'Amber', value: '#FFC000', bgColor: 'bg-amber-500' },
+    { name: 'Orange', value: '#FF8C00', bgColor: 'bg-orange-500' },
+    { name: 'Red Orange', value: '#FF4500', bgColor: 'bg-red-500' },
+    { name: 'Brown', value: '#8B4513', bgColor: 'bg-amber-800' },
+    { name: 'Gray', value: '#808080', bgColor: 'bg-gray-500' },
+    { name: 'Black', value: '#000000', bgColor: 'bg-gray-900' },
+    { name: 'White', value: '#FFFFFF', bgColor: 'bg-gray-100' },
+    { name: 'Gold', value: '#FFD700', bgColor: 'bg-yellow-400' },
+    { name: 'Silver', value: '#C0C0C0', bgColor: 'bg-gray-400' },
+    { name: 'Rainbow', value: 'rainbow', bgColor: 'bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500' }
   ]
 
   const foods = [
@@ -180,22 +196,37 @@ export default function KidProfileForm({ onSubmit, kidName }: KidProfileFormProp
             <h2 className="text-2xl font-bold text-gray-900">What are your favorite colors?</h2>
             <p className="text-gray-600">Pick as many as you want! These will make your portal look amazing!</p>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
               {colors.map((color) => (
                 <button
                   key={color.value}
                   onClick={() => handleArrayToggle('favoriteColors', color.value)}
-                  className={`p-4 rounded-xl border-2 transition-all ${
+                  className={`relative p-3 rounded-xl border-3 transition-all h-20 w-20 mx-auto ${
                     formData.favoriteColors.includes(color.value)
-                      ? 'border-blue-500 bg-blue-50 scale-105'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-white shadow-lg scale-110 ring-4 ring-blue-300'
+                      : 'border-gray-300 hover:border-gray-400 hover:scale-105'
                   }`}
+                  style={{
+                    background: color.value === 'rainbow' 
+                      ? 'linear-gradient(45deg, #ff0000, #ff8000, #ffff00, #80ff00, #00ff80, #0080ff, #8000ff)'
+                      : color.value
+                  }}
                 >
-                  <div className="text-3xl mb-2">{color.emoji}</div>
-                  <div className="font-medium">{color.name}</div>
+                  {color.value === '#FFFFFF' && (
+                    <div className="absolute inset-1 border border-gray-300 rounded-lg"></div>
+                  )}
+                  {formData.favoriteColors.includes(color.value) && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6 text-white drop-shadow-lg" />
+                    </div>
+                  )}
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">
+                    {color.name}
+                  </div>
                 </button>
               ))}
             </div>
+            <div className="mt-12"></div>
           </div>
         )
 
