@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     // Save to a simple table for parent review
     await db.query(`
-      INSERT INTO family_config (config_key, config_value, updated_by)
+      INSERT INTO family_config (key, value, updated_by)
       VALUES ($1, $2, (SELECT id FROM profiles WHERE role = 'parent' LIMIT 1))
     `, [
       `kid_profile_${data.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
