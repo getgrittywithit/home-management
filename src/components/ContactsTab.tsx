@@ -90,7 +90,7 @@ export default function ContactsTab() {
           lastContact: new Date('2025-01-11'),
           createdAt: new Date('2025-01-11')
         },
-        // Sample additional contacts for demonstration
+        // Additional school contacts
         {
           id: 'sample-principal',
           name: 'Dr. Jane Smith',
@@ -103,6 +103,21 @@ export default function ContactsTab() {
           tags: ['CHS', 'Principal', 'School'],
           importance: 'high',
           createdAt: new Date('2025-01-10')
+        },
+        {
+          id: 'bmsn-pto-contact',
+          name: 'BMSN PTO',
+          title: 'Parent Teacher Organization',
+          organization: 'Boerne Middle School North',
+          phone: '(830) 357-3100',
+          email: 'info@bmsnpto.org',
+          address: '240 W Johns Rd, Boerne, TX 78006-2026',
+          office: 'Main Office',
+          notes: 'PTO Meeting dates, Chick-fil-A Days program, Spirit Wear purchases available. 25-26 school year information received.',
+          tags: ['Middle School', 'PTO', 'School'],
+          importance: 'medium',
+          lastContact: new Date('2025-01-11'),
+          createdAt: new Date('2025-01-11')
         }
       ]
       setContacts(mockContacts)
