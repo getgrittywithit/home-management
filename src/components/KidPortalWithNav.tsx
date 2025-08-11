@@ -5,10 +5,12 @@ import {
   Calendar, CheckSquare, Clock, Star, MapPin, Users, 
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
-  Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail
+  Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
+  User
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import KidTabContent from './KidTabContent'
+import AboutMeTab from './AboutMeTab'
 
 interface KidPortalProps {
   kidData: {
@@ -21,7 +23,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'achievements' | 'goals' | 'requests'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'about' | 'achievements' | 'goals' | 'requests'
 
 interface NavTab {
   id: TabId
@@ -35,6 +37,7 @@ const navTabs: NavTab[] = [
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-purple-500' },
   { id: 'checklist', name: 'Tasks', icon: CheckSquare, color: 'bg-green-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
+  { id: 'about', name: 'About Me', icon: User, color: 'bg-teal-500' },
   { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
   { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
   { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' }
@@ -272,6 +275,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return renderDashboard()
       case 'school':
         return renderSchoolTab()
+      case 'about':
+        return <AboutMeTab childAge={profile.age || 10} childId={profile.id} />
       case 'calendar':
       case 'checklist':
       case 'achievements':
