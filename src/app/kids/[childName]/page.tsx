@@ -1,4 +1,4 @@
-import KidPortal from '@/components/KidPortal'
+import KidPortalWithNav from '@/components/KidPortalWithNav'
 import { db } from '@/lib/database'
 import { notFound } from 'next/navigation'
 
@@ -91,7 +91,7 @@ export default async function KidPage({ params }: KidPageProps) {
     notFound()
   }
 
-  return <KidPortal kidData={kidData} />
+  return <KidPortalWithNav kidData={kidData} />
 }
 
 // Generate static params for all kids
