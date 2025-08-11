@@ -16,7 +16,7 @@ export default function HomePage() {
     { name: 'Ellie', emoji: '🎭', grade: '8th', color: 'from-purple-400 to-pink-400' },
     { name: 'Kaylee', emoji: '📚', grade: '10th', color: 'from-green-400 to-teal-400' },
     { name: 'Zoey', emoji: '🎯', grade: '12th', color: 'from-orange-400 to-red-400' },
-    { name: 'Amos', emoji: '🎮', grade: '12th', color: 'from-indigo-400 to-purple-400' }
+    { name: 'Amos', emoji: '🎮', grade: '10th', color: 'from-indigo-400 to-purple-400' }
   ]
 
   const parentFeatures = [

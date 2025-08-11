@@ -31,20 +31,25 @@ interface ParentPortalWithNavProps {
   initialData?: DashboardData
 }
 
-// Mock data for development - Updated with Amos
+// Real family children data
 const mockChildren = [
-  { id: 'amos-moses-504640', name: 'Amos Moses', grade: '10th', school: 'Samuel V Champion High School' },
-  { id: 'child2', name: 'Jake', grade: '3rd', school: 'Greenwood Elementary' },
-  { id: 'child3', name: 'Sophia', grade: '1st', school: 'Greenwood Elementary' },
+  { id: 'hannah-child-1', name: 'Hannah', grade: '6th', school: 'Local Middle School' },
+  { id: 'wyatt-child-2', name: 'Wyatt', grade: '4th', school: 'Local Elementary School' },
+  { id: 'ellie-child-3', name: 'Ellie', grade: '8th', school: 'Local Middle School' },
+  { id: 'kaylee-child-4', name: 'Kaylee', grade: '10th', school: 'Local High School' },
+  { id: 'zoey-child-5', name: 'Zoey', grade: '12th', school: 'Local High School' },
+  { id: 'amos-moses-504640', name: 'Amos', grade: '10th', school: 'Samuel V Champion High School' },
 ]
 
 const mockFamilyMembers = [
   { name: 'Levi', age: 38, role: 'parent' as const },
   { name: 'Lola', age: 36, role: 'parent' as const },
-  { name: 'Emma', age: 10, role: 'child' as const },
-  { name: 'Jake', age: 8, role: 'child' as const },
-  { name: 'Sophia', age: 6, role: 'child' as const },
-  { name: 'Mason', age: 4, role: 'child' as const },
+  { name: 'Hannah', age: 12, role: 'child' as const },
+  { name: 'Wyatt', age: 10, role: 'child' as const },
+  { name: 'Ellie', age: 14, role: 'child' as const },
+  { name: 'Kaylee', age: 16, role: 'child' as const },
+  { name: 'Zoey', age: 18, role: 'child' as const },
+  { name: 'Amos', age: 16, role: 'child' as const },
 ]
 
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
@@ -121,7 +126,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
               <Zap className="w-4 h-4 text-green-600" />
             </div>
             <div>
-              <p className="text-sm font-medium">Emma completed all morning tasks</p>
+              <p className="text-sm font-medium">Hannah completed all morning tasks</p>
               <p className="text-xs text-gray-500">2 hours ago</p>
             </div>
           </div>
@@ -130,7 +135,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
               <Calendar className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm font-medium">Jake's soccer practice added to calendar</p>
+              <p className="text-sm font-medium">Wyatt's soccer practice added to calendar</p>
               <p className="text-xs text-gray-500">4 hours ago</p>
             </div>
           </div>
@@ -139,7 +144,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
               <Users className="w-4 h-4 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm font-medium">Sophia updated her About Me profile</p>
+              <p className="text-sm font-medium">Ellie updated her About Me profile</p>
               <p className="text-xs text-gray-500">1 day ago</p>
             </div>
           </div>

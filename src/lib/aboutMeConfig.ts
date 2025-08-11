@@ -124,63 +124,66 @@ export const ART_OPTIONS = [
 
 // Sample data for development
 export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = {
-  childId: 'sample-kid',
+  childId: 'amos-moses-504640',
   birthCertificate: {
-    fullName: 'Emma Rose Johnson',
-    birthDate: new Date('2015-06-15'),
-    birthTime: '14:32',
-    birthPlace: 'Denver, Colorado, USA',
-    birthWeight: '6 lbs 8 oz',
-    birthLength: '19 inches',
-    hospitalName: 'Denver General Hospital',
-    county: 'Denver County',
-    state: 'Colorado',
+    fullName: 'Amos Lee Moses',
+    birthDate: new Date('2009-03-15'),
+    birthTime: '10:25',
+    birthPlace: 'Boerne, Texas, USA',
+    birthWeight: '7 lbs 12 oz',
+    birthLength: '21 inches',
+    hospitalName: 'Methodist Hospital',
+    county: 'Kendall County',
+    state: 'Texas',
     country: 'United States',
     locked: true
   },
   personal: {
-    nickname: 'Em',
-    favoriteColor: 'Purple',
-    favoriteAnimal: 'Dolphin',
-    favoriteFood: 'Pizza',
-    favoriteBook: 'Harry Potter',
-    favoriteMovie: 'Moana',
-    favoriteSubject: 'Art',
-    bestFriend: 'Sophia',
-    dreamJob: 'Marine Biologist',
-    superpower: 'Talk to animals',
-    favoritePlace: 'The beach',
+    nickname: 'Amos',
+    favoriteColor: 'Blue',
+    favoriteAnimal: 'Wolf',
+    favoriteFood: 'Tacos',
+    favoriteBook: 'Ready Player One',
+    favoriteMovie: 'Avengers: Endgame',
+    favoriteSubject: 'Ag Mechanics & Metal Tech',
+    bestFriend: 'Connor',
+    dreamJob: 'Game Developer',
+    superpower: 'Time manipulation',
+    favoritePlace: 'Home gaming setup',
     locked: false
   },
   interests: {
-    sports: ['Swimming', 'Soccer'],
-    instruments: ['Piano'],
-    arts: ['Drawing', 'Photography'],
-    collections: ['Seashells', 'Stickers'],
-    languages: ['Spanish'],
-    clubs: ['Art Club', 'Science Club'],
-    customInterests: ['Astronomy', 'Baking cookies']
+    sports: ['Gaming', 'Basketball'],
+    instruments: [],
+    arts: ['Digital Art', 'Video Editing'],
+    collections: ['Gaming Collectibles', 'Tech Gadgets'],
+    languages: ['ASL'],
+    clubs: ['Gaming Club', 'Tech Club'],
+    customInterests: ['Astronomy', 'Computer Programming', 'Metal Working']
   },
   family: {
     siblings: [
-      { name: 'Jake', relationship: 'Brother', age: 12, locked: true },
-      { name: 'Lily', relationship: 'Sister', age: 6, locked: true }
+      { name: 'Hannah', relationship: 'Sister', age: 12, locked: true },
+      { name: 'Wyatt', relationship: 'Brother', age: 10, locked: true },
+      { name: 'Ellie', relationship: 'Sister', age: 14, locked: true },
+      { name: 'Kaylee', relationship: 'Sister', age: 16, locked: true },
+      { name: 'Zoey', relationship: 'Sister', age: 18, locked: true }
     ],
     pets: [
-      { name: 'Max', type: 'Dog', breed: 'Golden Retriever', age: 4, gotWhen: 'When I was 6', locked: false }
+      { name: 'Family Pets', type: 'Various', breed: 'Mixed', age: 0, gotWhen: 'Always had pets', locked: false }
     ],
-    familyTraditions: ['Pizza Friday', 'Summer camping trip', 'Holiday cookie baking'],
+    familyTraditions: ['Family gaming nights', 'Tech project time', 'Outdoor adventures'],
     locked: false
   },
   physical: {
-    eyeColor: 'Blue',
-    hairColor: 'Blonde',
-    height: '4 feet 2 inches',
-    shoeSize: '3',
+    eyeColor: 'Brown',
+    hairColor: 'Brown',
+    height: '5 feet 8 inches',
+    shoeSize: '10',
     locked: false
   },
-  freeText: 'I love spending time at the beach and learning about ocean animals. My goal is to swim with dolphins someday! I also really enjoy art class and making new friends.',
-  backgroundTheme: 'Ocean Blue',
+  freeText: 'I love gaming, technology, and learning about astronomy. I am really interested in ag mechanics and metal working at school. My goal is to become a game developer or work with technology. I enjoy spending time with my family and working on projects.',
+  backgroundTheme: 'Indigo Purple',
   lastUpdated: new Date()
 }
 
