@@ -25,6 +25,10 @@ export default function TodoTab() {
   const [selectedCategory, setSelectedCategory] = useState('general')
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [editPriority, setEditPriority] = useState<'high' | 'medium' | 'low'>('medium')
+  const [editCategory, setEditCategory] = useState('general')
 
   // Load todos from the TodoRead API
   useEffect(() => {
@@ -57,7 +61,7 @@ export default function TodoTab() {
         {
           id: 'contacts-tab-design',
           content: 'Design and implement Contacts tab for parent portal',
-          status: 'pending',
+          status: 'completed',
           priority: 'medium',
           createdAt: new Date(),
           category: 'development'
@@ -103,6 +107,31 @@ export default function TodoTab() {
 
   const deleteTodo = (id: string) => {
     setTodos(prev => prev.filter(todo => todo.id !== id))
+  }
+
+  const startEdit = (todo: Todo) => {
+    setEditingId(todo.id)
+    setEditContent(todo.content)
+    setEditPriority(todo.priority)
+    setEditCategory(todo.category || 'general')
+  }
+
+  const saveEdit = () => {
+    if (!editContent.trim() || !editingId) return
+
+    setTodos(prev => prev.map(todo => 
+      todo.id === editingId 
+        ? { ...todo, content: editContent, priority: editPriority, category: editCategory }
+        : todo
+    ))
+    cancelEdit()
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditContent('')
+    setEditPriority('medium')
+    setEditCategory('general')
   }
 
   const getPriorityColor = (priority: string) => {
@@ -310,39 +339,94 @@ export default function TodoTab() {
                   </button>
                   
                   <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className={`text-sm ${todo.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                          {todo.content}
-                        </p>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPriorityColor(todo.priority)}`}>
-                            {todo.priority} priority
-                          </span>
-                          {todo.category && (
-                            <span className="text-xs flex items-center gap-1 text-gray-600">
-                              {getCategoryIcon(todo.category)}
-                              {todo.category}
-                            </span>
-                          )}
-                          {todo.assignedTo && (
-                            <span className="text-xs flex items-center gap-1 text-gray-600">
-                              <User className="w-3 h-3" />
-                              {todo.assignedTo}
-                            </span>
-                          )}
+                    {editingId === todo.id ? (
+                      // Edit mode
+                      <div className="space-y-3">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="w-full p-2 border rounded resize-none text-sm"
+                          rows={3}
+                        />
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={editPriority}
+                            onChange={(e) => setEditPriority(e.target.value as any)}
+                            className="px-2 py-1 border rounded text-xs"
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                          <select
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            className="px-2 py-1 border rounded text-xs"
+                          >
+                            <option value="general">General</option>
+                            <option value="school">School</option>
+                            <option value="family">Family</option>
+                            <option value="contacts">Contacts</option>
+                            <option value="development">Development</option>
+                          </select>
+                          <div className="flex gap-1 ml-auto">
+                            <button
+                              onClick={saveEdit}
+                              className="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="px-3 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => deleteTodo(todo.id)}
-                          className="text-gray-400 hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                    ) : (
+                      // View mode
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className={`text-sm ${todo.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                            {todo.content}
+                          </p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPriorityColor(todo.priority)}`}>
+                              {todo.priority} priority
+                            </span>
+                            {todo.category && (
+                              <span className="text-xs flex items-center gap-1 text-gray-600">
+                                {getCategoryIcon(todo.category)}
+                                {todo.category}
+                              </span>
+                            )}
+                            {todo.assignedTo && (
+                              <span className="text-xs flex items-center gap-1 text-gray-600">
+                                <User className="w-3 h-3" />
+                                {todo.assignedTo}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => startEdit(todo)}
+                            className="text-gray-400 hover:text-blue-500"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteTodo(todo.id)}
+                            className="text-gray-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>

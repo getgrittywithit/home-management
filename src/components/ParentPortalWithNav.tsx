@@ -6,9 +6,10 @@ import ChoresTab from './ChoresTab'
 import EnhancedParentSchoolTab from './EnhancedParentSchoolTab'
 import FilterableCalendar from './FilterableCalendar'
 import TodoTab from './TodoTab'
+import ContactsTab from './ContactsTab'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare
+  User, Bell, Zap, CheckSquare, Phone
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -25,6 +26,7 @@ const tabs: Tab[] = [
   { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
+  { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
   { id: 'todos', name: 'Todos', icon: CheckSquare, color: 'bg-indigo-500' },
   { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gray-500' },
 ]
@@ -185,6 +187,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <EnhancedParentSchoolTab children={mockChildren} />
       case 'calendar':
         return renderCalendarTab()
+      case 'contacts':
+        return <ContactsTab />
       case 'todos':
         return <TodoTab />
       case 'settings':
