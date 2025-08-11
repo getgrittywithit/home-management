@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import Dashboard from './Dashboard'
 import ChoresTab from './ChoresTab'
-import ParentSchoolTab from './ParentSchoolTab'
+import EnhancedParentSchoolTab from './EnhancedParentSchoolTab'
+import FilterableCalendar from './FilterableCalendar'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, Bell, Zap
@@ -30,9 +31,9 @@ interface ParentPortalWithNavProps {
   initialData?: DashboardData
 }
 
-// Mock data for development
+// Mock data for development - Updated with Amos
 const mockChildren = [
-  { id: 'child1', name: 'Emma', grade: '5th', school: 'Greenwood Elementary' },
+  { id: 'amos-moses-504640', name: 'Amos Moses', grade: '10th', school: 'Samuel V Champion High School' },
   { id: 'child2', name: 'Jake', grade: '3rd', school: 'Greenwood Elementary' },
   { id: 'child3', name: 'Sophia', grade: '1st', school: 'Greenwood Elementary' },
 ]
@@ -148,17 +149,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   )
 
   const renderCalendarTab = () => (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-pink-500 to-purple-500 text-white p-6 rounded-lg">
-        <h1 className="text-2xl font-bold">Family Calendar</h1>
-        <p className="text-pink-100">Manage events, appointments, and activities</p>
-      </div>
-
-      <div className="bg-white p-6 rounded-lg border">
-        <h2 className="text-xl font-bold mb-4">Calendar Integration</h2>
-        <p className="text-gray-600">Full calendar integration coming soon...</p>
-      </div>
-    </div>
+    <FilterableCalendar selectedChild="amos-moses-504640" />
   )
 
   const renderSettingsTab = () => (
@@ -184,7 +175,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'family':
         return renderFamilyTab()
       case 'school':
-        return <ParentSchoolTab children={mockChildren} />
+        return <EnhancedParentSchoolTab children={mockChildren} />
       case 'calendar':
         return renderCalendarTab()
       case 'settings':

@@ -41,13 +41,16 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
     // Update local state
     if (field.includes('.')) {
       const [section, subField] = field.split('.')
-      setAboutData(prev => ({
-        ...prev,
-        [section]: {
-          ...prev[section as keyof AboutMeProfile],
-          [subField]: editingValue
+      setAboutData(prev => {
+        const currentSection = prev[section as keyof AboutMeProfile]
+        return {
+          ...prev,
+          [section]: {
+            ...(typeof currentSection === 'object' && currentSection !== null ? currentSection : {}),
+            [subField]: editingValue
+          }
         }
-      }))
+      })
     } else {
       setAboutData(prev => ({
         ...prev,
