@@ -1,4 +1,4 @@
-import TabbedDashboard from '@/components/TabbedDashboard'
+import ParentPortalWithNav from '@/components/ParentPortalWithNav'
 import { db } from '@/lib/database'
 import { DashboardData } from '@/types'
 
@@ -72,5 +72,5 @@ async function getDashboardData(): Promise<DashboardData> {
 export default async function DashboardPage() {
   const initialData = await getDashboardData()
   
-  return <TabbedDashboard initialData={initialData} />
+  return <ParentPortalWithNav initialData={initialData} />
 }
