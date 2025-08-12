@@ -19,7 +19,7 @@ export function UnicornAnimation({ trigger, onComplete }: UnicornAnimationProps)
   }>>([])
 
   useEffect(() => {
-    if (!trigger) return
+    if (!trigger || typeof window === 'undefined') return
 
     setIsAnimating(true)
     

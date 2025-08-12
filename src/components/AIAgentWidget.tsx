@@ -128,15 +128,19 @@ Just paste an email, upload a PDF, or ask me anything!`,
     })
     
     // Store in localStorage for persistence
-    localStorage.setItem('claude-api-key', apiKeyInput)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('claude-api-key', apiKeyInput.trim())
+    }
   }
 
   // Load API key from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('claude-api-key')
-    if (stored) {
-      aiAgent.setApiKey(stored)
-      setApiKeySet(true)
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('claude-api-key')
+      if (stored) {
+        aiAgent.setApiKey(stored)
+        setApiKeySet(true)
+      }
     }
   }, [])
 
