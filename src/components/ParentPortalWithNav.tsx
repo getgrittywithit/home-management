@@ -7,6 +7,7 @@ import EnhancedParentSchoolTab from './EnhancedParentSchoolTab'
 import FilterableCalendar from './FilterableCalendar'
 import TodoTab from './TodoTab'
 import ContactsTab from './ContactsTab'
+import AIAgentWidget from './AIAgentWidget'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, Bell, Zap, CheckSquare, Phone
@@ -256,6 +257,9 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           </div>
         </div>
       </div>
+
+      {/* AI Agent Widget */}
+      <AIAgentWidget />
     </div>
   )
 }

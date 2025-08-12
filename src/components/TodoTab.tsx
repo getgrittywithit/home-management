@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   CheckSquare, Plus, Edit3, Trash2, Clock, AlertCircle, 
   Star, Circle, CheckCircle2, Filter, Calendar, User
 } from 'lucide-react'
+import { UnicornAnimation, GlitterBurst, useTodoAnimations } from './TodoAnimations'
 
 interface Todo {
   id: string
@@ -29,6 +30,14 @@ export default function TodoTab() {
   const [editContent, setEditContent] = useState('')
   const [editPriority, setEditPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [editCategory, setEditCategory] = useState('general')
+  
+  // Animation hooks
+  const { 
+    animationQueue, 
+    triggerUnicornAnimation, 
+    triggerGlitterBurst, 
+    completeAnimation 
+  } = useTodoAnimations()
 
   // Load todos from the TodoRead API
   useEffect(() => {
@@ -251,10 +260,25 @@ export default function TodoTab() {
     setNewTodo('')
   }
 
-  const updateTodoStatus = (id: string, status: Todo['status']) => {
-    setTodos(prev => prev.map(todo => 
+  const updateTodoStatus = (id: string, status: Todo['status'], event?: React.MouseEvent) => {
+    const updatedTodos = todos.map(todo => 
       todo.id === id ? { ...todo, status } : todo
-    ))
+    )
+    
+    setTodos(updatedTodos)
+
+    // Trigger animations when completing a todo
+    if (status === 'completed') {
+      // Trigger both glitter burst at click location and flying unicorn
+      if (event) {
+        triggerGlitterBurst(event.clientX, event.clientY)
+      }
+      
+      // Small delay before unicorn so they don't overlap too much
+      setTimeout(() => {
+        triggerUnicornAnimation()
+      }, 500)
+    }
   }
 
   const deleteTodo = (id: string) => {
@@ -480,10 +504,11 @@ export default function TodoTab() {
               <div key={todo.id} className="p-4 hover:bg-gray-50">
                 <div className="flex items-start gap-4">
                   <button
-                    onClick={() => updateTodoStatus(
+                    onClick={(e) => updateTodoStatus(
                       todo.id, 
                       todo.status === 'completed' ? 'pending' : 
-                      todo.status === 'pending' ? 'in_progress' : 'completed'
+                      todo.status === 'pending' ? 'in_progress' : 'completed',
+                      e
                     )}
                     className="mt-1"
                   >
@@ -586,6 +611,25 @@ export default function TodoTab() {
           )}
         </div>
       </div>
+
+      {/* Animation Components */}
+      {animationQueue.map(animation => (
+        animation.type === 'unicorn' ? (
+          <UnicornAnimation
+            key={animation.id}
+            trigger={true}
+            onComplete={() => completeAnimation(animation.id)}
+          />
+        ) : (
+          <GlitterBurst
+            key={animation.id}
+            x={animation.x || 0}
+            y={animation.y || 0}
+            trigger={true}
+            onComplete={() => completeAnimation(animation.id)}
+          />
+        )
+      ))}
     </div>
   )
 }
