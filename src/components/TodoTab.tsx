@@ -39,7 +39,7 @@ export default function TodoTab() {
     try {
       setIsLoading(true)
       // This would call the TodoRead API in production
-      // For now, simulate with example data
+      // For now, simulate with current data from email processing
       const mockTodos: Todo[] = [
         {
           id: 'vaccine-waiver-amos',
@@ -53,7 +53,7 @@ export default function TodoTab() {
         {
           id: 'add-nurse-contact',
           content: 'Add Laura T. Booth (CHS Nurse) to contacts system',
-          status: 'pending',
+          status: 'completed',
           priority: 'medium',
           createdAt: new Date(),
           category: 'contacts'
@@ -69,10 +69,162 @@ export default function TodoTab() {
         {
           id: 'multi-school-contacts',
           content: 'Create multi-school contact management system',
-          status: 'pending',
+          status: 'completed',
           priority: 'medium',
           createdAt: new Date(),
           category: 'development'
+        },
+        {
+          id: 'todo-edit-functionality',
+          content: 'Add edit functionality to TodoTab with inline editing',
+          status: 'completed',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'development'
+        },
+        {
+          id: 'bmsn-pto-meeting-dates',
+          content: 'Check BMSN PTO Meeting Dates for 25-26 school year',
+          status: 'pending',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'bmsn-chick-fil-a-days',
+          content: 'Review Chick-fil-A Days program for BMSN students',
+          status: 'pending',
+          priority: 'low',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'bmsn-spirit-wear',
+          content: 'Consider BMSN PTO Spirit Wear purchases for kids',
+          status: 'pending',
+          priority: 'low',
+          createdAt: new Date(),
+          category: 'family'
+        },
+        {
+          id: 'add-bmsn-pto-contact',
+          content: 'Add BMSN PTO contact to contacts system',
+          status: 'completed',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'contacts'
+        },
+        {
+          id: 'technology-aup-consent',
+          content: 'URGENT: Review and consent to Boerne ISD Technology AUP for student',
+          status: 'pending',
+          priority: 'high',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'add-bmsn-principal',
+          content: 'Add Mr. Carr (BMSN Principal) to contacts system',
+          status: 'completed',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'contacts'
+        },
+        {
+          id: 'review-hb1481-policy',
+          content: 'Review HB 1481 cell phone policy: Off and Away for the Day',
+          status: 'pending',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'add-bisd-contact',
+          content: 'Add Boerne ISD contact to contacts system',
+          status: 'completed',
+          priority: 'low',
+          createdAt: new Date(),
+          category: 'contacts'
+        },
+        {
+          id: 'payschools-account-setup',
+          content: 'Set up PaySchools account for meal payments - need student IDs',
+          status: 'pending',
+          priority: 'high',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'free-reduced-meals-app',
+          content: 'Apply for Free/Reduced meals if applicable',
+          status: 'pending',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'review-meal-pricing',
+          content: 'Review meal pricing: Breakfast $2.30, Lunch Elementary $3.40, MS/HS $3.65',
+          status: 'pending',
+          priority: 'low',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'monitor-meal-accounts',
+          content: 'Monitor student meal account balances - $50 charge limit',
+          status: 'pending',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'add-nutrition-contacts',
+          content: 'Add Child Nutrition contacts to system',
+          status: 'completed',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'contacts'
+        },
+        {
+          id: 'zoey-summer-reading-book',
+          content: 'URGENT: Zoey needs to bring summer reading book to Honors English 1 first day',
+          status: 'pending',
+          priority: 'high',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'add-erika-hill-contact',
+          content: 'Add Erika Hill (Zoey\'s English teacher) to contacts',
+          status: 'completed',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'contacts'
+        },
+        {
+          id: 'register-parentsquare',
+          content: 'Register for ParentSquare communication platform',
+          status: 'pending',
+          priority: 'high',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'download-parentsquare-app',
+          content: 'Download ParentSquare app (optional but recommended)',
+          status: 'pending',
+          priority: 'low',
+          createdAt: new Date(),
+          category: 'school'
+        },
+        {
+          id: 'update-skyward-contacts',
+          content: 'Update contact info in Skyward Family Access if needed',
+          status: 'pending',
+          priority: 'medium',
+          createdAt: new Date(),
+          category: 'school'
         }
       ]
       setTodos(mockTodos)
