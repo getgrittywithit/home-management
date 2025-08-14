@@ -523,11 +523,7 @@ export default function TodoTab() {
               <div key={todo.id} className="p-4 hover:bg-gray-50">
                 <div className="flex items-start gap-4">
                   <button
-                    onClick={(e) => updateTodoStatus(
-                      todo.id, 
-                      todo.status === 'pending' ? 'in_progress' : 'completed',
-                      e
-                    )}
+                    onClick={(e) => updateTodoStatus(todo.id, 'completed', e)}
                     className="mt-1"
                   >
                     {getStatusIcon(todo.status)}
