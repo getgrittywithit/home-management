@@ -68,9 +68,14 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Save chat history and return response
-      if (sessionId) {
-        await db.saveChatMessage('user', message, sessionId)
-        await db.saveChatMessage('assistant', responseContent, sessionId)
+      try {
+        if (sessionId) {
+          await db.saveChatMessage('user', message, sessionId)
+          await db.saveChatMessage('assistant', responseContent, sessionId)
+        }
+      } catch (chatError) {
+        console.error('Error saving chat history:', chatError)
+        // Continue without saving history
       }
       return NextResponse.json({ response: responseContent })
     }
@@ -90,19 +95,22 @@ async function buildChatMessages(message: string, context: string | undefined, f
     content: createSystemPrompt(familyContext)
   })
   
-  // Add chat history from database
+  // Add chat history from database (skip if table doesn't exist)
   try {
-    const chatHistory = await db.getChatHistory(sessionId, 10)
-    if (chatHistory && chatHistory.length > 0) {
-      for (const historyItem of chatHistory.reverse()) {
-        messages.push({
-          role: historyItem.role,
-          content: historyItem.content
-        })
+    if (sessionId) {
+      const chatHistory = await db.getChatHistory(sessionId, 10)
+      if (chatHistory && chatHistory.length > 0) {
+        for (const historyItem of chatHistory.reverse()) {
+          messages.push({
+            role: historyItem.role,
+            content: historyItem.content
+          })
+        }
       }
     }
   } catch (error) {
     console.error('Error loading chat history:', error)
+    // Continue without history
   }
   
   // Add current message
@@ -217,6 +225,33 @@ function createChatPrompt(message: string, context: string | undefined, familyCo
 - Schools: ${familyContext.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
 ` : ''
 
+  // Check if the message is asking to create a todo
+  const isTodoRequest = message.toLowerCase().includes('todo') || 
+                       message.toLowerCase().includes('add') || 
+                       message.toLowerCase().includes('create') ||
+                       message.toLowerCase().includes('remind');
+
+  if (isTodoRequest) {
+    return `You are an AI assistant for the Moses family management system.${familyInfo}
+
+The user wants to create a todo item. Extract the following information from their message:
+- What needs to be done (content)
+- Who should do it (assignedTo) - default to "Parents" if not specified
+- Priority level (high/medium/low) - default to "medium" if not clear
+- Category (school/family/general) - determine based on content
+
+User message: ${message}
+
+Respond in this format:
+"I'll create that todo for you:
+✅ [Todo content]
+👤 Assigned to: [Person]
+🎯 Priority: [Priority]
+📁 Category: [Category]"
+
+Then provide any helpful context or suggestions.`;
+  }
+
   return `You are an AI assistant for the Moses family management system.${familyInfo}
 
 You help with:
@@ -238,13 +273,17 @@ async function saveTodosToDatabase(todos: any[]): Promise<any[]> {
     try {
       const saved = await db.addTodo(
         todo.content,
-        todo.priority,
-        todo.category,
-        todo.assignedTo
+        todo.priority || 'medium',
+        todo.category || 'general',
+        todo.assignedTo || 'Parents'
       )
-      savedTodos.push(saved[0])
+      if (saved && saved.length > 0) {
+        savedTodos.push(saved[0])
+      }
     } catch (error) {
       console.error('Error saving todo:', error)
+      // Return the original todo with an error flag
+      savedTodos.push({ ...todo, error: true })
     }
   }
   return savedTodos
