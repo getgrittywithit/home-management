@@ -158,8 +158,8 @@ class AIAgentService {
 
       const data = await response.json()
       
-      // Chat history is handled server-side
-      return data.response
+      // Return the full response object or just the response string
+      return data.response || data
 
     } catch (error) {
       console.error('Error getting chat response from Claude:', error)

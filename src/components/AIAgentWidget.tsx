@@ -283,10 +283,30 @@ Just paste an email, upload a PDF, or ask me anything!`,
 
     try {
       const response = await aiAgent.chatResponse(message)
-      addMessage({
-        type: 'agent',
-        content: response
-      })
+      
+      // Check if response is an object with todo info
+      if (typeof response === 'object' && response.response) {
+        addMessage({
+          type: 'agent',
+          content: response.response
+        })
+        
+        // If a todo was created, add a confirmation
+        if (response.todoCreated && response.todo) {
+          setTimeout(() => {
+            addMessage({
+              type: 'system',
+              content: `✅ Todo successfully added to your TodoTab!`
+            })
+          }, 500)
+        }
+      } else {
+        // Simple string response
+        addMessage({
+          type: 'agent',
+          content: response
+        })
+      }
     } catch (error) {
       console.error('Error getting chat response:', error)
       addMessage({

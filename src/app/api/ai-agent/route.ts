@@ -67,7 +67,32 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid JSON response from Claude' }, { status: 500 })
       }
     } else {
-      // Save chat history and return response
+      // Check if response mentions creating a todo
+      const shouldCreateTodo = responseContent.toLowerCase().includes('create') && 
+                              responseContent.toLowerCase().includes('todo') &&
+                              (responseContent.includes('✅') || responseContent.includes('add'));
+      
+      // Extract todo details from AI response if needed
+      let createdTodo = null;
+      if (shouldCreateTodo && message.toLowerCase().includes('todo')) {
+        try {
+          // Simple extraction based on the message
+          const todoContent = extractTodoContent(message);
+          if (todoContent) {
+            const saved = await db.addTodo(
+              todoContent.content,
+              todoContent.priority,
+              todoContent.category,
+              todoContent.assignedTo
+            );
+            createdTodo = saved[0];
+          }
+        } catch (todoError) {
+          console.error('Error creating todo:', todoError);
+        }
+      }
+
+      // Save chat history
       try {
         if (sessionId) {
           await db.saveChatMessage('user', message, sessionId)
@@ -77,7 +102,12 @@ export async function POST(request: NextRequest) {
         console.error('Error saving chat history:', chatError)
         // Continue without saving history
       }
-      return NextResponse.json({ response: responseContent })
+      
+      return NextResponse.json({ 
+        response: responseContent,
+        todoCreated: createdTodo !== null,
+        todo: createdTodo
+      })
     }
 
   } catch (error) {
@@ -225,31 +255,44 @@ function createChatPrompt(message: string, context: string | undefined, familyCo
 - Schools: ${familyContext.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
 ` : ''
 
-  // Check if the message is asking to create a todo
-  const isTodoRequest = message.toLowerCase().includes('todo') || 
+  // Check if the message is asking about todos or creating todos
+  const isTodoRelated = message.toLowerCase().includes('todo') || 
+                       message.toLowerCase().includes('task') || 
                        message.toLowerCase().includes('add') || 
                        message.toLowerCase().includes('create') ||
-                       message.toLowerCase().includes('remind');
+                       message.toLowerCase().includes('remind') ||
+                       message.toLowerCase().includes('what do') ||
+                       message.toLowerCase().includes('list');
 
-  if (isTodoRequest) {
+  if (isTodoRelated) {
+    // Check if they want to see existing todos
+    if (message.toLowerCase().includes('see') || 
+        message.toLowerCase().includes('show') || 
+        message.toLowerCase().includes('list') ||
+        message.toLowerCase().includes('what')) {
+      return `You are an AI assistant for the Moses family management system.${familyInfo}
+
+The user is asking about existing todos. Let them know you're checking the todo list and will help them understand what needs to be done.
+
+Current todos in context: ${familyContext.recentTodos?.join(', ') || 'No recent todos found'}
+
+User message: ${message}
+
+Provide a helpful response about their todos and offer to help create new ones or manage existing ones.`;
+    }
+
+    // They want to create a todo
     return `You are an AI assistant for the Moses family management system.${familyInfo}
 
 The user wants to create a todo item. Extract the following information from their message:
 - What needs to be done (content)
-- Who should do it (assignedTo) - default to "Parents" if not specified
+- Who should do it (assignedTo) - can be: Levi, Lola, Parents, Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah
 - Priority level (high/medium/low) - default to "medium" if not clear
 - Category (school/family/general) - determine based on content
 
 User message: ${message}
 
-Respond in this format:
-"I'll create that todo for you:
-✅ [Todo content]
-👤 Assigned to: [Person]
-🎯 Priority: [Priority]
-📁 Category: [Category]"
-
-Then provide any helpful context or suggestions.`;
+Respond with a confirmation that includes the todo details. Let them know it will be added to their TodoTab.`;
   }
 
   return `You are an AI assistant for the Moses family management system.${familyInfo}
@@ -310,4 +353,64 @@ async function saveContactsToDatabase(contacts: any[]): Promise<any[]> {
     }
   }
   return savedContacts
+}
+
+// Extract todo content from user message
+function extractTodoContent(message: string): { content: string, priority: string, category: string, assignedTo: string } | null {
+  try {
+    // Remove common prefixes
+    let content = message.toLowerCase()
+      .replace(/^(add|create|make|new)\s+(a\s+)?todo(:|\s)/i, '')
+      .replace(/^todo(:|\s)/i, '')
+      .replace(/^remind\s+(me\s+)?to\s+/i, '')
+      .trim();
+
+    // Extract priority
+    let priority = 'medium';
+    if (message.toLowerCase().includes('high priority') || message.toLowerCase().includes('urgent')) {
+      priority = 'high';
+    } else if (message.toLowerCase().includes('low priority')) {
+      priority = 'low';
+    }
+
+    // Extract assignee
+    let assignedTo = 'Parents';
+    const familyMembers = ['levi', 'lola', 'amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah'];
+    for (const member of familyMembers) {
+      if (message.toLowerCase().includes(`for ${member}`) || message.toLowerCase().includes(`${member} to`)) {
+        assignedTo = member.charAt(0).toUpperCase() + member.slice(1);
+        break;
+      }
+    }
+
+    // Determine category
+    let category = 'general';
+    if (message.toLowerCase().includes('school') || message.toLowerCase().includes('homework') || 
+        message.toLowerCase().includes('teacher') || message.toLowerCase().includes('class')) {
+      category = 'school';
+    } else if (message.toLowerCase().includes('family') || message.toLowerCase().includes('home')) {
+      category = 'family';
+    }
+
+    // Clean up the content
+    content = message
+      .replace(/^(add|create|make|new)\s+(a\s+)?todo(:|\s)/i, '')
+      .replace(/^todo(:|\s)/i, '')
+      .replace(/^remind\s+(me\s+)?to\s+/i, '')
+      .replace(/high priority|low priority|urgent/gi, '')
+      .replace(/for (levi|lola|amos|zoey|kaylee|ellie|wyatt|hannah)/gi, '')
+      .trim();
+
+    if (!content) return null;
+
+    return {
+      content: content.charAt(0).toUpperCase() + content.slice(1),
+      priority,
+      category,
+      assignedTo
+    };
+  } catch (error) {
+    console.error('Error extracting todo content:', error);
+    return null;
+  }
 }
