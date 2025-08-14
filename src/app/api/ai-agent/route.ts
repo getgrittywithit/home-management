@@ -356,7 +356,7 @@ async function saveContactsToDatabase(contacts: any[]): Promise<any[]> {
 }
 
 // Extract todo content from user message
-function extractTodoContent(message: string): { content: string, priority: string, category: string, assignedTo: string } | null {
+function extractTodoContent(message: string): { content: string, priority: 'high' | 'medium' | 'low', category: string, assignedTo: string } | null {
   try {
     // Remove common prefixes
     let content = message.toLowerCase()
@@ -366,7 +366,7 @@ function extractTodoContent(message: string): { content: string, priority: strin
       .trim();
 
     // Extract priority
-    let priority = 'medium';
+    let priority: 'high' | 'medium' | 'low' = 'medium';
     if (message.toLowerCase().includes('high priority') || message.toLowerCase().includes('urgent')) {
       priority = 'high';
     } else if (message.toLowerCase().includes('low priority')) {
