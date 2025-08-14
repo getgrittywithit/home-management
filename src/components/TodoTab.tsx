@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { 
   CheckSquare, Plus, Edit3, Trash2, Clock, AlertCircle, 
-  Star, Circle, CheckCircle2, Filter, Calendar, User
+  Star, Circle, CheckCircle2, Filter, Calendar, User, Archive
 } from 'lucide-react'
 import { UnicornAnimation, GlitterBurst, useTodoAnimations } from './TodoAnimations'
 
@@ -26,6 +26,7 @@ export default function TodoTab() {
   const [selectedCategory, setSelectedCategory] = useState('general')
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all')
+  const [showArchive, setShowArchive] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [editPriority, setEditPriority] = useState<'high' | 'medium' | 'low'>('medium')
@@ -348,10 +349,18 @@ export default function TodoTab() {
     }
   }
 
-  const filteredTodos = todos.filter(todo => {
+  const activeTodos = todos.filter(todo => todo.status !== 'completed')
+  const archivedTodos = todos.filter(todo => todo.status === 'completed')
+  
+  const filteredActiveTodos = activeTodos.filter(todo => {
     const statusMatch = filter === 'all' || todo.status === filter
     const priorityMatch = priorityFilter === 'all' || todo.priority === priorityFilter
     return statusMatch && priorityMatch
+  })
+  
+  const filteredArchivedTodos = archivedTodos.filter(todo => {
+    const priorityMatch = priorityFilter === 'all' || todo.priority === priorityFilter
+    return priorityMatch
   })
 
   const todosByStatus = {
@@ -479,10 +488,9 @@ export default function TodoTab() {
               onChange={(e) => setFilter(e.target.value as any)}
               className="px-3 py-1 border rounded text-sm"
             >
-              <option value="all">All Status</option>
+              <option value="all">All Active</option>
               <option value="pending">Pending</option>
               <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
             </select>
             <select
               value={priorityFilter}
@@ -498,26 +506,25 @@ export default function TodoTab() {
         </div>
       </div>
 
-      {/* Todo List */}
+      {/* Active Todo List */}
       <div className="bg-white rounded-lg border">
         <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold">Tasks ({filteredTodos.length})</h2>
+          <h2 className="text-lg font-semibold">Active Tasks ({filteredActiveTodos.length})</h2>
         </div>
         
         <div className="divide-y">
-          {filteredTodos.length === 0 ? (
+          {filteredActiveTodos.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <CheckSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>No tasks match your current filters</p>
+              <p>No active tasks match your current filters</p>
             </div>
           ) : (
-            filteredTodos.map(todo => (
+            filteredActiveTodos.map(todo => (
               <div key={todo.id} className="p-4 hover:bg-gray-50">
                 <div className="flex items-start gap-4">
                   <button
                     onClick={(e) => updateTodoStatus(
                       todo.id, 
-                      todo.status === 'completed' ? 'pending' : 
                       todo.status === 'pending' ? 'in_progress' : 'completed',
                       e
                     )}
@@ -577,7 +584,7 @@ export default function TodoTab() {
                       // View mode
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <p className={`text-sm ${todo.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                          <p className="text-sm text-gray-900">
                             {todo.content}
                           </p>
                           <div className="flex items-center gap-3 mt-2">
@@ -621,6 +628,84 @@ export default function TodoTab() {
             ))
           )}
         </div>
+      </div>
+
+      {/* Archive Section */}
+      <div className="bg-white rounded-lg border">
+        <div className="p-4 border-b">
+          <button
+            onClick={() => setShowArchive(!showArchive)}
+            className="flex items-center gap-2 w-full text-left hover:text-indigo-600"
+          >
+            <Archive className="w-5 h-5" />
+            <h2 className="text-lg font-semibold">Archive ({archivedTodos.length} completed tasks)</h2>
+            <span className="ml-auto text-sm text-gray-500">
+              {showArchive ? 'Hide' : 'Show'}
+            </span>
+          </button>
+        </div>
+        
+        {showArchive && (
+          <div className="divide-y">
+            {filteredArchivedTodos.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Archive className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>No completed tasks in archive</p>
+              </div>
+            ) : (
+              filteredArchivedTodos.map(todo => (
+                <div key={todo.id} className="p-4 hover:bg-gray-50 bg-gray-25">
+                  <div className="flex items-start gap-4">
+                    <button
+                      onClick={(e) => updateTodoStatus(todo.id, 'pending', e)}
+                      className="mt-1"
+                      title="Restore to active"
+                    >
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    </button>
+                    
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm line-through text-gray-500">
+                            {todo.content}
+                          </p>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${getPriorityColor(todo.priority)}`}>
+                              {todo.priority} priority
+                            </span>
+                            {todo.category && (
+                              <span className="text-xs flex items-center gap-1 text-gray-600">
+                                {getCategoryIcon(todo.category)}
+                                {todo.category}
+                              </span>
+                            )}
+                            {todo.assignedTo && (
+                              <span className="text-xs flex items-center gap-1 text-gray-600">
+                                <User className="w-3 h-3" />
+                                {todo.assignedTo}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => deleteTodo(todo.id)}
+                            className="text-gray-400 hover:text-red-500"
+                            title="Delete permanently"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Animation Components */}
