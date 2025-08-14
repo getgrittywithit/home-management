@@ -17,6 +17,12 @@ interface FamilyContext {
   recentTodos: string[]
 }
 
+export interface ChatResponse {
+  response: string
+  todoCreated?: boolean
+  todo?: any
+}
+
 interface Contact {
   name: string
   title?: string
@@ -127,7 +133,7 @@ class AIAgentService {
     })
   }
 
-  async chatResponse(message: string, context?: string, sessionId: string = 'default'): Promise<string> {
+  async chatResponse(message: string, context?: string, sessionId: string = 'default'): Promise<ChatResponse> {
     if (!this.apiKey) {
       throw new Error('Claude API key not set')
     }
@@ -158,8 +164,8 @@ class AIAgentService {
 
       const data = await response.json()
       
-      // Return the full response object or just the response string
-      return data.response || data
+      // Return the full response object
+      return data
 
     } catch (error) {
       console.error('Error getting chat response from Claude:', error)

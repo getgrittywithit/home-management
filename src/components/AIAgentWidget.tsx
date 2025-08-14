@@ -5,7 +5,7 @@ import {
   MessageCircle, X, Send, Paperclip, FileText, Image, 
   Upload, Loader2, CheckCircle, AlertCircle, Brain, Sparkles, Key
 } from 'lucide-react'
-import { aiAgent, ProcessedEmailData } from '@/services/aiAgent'
+import { aiAgent, ProcessedEmailData, ChatResponse } from '@/services/aiAgent'
 
 interface Message {
   id: string
@@ -282,31 +282,23 @@ Just paste an email, upload a PDF, or ask me anything!`,
     }
 
     try {
-      const response = await aiAgent.chatResponse(message)
+      const response: ChatResponse = await aiAgent.chatResponse(message)
       
-      // Check if response is an object with todo info
-      if (typeof response === 'object' && response.response) {
-        addMessage({
-          type: 'agent',
-          content: response.response
-        })
-        
-        // If a todo was created, add a confirmation
-        if (response.todoCreated && response.todo) {
-          setTimeout(() => {
-            addMessage({
-              type: 'system',
-              content: `✅ Todo successfully added to your TodoTab!`
+      // Add the response message
+      addMessage({
+        type: 'agent',
+        content: response.response
+      })
+      
+      // If a todo was created, add a confirmation
+      if (response.todoCreated && response.todo) {
+        setTimeout(() => {
+          addMessage({
+            type: 'system',
+            content: `✅ Todo successfully added to your TodoTab!`
             })
           }, 500)
         }
-      } else {
-        // Simple string response
-        addMessage({
-          type: 'agent',
-          content: response
-        })
-      }
     } catch (error) {
       console.error('Error getting chat response:', error)
       addMessage({
