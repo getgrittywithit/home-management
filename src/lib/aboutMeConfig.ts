@@ -127,14 +127,14 @@ export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = {
   childId: 'amos-moses-504640',
   birthCertificate: {
     fullName: 'Amos Lee Moses',
-    birthDate: new Date('2009-03-15'),
-    birthTime: '10:25',
-    birthPlace: 'Boerne, Texas, USA',
+    birthDate: new Date('2009-03-02'),
+    birthTime: '05:55',
+    birthPlace: 'Princeton, Minnesota, USA',
     birthWeight: '7 lbs 12 oz',
     birthLength: '21 inches',
-    hospitalName: 'Methodist Hospital',
-    county: 'Kendall County',
-    state: 'Texas',
+    hospitalName: 'Princeton Hospital',
+    county: 'Sherburne County',
+    state: 'Minnesota',
     country: 'United States',
     locked: true
   },
@@ -163,11 +163,11 @@ export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = {
   },
   family: {
     siblings: [
-      { name: 'Hannah', relationship: 'Sister', age: 12, locked: true },
-      { name: 'Wyatt', relationship: 'Brother', age: 10, locked: true },
-      { name: 'Ellie', relationship: 'Sister', age: 14, locked: true },
-      { name: 'Kaylee', relationship: 'Sister', age: 16, locked: true },
-      { name: 'Zoey', relationship: 'Sister', age: 18, locked: true }
+      { name: 'Hannah', relationship: 'Sister', age: 7, locked: true },
+      { name: 'Wyatt', relationship: 'Brother', age: 9, locked: true },
+      { name: 'Ellie', relationship: 'Sister', age: 10, locked: true },
+      { name: 'Kaylee', relationship: 'Sister', age: 12, locked: true },
+      { name: 'Zoey', relationship: 'Sister', age: 14, locked: true }
     ],
     pets: [
       { name: 'Family Pets', type: 'Various', breed: 'Mixed', age: 0, gotWhen: 'Always had pets', locked: false }
@@ -185,6 +185,80 @@ export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = {
   freeText: 'I love gaming, technology, and learning about astronomy. I am really interested in ag mechanics and metal working at school. My goal is to become a game developer or work with technology. I enjoy spending time with my family and working on projects.',
   backgroundTheme: 'Indigo Purple',
   lastUpdated: new Date()
+}
+
+// Additional sample data for all Moses children
+export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
+  'amos': {
+    fullName: 'Amos Lee Moses',
+    birthDate: new Date('2009-03-02'),
+    birthTime: '05:55',
+    birthPlace: 'Princeton, Minnesota, USA',
+    county: 'Sherburne County',
+    state: 'Minnesota',
+    country: 'United States',
+    locked: true
+  },
+  'zoey': {
+    fullName: 'Zoey Lynn Moses',
+    birthDate: new Date('2010-12-06'),
+    birthTime: '09:51',
+    birthPlace: 'Princeton, Minnesota, USA',
+    county: 'Sherburne County',
+    state: 'Minnesota',
+    country: 'United States',
+    locked: true
+  },
+  'kaylee': {
+    fullName: 'Kaylee Liberty Moses',
+    birthDate: new Date('2012-04-28'),
+    birthTime: '12:45',
+    birthPlace: 'Princeton, Sherburne, Minnesota, USA',
+    county: 'Sherburne County',
+    state: 'Minnesota',
+    country: 'United States',
+    locked: true
+  },
+  'ellie': {
+    fullName: 'Ellie Mae Moses',
+    birthDate: new Date('2014-06-03'),
+    birthTime: '12:00',
+    birthPlace: 'Princeton, Minnesota, USA',
+    county: 'Sherburne County',
+    state: 'Minnesota',
+    country: 'United States',
+    locked: true
+  },
+  'wyatt': {
+    fullName: 'Wyatt James Moses',
+    birthDate: new Date('2015-12-05'),
+    birthTime: '02:14',
+    birthPlace: 'Isanti, Minnesota, USA',
+    county: 'Isanti County',
+    state: 'Minnesota',
+    country: 'United States',
+    locked: true
+  },
+  'hannah': {
+    fullName: 'Hannah Joy Moses',
+    birthDate: new Date('2017-08-26'),
+    birthTime: '07:49',
+    birthPlace: 'Isanti, Minnesota, USA',
+    county: 'Isanti County',
+    state: 'Minnesota',
+    country: 'United States',
+    locked: true
+  }
+}
+
+// Current grades for 2024-2025 school year
+export const CURRENT_GRADES: Record<string, string> = {
+  'amos': '10th',      // Born 2009, age 15-16
+  'zoey': '9th',       // Born 2010, age 14-15
+  'kaylee': '7th',     // Born 2012, age 12-13
+  'ellie': '6th',      // Born 2014, age 10-11
+  'wyatt': '4th',      // Born 2015, age 9-10
+  'hannah': '3rd'      // Born 2017, age 7-8
 }
 
 // Age-appropriate field visibility
