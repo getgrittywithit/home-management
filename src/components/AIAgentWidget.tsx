@@ -203,24 +203,28 @@ Just paste an email, upload a PDF, or ask me anything!`,
     try {
       const result = await aiAgent.processEmail(emailContent)
 
-      // Add results message
+      // Add results message with database save status
       let resultMessage = `✅ **Email Processed Successfully!**\n\n`
       
-      if (result.contacts && result.contacts.length > 0) {
-        resultMessage += `📞 **Found ${result.contacts.length} Contact(s):**\n`
-        result.contacts.forEach(contact => {
-          resultMessage += `• ${contact.name}${contact.title ? ` - ${contact.title}` : ''}`
-          if (contact.organization) resultMessage += ` (${contact.organization})`
+      if (result.savedTodos && result.savedTodos.length > 0) {
+        resultMessage += `✅ **Saved ${result.savedTodos.length} Todo Item(s) to TodoTab:**\n`
+        result.savedTodos.forEach(todo => {
+          const priorityIcon = todo.priority === 'high' ? '🔴' : todo.priority === 'medium' ? '🟡' : '🟢'
+          resultMessage += `${priorityIcon} ${todo.content}`
+          if (todo.assigned_to) resultMessage += ` (Assigned to: ${todo.assigned_to})`
           resultMessage += '\n'
         })
         resultMessage += '\n'
       }
-
-      if (result.todos && result.todos.length > 0) {
-        resultMessage += `✅ **Created ${result.todos.length} Todo Item(s):**\n`
-        result.todos.forEach(todo => {
-          const priorityIcon = todo.priority === 'high' ? '🔴' : todo.priority === 'medium' ? '🟡' : '🟢'
-          resultMessage += `${priorityIcon} ${todo.content}\n`
+      
+      if (result.savedContacts && result.savedContacts.length > 0) {
+        resultMessage += `📞 **Saved ${result.savedContacts.length} Contact(s) to ContactsTab:**\n`
+        result.savedContacts.forEach(contact => {
+          resultMessage += `• ${contact.name}${contact.title ? ` - ${contact.title}` : ''}`
+          if (contact.organization) resultMessage += ` (${contact.organization})`
+          if (contact.updated) resultMessage += ` ✏️ Updated existing`
+          else resultMessage += ` ➕ Added new`
+          resultMessage += '\n'
         })
         resultMessage += '\n'
       }
@@ -234,16 +238,15 @@ Just paste an email, upload a PDF, or ask me anything!`,
         result.importantInfo.forEach(info => {
           resultMessage += `• ${info}\n`
         })
+        resultMessage += '\n'
       }
+
+      resultMessage += `🎯 **Data saved to your TodoTab and ContactsTab!** Check them to see the new items.`
 
       addMessage({
         type: 'agent',
         content: resultMessage
       })
-
-      // TODO: Integrate with actual TodoTab and ContactsTab APIs
-      // This would add the extracted contacts and todos to the system
-      console.log('Extracted data:', result)
 
     } catch (error) {
       console.error('Error processing email:', error)

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, content, message, apiKey } = await request.json()
+    const { action, content, message, context, familyContext, chatHistory, apiKey } = await request.json()
 
     if (!apiKey) {
       return NextResponse.json({ error: 'API key required' }, { status: 400 })
@@ -18,12 +18,16 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: action === 'chat' ? 1000 : 4000,
-        messages: [
-          {
-            role: 'user',
-            content: action === 'process-email' ? createEmailProcessingPrompt(content) : createChatPrompt(message)
-          }
-        ]
+        messages: action === 'chat' && chatHistory ? 
+          buildChatMessages(message, context, familyContext, chatHistory) :
+          [
+            {
+              role: 'user',
+              content: action === 'process-email' ? 
+                createEmailProcessingPrompt(content, familyContext) : 
+                createChatPrompt(message, context, familyContext)
+            }
+          ]
       })
     })
 
@@ -63,11 +67,72 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function createEmailProcessingPrompt(emailContent: string): string {
-  return `You are an AI assistant helping a family manage their communications and tasks. I will provide you with email content, and you need to extract:
+function buildChatMessages(message: string, context: string | undefined, familyContext: any, chatHistory: any[]) {
+  const messages = []
+  
+  // Add system context
+  messages.push({
+    role: 'user',
+    content: createSystemPrompt(familyContext)
+  })
+  
+  // Add chat history
+  if (chatHistory && chatHistory.length > 0) {
+    for (const historyItem of chatHistory) {
+      messages.push({
+        role: historyItem.role,
+        content: historyItem.content
+      })
+    }
+  }
+  
+  // Add current message
+  messages.push({
+    role: 'user',
+    content: context ? `Context: ${context}\n\n${message}` : message
+  })
+  
+  return messages
+}
+
+function createSystemPrompt(familyContext: any): string {
+  return `You are an AI assistant for the Moses family management system. Here's what you need to know:
+
+**Family Members:**
+- Parents: ${familyContext?.parents?.join(', ') || 'Levi, Lola'}
+- Children: ${familyContext?.children?.join(', ') || 'Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah'}
+
+**Schools:** ${familyContext?.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
+
+**Current Contacts:** ${familyContext?.existingContacts?.slice(0, 5)?.join(', ') || 'Loading...'}
+
+**Recent Todos:** ${familyContext?.recentTodos?.slice(0, 3)?.join(', ') || 'Loading...'}
+
+You help with:
+- Processing school emails and newsletters
+- Managing family todos and contacts  
+- Organizing family operations across 6 kids and 3 schools
+- Answering questions about family management
+- Providing context-aware responses using real family data
+
+Be helpful, concise, and focus on practical family management solutions.`
+}
+
+function createEmailProcessingPrompt(emailContent: string, familyContext: any): string {
+  const familyInfo = familyContext ? `
+**Family Context:**
+- Parents: ${familyContext.parents?.join(', ') || 'Levi, Lola'}
+- Children: ${familyContext.children?.join(', ') || 'Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah'} 
+- Schools: ${familyContext.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
+- Existing Contacts: ${familyContext.existingContacts?.slice(0, 3)?.join(', ') || 'None'}
+` : ''
+
+  return `You are an AI assistant helping the Moses family manage their communications and tasks.${familyInfo}
+
+I will provide you with email content, and you need to extract:
 
 1. **Contacts** - Any people or organizations mentioned with contact information
-2. **Todos** - Action items, deadlines, or things that need to be done
+2. **Todos** - Action items, deadlines, or things that need to be done  
 3. **Summary** - Brief overview of what this email is about
 4. **Important Info** - Key dates, deadlines, or urgent items
 
@@ -77,12 +142,14 @@ For contacts, look for:
 - Office locations or room numbers
 - Tag them appropriately (School, Medical, Emergency, Family, Services, etc.)
 - Set importance level (high for urgent contacts, medium for regular, low for reference)
+- Check against existing contacts to avoid duplicates
 
 For todos, look for:
 - Action items that need to be completed
 - Deadlines or time-sensitive tasks
 - Set priority (high for urgent/deadline items, medium for important, low for optional)
 - Categorize (school, family, contacts, development, general)
+- Assign to specific family members when clear (${familyContext?.parents?.join(', ') || 'Parents'}, or specific children)
 
 Return the response in this EXACT JSON format:
 
@@ -91,7 +158,7 @@ Return the response in this EXACT JSON format:
     {
       "name": "Full Name",
       "title": "Job Title",
-      "organization": "Organization Name",
+      "organization": "Organization Name", 
       "phone": "(123) 456-7890",
       "email": "email@domain.com",
       "address": "Full Address",
@@ -104,7 +171,7 @@ Return the response in this EXACT JSON format:
   "todos": [
     {
       "content": "Specific action item with context",
-      "priority": "high",
+      "priority": "high", 
       "category": "school",
       "assignedTo": "Parents"
     }
@@ -120,19 +187,27 @@ Here is the email content to process:
 
 ${emailContent}
 
-Please analyze this email and return the JSON response with extracted contacts, todos, summary, and important information. Be thorough but focus on actionable items and useful contact information for family management.`
+Please analyze this email and return the JSON response with extracted contacts, todos, summary, and important information. Use the family context to make intelligent assignments and avoid duplicates.`
 }
 
-function createChatPrompt(message: string): string {
-  return `You are an AI assistant for a family management system. You help with:
+function createChatPrompt(message: string, context: string | undefined, familyContext: any): string {
+  const familyInfo = familyContext ? `
+**Family Context:**
+- Parents: ${familyContext.parents?.join(', ') || 'Levi, Lola'}
+- Children: ${familyContext.children?.join(', ') || 'Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah'}
+- Schools: ${familyContext.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
+` : ''
+
+  return `You are an AI assistant for the Moses family management system.${familyInfo}
+
+You help with:
 - Processing school emails and newsletters
-- Managing family todos and contacts
-- Organizing family operations
+- Managing family todos and contacts  
+- Organizing family operations across 6 kids and 3 schools
 - Answering questions about family management
+- Providing context-aware responses using real family data
 
-Context: This is a parent portal for managing 6 kids across 3 different schools. The family uses this system to track todos, contacts, schedules, and communications.
-
-User message: ${message}
+${context ? `Additional Context: ${context}\n\n` : ''}User message: ${message}
 
 Please provide a helpful, concise response focused on family management and organization.`
 }

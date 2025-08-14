@@ -7,6 +7,7 @@ import EnhancedParentSchoolTab from './EnhancedParentSchoolTab'
 import FilterableCalendar from './FilterableCalendar'
 import TodoTab from './TodoTab'
 import ContactsTab from './ContactsTab'
+import AboutMeAdminTab from './AboutMeAdminTab'
 import AIAgentWidget from './AIAgentWidget'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -29,6 +30,7 @@ const tabs: Tab[] = [
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
   { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
   { id: 'todos', name: 'Todos', icon: CheckSquare, color: 'bg-indigo-500' },
+  { id: 'aboutme', name: 'About Me Admin', icon: User, color: 'bg-rose-500' },
   { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gray-500' },
 ]
 
@@ -192,6 +194,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <ContactsTab />
       case 'todos':
         return <TodoTab />
+      case 'aboutme':
+        return <AboutMeAdminTab />
       case 'settings':
         return renderSettingsTab()
       default:

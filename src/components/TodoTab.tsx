@@ -47,9 +47,19 @@ export default function TodoTab() {
   const loadTodos = async () => {
     try {
       setIsLoading(true)
-      // This would call the TodoRead API in production
-      // For now, simulate with current data from email processing
-      const mockTodos: Todo[] = [
+      
+      // Load todos from database
+      const response = await fetch('/api/todos')
+      if (response.ok) {
+        const data = await response.json()
+        setTodos(data.map((todo: any) => ({
+          ...todo,
+          createdAt: new Date(todo.created_at),
+          dueDate: todo.due_date ? new Date(todo.due_date) : undefined
+        })))
+      } else {
+        // Fallback to mock data if API fails
+        const mockTodos: Todo[] = [
         {
           id: 'vaccine-waiver-amos',
           content: 'URGENT: Renew Amos\' vaccine waiver - expired 05/10/2025, needs notarization and submission to CHS nurse',

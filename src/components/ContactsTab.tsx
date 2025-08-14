@@ -73,8 +73,19 @@ export default function ContactsTab() {
   const loadContacts = async () => {
     try {
       setIsLoading(true)
-      // Mock data including the nurse from the email
-      const mockContacts: Contact[] = [
+      
+      // Load contacts from database
+      const response = await fetch('/api/contacts')
+      if (response.ok) {
+        const data = await response.json()
+        setContacts(data.map((contact: any) => ({
+          ...contact,
+          createdAt: new Date(contact.created_at),
+          lastContact: contact.last_contact ? new Date(contact.last_contact) : undefined
+        })))
+      } else {
+        // Fallback to mock data if API fails
+        const mockContacts: Contact[] = [
         {
           id: 'laura-booth-chs-nurse',
           name: 'Laura T. Booth BSN, RN',

@@ -203,6 +203,157 @@ export const db = {
     `)
   },
 
+  // Todos
+  async getTodos() {
+    return singleQuery(`
+      SELECT * FROM todos 
+      ORDER BY 
+        CASE priority 
+          WHEN 'high' THEN 1
+          WHEN 'medium' THEN 2  
+          WHEN 'low' THEN 3
+        END,
+        created_at DESC
+    `)
+  },
+
+  async addTodo(content: string, priority: 'high' | 'medium' | 'low' = 'medium', category: string = 'general', assignedTo?: string) {
+    return singleQuery(`
+      INSERT INTO todos (content, priority, category, assigned_to, status, created_at)
+      VALUES ($1, $2, $3, $4, 'pending', NOW())
+      RETURNING *
+    `, [content, priority, category, assignedTo])
+  },
+
+  async updateTodoStatus(id: string, status: 'pending' | 'in_progress' | 'completed') {
+    return singleQuery(`
+      UPDATE todos 
+      SET status = $2, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [id, status])
+  },
+
+  async deleteTodo(id: string) {
+    return singleQuery(`
+      DELETE FROM todos WHERE id = $1
+      RETURNING *
+    `, [id])
+  },
+
+  // Contacts
+  async getContacts() {
+    return singleQuery(`
+      SELECT * FROM contacts 
+      ORDER BY name
+    `)
+  },
+
+  async addContact(contactData: {
+    name: string,
+    title?: string,
+    organization?: string,
+    phone?: string,
+    email?: string,
+    address?: string,
+    office?: string,
+    notes?: string,
+    tags: string[],
+    importance: 'high' | 'medium' | 'low'
+  }) {
+    return singleQuery(`
+      INSERT INTO contacts (
+        name, title, organization, phone, email, address, 
+        office, notes, tags, importance, created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      RETURNING *
+    `, [
+      contactData.name,
+      contactData.title,
+      contactData.organization,
+      contactData.phone,
+      contactData.email,
+      contactData.address,
+      contactData.office,
+      contactData.notes,
+      JSON.stringify(contactData.tags),
+      contactData.importance
+    ])
+  },
+
+  async updateContact(id: string, contactData: {
+    name: string,
+    title?: string,
+    organization?: string,
+    phone?: string,
+    email?: string,
+    address?: string,
+    office?: string,
+    notes?: string,
+    tags: string[],
+    importance: 'high' | 'medium' | 'low'
+  }) {
+    return singleQuery(`
+      UPDATE contacts 
+      SET name = $2, title = $3, organization = $4, phone = $5, 
+          email = $6, address = $7, office = $8, notes = $9, 
+          tags = $10, importance = $11, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [
+      id,
+      contactData.name,
+      contactData.title,
+      contactData.organization,
+      contactData.phone,
+      contactData.email,
+      contactData.address,
+      contactData.office,
+      contactData.notes,
+      JSON.stringify(contactData.tags),
+      contactData.importance
+    ])
+  },
+
+  async findContactByEmail(email: string) {
+    return singleQuery(`
+      SELECT * FROM contacts WHERE email = $1 LIMIT 1
+    `, [email])
+  },
+
+  async deleteContact(id: string) {
+    return singleQuery(`
+      DELETE FROM contacts WHERE id = $1
+      RETURNING *
+    `, [id])
+  },
+
+  // Chat Memory
+  async saveChatMessage(role: 'user' | 'assistant', content: string, session_id?: string) {
+    return singleQuery(`
+      INSERT INTO chat_history (role, content, session_id, created_at)
+      VALUES ($1, $2, $3, NOW())
+      RETURNING *
+    `, [role, content, session_id || 'default'])
+  },
+
+  async getChatHistory(session_id: string = 'default', limit: number = 50) {
+    return singleQuery(`
+      SELECT * FROM chat_history 
+      WHERE session_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `, [session_id, limit])
+  },
+
+  async clearChatHistory(session_id: string = 'default') {
+    return singleQuery(`
+      DELETE FROM chat_history WHERE session_id = $1
+      RETURNING *
+    `, [session_id])
+  },
+
   // Configuration
   async getConfig(key: string) {
     const result = await singleQuery(`

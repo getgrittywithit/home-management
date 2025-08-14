@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Calendar, MapPin, Clock, Heart, Star, Users, 
   Edit3, Save, X, Plus, Trash2, Camera, Palette,
@@ -31,31 +31,70 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
   const [isEditing, setIsEditing] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
   const [newInterest, setNewInterest] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
 
   const visibleFields = getVisibleFields(childAge)
 
-  const handleSave = async (field: string) => {
-    // In production, this would call an API
-    console.log('Saving field:', field, 'Value:', editingValue)
-    
-    // Update local state
-    if (field.includes('.')) {
-      const [section, subField] = field.split('.')
-      setAboutData(prev => {
-        const currentSection = prev[section as keyof AboutMeProfile]
-        return {
-          ...prev,
-          [section]: {
-            ...(typeof currentSection === 'object' && currentSection !== null ? currentSection : {}),
-            [subField]: editingValue
-          }
-        }
-      })
+  // Load child-specific data on mount
+  useEffect(() => {
+    if (!initialData) {
+      loadAboutMeData()
     } else {
-      setAboutData(prev => ({
-        ...prev,
-        [field]: editingValue
-      }))
+      setIsLoading(false)
+    }
+  }, [childId, initialData])
+
+  const loadAboutMeData = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch(`/api/kids/about-me?childId=${childId}`)
+      if (response.ok) {
+        const data = await response.json()
+        // Convert birthDate string back to Date object
+        if (data.birthCertificate?.birthDate) {
+          data.birthCertificate.birthDate = new Date(data.birthCertificate.birthDate)
+        }
+        setAboutData(data)
+      } else {
+        console.error('Failed to load About Me data')
+        // Keep the default data with the correct childId
+        setAboutData(prev => ({ ...prev, childId }))
+      }
+    } catch (error) {
+      console.error('Error loading About Me data:', error)
+      // Keep the default data with the correct childId
+      setAboutData(prev => ({ ...prev, childId }))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSave = async (field: string) => {
+    try {
+      const [section, subField] = field.includes('.') ? field.split('.') : [null, field]
+      
+      const updateData = {
+        childId,
+        field: subField || field,
+        value: editingValue,
+        section: section,
+        isLocked: false
+      }
+
+      const response = await fetch('/api/kids/about-me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setAboutData(result.data)
+      } else {
+        console.error('Failed to save About Me data')
+      }
+    } catch (error) {
+      console.error('Error saving About Me data:', error)
     }
     
     setIsEditing(null)
@@ -172,6 +211,25 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
         >
           <Edit3 className="w-4 h-4" />
         </button>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-gray-100 animate-pulse rounded-lg p-6">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+        </div>
+        <div className="bg-white rounded-lg p-6 space-y-4">
+          <div className="h-6 bg-gray-200 rounded w-1/4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-16 bg-gray-100 rounded"></div>
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
