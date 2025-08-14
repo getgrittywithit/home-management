@@ -206,7 +206,8 @@ export default function ContactsTab() {
           createdAt: new Date('2025-01-11')
         }
       ]
-      setContacts(mockContacts)
+        setContacts(mockContacts)
+      }
     } catch (error) {
       console.error('Failed to load contacts:', error)
     } finally {

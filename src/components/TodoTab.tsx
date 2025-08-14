@@ -246,7 +246,8 @@ export default function TodoTab() {
           category: 'school'
         }
       ]
-      setTodos(mockTodos)
+        setTodos(mockTodos)
+      }
     } catch (error) {
       console.error('Failed to load todos:', error)
     } finally {

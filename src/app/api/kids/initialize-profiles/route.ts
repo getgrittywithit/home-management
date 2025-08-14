@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { saveProfilesToDatabase } from '@/scripts/createKidsAboutMeProfiles'
+import { saveProfilesToDatabase } from '@/lib/createKidsAboutMeProfiles'
 
 export async function POST() {
   try {
