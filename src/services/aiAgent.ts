@@ -1,5 +1,4 @@
 // AI Agent service for processing emails and extracting contacts/todos
-import { db } from '@/lib/database'
 
 interface ProcessedEmailData {
   contacts: Contact[]
@@ -49,22 +48,15 @@ class AIAgentService {
     this.apiKey = key
   }
 
-  // Get family context for AI processing
+  // Get family context for AI processing via API
   async getFamilyContext(): Promise<FamilyContext> {
     try {
-      const [children, parents, contacts, todos] = await Promise.all([
-        db.getChildren(),
-        db.getParents(),
-        db.getContacts(),
-        db.getTodos()
-      ])
-
-      return {
-        children: children.map((child: any) => child.first_name),
-        parents: parents.map((parent: any) => parent.first_name),
-        schools: ['Samuel V Champion High School', 'Princeton Intermediate School', 'Princeton Elementary'],
-        existingContacts: contacts.map((contact: any) => `${contact.name} (${contact.organization || 'No org'})`),
-        recentTodos: todos.slice(0, 10).map((todo: any) => todo.content)
+      const response = await fetch('/api/family-context')
+      if (response.ok) {
+        const data = await response.json()
+        return data
+      } else {
+        throw new Error('Failed to fetch family context')
       }
     } catch (error) {
       console.error('Error getting family context:', error)
@@ -107,15 +99,8 @@ class AIAgentService {
 
       const data = await response.json()
       
-      // Save extracted data to database
-      const savedTodos = await this.saveTodosToDatabase(data.todos)
-      const savedContacts = await this.saveContactsToDatabase(data.contacts)
-      
-      return {
-        ...data,
-        savedTodos,
-        savedContacts
-      }
+      // The API will handle saving to database on the server side
+      return data
 
     } catch (error) {
       console.error('Error processing email with Claude:', error)
@@ -123,48 +108,6 @@ class AIAgentService {
     }
   }
 
-  // Save todos to database
-  async saveTodosToDatabase(todos: Todo[]): Promise<any[]> {
-    const savedTodos = []
-    for (const todo of todos) {
-      try {
-        const saved = await db.addTodo(
-          todo.content,
-          todo.priority,
-          todo.category,
-          todo.assignedTo
-        )
-        savedTodos.push(saved[0])
-      } catch (error) {
-        console.error('Error saving todo:', error)
-      }
-    }
-    return savedTodos
-  }
-
-  // Save contacts to database  
-  async saveContactsToDatabase(contacts: Contact[]): Promise<any[]> {
-    const savedContacts = []
-    for (const contact of contacts) {
-      try {
-        // Check if contact already exists by email
-        const existing = contact.email ? await db.findContactByEmail(contact.email) : []
-        
-        if (existing.length > 0) {
-          // Update existing contact
-          const updated = await db.updateContact(existing[0].id, contact)
-          savedContacts.push({ ...updated[0], updated: true })
-        } else {
-          // Create new contact
-          const saved = await db.addContact(contact)
-          savedContacts.push({ ...saved[0], updated: false })
-        }
-      } catch (error) {
-        console.error('Error saving contact:', error)
-      }
-    }
-    return savedContacts
-  }
 
   async processWithOCR(file: File): Promise<ProcessedEmailData> {
     // First, extract text using OCR
@@ -190,14 +133,8 @@ class AIAgentService {
     }
 
     try {
-      // Save user message to chat history
-      await db.saveChatMessage('user', message, sessionId)
-      
-      // Get family context and chat history for better responses
-      const [familyContext, chatHistory] = await Promise.all([
-        this.getFamilyContext(),
-        db.getChatHistory(sessionId, 10)
-      ])
+      // Get family context for better responses
+      const familyContext = await this.getFamilyContext()
       
       const response = await fetch('/api/ai-agent', {
         method: 'POST',
@@ -209,7 +146,7 @@ class AIAgentService {
           message,
           context,
           familyContext,
-          chatHistory: chatHistory.reverse(), // Oldest first for context
+          sessionId,
           apiKey: this.apiKey
         })
       })
@@ -221,9 +158,7 @@ class AIAgentService {
 
       const data = await response.json()
       
-      // Save assistant response to chat history
-      await db.saveChatMessage('assistant', data.response, sessionId)
-      
+      // Chat history is handled server-side
       return data.response
 
     } catch (error) {
@@ -232,10 +167,14 @@ class AIAgentService {
     }
   }
 
-  // Clear chat history for a session
+  // Clear chat history for a session via API
   async clearChatHistory(sessionId: string = 'default'): Promise<void> {
     try {
-      await db.clearChatHistory(sessionId)
+      await fetch('/api/chat-history', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId })
+      })
     } catch (error) {
       console.error('Error clearing chat history:', error)
     }

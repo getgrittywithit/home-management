@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, content, message, context, familyContext, chatHistory, apiKey } = await request.json()
+    const { action, content, message, context, familyContext, chatHistory, sessionId, apiKey } = await request.json()
 
     if (!apiKey) {
       return NextResponse.json({ error: 'API key required' }, { status: 400 })
@@ -18,8 +19,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: action === 'chat' ? 1000 : 4000,
-        messages: action === 'chat' && chatHistory ? 
-          buildChatMessages(message, context, familyContext, chatHistory) :
+        messages: action === 'chat' ? 
+          await buildChatMessages(message, context, familyContext, sessionId) :
           [
             {
               role: 'user',
@@ -51,13 +52,26 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Could not parse JSON response from Claude' }, { status: 500 })
         }
         const parsedData = JSON.parse(jsonMatch[0])
-        return NextResponse.json(parsedData)
+        
+        // Save extracted data to database
+        const savedTodos = await saveTodosToDatabase(parsedData.todos || [])
+        const savedContacts = await saveContactsToDatabase(parsedData.contacts || [])
+        
+        return NextResponse.json({
+          ...parsedData,
+          savedTodos,
+          savedContacts
+        })
       } catch (parseError) {
         console.error('JSON parse error:', parseError)
         return NextResponse.json({ error: 'Invalid JSON response from Claude' }, { status: 500 })
       }
     } else {
-      // Return chat response directly
+      // Save chat history and return response
+      if (sessionId) {
+        await db.saveChatMessage('user', message, sessionId)
+        await db.saveChatMessage('assistant', responseContent, sessionId)
+      }
       return NextResponse.json({ response: responseContent })
     }
 
@@ -67,7 +81,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function buildChatMessages(message: string, context: string | undefined, familyContext: any, chatHistory: any[]) {
+async function buildChatMessages(message: string, context: string | undefined, familyContext: any, sessionId: string) {
   const messages = []
   
   // Add system context
@@ -76,14 +90,19 @@ function buildChatMessages(message: string, context: string | undefined, familyC
     content: createSystemPrompt(familyContext)
   })
   
-  // Add chat history
-  if (chatHistory && chatHistory.length > 0) {
-    for (const historyItem of chatHistory) {
-      messages.push({
-        role: historyItem.role,
-        content: historyItem.content
-      })
+  // Add chat history from database
+  try {
+    const chatHistory = await db.getChatHistory(sessionId, 10)
+    if (chatHistory && chatHistory.length > 0) {
+      for (const historyItem of chatHistory.reverse()) {
+        messages.push({
+          role: historyItem.role,
+          content: historyItem.content
+        })
+      }
     }
+  } catch (error) {
+    console.error('Error loading chat history:', error)
   }
   
   // Add current message
@@ -210,4 +229,46 @@ You help with:
 ${context ? `Additional Context: ${context}\n\n` : ''}User message: ${message}
 
 Please provide a helpful, concise response focused on family management and organization.`
+}
+
+// Database helper functions
+async function saveTodosToDatabase(todos: any[]): Promise<any[]> {
+  const savedTodos = []
+  for (const todo of todos) {
+    try {
+      const saved = await db.addTodo(
+        todo.content,
+        todo.priority,
+        todo.category,
+        todo.assignedTo
+      )
+      savedTodos.push(saved[0])
+    } catch (error) {
+      console.error('Error saving todo:', error)
+    }
+  }
+  return savedTodos
+}
+
+async function saveContactsToDatabase(contacts: any[]): Promise<any[]> {
+  const savedContacts = []
+  for (const contact of contacts) {
+    try {
+      // Check if contact already exists by email
+      const existing = contact.email ? await db.findContactByEmail(contact.email) : []
+      
+      if (existing.length > 0) {
+        // Update existing contact
+        const updated = await db.updateContact(existing[0].id, contact)
+        savedContacts.push({ ...updated[0], updated: true })
+      } else {
+        // Create new contact
+        const saved = await db.addContact(contact)
+        savedContacts.push({ ...saved[0], updated: false })
+      }
+    } catch (error) {
+      console.error('Error saving contact:', error)
+    }
+  }
+  return savedContacts
 }
