@@ -49,8 +49,19 @@ export default function TodoTab() {
     try {
       setIsLoading(true)
       
-      // For now, use mock data directly since database integration is not complete
-      // TODO: Implement full database integration
+      // Check localStorage first
+      const savedTodos = localStorage.getItem('family-todos')
+      if (savedTodos) {
+        const parsedTodos = JSON.parse(savedTodos).map((todo: any) => ({
+          ...todo,
+          createdAt: new Date(todo.createdAt),
+          dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined
+        }))
+        setTodos(parsedTodos)
+        return
+      }
+      
+      // Fall back to mock data if no saved todos
       const mockTodos: Todo[] = [
         {
           id: 'vaccine-waiver-amos',
@@ -239,6 +250,7 @@ export default function TodoTab() {
         }
       ]
       setTodos(mockTodos)
+      saveTodosToStorage(mockTodos)
     } catch (error) {
       console.error('Failed to load todos:', error)
       // Use empty array if all else fails
@@ -246,6 +258,10 @@ export default function TodoTab() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const saveTodosToStorage = (todoList: Todo[]) => {
+    localStorage.setItem('family-todos', JSON.stringify(todoList))
   }
 
   const addTodo = () => {
@@ -260,7 +276,9 @@ export default function TodoTab() {
       category: selectedCategory
     }
 
-    setTodos(prev => [todo, ...prev])
+    const updatedTodos = [todo, ...todos]
+    setTodos(updatedTodos)
+    saveTodosToStorage(updatedTodos)
     setNewTodo('')
   }
 
@@ -270,6 +288,7 @@ export default function TodoTab() {
     )
     
     setTodos(updatedTodos)
+    saveTodosToStorage(updatedTodos)
 
     // Trigger animations when completing a todo
     if (status === 'completed') {
@@ -286,7 +305,9 @@ export default function TodoTab() {
   }
 
   const deleteTodo = (id: string) => {
-    setTodos(prev => prev.filter(todo => todo.id !== id))
+    const updatedTodos = todos.filter(todo => todo.id !== id)
+    setTodos(updatedTodos)
+    saveTodosToStorage(updatedTodos)
   }
 
   const startEdit = (todo: Todo) => {
@@ -299,11 +320,13 @@ export default function TodoTab() {
   const saveEdit = () => {
     if (!editContent.trim() || !editingId) return
 
-    setTodos(prev => prev.map(todo => 
+    const updatedTodos = todos.map(todo => 
       todo.id === editingId 
         ? { ...todo, content: editContent, priority: editPriority, category: editCategory }
         : todo
-    ))
+    )
+    setTodos(updatedTodos)
+    saveTodosToStorage(updatedTodos)
     cancelEdit()
   }
 
