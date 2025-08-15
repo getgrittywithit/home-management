@@ -19,8 +19,10 @@ interface Todo {
 }
 
 export default function TodoTab() {
+  // Initialize with empty array to ensure consistent hydration
   const [todos, setTodos] = useState<Todo[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isClient, setIsClient] = useState(false)
   const [newTodo, setNewTodo] = useState('')
   const [selectedPriority, setSelectedPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [selectedCategory, setSelectedCategory] = useState('general')
@@ -41,7 +43,9 @@ export default function TodoTab() {
   } = useTodoAnimations()
 
   // Load todos from the TodoRead API
+  // Set client flag and load todos after hydration
   useEffect(() => {
+    setIsClient(true)
     loadTodos()
   }, [])
 
@@ -49,16 +53,18 @@ export default function TodoTab() {
     try {
       setIsLoading(true)
       
-      // Check localStorage first
-      const savedTodos = localStorage.getItem('family-todos')
-      if (savedTodos) {
-        const parsedTodos = JSON.parse(savedTodos).map((todo: any) => ({
-          ...todo,
-          createdAt: new Date(todo.createdAt),
-          dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined
-        }))
-        setTodos(parsedTodos)
-        return
+      // Check localStorage first (only on client side)
+      if (isClient && typeof window !== 'undefined') {
+        const savedTodos = localStorage.getItem('family-todos')
+        if (savedTodos) {
+          const parsedTodos = JSON.parse(savedTodos).map((todo: any) => ({
+            ...todo,
+            createdAt: new Date(todo.createdAt),
+            dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined
+          }))
+          setTodos(parsedTodos)
+          return
+        }
       }
       
       // Fall back to mock data if no saved todos
@@ -261,7 +267,9 @@ export default function TodoTab() {
   }
 
   const saveTodosToStorage = (todoList: Todo[]) => {
-    localStorage.setItem('family-todos', JSON.stringify(todoList))
+    if (isClient && typeof window !== 'undefined') {
+      localStorage.setItem('family-todos', JSON.stringify(todoList))
+    }
   }
 
   const addTodo = () => {
