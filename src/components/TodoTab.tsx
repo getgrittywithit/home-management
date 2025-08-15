@@ -49,18 +49,9 @@ export default function TodoTab() {
     try {
       setIsLoading(true)
       
-      // Load todos from database
-      const response = await fetch('/api/todos')
-      if (response.ok) {
-        const data = await response.json()
-        setTodos(data.map((todo: any) => ({
-          ...todo,
-          createdAt: new Date(todo.created_at),
-          dueDate: todo.due_date ? new Date(todo.due_date) : undefined
-        })))
-      } else {
-        // Fallback to mock data if API fails
-        const mockTodos: Todo[] = [
+      // For now, use mock data directly since database integration is not complete
+      // TODO: Implement full database integration
+      const mockTodos: Todo[] = [
         {
           id: 'vaccine-waiver-amos',
           content: 'URGENT: Renew Amos\' vaccine waiver - expired 05/10/2025, needs notarization and submission to CHS nurse',
@@ -247,10 +238,11 @@ export default function TodoTab() {
           category: 'school'
         }
       ]
-        setTodos(mockTodos)
-      }
+      setTodos(mockTodos)
     } catch (error) {
       console.error('Failed to load todos:', error)
+      // Use empty array if all else fails
+      setTodos([])
     } finally {
       setIsLoading(false)
     }
