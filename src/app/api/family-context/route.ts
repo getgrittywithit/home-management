@@ -1,10 +1,40 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { getFoodInventory, getMealPlans } from '@/services/foodService'
 
 export async function GET() {
   try {
-    // For now, use mock data directly since database integration is not complete
-    // TODO: Implement full database integration
+    // Get real food inventory and meal plans
+    const [foodInventory, mealPlans] = await Promise.all([
+      getFoodInventory().catch(() => []),
+      getMealPlans().catch(() => [])
+    ])
+
+    // Format food inventory for AI context
+    const foodSummary = foodInventory.length > 0 ? {
+      totalItems: foodInventory.length,
+      byLocation: foodInventory.reduce((acc, item) => {
+        acc[item.location] = (acc[item.location] || 0) + 1
+        return acc
+      }, {} as Record<string, number>),
+      recentItems: foodInventory.slice(0, 10).map(item => 
+        `${item.quantity} ${item.unit} ${item.name} (${item.location})${item.expiration_date ? ` - expires ${item.expiration_date}` : ''}`
+      ),
+      expiringSoon: foodInventory.filter(item => {
+        if (!item.expiration_date) return false
+        const daysUntilExpiry = Math.ceil((new Date(item.expiration_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+        return daysUntilExpiry <= 3 && daysUntilExpiry >= 0
+      }).map(item => `${item.name} (expires ${item.expiration_date})`)
+    } : null
+
+    // Format current meal plans
+    const mealPlanSummary = mealPlans.length > 0 ? {
+      totalMeals: mealPlans.length,
+      upcomingMeals: mealPlans.slice(0, 7).map(meal => 
+        `${meal.date} ${meal.meal_type}: ${meal.dish_name}`
+      )
+    } : null
+
     const familyContext = {
       children: ['Amos', 'Zoey', 'Kaylee', 'Ellie', 'Wyatt', 'Hannah'],
       parents: ['Levi', 'Lola'],
@@ -28,7 +58,17 @@ export async function GET() {
         'Update contact info in Skyward Family Access',
         'Monitor student meal account balances',
         'Review HB 1481 cell phone policy'
-      ]
+      ],
+      // NEW: Real food inventory data for AI meal planning
+      foodInventory: foodSummary,
+      mealPlans: mealPlanSummary,
+      // Context for AI to understand food situation
+      foodContext: {
+        familySize: 8,
+        dietaryNotes: 'Family of 8 with kids ages 5-17, prefer kid-friendly meals',
+        storageLocations: ['fridge', 'freezer', 'pantry'],
+        mealPlanningGoals: 'Use existing inventory, minimize waste, practical family meals'
+      }
     }
 
     return NextResponse.json(familyContext)

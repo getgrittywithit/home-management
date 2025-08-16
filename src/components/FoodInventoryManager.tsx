@@ -7,37 +7,20 @@ import {
   Home, Car, Snowflake, Coffee
 } from 'lucide-react'
 import { aiAgent } from '@/services/aiAgent'
+import {
+  getFoodInventory, addFoodItem, updateFoodItem, deleteFoodItem,
+  getMealPlans, addBulkMealPlans, getBulkSuggestions, addBulkFoodItems,
+  getCurrentProfileId, type FoodItem, type MealPlan
+} from '@/services/foodService'
 
-interface FoodItem {
-  id: string
-  name: string
-  quantity: string
-  unit: string
-  location: FoodLocation
-  category: FoodCategory
-  expirationDate?: string
-  notes?: string
-  addedDate: string
-}
+// Using types from foodService
 
-interface MealPlan {
-  id: string
-  date: string
-  meal: 'breakfast' | 'lunch' | 'dinner' | 'snack'
-  dish: string
-  ingredients: string[]
-  servings: number
-  notes?: string
-}
-
-type FoodLocation = 'kitchen-fridge' | 'kitchen-freezer' | 'garage-fridge' | 'garage-freezer' | 'pantry'
+type FoodLocation = 'fridge' | 'freezer' | 'pantry'
 type FoodCategory = 'proteins' | 'dairy' | 'produce' | 'grains' | 'canned' | 'frozen' | 'condiments' | 'snacks' | 'beverages' | 'other'
 
 const LOCATIONS = [
-  { id: 'kitchen-fridge', name: 'Kitchen Fridge', icon: Refrigerator, color: 'bg-blue-500' },
-  { id: 'kitchen-freezer', name: 'Kitchen Freezer', icon: Snowflake, color: 'bg-cyan-500' },
-  { id: 'garage-fridge', name: 'Garage Fridge', icon: Car, color: 'bg-green-500' },
-  { id: 'garage-freezer', name: 'Garage Freezer', icon: Snowflake, color: 'bg-teal-500' },
+  { id: 'fridge', name: 'Fridge', icon: Refrigerator, color: 'bg-blue-500' },
+  { id: 'freezer', name: 'Freezer', icon: Snowflake, color: 'bg-cyan-500' },
   { id: 'pantry', name: 'Pantry', icon: Package, color: 'bg-amber-500' }
 ] as const
 
@@ -55,7 +38,7 @@ export default function FoodInventoryManager() {
   const [apiKeySet, setApiKeySet] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Check API key on mount
+  // Check API key and load data on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const hasApiKey = localStorage.getItem('claude-api-key') !== null
@@ -65,42 +48,29 @@ export default function FoodInventoryManager() {
     }
   }, [])
 
-  const loadInventory = () => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('family-food-inventory')
-      if (saved) {
-        setInventory(JSON.parse(saved))
-      }
+  const loadInventory = async () => {
+    try {
+      const items = await getFoodInventory()
+      setInventory(items)
+    } catch (error) {
+      console.error('Error loading inventory:', error)
     }
   }
 
-  const saveInventory = (items: FoodItem[]) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('family-food-inventory', JSON.stringify(items))
+  // No longer needed - individual operations save directly to DB
+
+  const loadMealPlan = async () => {
+    try {
+      const plans = await getMealPlans()
+      setMealPlan(plans)
+    } catch (error) {
+      console.error('Error loading meal plans:', error)
     }
   }
 
-  const loadMealPlan = () => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('family-meal-plan')
-      if (saved) {
-        setMealPlan(JSON.parse(saved))
-      }
-    }
-  }
-
-  const saveMealPlan = (plan: MealPlan[]) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('family-meal-plan', JSON.stringify(plan))
-    }
-  }
+  // No longer needed - meal plans save directly to DB
 
   const processBulkInventory = async () => {
-    if (!apiKeySet) {
-      alert('Please set your Claude API key first')
-      return
-    }
-
     if (!bulkInput.trim()) {
       alert('Please enter your food inventory list')
       return
@@ -109,53 +79,56 @@ export default function FoodInventoryManager() {
     setIsProcessing(true)
 
     try {
-      const prompt = `Please analyze this food inventory list and organize it into a structured format. For each item, identify:
-1. Item name
-2. Quantity and unit
-3. Best storage location (kitchen-fridge, kitchen-freezer, garage-fridge, garage-freezer, or pantry)
-4. Food category (proteins, dairy, produce, grains, canned, frozen, condiments, snacks, beverages, other)
-5. Any expiration concerns
+      // Extract individual items from bulk input
+      const items = bulkInput
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.includes(':') && line.includes(' '))
+        .map(line => line.replace(/^[-*•]\s*/, '').trim())
 
-Here's the inventory:
-${bulkInput}
+      if (items.length === 0) {
+        alert('No items found. Please format as a list (one item per line)')
+        return
+      }
 
-Return the response as a JSON array of objects with fields: name, quantity, unit, location, category, notes`
-
-      const response = await aiAgent.chatResponse(prompt)
+      // Get smart suggestions for all items
+      const suggestions = await getBulkSuggestions(items)
       
-      // Parse AI response and add to inventory
-      try {
-        // Extract JSON from response
-        const jsonMatch = response.response.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const parsedItems = JSON.parse(jsonMatch[0])
-          const newItems: FoodItem[] = parsedItems.map((item: any, index: number) => ({
-            id: `bulk-${Date.now()}-${index}`,
-            name: item.name || 'Unknown Item',
-            quantity: item.quantity || '1',
-            unit: item.unit || 'item',
-            location: item.location || 'pantry',
-            category: item.category || 'other',
-            notes: item.notes || '',
-            addedDate: new Date().toISOString()
-          }))
-
-          const updatedInventory = [...inventory, ...newItems]
-          setInventory(updatedInventory)
-          saveInventory(updatedInventory)
-          setBulkInput('')
-          alert(`Added ${newItems.length} items to inventory!`)
-        } else {
-          throw new Error('Could not parse AI response as JSON')
+      // Create food items with smart defaults
+      const profileId = getCurrentProfileId()
+      const foodItems = items.map((itemText, index) => {
+        const suggestion = suggestions[index]
+        const [quantityPart, ...nameParts] = itemText.split(' ')
+        const quantity = parseFloat(quantityPart) || 1
+        const name = nameParts.join(' ') || itemText
+        
+        return {
+          profile_id: profileId,
+          name: name,
+          quantity: quantity,
+          unit: suggestion?.suggested_location === 'freezer' ? 'lb' : 'item',
+          location: (suggestion?.suggested_location as any) || 'pantry',
+          category: (suggestion?.suggested_category as any) || 'other',
+          expiration_date: suggestion?.auto_expiry ? suggestion.auto_expiry.split('T')[0] : undefined,
+          notes: `Added via bulk import`
         }
-      } catch (parseError) {
-        console.error('Error parsing AI response:', parseError)
-        alert('AI processed the list but response format was unexpected. Please try again or add items manually.')
+      })
+
+      // Save to database
+      const savedItems = await addBulkFoodItems(foodItems)
+      
+      if (savedItems.length > 0) {
+        // Refresh inventory
+        await loadInventory()
+        setBulkInput('')
+        alert(`Added ${savedItems.length} items to inventory with smart categorization!`)
+      } else {
+        alert('Error saving items to database')
       }
 
     } catch (error) {
       console.error('Error processing bulk inventory:', error)
-      alert('Error processing inventory. Please check your API key and try again.')
+      alert('Error processing inventory. Please try again.')
     } finally {
       setIsProcessing(false)
     }
@@ -175,30 +148,41 @@ Return the response as a JSON array of objects with fields: name, quantity, unit
     setIsProcessing(true)
 
     try {
-      const inventoryList = inventory.map(item => 
-        `${item.quantity} ${item.unit} ${item.name} (${item.location})`
-      ).join('\n')
+      // Get current inventory with expiration info
+      const inventoryByLocation = inventory.reduce((acc, item) => {
+        if (!acc[item.location]) acc[item.location] = []
+        const expiryInfo = item.expiration_date ? ` (expires ${item.expiration_date})` : ''
+        acc[item.location].push(`${item.quantity} ${item.unit} ${item.name}${expiryInfo}`)
+        return acc
+      }, {} as Record<string, string[]>)
+
+      const inventoryText = Object.entries(inventoryByLocation)
+        .map(([location, items]) => `${location.toUpperCase()}:\n${items.join('\n')}`)
+        .join('\n\n')
 
       const today = new Date()
       const dates = []
-      for (let i = 0; i <= 3; i++) {
+      for (let i = 0; i <= 6; i++) { // 7 days instead of 4
         const date = new Date(today)
         date.setDate(today.getDate() + i)
         dates.push(date.toISOString().split('T')[0])
       }
 
-      const prompt = `Based on this food inventory, create a meal plan from today (${dates[0]}) through Wednesday (${dates[3]}) for a family of 8 (2 parents, 6 kids).
+      const prompt = `Create a practical 7-day meal plan for the Moses family (8 people: 2 parents + 6 kids ages 5-17).
 
-Available food inventory:
-${inventoryList}
+🏠 CURRENT FOOD INVENTORY:
+${inventoryText}
 
-Please create practical meals using primarily the ingredients we have. Consider:
-- Family-friendly meals that kids will eat
-- Use ingredients efficiently to minimize waste
-- Include breakfast, lunch, and dinner for each day
-- Note any ingredients we might need to buy
+📅 PLAN FOR: ${dates[0]} through ${dates[6]}
 
-Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ingredients (array), servings, notes`
+✅ REQUIREMENTS:
+- Use items expiring soon FIRST
+- Kid-friendly meals (they're picky!)
+- 3 meals per day (breakfast, lunch, dinner)
+- Realistic portions for 8 people
+- Note any ingredients to buy
+
+Return JSON array: [{"date": "2024-01-01", "meal_type": "breakfast", "dish_name": "Pancakes", "ingredients": ["flour", "eggs", "milk"], "servings": 8, "notes": "Use milk expiring today"}]`
 
       const response = await aiAgent.chatResponse(prompt)
       
@@ -206,20 +190,28 @@ Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ing
         const jsonMatch = response.response.match(/\[[\s\S]*\]/)
         if (jsonMatch) {
           const parsedMeals = JSON.parse(jsonMatch[0])
-          const newMealPlan: MealPlan[] = parsedMeals.map((meal: any, index: number) => ({
-            id: `meal-${Date.now()}-${index}`,
+          const profileId = getCurrentProfileId()
+          
+          const mealPlans = parsedMeals.map((meal: any) => ({
+            profile_id: profileId,
             date: meal.date,
-            meal: meal.meal,
-            dish: meal.dish,
+            meal_type: meal.meal_type,
+            dish_name: meal.dish_name,
             ingredients: Array.isArray(meal.ingredients) ? meal.ingredients : [],
             servings: meal.servings || 8,
             notes: meal.notes || ''
           }))
 
-          setMealPlan(newMealPlan)
-          saveMealPlan(newMealPlan)
-          setActiveTab('meal-plan')
-          alert(`Generated meal plan with ${newMealPlan.length} meals!`)
+          // Save to database
+          const savedMeals = await addBulkMealPlans(mealPlans)
+          
+          if (savedMeals.length > 0) {
+            await loadMealPlan()
+            setActiveTab('meal-plan')
+            alert(`🎉 Generated ${savedMeals.length} meals using your real food inventory!`)
+          } else {
+            alert('Error saving meal plan to database')
+          }
         } else {
           throw new Error('Could not parse meal plan response')
         }
@@ -236,33 +228,40 @@ Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ing
     }
   }
 
-  const addManualItem = () => {
-    const newItem: FoodItem = {
-      id: `manual-${Date.now()}`,
+  const addManualItem = async () => {
+    const profileId = getCurrentProfileId()
+    const newItem = {
+      profile_id: profileId,
       name: 'New Item',
-      quantity: '1',
+      quantity: 1,
       unit: 'item',
-      location: 'pantry',
-      category: 'other',
-      addedDate: new Date().toISOString()
+      location: 'pantry' as const,
+      category: 'other' as const
     }
-    const updatedInventory = [...inventory, newItem]
-    setInventory(updatedInventory)
-    saveInventory(updatedInventory)
+    
+    const savedItem = await addFoodItem(newItem)
+    if (savedItem) {
+      await loadInventory()
+    }
   }
 
-  const updateItem = (id: string, updates: Partial<FoodItem>) => {
-    const updatedInventory = inventory.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    )
-    setInventory(updatedInventory)
-    saveInventory(updatedInventory)
+  const updateItem = async (id: string, updates: Partial<FoodItem>) => {
+    const success = await updateFoodItem(id, updates)
+    if (success) {
+      // Update local state immediately for better UX
+      const updatedInventory = inventory.map(item => 
+        item.id === id ? { ...item, ...updates } : item
+      )
+      setInventory(updatedInventory)
+    }
   }
 
-  const deleteItem = (id: string) => {
-    const updatedInventory = inventory.filter(item => item.id !== id)
-    setInventory(updatedInventory)
-    saveInventory(updatedInventory)
+  const deleteItem = async (id: string) => {
+    const success = await deleteFoodItem(id)
+    if (success) {
+      const updatedInventory = inventory.filter(item => item.id !== id)
+      setInventory(updatedInventory)
+    }
   }
 
   const filteredInventory = selectedLocation === 'all' 
@@ -375,7 +374,7 @@ Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ing
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredInventory.map(item => {
                   const Icon = getLocationIcon(item.location)
-                  const expiryStatus = getExpiryStatus(item.expirationDate)
+                  const expiryStatus = getExpiryStatus(item.expiration_date)
                   
                   return (
                     <div key={item.id} className="bg-gray-50 p-4 rounded-lg border">
@@ -402,7 +401,7 @@ Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ing
                           <input
                             type="text"
                             value={item.quantity}
-                            onChange={(e) => updateItem(item.id, { quantity: e.target.value })}
+                            onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 1 })}
                             className="w-16 text-sm bg-white border rounded px-2 py-1"
                             placeholder="1"
                           />
@@ -445,8 +444,8 @@ Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ing
                         
                         <input
                           type="date"
-                          value={item.expirationDate || ''}
-                          onChange={(e) => updateItem(item.id, { expirationDate: e.target.value })}
+                          value={item.expiration_date || ''}
+                          onChange={(e) => updateItem(item.id, { expiration_date: e.target.value })}
                           className="w-full text-xs bg-white border rounded px-2 py-1"
                           placeholder="Expiration date"
                         />
@@ -487,7 +486,7 @@ Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ing
               <div>
                 <h3 className="text-lg font-medium mb-2">Bulk Food Inventory Input</h3>
                 <p className="text-gray-600 mb-4">
-                  Paste or type your complete food inventory. AI will organize it by location and category.
+                  🚀 <strong>Super Quick Grocery Entry!</strong> Just paste your grocery list - AI will automatically sort items into fridge, freezer, or pantry with smart expiration dates.
                 </p>
               </div>
               
@@ -496,22 +495,22 @@ Return as JSON array with fields: date, meal (breakfast/lunch/dinner), dish, ing
                   value={bulkInput}
                   onChange={(e) => setBulkInput(e.target.value)}
                   className="w-full h-64 p-4 border rounded-lg resize-none"
-                  placeholder="Enter your food inventory here. For example:
-                  
-Kitchen Fridge:
-- 1 gallon milk
-- 6 eggs
-- 2 lbs ground beef
-- Lettuce head
-- 3 apples
+                  placeholder="📝 QUICK ENTRY - Just list your groceries!
 
-Pantry:
-- 1 box cereal
-- 2 cans tomato sauce
-- 1 bag rice
-- Peanut butter jar
+Example:
+2 gallons milk
+1 dozen eggs  
+3 lbs ground beef
+1 bag lettuce
+5 lbs apples
+2 boxes cereal
+4 cans tomato sauce
+1 bag rice
+1 jar peanut butter
+2 lbs chicken breast
+1 bag frozen vegetables
 
-And so on..."
+✨ Smart AI will automatically sort by fridge/freezer/pantry!"
                 />
                 
                 <div className="flex items-center justify-between">
@@ -549,53 +548,112 @@ And so on..."
               </div>
               
               {mealPlan.length > 0 ? (
-                <div className="space-y-4">
-                  {Object.entries(
-                    mealPlan.reduce((acc, meal) => {
-                      if (!acc[meal.date]) acc[meal.date] = []
-                      acc[meal.date].push(meal)
-                      return acc
-                    }, {} as Record<string, MealPlan[]>)
-                  ).map(([date, meals]) => (
-                    <div key={date} className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-medium mb-3">
-                        {new Date(date).toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {meals.sort((a, b) => {
-                          const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 }
-                          return order[a.meal] - order[b.meal]
-                        }).map(meal => (
-                          <div key={meal.id} className="bg-white p-3 rounded border">
-                            <div className="font-medium capitalize text-sm mb-1">{meal.meal}</div>
-                            <div className="font-medium">{meal.dish}</div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              Serves {meal.servings}
+                <div className="space-y-6">
+                  {/* Weekly Overview */}
+                  <div className="grid grid-cols-7 gap-2 text-center text-xs">
+                    {Object.entries(
+                      mealPlan.reduce((acc, meal) => {
+                        if (!acc[meal.date]) acc[meal.date] = []
+                        acc[meal.date].push(meal)
+                        return acc
+                      }, {} as Record<string, MealPlan[]>)
+                    ).slice(0, 7).map(([date, meals]) => (
+                      <div key={date} className="bg-gradient-to-b from-blue-50 to-green-50 p-2 rounded">
+                        <div className="font-medium text-gray-800 mb-1">
+                          {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })}
+                        </div>
+                        <div className="space-y-1">
+                          {meals.sort((a, b) => {
+                            const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 }
+                            return order[a.meal_type] - order[b.meal_type]
+                          }).map(meal => (
+                            <div key={meal.id} className="text-xs">
+                              <div className="font-medium">{meal.meal_type.charAt(0).toUpperCase()}</div>
+                              <div className="text-gray-600 truncate">{meal.dish_name}</div>
                             </div>
-                            {meal.ingredients.length > 0 && (
-                              <div className="text-xs text-gray-600 mt-1">
-                                Ingredients: {meal.ingredients.slice(0, 3).join(', ')}
-                                {meal.ingredients.length > 3 && '...'}
-                              </div>
-                            )}
-                            {meal.notes && (
-                              <div className="text-xs text-blue-600 mt-1">{meal.notes}</div>
-                            )}
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
+                    ))}
+                  </div>
+
+                  {/* Detailed Daily View */}
+                  <div className="space-y-4">
+                    {Object.entries(
+                      mealPlan.reduce((acc, meal) => {
+                        if (!acc[meal.date]) acc[meal.date] = []
+                        acc[meal.date].push(meal)
+                        return acc
+                      }, {} as Record<string, MealPlan[]>)
+                    ).map(([date, meals]) => (
+                      <div key={date} className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border">
+                        <h4 className="font-bold text-lg mb-3 text-gray-800">
+                          📅 {new Date(date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {meals.sort((a, b) => {
+                            const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 }
+                            return order[a.meal_type] - order[b.meal_type]
+                          }).map(meal => {
+                            const mealEmojis = { breakfast: '🍳', lunch: '🥗', dinner: '🍽️', snack: '🍿' }
+                            return (
+                              <div key={meal.id} className="bg-white p-4 rounded-lg border shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span>{mealEmojis[meal.meal_type] || '🍽️'}</span>
+                                  <div className="font-bold capitalize text-gray-800">{meal.meal_type}</div>
+                                </div>
+                                <div className="font-bold text-lg text-gray-900 mb-2">{meal.dish_name}</div>
+                                <div className="text-sm text-gray-600 mb-2">
+                                  👥 Serves {meal.servings} people
+                                </div>
+                                {meal.ingredients.length > 0 && (
+                                  <div className="text-sm text-gray-700 mb-2">
+                                    <div className="font-medium text-gray-800 mb-1">🥗 Ingredients:</div>
+                                    <div className="bg-gray-50 p-2 rounded text-xs">
+                                      {meal.ingredients.join(', ')}
+                                    </div>
+                                  </div>
+                                )}
+                                {meal.notes && (
+                                  <div className="text-sm bg-blue-50 text-blue-800 p-2 rounded mt-2">
+                                    📝 {meal.notes}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Smart Shopping List */}
+                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                    <h4 className="font-bold text-lg mb-3 text-yellow-800">
+                      🛍️ Smart Shopping List
+                    </h4>
+                    <div className="text-sm text-yellow-700">
+                      AI will suggest items you might need to buy based on your meal plan and current inventory.
+                      <br />
+                      <em>This feature will be enhanced as you use the system!</em>
                     </div>
-                  ))}
+                  </div>
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <ChefHat className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>No meal plan generated yet</p>
-                  <p className="text-sm">Add some inventory items and generate a meal plan</p>
+                <div className="text-center py-12 text-gray-500">
+                  <ChefHat className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-xl font-medium mb-2">Ready to Plan Your Meals?</h3>
+                  <p className="text-gray-600 mb-4">Add your food inventory above, then generate a smart meal plan</p>
+                  <div className="bg-blue-50 p-4 rounded-lg max-w-md mx-auto">
+                    <p className="text-sm text-blue-800">
+                      🤖 <strong>AI will create meals using your real food!</strong>
+                      <br />No more guessing or wasted ingredients.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
