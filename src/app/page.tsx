@@ -6,18 +6,31 @@ import {
   ChevronRight, Clock, Shield, Activity, Settings
 } from 'lucide-react'
 import Link from 'next/link'
+import { getAllFamilyData } from '@/lib/familyConfig'
 
 export default function HomePage() {
   const [selectedRole, setSelectedRole] = useState<'parent' | 'kid' | null>(null)
 
-  const kids = [
-    { name: 'Hannah', emoji: '🌟', grade: '6th', color: 'from-pink-400 to-purple-400' },
-    { name: 'Wyatt', emoji: '⚽', grade: '4th', color: 'from-blue-400 to-cyan-400' },
-    { name: 'Ellie', emoji: '🎭', grade: '8th', color: 'from-purple-400 to-pink-400' },
-    { name: 'Kaylee', emoji: '📚', grade: '10th', color: 'from-green-400 to-teal-400' },
-    { name: 'Zoey', emoji: '🎯', grade: '12th', color: 'from-orange-400 to-red-400' },
-    { name: 'Amos', emoji: '🎮', grade: '10th', color: 'from-indigo-400 to-purple-400' }
-  ]
+  // Get dynamic family data and add customizable icons
+  const familyData = getAllFamilyData()
+  const kids = familyData.children.map((child, index) => {
+    // Customizable icons - these can be updated in About Me profiles later
+    const icons = ['🌟', '⚽', '🎭', '📚', '🎯', '🎮']
+    const colors = [
+      'from-pink-400 to-purple-400',
+      'from-blue-400 to-cyan-400', 
+      'from-purple-400 to-pink-400',
+      'from-green-400 to-teal-400',
+      'from-orange-400 to-red-400',
+      'from-indigo-400 to-purple-400'
+    ]
+    
+    return {
+      name: child.name,
+      emoji: icons[index] || '👤', // Default icon if none assigned
+      color: colors[index] || 'from-blue-400 to-purple-400' // Default color
+    }
+  })
 
   const parentFeatures = [
     { icon: <Home className="w-6 h-6" />, title: 'Family Dashboard', href: '/dashboard', description: 'Overview of all family operations' },
@@ -191,8 +204,7 @@ export default function HomePage() {
                     <div className="text-6xl mb-4 transform group-hover:scale-110 transition-transform">
                       {kid.emoji}
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-1">{kid.name}</h3>
-                    <p className="text-gray-600 mb-4">{kid.grade} Grade</p>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-4">{kid.name}</h3>
                     <div className={`inline-flex items-center px-4 py-2 rounded-full bg-gradient-to-r ${kid.color} text-white font-medium`}>
                       Open My Portal
                       <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
