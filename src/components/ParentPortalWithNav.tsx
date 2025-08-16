@@ -11,6 +11,8 @@ import AboutMeAdminTab from './AboutMeAdminTab'
 import BulkDocumentProcessor from './BulkDocumentProcessor'
 import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
+import FamilyConfigAdmin from './FamilyConfigAdmin'
+import { getAllFamilyData } from '@/lib/familyConfig'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat
@@ -42,26 +44,10 @@ interface ParentPortalWithNavProps {
   initialData?: DashboardData
 }
 
-// Real family children data
-const mockChildren = [
-  { id: 'hannah-child-1', name: 'Hannah', grade: '6th', school: 'Local Middle School' },
-  { id: 'wyatt-child-2', name: 'Wyatt', grade: '4th', school: 'Local Elementary School' },
-  { id: 'ellie-child-3', name: 'Ellie', grade: '8th', school: 'Local Middle School' },
-  { id: 'kaylee-child-4', name: 'Kaylee', grade: '10th', school: 'Local High School' },
-  { id: 'zoey-child-5', name: 'Zoey', grade: '12th', school: 'Local High School' },
-  { id: 'amos-moses-504640', name: 'Amos', grade: '10th', school: 'Samuel V Champion High School' },
-]
-
-const mockFamilyMembers = [
-  { name: 'Levi', age: 38, role: 'parent' as const },
-  { name: 'Lola', age: 36, role: 'parent' as const },
-  { name: 'Hannah', age: 12, role: 'child' as const },
-  { name: 'Wyatt', age: 10, role: 'child' as const },
-  { name: 'Ellie', age: 14, role: 'child' as const },
-  { name: 'Kaylee', age: 16, role: 'child' as const },
-  { name: 'Zoey', age: 18, role: 'child' as const },
-  { name: 'Amos', age: 16, role: 'child' as const },
-]
+// Get all family data from centralized config
+const familyData = getAllFamilyData()
+const familyChildren = familyData.children.filter(Boolean) // Remove any null values
+const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null values
 
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
   const [activeTab, setActiveTab] = useState('overview')
@@ -80,26 +66,49 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           <h2 className="text-xl font-bold">Family Members</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {mockFamilyMembers.map(member => (
+          {familyMembers.map(member => (
             <div key={member.name} className="border rounded-lg p-4 hover:bg-gray-50">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                  <User className="w-6 h-6 text-purple-600" />
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  member.role === 'parent' ? 'bg-blue-100' : 'bg-purple-100'
+                }`}>
+                  <User className={`w-6 h-6 ${
+                    member.role === 'parent' ? 'text-blue-600' : 'text-purple-600'
+                  }`} />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{member.name}</h3>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">
+                    {member.role === 'child' ? (member as any).fullName || member.name : member.name}
+                  </h3>
                   <p className="text-sm text-gray-600">Age: {member.age}</p>
                   <p className="text-sm text-gray-500 capitalize">{member.role}</p>
+                  {member.role === 'child' && (
+                    <>
+                      <p className="text-xs text-gray-500">{(member as any).grade}</p>
+                      <p className="text-xs text-gray-400">{(member as any).school?.name}</p>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="mt-3 flex gap-2">
-                <button className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-full hover:bg-purple-200">
-                  View Profile
-                </button>
+                {member.role === 'child' ? (
+                  <button className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200">
+                    Kid Portal
+                  </button>
+                ) : (
+                  <button className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-200">
+                    Profile
+                  </button>
+                )}
                 <button className="text-sm bg-gray-100 text-gray-700 px-3 py-1 rounded-full hover:bg-gray-200">
                   Edit
                 </button>
               </div>
+              {member.role === 'child' && (member as any).birthDate && (
+                <div className="mt-2 text-xs text-gray-400">
+                  Born: {(member as any).birthDate.toLocaleDateString()}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -168,30 +177,21 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     <FilterableCalendar selectedChild="amos-moses-504640" />
   )
 
-  const renderSettingsTab = () => (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-gray-500 to-gray-600 text-white p-6 rounded-lg">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-gray-100">Configure your family management system</p>
-      </div>
-
-      <div className="bg-white p-6 rounded-lg border">
-        <h2 className="text-xl font-bold mb-4">System Configuration</h2>
-        <p className="text-gray-600">Settings and configuration options coming soon...</p>
-      </div>
-    </div>
-  )
+  const renderSettingsTab = () => <FamilyConfigAdmin />
 
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'overview':
         return <Dashboard initialData={initialData} />
       case 'chores':
-        return <ChoresTab familyMembers={mockFamilyMembers} />
+        return <ChoresTab familyMembers={familyMembers} />
       case 'family':
         return renderFamilyTab()
       case 'school':
-        return <EnhancedParentSchoolTab children={mockChildren} />
+        return <EnhancedParentSchoolTab children={familyChildren.map(child => ({
+          ...child,
+          school: child.school.name
+        }))} />
       case 'calendar':
         return renderCalendarTab()
       case 'contacts':
