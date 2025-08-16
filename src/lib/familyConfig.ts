@@ -23,67 +23,90 @@ export interface SchoolInfo {
   website?: string
 }
 
-// SCHOOLS
+// SCHOOLS - UPDATED TO MATCH ACTUAL SCHEDULES
 export const SCHOOLS: Record<string, SchoolInfo> = {
   'champion-high': {
-    name: 'Samuel V Champion High School',
+    name: 'BOERNE - SAMUEL V CHAMPION H S',
     address: '1580 Champion Dr, Boerne, TX 78006',
     phone: '(830) 357-2000',
     principal: 'Mr. Johnson',
     website: 'https://chs.bisd.net'
   },
-  'princeton-intermediate': {
-    name: 'Princeton Intermediate School',
-    address: '123 School St, Princeton, TX 75407',
-    phone: '(469) 752-8000',
+  'boerne-middle-north': {
+    name: 'BOERNE MIDDLE NORTH',
+    address: 'Boerne, TX',
+    phone: '(830) 357-2100',
     principal: 'Ms. Anderson'
   },
-  'princeton-elementary': {
-    name: 'Princeton Elementary School',
-    address: '456 Elementary Way, Princeton, TX 75407', 
-    phone: '(469) 752-8100',
+  'herff-elementary': {
+    name: 'HERFF EL',
+    address: 'Boerne, TX', 
+    phone: '(830) 357-2200',
     principal: 'Mrs. Williams'
   }
 }
 
-// CURRENT TEACHER ASSIGNMENTS - UPDATE EACH SEMESTER
+// CURRENT TEACHER ASSIGNMENTS - AUTOMATICALLY GENERATED FROM ACTUAL SCHEDULES
 export const TEACHER_ASSIGNMENTS: Record<string, TeacherAssignment[]> = {
   'amos': [
-    { name: 'Mr. Smith', subject: 'Algebra II', email: 'j.smith@bisd.net', room: '201' },
-    { name: 'Mrs. Davis', subject: 'English 10', email: 'm.davis@bisd.net', room: '105' },
-    { name: 'Coach Rodriguez', subject: 'PE', email: 'a.rodriguez@bisd.net', room: 'Gym' },
-    { name: 'Ms. Thompson', subject: 'World History', email: 's.thompson@bisd.net', room: '302' },
-    { name: 'Mr. Chen', subject: 'Biology', email: 'l.chen@bisd.net', room: 'Lab 1' },
-    { name: 'Mrs. Garcia', subject: 'Spanish I', email: 'c.garcia@bisd.net', room: '210' }
+    { name: 'Thomas Dillard', subject: 'IPC', room: 'B245' },
+    { name: 'Christopher Troilo', subject: 'English II', room: 'B139' },
+    { name: 'Kallie Cheves', subject: 'Advisory 10', room: 'A112' },
+    { name: 'Raeanna Kempf', subject: 'Astronomy', room: 'B213' },
+    { name: 'Stephen Salazar', subject: 'ASL I', room: 'E150' },
+    { name: 'Daniel Lawrence', subject: 'Geometry', room: 'B272' },
+    { name: 'Isaac Cenoz', subject: 'World History', room: 'A209' },
+    { name: 'Dorman Vick', subject: 'Ag Mechanics & Metal Tech', room: 'J303' },
+    { name: 'Hannah Kovarcik', subject: 'ART 1', room: 'A113' }
   ],
   'zoey': [
-    { name: 'Ms. Hill', subject: 'English 9', email: 'e.hill@bisd.net', room: '103' },
-    { name: 'Mr. Wilson', subject: 'Algebra I', email: 'r.wilson@bisd.net', room: '205' },
-    { name: 'Mrs. Brown', subject: 'Physical Science', email: 'l.brown@bisd.net', room: 'Lab 2' },
-    { name: 'Mr. Martinez', subject: 'Geography', email: 'd.martinez@bisd.net', room: '301' },
-    { name: 'Coach Johnson', subject: 'PE', email: 'm.johnson@bisd.net', room: 'Gym' },
-    { name: 'Mrs. Lee', subject: 'Art', email: 'k.lee@bisd.net', room: 'Art Room' }
+    { name: 'Kendall Reischling', subject: 'Debate I', room: 'T205' },
+    { name: 'Isaac Cenoz', subject: 'AP Human Geography', room: 'A209' },
+    { name: 'Alejandra Leber', subject: 'Advisory 9', room: 'B222' },
+    { name: 'Michael Colvard', subject: 'JROTC 1 PE', room: 'B142' },
+    { name: 'Alyse Zingelmann', subject: 'Honors English I', room: 'B111' },
+    { name: 'Stacie Murrah', subject: 'CHILD DEVELOP', room: 'B137' },
+    { name: 'Peggy Fisher', subject: 'Honors Biology', room: 'B247' },
+    { name: 'Jason Sanders', subject: 'Honors Geometry', room: 'T212' },
+    { name: 'Joshua Gonzales', subject: 'Art II Drawing I', room: 'A118' }
   ],
   'kaylee': [
-    { name: 'Mrs. Foster', subject: 'Language Arts', email: 'j.foster@princeton.edu', room: '7A' },
-    { name: 'Mr. Cooper', subject: 'Pre-Algebra', email: 'm.cooper@princeton.edu', room: '7B' },
-    { name: 'Ms. Wright', subject: 'Life Science', email: 's.wright@princeton.edu', room: '7C' },
-    { name: 'Mr. Turner', subject: 'Texas History', email: 'b.turner@princeton.edu', room: '7D' }
+    { name: 'Steven McGhee', subject: 'Texas History', room: 'C205' },
+    { name: 'Carlie Polson', subject: 'Science 7', room: 'A104' },
+    { name: 'Katrina Salinas', subject: 'PHYSICAL ED 7TH', room: 'GYM' },
+    { name: 'Michelle Stewart', subject: 'Advisory 7', room: 'C206' },
+    { name: 'Sharon Bash', subject: 'ART 2', room: 'A107' },
+    { name: 'Samantha Songco-Twiss', subject: 'Math 7', room: 'B107' },
+    { name: 'Mary Whitaker', subject: 'FCS', room: 'A112' },
+    { name: 'Christy Boerm', subject: 'ELAR 7', room: 'C103' },
+    { name: 'Amy Thornton', subject: 'THEATRE 1', room: 'STUD' }
   ],
   'ellie': [
-    { name: 'Mrs. Parker', subject: 'Reading', email: 'a.parker@princeton.edu', room: '6A' },
-    { name: 'Mr. Bailey', subject: 'Math', email: 'c.bailey@princeton.edu', room: '6B' },
-    { name: 'Ms. Kelly', subject: 'Science', email: 'l.kelly@princeton.edu', room: '6C' },
-    { name: 'Mrs. Murphy', subject: 'Social Studies', email: 'r.murphy@princeton.edu', room: '6D' }
+    { name: 'Jonathan Rickman', subject: 'BAND I-A BEGIN / Advisory 6', room: 'BAND' },
+    { name: 'Madison Lowe', subject: 'Honors ELAR 6', room: 'C101' },
+    { name: 'Taylor Lancaster', subject: 'Math 6', room: 'B103' },
+    { name: 'Isabel Hold', subject: 'Science 6', room: 'A102' },
+    { name: 'Cheyenne LaFargue', subject: 'Contemporary World Cultures', room: 'C202' },
+    { name: 'Courtney Ludy', subject: 'STEM 6', room: 'E101' },
+    { name: 'Priscilla Garcia-Meier', subject: 'Digital Literacy 6', room: 'E104' },
+    { name: 'Hannah Narvaez', subject: 'Student Leadership / Wellness', room: 'E102' },
+    { name: 'Jeremy Boatright', subject: 'PHYSICAL ED 6', room: 'GYM' }
   ],
   'wyatt': [
-    { name: 'Mrs. Adams', subject: 'Homeroom', email: 'd.adams@princeton.edu', room: '4A' },
-    { name: 'Mr. Clark', subject: 'Math', email: 's.clark@princeton.edu', room: '4B' },
-    { name: 'Ms. Rivera', subject: 'Reading', email: 'm.rivera@princeton.edu', room: '4C' }
+    { name: 'Mandy Rice', subject: 'HOMEROOM / ELAR / SOCIAL STUDIES 4TH', room: 'C105' },
+    { name: 'Allycia English', subject: 'SCIENCE / MATH 4TH GRADE', room: 'C104' },
+    { name: 'Matthew Beschoner', subject: 'ART 4TH GRADE', room: 'C129-01' },
+    { name: 'Mindy Kaler', subject: 'COMPUTERS 4TH GRADE', room: 'A102-01' },
+    { name: 'Travis Clark', subject: 'PE 4TH GRADE', room: 'B108-01' },
+    { name: 'Mary Young', subject: 'MUSIC 4TH GRADE', room: 'B119-01' }
   ],
   'hannah': [
-    { name: 'Mrs. Collins', subject: 'Homeroom', email: 'h.collins@princeton.edu', room: '3A' },
-    { name: 'Miss Torres', subject: 'Reading', email: 'v.torres@princeton.edu', room: '3B' }
+    { name: 'Candace Warder', subject: 'HOMEROOM / ELAR / SOCIAL STUDIES 3RD', room: 'C204' },
+    { name: 'Megan Varnum', subject: 'SCIENCE / MATH 3RD GRADE', room: 'C201' },
+    { name: 'Matthew Beschoner', subject: 'ART 3RD GRADE', room: 'C129-03' },
+    { name: 'Mindy Kaler', subject: 'COMPUTERS 3RD GRADE', room: 'A102-03' },
+    { name: 'Travis Clark', subject: 'PE 3RD GRADE', room: 'B108-03' },
+    { name: 'Mary Young', subject: 'MUSIC 3RD GRADE', room: 'B119-03' }
   ]
 }
 
@@ -111,14 +134,14 @@ export const CURRENT_GRADES = {
   'hannah': '3rd Grade'
 } as const
 
-// SCHOOL ASSIGNMENTS - Update as needed
+// SCHOOL ASSIGNMENTS - Updated to match actual schedules
 export const SCHOOL_ASSIGNMENTS = {
   'amos': 'champion-high',
   'zoey': 'champion-high',
-  'kaylee': 'princeton-intermediate', 
-  'ellie': 'princeton-intermediate',
-  'wyatt': 'princeton-elementary',
-  'hannah': 'princeton-elementary'
+  'kaylee': 'boerne-middle-north', 
+  'ellie': 'boerne-middle-north',
+  'wyatt': 'herff-elementary',
+  'hannah': 'herff-elementary'
 } as const
 
 // EXTRACURRICULAR ACTIVITIES - Update as needed
@@ -165,8 +188,8 @@ export function getFamilyMemberData(childKey: string) {
 // COMPLETE FAMILY DATA
 export function getAllFamilyData() {
   const parents = [
-    { name: 'Levi', age: 38, role: 'parent' as const },
-    { name: 'Lola', age: 36, role: 'parent' as const }
+    { name: 'Levi', age: calculateAge(new Date('1986-11-20')), role: 'parent' as const },
+    { name: 'Lola', age: calculateAge(new Date('1986-12-30')), role: 'parent' as const }
   ]
   
   const children = Object.keys(ALL_KIDS_BIRTH_DATA).map(childKey => {

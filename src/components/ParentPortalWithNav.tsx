@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Dashboard from './Dashboard'
 import ChoresTab from './ChoresTab'
-import EnhancedParentSchoolTab from './EnhancedParentSchoolTab'
+import SchoolTabWithSchedules from './SchoolTabWithSchedules'
 import FilterableCalendar from './FilterableCalendar'
 import TodoTab from './TodoTab'
 import ContactsTab from './ContactsTab'
@@ -12,6 +12,7 @@ import BulkDocumentProcessor from './BulkDocumentProcessor'
 import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
 import FamilyConfigAdmin from './FamilyConfigAdmin'
+import ScheduleDisplay from './ScheduleDisplay'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -188,7 +189,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'family':
         return renderFamilyTab()
       case 'school':
-        return <EnhancedParentSchoolTab children={familyChildren.map(child => ({
+        return <SchoolTabWithSchedules children={familyChildren.map(child => ({
           ...child,
           school: child.school.name
         }))} />
