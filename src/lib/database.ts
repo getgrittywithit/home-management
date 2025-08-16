@@ -203,84 +203,221 @@ export const db = {
     `)
   },
 
-  // Todos
+  // Todos - Updated to use Supabase
   async getTodos() {
-    return singleQuery(`
-      SELECT * FROM todos 
-      ORDER BY 
-        CASE priority 
-          WHEN 'high' THEN 1
-          WHEN 'medium' THEN 2  
-          WHEN 'low' THEN 3
-        END,
-        created_at DESC
-    `)
+    try {
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching todos:', error)
+      // Fallback to localStorage
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-todos') || '[]')
+      }
+      return []
+    }
   },
 
   async addTodo(content: string, priority: 'high' | 'medium' | 'low' = 'medium', category: string = 'general', assignedTo?: string) {
-    return singleQuery(`
-      INSERT INTO todos (content, priority, category, assigned_to, status, created_at)
-      VALUES ($1, $2, $3, $4, 'pending', NOW())
-      RETURNING *
-    `, [content, priority, category, assignedTo])
+    try {
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          content,
+          priority,
+          category,
+          assigned_to: assignedTo,
+          status: 'pending'
+        }])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding todo:', error)
+      throw error
+    }
   },
 
-  async updateTodoStatus(id: string, status: 'pending' | 'in_progress' | 'completed') {
-    return singleQuery(`
-      UPDATE todos 
-      SET status = $2, updated_at = NOW()
-      WHERE id = $1
-      RETURNING *
-    `, [id, status])
+  async updateTodoStatus(id: string, status: string) {
+    try {
+      const { data, error } = await supabase
+        .from('todos')
+        .update({ status })
+        .eq('id', id)
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating todo:', error)
+      throw error
+    }
   },
 
   async deleteTodo(id: string) {
-    return singleQuery(`
-      DELETE FROM todos WHERE id = $1
-      RETURNING *
-    `, [id])
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+    } catch (error) {
+      console.error('Error deleting todo:', error)
+      throw error
+    }
   },
 
   // Contacts
   async getContacts() {
-    return singleQuery(`
-      SELECT * FROM contacts 
-      ORDER BY name
-    `)
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .order('name')
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching contacts:', error)
+      // Fallback to localStorage
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-contacts') || '[]')
+      }
+      return []
+    }
   },
 
-  async addContact(contactData: {
-    name: string,
-    title?: string,
-    organization?: string,
-    phone?: string,
-    email?: string,
-    address?: string,
-    office?: string,
-    notes?: string,
-    tags: string[],
-    importance: 'high' | 'medium' | 'low'
-  }) {
-    return singleQuery(`
-      INSERT INTO contacts (
-        name, title, organization, phone, email, address, 
-        office, notes, tags, importance, created_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-      RETURNING *
-    `, [
-      contactData.name,
-      contactData.title,
-      contactData.organization,
-      contactData.phone,
-      contactData.email,
-      contactData.address,
-      contactData.office,
-      contactData.notes,
-      JSON.stringify(contactData.tags),
-      contactData.importance
-    ])
+  async addContact(contact: any) {
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert([contact])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding contact:', error)
+      throw error
+    }
   },
+
+  // Food Inventory
+  async getFoodInventory() {
+    try {
+      const { data, error } = await supabase
+        .from('food_inventory')
+        .select('*')
+        .order('name')
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching food inventory:', error)
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-food-inventory') || '[]')
+      }
+      return []
+    }
+  },
+
+  async addFoodItem(item: any) {
+    try {
+      const { data, error } = await supabase
+        .from('food_inventory')
+        .insert([item])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding food item:', error)
+      throw error
+    }
+  },
+
+  async updateFoodItem(id: string, updates: any) {
+    try {
+      const { data, error } = await supabase
+        .from('food_inventory')
+        .update(updates)
+        .eq('id', id)
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating food item:', error)
+      throw error
+    }
+  },
+
+  async deleteFoodItem(id: string) {
+    try {
+      const { error } = await supabase
+        .from('food_inventory')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+    } catch (error) {
+      console.error('Error deleting food item:', error)
+      throw error
+    }
+  },
+
+  // Meal Plans
+  async getMealPlans(startDate?: string, endDate?: string) {
+    try {
+      let query = supabase
+        .from('meal_plans')
+        .select('*')
+        .order('date')
+        .order('meal_type')
+      
+      if (startDate) {
+        query = query.gte('date', startDate)
+      }
+      if (endDate) {
+        query = query.lte('date', endDate)
+      }
+      
+      const { data, error } = await query
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching meal plans:', error)
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-meal-plan') || '[]')
+      }
+      return []
+    }
+  },
+
+  async addMealPlan(mealPlan: any) {
+    try {
+      const { data, error } = await supabase
+        .from('meal_plans')
+        .insert([mealPlan])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding meal plan:', error)
+      throw error
+    }
+  },
+
+
 
   async updateContact(id: string, contactData: {
     name: string,
