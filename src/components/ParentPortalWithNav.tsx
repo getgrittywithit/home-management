@@ -9,10 +9,11 @@ import TodoTab from './TodoTab'
 import ContactsTab from './ContactsTab'
 import AboutMeAdminTab from './AboutMeAdminTab'
 import BulkDocumentProcessor from './BulkDocumentProcessor'
+import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload
+  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -32,6 +33,7 @@ const tabs: Tab[] = [
   { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
   { id: 'todos', name: 'Todos', icon: CheckSquare, color: 'bg-indigo-500' },
   { id: 'bulk-docs', name: 'Bulk Documents', icon: Upload, color: 'bg-amber-500' },
+  { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500' },
   { id: 'aboutme', name: 'About Me Admin', icon: User, color: 'bg-rose-500' },
   { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gray-500' },
 ]
@@ -198,6 +200,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <TodoTab />
       case 'bulk-docs':
         return <BulkDocumentProcessor />
+      case 'food-inventory':
+        return <FoodInventoryManager />
       case 'aboutme':
         return <AboutMeAdminTab />
       case 'settings':
