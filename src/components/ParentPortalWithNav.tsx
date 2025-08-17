@@ -13,6 +13,7 @@ import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
 import FamilyConfigAdmin from './FamilyConfigAdmin'
 import ScheduleDisplay from './ScheduleDisplay'
+import KidsChecklistOverview from './KidsChecklistOverview'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -30,6 +31,7 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'overview', name: 'Overview', icon: Home, color: 'bg-blue-500' },
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500' },
+  { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
   { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
@@ -186,6 +188,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <Dashboard initialData={initialData} />
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
+      case 'kids-checklist':
+        return <KidsChecklistOverview />
       case 'family':
         return renderFamilyTab()
       case 'school':

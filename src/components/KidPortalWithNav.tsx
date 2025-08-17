@@ -11,6 +11,7 @@ import {
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import KidTabContent from './KidTabContent'
 import AboutMeTab from './AboutMeTab'
+import DailyChecklist from './DailyChecklist'
 
 interface KidPortalProps {
   kidData: {
@@ -277,8 +278,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return renderSchoolTab()
       case 'about':
         return <AboutMeTab childAge={profile.age || 10} childId={profile.id} />
-      case 'calendar':
       case 'checklist':
+        return <DailyChecklist childName={profile.first_name || profile.name} />
+      case 'calendar':
       case 'achievements':
       case 'goals':
       case 'requests':
