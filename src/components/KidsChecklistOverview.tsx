@@ -26,13 +26,20 @@ interface KidsChecklistOverviewProps {
 export default function KidsChecklistOverview({ date = new Date() }: KidsChecklistOverviewProps) {
   const [childrenProgress, setChildrenProgress] = useState<ChildProgress[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isClient, setIsClient] = useState(false)
 
   const familyData = getAllFamilyData()
   const children = familyData.children
 
   useEffect(() => {
-    loadChecklistOverview()
-  }, [date])
+    setIsClient(true)
+  }, [])
+
+  useEffect(() => {
+    if (isClient) {
+      loadChecklistOverview()
+    }
+  }, [date, isClient])
 
   const loadChecklistOverview = async () => {
     try {
@@ -118,7 +125,7 @@ export default function KidsChecklistOverview({ date = new Date() }: KidsCheckli
     }
   }
 
-  if (isLoading) {
+  if (!isClient || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -135,7 +142,7 @@ export default function KidsChecklistOverview({ date = new Date() }: KidsCheckli
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Kids Daily Checklist Overview</h1>
-            <p className="text-green-100">{date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p className="text-green-100">{isClient ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Loading...'}</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{stats.avgCompletion}%</div>

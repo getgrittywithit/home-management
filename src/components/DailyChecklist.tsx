@@ -28,15 +28,22 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [paidChoresUnlocked, setPaidChoresUnlocked] = useState(false)
+  const [isClient, setIsClient] = useState(false)
 
   // Get child data for age-appropriate tasks
   const familyData = getAllFamilyData()
   const child = familyData.children.find(c => c.name.toLowerCase() === childName.toLowerCase())
-  const todaySchedule = child ? getChildScheduleForDate(child.name, date) : null
+  const todaySchedule = isClient && child ? getChildScheduleForDate(child.name, date) : null
 
   useEffect(() => {
-    loadDailyChecklist()
-  }, [childName, date])
+    setIsClient(true)
+  }, [])
+
+  useEffect(() => {
+    if (isClient) {
+      loadDailyChecklist()
+    }
+  }, [childName, date, isClient])
 
   useEffect(() => {
     // Check if required chores are complete to unlock paid chores
@@ -247,7 +254,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
     }
   }
 
-  if (isLoading) {
+  if (!isClient || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -264,7 +271,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Daily Checklist</h1>
-            <p className="text-blue-100">{date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p className="text-blue-100">{isClient ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Loading...'}</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{stats.percentage}%</div>
