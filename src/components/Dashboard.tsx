@@ -16,33 +16,72 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const [data, setData] = useState<DashboardData | null>(initialData || null)
   const [loading, setLoading] = useState(!initialData)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    fetchDashboardData()
-    
-    // Refresh every 2 minutes
-    const interval = setInterval(fetchDashboardData, 2 * 60 * 1000)
-    return () => clearInterval(interval)
+    setIsClient(true)
   }, [])
+
+  useEffect(() => {
+    if (isClient) {
+      fetchDashboardData()
+      
+      // Refresh every 2 minutes
+      const interval = setInterval(fetchDashboardData, 2 * 60 * 1000)
+      return () => clearInterval(interval)
+    }
+  }, [isClient])
 
   const fetchDashboardData = async () => {
     try {
       const response = await fetch('/api/dashboard')
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      
       const dashboardData = await response.json()
-      setData(dashboardData)
+      
+      // Provide fallback data structure if API returns incomplete data
+      const safeDashboardData: DashboardData = {
+        onCallParent: dashboardData.onCallParent || { name: 'Unknown', emoji: '👤' },
+        waterStatus: dashboardData.waterStatus || { jugs_full: 6, total_jugs: 6 },
+        todaysEvents: dashboardData.todaysEvents || [],
+        tokensRemaining: dashboardData.tokensRemaining || { total: 0, used: 0 },
+        todaysRevenue: dashboardData.todaysRevenue || 0,
+        weeklyRevenue: dashboardData.weeklyRevenue || 0,
+        monthlyRevenue: dashboardData.monthlyRevenue || 0,
+        overdueZones: dashboardData.overdueZones || [],
+        upcomingPickups: dashboardData.upcomingPickups || []
+      }
+      
+      setData(safeDashboardData)
       setLastUpdated(new Date())
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
+      
+      // Set fallback data instead of leaving it null
+      setData({
+        onCallParent: { name: 'System Loading', emoji: '⚡' },
+        waterStatus: { jugs_full: 6, total_jugs: 6 },
+        todaysEvents: [],
+        tokensRemaining: { total: 0, used: 0 },
+        todaysRevenue: 0,
+        weeklyRevenue: 0,
+        monthlyRevenue: 0,
+        overdueZones: [],
+        upcomingPickups: []
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) {
+  if (!isClient || loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading Family Ops Dashboard...</p>
         </div>
       </div>
@@ -72,7 +111,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </p>
             </div>
             <div className="text-right text-sm text-gray-500">
-              <p>Last updated: {lastUpdated.toLocaleTimeString()}</p>
+              <p>Last updated: {isClient ? lastUpdated.toLocaleTimeString() : 'Loading...'}</p>
               <div className="flex items-center mt-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                 System operational
@@ -82,7 +121,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
         </header>
 
         {/* Critical Alerts */}
-        {(data.waterStatus.jugs_full <= 2 || data.overdueZones.length > 0) && (
+        {((data.waterStatus?.jugs_full || 6) <= 2 || (data.overdueZones?.length || 0) > 0) && (
           <div className="mb-6">
             <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
               <div className="flex">
@@ -90,11 +129,11 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">Action Required</h3>
                   <div className="mt-2 text-sm text-red-700">
-                    {data.waterStatus.jugs_full <= 2 && (
-                      <p>• Low water: Only {data.waterStatus.jugs_full}/6 jugs remaining</p>
+                    {(data.waterStatus?.jugs_full || 6) <= 2 && (
+                      <p>• Low water: Only {data.waterStatus?.jugs_full || 0}/6 jugs remaining</p>
                     )}
-                    {data.overdueZones.length > 0 && (
-                      <p>• {data.overdueZones.length} zones overdue</p>
+                    {(data.overdueZones?.length || 0) > 0 && (
+                      <p>• {data.overdueZones?.length || 0} zones overdue</p>
                     )}
                   </div>
                 </div>
