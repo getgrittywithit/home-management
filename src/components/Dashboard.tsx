@@ -44,10 +44,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
       
       // Provide fallback data structure if API returns incomplete data
       const safeDashboardData: DashboardData = {
-        onCallParent: dashboardData.onCallParent || { name: 'Unknown', emoji: '👤' },
-        waterStatus: dashboardData.waterStatus || { jugs_full: 6, total_jugs: 6 },
+        onCallParent: dashboardData.onCallParent || 'System Loading',
+        waterStatus: dashboardData.waterStatus || { jugs_full: 6, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 7 },
         todaysEvents: dashboardData.todaysEvents || [],
-        tokensRemaining: dashboardData.tokensRemaining || { total: 0, used: 0 },
+        tokensRemaining: dashboardData.tokensRemaining || [],
         todaysRevenue: dashboardData.todaysRevenue || 0,
         weeklyRevenue: dashboardData.weeklyRevenue || 0,
         monthlyRevenue: dashboardData.monthlyRevenue || 0,
@@ -62,10 +62,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
       
       // Set fallback data instead of leaving it null
       setData({
-        onCallParent: { name: 'System Loading', emoji: '⚡' },
-        waterStatus: { jugs_full: 6, total_jugs: 6 },
+        onCallParent: 'System Loading',
+        waterStatus: { jugs_full: 6, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 7 },
         todaysEvents: [],
-        tokensRemaining: { total: 0, used: 0 },
+        tokensRemaining: [],
         todaysRevenue: 0,
         weeklyRevenue: 0,
         monthlyRevenue: 0,
