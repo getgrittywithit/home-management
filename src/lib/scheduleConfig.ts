@@ -669,6 +669,51 @@ export function getCurrentDayType(): 'A' | 'B' {
   return today.getDate() % 2 === 0 ? 'A' : 'B'
 }
 
+export interface DailySchedule {
+  studentName: string
+  date: Date
+  dayType: 'A' | 'B' | null
+  periods: SchedulePeriod[]
+  isSchoolDay: boolean
+}
+
+export function getChildScheduleForDate(childName: string, date: Date = new Date()): DailySchedule | null {
+  const childKey = childName.toLowerCase()
+  const schedule = getScheduleForChild(childKey)
+  
+  if (!schedule) {
+    return null
+  }
+
+  // Check if it's a school day (Monday-Friday)
+  const dayOfWeek = date.getDay()
+  const isSchoolDay = dayOfWeek >= 1 && dayOfWeek <= 5 // Monday = 1, Friday = 5
+
+  if (!isSchoolDay) {
+    return {
+      studentName: schedule.studentName,
+      date,
+      dayType: null,
+      periods: [],
+      isSchoolDay: false
+    }
+  }
+
+  // Determine A/B day type for the date
+  const dayType = date.getDate() % 2 === 0 ? 'A' : 'B'
+  
+  // Get today's periods
+  const todaysPeriods = getTodaysPeriodsForChild(childKey, dayType)
+
+  return {
+    studentName: schedule.studentName,
+    date,
+    dayType,
+    periods: todaysPeriods,
+    isSchoolDay: true
+  }
+}
+
 // UPDATE TEACHER ASSIGNMENTS IN familyConfig.ts BASED ON ACTUAL SCHEDULES
 export function updateTeacherAssignments() {
   const assignments: Record<string, Array<{name: string, subject: string, room: string}>> = {}
