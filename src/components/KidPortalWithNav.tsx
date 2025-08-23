@@ -13,7 +13,6 @@ import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild } 
 import KidTabContent from './KidTabContent'
 import AboutMeTab from './AboutMeTab'
 import DailyChecklist from './DailyChecklist'
-import KidsCalendar from './KidsCalendar'
 
 interface KidPortalProps {
   kidData: {
@@ -604,7 +603,12 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       case 'checklist':
         return <DailyChecklist childName={profile.first_name || profile.name} />
       case 'calendar':
-        return <KidsCalendar childName={profile.first_name || profile.name} childAge={profile.age || 10} />
+        return (
+          <div className="p-6 bg-white rounded-lg border">
+            <h2 className="text-xl font-bold mb-4">Calendar</h2>
+            <p className="text-gray-600">Calendar feature coming soon!</p>
+          </div>
+        )
       case 'achievements':
       case 'goals':
       case 'requests':
