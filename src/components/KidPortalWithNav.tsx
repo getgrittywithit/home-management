@@ -599,7 +599,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       case 'school':
         return renderSchoolTab()
       case 'about':
-        return <AboutMeTab childAge={profile.age || 10} childId={profile.id} childName={profile.first_name || profile.name} />
+        return <AboutMeTab childAge={profile.age || 10} childId={profile.id} />
       case 'checklist':
         return <DailyChecklist childName={profile.first_name || profile.name} />
       case 'calendar':
