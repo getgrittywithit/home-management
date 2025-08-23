@@ -9,7 +9,7 @@ import {
   User
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
-import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild } from '@/lib/scheduleConfig'
+import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
 import KidTabContent from './KidTabContent'
 import AboutMeTab from './AboutMeTab'
 import DailyChecklist from './DailyChecklist'
@@ -370,8 +370,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 </h3>
                 <div className="space-y-2">
                   {realSchedule.periods
-                    .filter(period => period.days === 'A' || period.days === 'AB')
-                    .sort((a, b) => {
+                    .filter((period: SchedulePeriod) => period.days === 'A' || period.days === 'AB')
+                    .sort((a: SchedulePeriod, b: SchedulePeriod) => {
                       // Custom sort for period numbers including 0A, 0B
                       const getPeriodValue = (period: string) => {
                         if (period === '0A') return 0.1
@@ -408,8 +408,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 </h3>
                 <div className="space-y-2">
                   {realSchedule.periods
-                    .filter(period => period.days === 'B' || period.days === 'AB')
-                    .sort((a, b) => {
+                    .filter((period: SchedulePeriod) => period.days === 'B' || period.days === 'AB')
+                    .sort((a: SchedulePeriod, b: SchedulePeriod) => {
                       // Custom sort for period numbers including 0A, 0B
                       const getPeriodValue = (period: string) => {
                         if (period === '0A') return 0.1
