@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Calendar, CheckSquare, Clock, Star, MapPin, Users, 
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
@@ -9,9 +9,11 @@ import {
   User
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
+import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild } from '@/lib/scheduleConfig'
 import KidTabContent from './KidTabContent'
 import AboutMeTab from './AboutMeTab'
 import DailyChecklist from './DailyChecklist'
+import KidsCalendar from './KidsCalendar'
 
 interface KidPortalProps {
   kidData: {
@@ -36,7 +38,7 @@ interface NavTab {
 const navTabs: NavTab[] = [
   { id: 'dashboard', name: 'Home', icon: Home, color: 'bg-blue-500' },
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-purple-500' },
-  { id: 'checklist', name: 'Tasks', icon: CheckSquare, color: 'bg-green-500' },
+  { id: 'checklist', name: 'Daily Checklist', icon: CheckSquare, color: 'bg-green-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'about', name: 'About Me', icon: User, color: 'bg-teal-500' },
   { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
@@ -49,9 +51,58 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
   const [showModal, setShowModal] = useState(false)
-  const [schoolData] = useState<SchoolProfile>(SAMPLE_SCHOOL_DATA) // In production, this would come from props/API
+  const [schoolData, setSchoolData] = useState<SchoolProfile>(SAMPLE_SCHOOL_DATA)
+  const [realSchedule, setRealSchedule] = useState<any>(null)
 
   const { profile, todaysChecklist, todaysEvents, weekEvents, zones, tokens } = kidData
+
+  // Load real schedule data based on child name
+  useEffect(() => {
+    if (profile?.first_name) {
+      const childKey = profile.first_name.toLowerCase()
+      const schedule = getScheduleForChild(childKey)
+      const todaysSchedule = getChildScheduleForDate(profile.first_name, selectedDate)
+      
+      if (schedule) {
+        setRealSchedule(schedule)
+        
+        // Convert real schedule to SchoolProfile format for the school tab
+        const realSchoolData: SchoolProfile = {
+          ...schoolData,
+          school: schedule.school,
+          schoolYear: schedule.schoolYear,
+          teachers: schedule.periods.map((period, index) => ({
+            id: `teacher-${index}`,
+            name: period.teacher,
+            email: '', // We don't have email data in the schedule
+            subject: period.course,
+            room: period.room,
+            preferredContact: 'email' as const,
+            locked: true
+          })).filter((teacher, index, array) => 
+            // Remove duplicates based on teacher name
+            array.findIndex(t => t.name === teacher.name) === index
+          ),
+          classes: schedule.periods.map((period, index) => ({
+            id: `class-${index}`,
+            name: period.course,
+            subject: period.course,
+            teacherId: `teacher-${index}`,
+            room: period.room,
+            color: '#3B82F6', // Default blue
+            locked: true,
+            schedule: [{
+              dayOfWeek: period.days === 'A' ? 1 : period.days === 'B' ? 2 : 1, // Simplified mapping
+              startTime: '08:00', // We don't have time data in the current schedule
+              endTime: '09:00',
+              period: period.period
+            }]
+          }))
+        }
+        setSchoolData(realSchoolData)
+      }
+    }
+  }, [profile?.first_name, selectedDate])
 
   // Calculate completion stats
   const completedTasks = todaysChecklist.filter(item => item.completed).length
@@ -157,13 +208,272 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     </div>
   )
 
-  const renderSchoolTab = () => (
-    <div className="space-y-6">
-      {/* School Info Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-6 rounded-lg">
-        <h1 className="text-2xl font-bold">School Information</h1>
-        <p className="text-orange-100">{schoolData.school} • {schoolData.grade} Grade • {schoolData.schoolYear}</p>
-      </div>
+  const renderSchoolTab = () => {
+    const todaysSchedule = getChildScheduleForDate(profile.first_name, selectedDate)
+    
+    return (
+      <div className="space-y-6">
+        {/* School Info Header */}
+        <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-6 rounded-lg">
+          <h1 className="text-2xl font-bold">School Information</h1>
+          <p className="text-orange-100">{schoolData.school} • {profile.grade || schoolData.grade} Grade • {schoolData.schoolYear}</p>
+          {todaysSchedule && (
+            <div className="mt-2 text-sm text-orange-100">
+              {todaysSchedule.isSchoolDay ? 
+                `Today: ${todaysSchedule.dayType} Day (${todaysSchedule.periods.length} classes)` :
+                'No school today'
+              }
+            </div>
+          )}
+        </div>
+
+        {/* Dynamic Today Section */}
+        <div className="bg-white p-6 rounded-lg border">
+          {(() => {
+            const today = new Date()
+            const dayOfWeek = today.getDay() // 0 = Sunday, 6 = Saturday
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+            const dayName = today.toLocaleDateString('en-US', { weekday: 'long' })
+            const fullDate = today.toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              month: 'long', 
+              day: 'numeric',
+              year: 'numeric'
+            })
+
+            if (isWeekend) {
+              return (
+                <div className="text-center">
+                  <div className="text-6xl mb-4">🎉</div>
+                  <h2 className="text-2xl font-bold text-purple-700 mb-2">Happy {dayName}!</h2>
+                  <p className="text-lg text-gray-600 mb-4">{fullDate}</p>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <p className="text-purple-700 font-medium mb-2">
+                      {dayOfWeek === 0 ? 
+                        "It's Sunday! Time to relax and recharge for the week ahead! 🌟" :
+                        "It's Saturday! Enjoy your weekend and have some fun! 🎈"
+                      }
+                    </p>
+                    <p className="text-purple-600 text-sm">
+                      {dayOfWeek === 0 ? 
+                        "Maybe catch up on some reading, spend time with family, or prep for Monday!" :
+                        "Perfect day for hobbies, friends, or just taking it easy!"
+                      }
+                    </p>
+                  </div>
+                </div>
+              )
+            }
+
+            // Weekday - check if it's a school day
+            if (todaysSchedule && todaysSchedule.isSchoolDay) {
+              return (
+                <div className="text-center">
+                  <div className="text-4xl mb-4">📚</div>
+                  <h2 className="text-2xl font-bold text-orange-700 mb-2">Today is {dayName}</h2>
+                  <p className="text-lg text-gray-600 mb-4">{fullDate}</p>
+                  <div className={`p-4 rounded-lg ${
+                    todaysSchedule.dayType === 'A' ? 'bg-green-50' : 'bg-blue-50'
+                  }`}>
+                    <p className={`font-bold text-lg mb-2 ${
+                      todaysSchedule.dayType === 'A' ? 'text-green-700' : 'text-blue-700'
+                    }`}>
+                      It's an {todaysSchedule.dayType} Day! 
+                      <span className={`inline-block w-6 h-6 rounded-full text-white text-sm ml-2 ${
+                        todaysSchedule.dayType === 'A' ? 'bg-green-500' : 'bg-blue-500'
+                      }`} style={{ lineHeight: '24px' }}>
+                        {todaysSchedule.dayType}
+                      </span>
+                    </p>
+                    <p className={`text-sm mb-2 ${
+                      todaysSchedule.dayType === 'A' ? 'text-green-600' : 'text-blue-600'
+                    }`}>
+                      You have {todaysSchedule.periods.length} classes today
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {todaysSchedule.periods.slice(0, 4).map((period, index) => (
+                        <span key={index} className={`text-xs px-2 py-1 rounded-full ${
+                          todaysSchedule.dayType === 'A' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {period.course}
+                        </span>
+                      ))}
+                      {todaysSchedule.periods.length > 4 && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                          +{todaysSchedule.periods.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-gray-500 text-sm mt-3">
+                    💪 You've got this! Have an awesome day at school!
+                  </p>
+                </div>
+              )
+            }
+
+            // Weekday but no school (holiday, break, etc.)
+            return (
+              <div className="text-center">
+                <div className="text-5xl mb-4">🌟</div>
+                <h2 className="text-2xl font-bold text-indigo-700 mb-2">Today is {dayName}</h2>
+                <p className="text-lg text-gray-600 mb-4">{fullDate}</p>
+                <div className="bg-indigo-50 p-4 rounded-lg">
+                  <p className="text-indigo-700 font-medium mb-2">
+                    No school today! 🎊
+                  </p>
+                  <p className="text-indigo-600 text-sm">
+                    Enjoy your day off! Maybe it's a holiday, teacher workday, or school break.
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+
+        {/* Today's Schedule */}
+        {todaysSchedule && todaysSchedule.isSchoolDay && (
+          <div className="bg-white p-6 rounded-lg border">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-orange-500" />
+              Today's Schedule - {todaysSchedule.dayType} Day
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {todaysSchedule.periods.map((period, index) => (
+                <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-sm font-semibold text-orange-700">
+                    {period.period}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">{period.course}</div>
+                    <div className="text-sm text-gray-600">{period.teacher} • Room {period.room}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Complete A/B Day Schedule Card */}
+        {realSchedule && (
+          <div className="bg-white p-6 rounded-lg border">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-500" />
+              My Complete Schedule
+            </h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* A Day Schedule */}
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <h3 className="text-lg font-bold text-green-700 mb-3 flex items-center gap-2">
+                  <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">A</span>
+                  A Day Classes
+                </h3>
+                <div className="space-y-2">
+                  {realSchedule.periods
+                    .filter(period => period.days === 'A' || period.days === 'AB')
+                    .sort((a, b) => {
+                      // Custom sort for period numbers including 0A, 0B
+                      const getPeriodValue = (period: string) => {
+                        if (period === '0A') return 0.1
+                        if (period === '0B') return 0.2
+                        return parseInt(period) || 999
+                      }
+                      return getPeriodValue(a.period) - getPeriodValue(b.period)
+                    })
+                    .map((period, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-sm font-semibold text-green-700">
+                          {period.period}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{period.course}</div>
+                          <div className="text-sm text-gray-600">{period.teacher}</div>
+                          <div className="text-xs text-gray-500">Room {period.room}</div>
+                        </div>
+                        {period.days === 'AB' && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                            Both Days
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* B Day Schedule */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h3 className="text-lg font-bold text-blue-700 mb-3 flex items-center gap-2">
+                  <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">B</span>
+                  B Day Classes
+                </h3>
+                <div className="space-y-2">
+                  {realSchedule.periods
+                    .filter(period => period.days === 'B' || period.days === 'AB')
+                    .sort((a, b) => {
+                      // Custom sort for period numbers including 0A, 0B
+                      const getPeriodValue = (period: string) => {
+                        if (period === '0A') return 0.1
+                        if (period === '0B') return 0.2
+                        return parseInt(period) || 999
+                      }
+                      return getPeriodValue(a.period) - getPeriodValue(b.period)
+                    })
+                    .map((period, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-semibold text-blue-700">
+                          {period.period}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{period.course}</div>
+                          <div className="text-sm text-gray-600">{period.teacher}</div>
+                          <div className="text-xs text-gray-500">Room {period.room}</div>
+                        </div>
+                        {period.days === 'AB' && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                            Both Days
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Reference */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Schedule Legend */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Schedule Guide:</h4>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 bg-green-500 rounded-full"></span>
+                    A Day: Green schedule
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 bg-blue-500 rounded-full"></span>
+                    B Day: Blue schedule
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 bg-purple-500 rounded-full"></span>
+                    Both Days: Every day classes
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="p-3 bg-orange-50 rounded-lg">
+                <h4 className="font-medium text-orange-700 mb-2">My Schedule Stats:</h4>
+                <div className="space-y-1 text-sm text-orange-600">
+                  <div>Total Classes: {realSchedule.periods.length}</div>
+                  <div>A Day Classes: {realSchedule.periods.filter(p => p.days === 'A').length}</div>
+                  <div>B Day Classes: {realSchedule.periods.filter(p => p.days === 'B').length}</div>
+                  <div>Daily Classes: {realSchedule.periods.filter(p => p.days === 'AB').length}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Quick Links */}
       <div className="bg-white p-6 rounded-lg border">
@@ -203,18 +513,30 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                   <p className="text-sm text-gray-600 mb-2">{teacher.subject} • Room {teacher.room}</p>
                   
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <a href={`mailto:${teacher.email}`} className="text-blue-600 hover:underline">
-                        {teacher.email}
-                      </a>
-                    </div>
-                    {teacher.phone && (
+                    {teacher.email ? (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <a href={`mailto:${teacher.email}`} className="text-blue-600 hover:underline">
+                          {teacher.email}
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <span>Email not available</span>
+                      </div>
+                    )}
+                    {teacher.phone ? (
                       <div className="flex items-center gap-2 text-sm">
                         <Phone className="w-4 h-4 text-gray-400" />
                         <a href={`tel:${teacher.phone}`} className="text-blue-600 hover:underline">
                           {teacher.phone}
                         </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Phone className="w-4 h-4 text-gray-400" />
+                        <span>Phone not available</span>
                       </div>
                     )}
                   </div>
@@ -268,7 +590,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         </button>
       </div>
     </div>
-  )
+    )
+  }
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -277,10 +600,11 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       case 'school':
         return renderSchoolTab()
       case 'about':
-        return <AboutMeTab childAge={profile.age || 10} childId={profile.id} />
+        return <AboutMeTab childAge={profile.age || 10} childId={profile.id} childName={profile.first_name || profile.name} />
       case 'checklist':
         return <DailyChecklist childName={profile.first_name || profile.name} />
       case 'calendar':
+        return <KidsCalendar childName={profile.first_name || profile.name} childAge={profile.age || 10} />
       case 'achievements':
       case 'goals':
       case 'requests':
@@ -302,7 +626,6 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             </div>
             <div>
               <div className="font-semibold">{profile.first_name}</div>
-              <div className="text-sm text-gray-600">{profile.grade || 'Student'}</div>
             </div>
           </div>
         </div>

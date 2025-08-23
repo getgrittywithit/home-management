@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Dashboard from './Dashboard'
 import ChoresTab from './ChoresTab'
 import SchoolTabWithSchedules from './SchoolTabWithSchedules'
@@ -54,6 +55,7 @@ const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null v
 
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
   const [activeTab, setActiveTab] = useState('overview')
+  const router = useRouter()
 
   const renderFamilyTab = () => (
     <div className="space-y-6">
@@ -95,7 +97,10 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
               </div>
               <div className="mt-3 flex gap-2">
                 {member.role === 'child' ? (
-                  <button className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200">
+                  <button 
+                    onClick={() => router.push(`/kids/${member.name.toLowerCase()}`)}
+                    className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full hover:bg-green-200"
+                  >
                     Kid Portal
                   </button>
                 ) : (
