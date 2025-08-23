@@ -465,9 +465,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 <h4 className="font-medium text-orange-700 mb-2">My Schedule Stats:</h4>
                 <div className="space-y-1 text-sm text-orange-600">
                   <div>Total Classes: {realSchedule.periods.length}</div>
-                  <div>A Day Classes: {realSchedule.periods.filter(p => p.days === 'A').length}</div>
-                  <div>B Day Classes: {realSchedule.periods.filter(p => p.days === 'B').length}</div>
-                  <div>Daily Classes: {realSchedule.periods.filter(p => p.days === 'AB').length}</div>
+                  <div>A Day Classes: {realSchedule.periods.filter((p: SchedulePeriod) => p.days === 'A').length}</div>
+                  <div>B Day Classes: {realSchedule.periods.filter((p: SchedulePeriod) => p.days === 'B').length}</div>
+                  <div>Daily Classes: {realSchedule.periods.filter((p: SchedulePeriod) => p.days === 'AB').length}</div>
                 </div>
               </div>
             </div>
