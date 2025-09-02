@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.amount - a.amount)
     
     // Monthly trend (simplified for now)
-    const monthlyTrend = []
+    const monthlyTrend: Array<{ month: string; expenses: number; income: number }> = []
     
     const reportData = {
       categoryBreakdown,
