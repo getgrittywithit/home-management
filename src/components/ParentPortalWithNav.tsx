@@ -16,10 +16,11 @@ import FamilyConfigAdmin from './FamilyConfigAdmin'
 import ScheduleDisplay from './ScheduleDisplay'
 import KidsChecklistOverview from './KidsChecklistOverview'
 import PrintTab from './PrintTab'
+import MoeMoneyTab from './MoeMoneyTab'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import { 
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer
+  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -39,6 +40,7 @@ const tabs: Tab[] = [
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
   { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
   { id: 'todos', name: 'Todos', icon: CheckSquare, color: 'bg-indigo-500' },
+  { id: 'moe-money', name: 'Moe-Money', icon: DollarSign, color: 'bg-green-600' },
   { id: 'print', name: 'Print Center', icon: Printer, color: 'bg-slate-600' },
   { id: 'bulk-docs', name: 'Bulk Documents', icon: Upload, color: 'bg-amber-500' },
   { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500' },
@@ -210,6 +212,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <ContactsTab />
       case 'todos':
         return <TodoTab />
+      case 'moe-money':
+        return <MoeMoneyTab />
       case 'print':
         return <PrintTab />
       case 'bulk-docs':
