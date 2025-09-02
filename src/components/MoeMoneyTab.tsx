@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Upload, Download, MessageSquare, TrendingUp, DollarSign, Calendar, Search } from 'lucide-react'
 
 interface Transaction {
@@ -47,6 +47,38 @@ export default function MoeMoneyTab() {
     'utilities',
     'other'
   ]
+
+  // Load transactions from Supabase on mount and when month changes
+  useEffect(() => {
+    loadTransactions()
+  }, [selectedMonth])
+
+  const loadTransactions = async () => {
+    try {
+      const response = await fetch(`/api/expenses?startDate=${selectedMonth}-01&endDate=${selectedMonth}-31`)
+      if (!response.ok) {
+        throw new Error('Failed to load transactions')
+      }
+      
+      const { data } = await response.json()
+      
+      // Convert Supabase format to our Transaction format
+      const loadedTransactions: Transaction[] = data.map((expense: any) => ({
+        id: expense.id,
+        date: expense.expense_date,
+        description: expense.name || expense.description,
+        amount: parseFloat(expense.amount),
+        category: (expense.parent_category || 'other').toLowerCase().replace(/\s+/g, '_'),
+        account: expense.account || 'Unknown',
+        type: expense.transaction_type === 'income' ? 'income' : 'expense'
+      }))
+      
+      setTransactions(loadedTransactions)
+      setFilteredTransactions(loadedTransactions)
+    } catch (error) {
+      console.error('Error loading transactions:', error)
+    }
+  }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -149,9 +181,33 @@ export default function MoeMoneyTab() {
         return
       }
       
-      setTransactions(prev => [...prev, ...newTransactions])
-      setFilteredTransactions(prev => [...prev, ...newTransactions])
-      alert(`Successfully imported ${newTransactions.length} transactions`)
+      // Save to Supabase
+      try {
+        const response = await fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactions: newTransactions })
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to save to database')
+        }
+        
+        const result = await response.json()
+        console.log('Saved to Supabase:', result)
+        
+        // Update local state
+        setTransactions(prev => [...prev, ...newTransactions])
+        setFilteredTransactions(prev => [...prev, ...newTransactions])
+        
+        alert(`Successfully imported ${result.imported} of ${newTransactions.length} transactions (${result.total - result.imported} duplicates skipped)`)
+      } catch (saveError) {
+        console.error('Error saving to database:', saveError)
+        // Still update local state even if save fails
+        setTransactions(prev => [...prev, ...newTransactions])
+        setFilteredTransactions(prev => [...prev, ...newTransactions])
+        alert(`Imported ${newTransactions.length} transactions locally (database save failed)`)
+      }
     } catch (error) {
       console.error('Error parsing CSV:', error)
       alert(`Error parsing CSV file: ${error instanceof Error ? error.message : 'Unknown error'}`)
