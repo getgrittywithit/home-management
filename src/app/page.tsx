@@ -34,11 +34,11 @@ export default function HomePage() {
 
   const parentFeatures = [
     { icon: <Home className="w-6 h-6" />, title: 'Family Dashboard', href: '/dashboard', description: 'Overview of all family operations' },
-    { icon: <Calendar className="w-6 h-6" />, title: 'Schedule', href: '/schedule', description: 'Medical appointments & events' },
-    { icon: <Droplets className="w-6 h-6" />, title: 'Resources', href: '/resources', description: 'Water, zones & pet management' },
-    { icon: <DollarSign className="w-6 h-6" />, title: 'Revenue', href: '/revenue', description: 'Plant business tracking' },
-    { icon: <Activity className="w-6 h-6" />, title: 'Analytics', href: '/analytics', description: 'Family performance metrics' },
-    { icon: <Settings className="w-6 h-6" />, title: 'Settings', href: '/settings', description: 'System configuration' }
+    { icon: <Calendar className="w-6 h-6" />, title: 'Schedule', href: '/dashboard', description: 'Medical appointments & events' },
+    { icon: <Droplets className="w-6 h-6" />, title: 'Resources', href: '/dashboard', description: 'Water, zones & pet management' },
+    { icon: <DollarSign className="w-6 h-6" />, title: 'Revenue', href: '/dashboard', description: 'Plant business tracking' },
+    { icon: <Activity className="w-6 h-6" />, title: 'Analytics', href: '/dashboard', description: 'Family performance metrics' },
+    { icon: <Settings className="w-6 h-6" />, title: 'Settings', href: '/dashboard', description: 'System configuration' }
   ]
 
   return (

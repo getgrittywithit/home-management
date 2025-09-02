@@ -127,7 +127,7 @@ export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = {
   childId: 'amos-moses-504640',
   birthCertificate: {
     fullName: 'Amos Lee Moses',
-    birthDate: new Date('2009-03-02'),
+    birthDate: new Date(2009, 2, 2), // Year, Month (0-indexed), Day
     birthTime: '05:55',
     birthPlace: 'Princeton, Minnesota, USA',
     birthWeight: '7 lbs 12 oz',
@@ -191,7 +191,7 @@ export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = {
 export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   'amos': {
     fullName: 'Amos Lee Moses',
-    birthDate: new Date('2009-03-02'),
+    birthDate: new Date(2009, 2, 2), // Year, Month (0-indexed), Day
     birthTime: '05:55',
     birthPlace: 'Princeton, Minnesota, USA',
     county: 'Sherburne County',
@@ -201,7 +201,7 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   },
   'zoey': {
     fullName: 'Zoey Lynn Moses',
-    birthDate: new Date('2010-12-06'),
+    birthDate: new Date(2010, 11, 6), // Year, Month (0-indexed), Day
     birthTime: '09:51',
     birthPlace: 'Princeton, Minnesota, USA',
     county: 'Sherburne County',
@@ -211,7 +211,7 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   },
   'kaylee': {
     fullName: 'Kaylee Liberty Moses',
-    birthDate: new Date('2012-04-28'),
+    birthDate: new Date(2012, 3, 28), // Year, Month (0-indexed), Day
     birthTime: '12:45',
     birthPlace: 'Princeton, Sherburne, Minnesota, USA',
     county: 'Sherburne County',
@@ -221,7 +221,7 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   },
   'ellie': {
     fullName: 'Ellie Mae Moses',
-    birthDate: new Date('2014-06-03'),
+    birthDate: new Date(2014, 5, 3), // Year, Month (0-indexed), Day
     birthTime: '12:00',
     birthPlace: 'Princeton, Minnesota, USA',
     county: 'Sherburne County',
@@ -231,7 +231,7 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   },
   'wyatt': {
     fullName: 'Wyatt James Moses',
-    birthDate: new Date('2015-12-05'),
+    birthDate: new Date(2015, 11, 5), // Year, Month (0-indexed), Day
     birthTime: '02:14',
     birthPlace: 'Isanti, Minnesota, USA',
     county: 'Isanti County',
@@ -241,7 +241,7 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   },
   'hannah': {
     fullName: 'Hannah Joy Moses',
-    birthDate: new Date('2017-08-26'),
+    birthDate: new Date(2017, 7, 26), // Year, Month (0-indexed), Day
     birthTime: '07:49',
     birthPlace: 'Isanti, Minnesota, USA',
     county: 'Isanti County',

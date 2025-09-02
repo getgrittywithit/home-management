@@ -22,21 +22,29 @@ export default function MoeMoneyTab() {
   const [isUploading, setIsUploading] = useState(false)
   const [aiQuestion, setAiQuestion] = useState('')
   const [aiResponse, setAiResponse] = useState('')
+  const [debugInfo, setDebugInfo] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const categories = [
     'all',
-    'housing',
-    'transportation', 
-    'food_dining',
-    'utilities',
+    'bank_fees',
+    'home_rent',
+    'home_essentials',
+    'tobacco',
+    'shopping',
+    'work_food',
+    'cheetah_elevation_llc',
+    'party_store_and_bars',
+    'food_and_drink',
+    'b_-_software_and_subscriptions',
+    'clothing',
+    'future_needs/saving',
+    'groceries',
+    'gas',
+    'restaurants',
     'healthcare',
     'entertainment',
-    'shopping',
-    'personal_care',
-    'education',
-    'savings',
-    'income',
+    'utilities',
     'other'
   ]
 
@@ -51,29 +59,94 @@ export default function MoeMoneyTab() {
     
     try {
       const text = await file.text()
-      const lines = text.split('\n')
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+      console.log('Raw CSV text:', text.substring(0, 500)) // Debug: show first 500 chars
+      
+      const lines = text.split('\n').filter(line => line.trim()) // Remove empty lines
+      console.log('Total lines:', lines.length)
+      
+      if (lines.length < 2) {
+        alert('CSV file appears to be empty or has no data rows')
+        return
+      }
+      
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''))
+      console.log('Headers found:', headers)
+      
+      // Set debug info for display
+      setDebugInfo(`Headers: ${headers.join(', ')}\nTotal lines: ${lines.length - 1} data rows\n\nFirst few rows:\n${lines.slice(1, 4).join('\n')}`)
       
       const newTransactions: Transaction[] = []
+      
+      // Detect column indices based on headers
+      const dateIndex = headers.findIndex(h => h === 'date')
+      const nameIndex = headers.findIndex(h => h === 'name' || h === 'description')
+      const amountIndex = headers.findIndex(h => h === 'amount')
+      const categoryIndex = headers.findIndex(h => h === 'category')
+      const parentCategoryIndex = headers.findIndex(h => h === 'parent category')
+      const accountIndex = headers.findIndex(h => h === 'account')
+      
+      console.log('Column indices:', { dateIndex, nameIndex, amountIndex, categoryIndex, accountIndex })
       
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim()
         if (!line) continue
         
-        const values = line.split(',').map(v => v.trim().replace(/"/g, ''))
+        // Better CSV parsing - handles commas within quoted fields
+        const values = parseCsvLine(line)
+        console.log(`Row ${i}:`, values)
         
-        if (values.length >= 4) {
+        if (values.length >= 3) { // Minimum columns needed
+          // Parse based on detected indices
+          const dateStr = dateIndex >= 0 ? values[dateIndex] : values[0]
+          const description = nameIndex >= 0 ? values[nameIndex] : values[1]
+          const amountStr = amountIndex >= 0 ? values[amountIndex] : values[2]
+          const category = categoryIndex >= 0 ? values[categoryIndex] : 'other'
+          const parentCategory = parentCategoryIndex >= 0 ? values[parentCategoryIndex] : ''
+          const account = accountIndex >= 0 ? values[accountIndex] : 'Unknown Account'
+          
+          // Parse date
+          let parsedDate = dateStr || ''
+          if (parsedDate && !parsedDate.includes('-')) {
+            // Convert MM/DD/YYYY to YYYY-MM-DD
+            const dateParts = parsedDate.split('/')
+            if (dateParts.length === 3) {
+              parsedDate = `${dateParts[2]}-${dateParts[0].padStart(2, '0')}-${dateParts[1].padStart(2, '0')}`
+            }
+          }
+          
+          // Parse amount
+          let amount = parseFloat(amountStr.replace(/[$,]/g, '')) || 0
+          
+          // In Copilot Money format, negative amounts are income (like deposits)
+          // Positive amounts are expenses
+          const isExpense = amount > 0
+          
+          // Use parent category if available and category is empty or generic
+          let finalCategory = category || 'other'
+          if (parentCategory && (!category || category === 'Uncategorized')) {
+            finalCategory = parentCategory
+          }
+          
           const transaction: Transaction = {
             id: `${Date.now()}-${i}`,
-            date: values[0] || new Date().toISOString().slice(0, 10),
-            description: values[1] || 'Unknown',
-            amount: parseFloat(values[2]) || 0,
-            category: values[3]?.toLowerCase().replace(/\s+/g, '_') || 'other',
-            account: values[4] || 'Unknown',
-            type: parseFloat(values[2]) >= 0 ? 'income' : 'expense'
+            date: parsedDate || new Date().toISOString().slice(0, 10),
+            description: description || 'Unknown Transaction',
+            amount: Math.abs(amount), // Store as positive value
+            category: finalCategory.toLowerCase().replace(/\s+/g, '_').replace(/[&]/g, 'and'),
+            account: account,
+            type: isExpense ? 'expense' : 'income'
           }
+          
+          console.log('Parsed transaction:', transaction)
           newTransactions.push(transaction)
         }
+      }
+      
+      console.log('Total transactions parsed:', newTransactions.length)
+      
+      if (newTransactions.length === 0) {
+        alert('No valid transactions found in CSV. Please check the format:\nExpected columns: Date, Description, Amount, Category, Account')
+        return
       }
       
       setTransactions(prev => [...prev, ...newTransactions])
@@ -81,10 +154,40 @@ export default function MoeMoneyTab() {
       alert(`Successfully imported ${newTransactions.length} transactions`)
     } catch (error) {
       console.error('Error parsing CSV:', error)
-      alert('Error parsing CSV file. Please check the format.')
+      alert(`Error parsing CSV file: ${error.message}`)
     } finally {
       setIsUploading(false)
     }
+  }
+  
+  // Helper function to parse CSV line with proper comma handling
+  const parseCsvLine = (line: string): string[] => {
+    const values: string[] = []
+    let current = ''
+    let inQuotes = false
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+      const nextChar = line[i + 1]
+      
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          // Handle escaped quotes
+          current += '"'
+          i++ // Skip next quote
+        } else {
+          inQuotes = !inQuotes
+        }
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+    
+    values.push(current.trim())
+    return values.map(v => v.replace(/^"|"$/g, '')) // Remove surrounding quotes
   }
 
   const filterTransactions = () => {
@@ -191,6 +294,13 @@ This appears to be related to your spending patterns. Consider reviewing your ${
         <p className="text-sm text-gray-500">
           Upload a CSV file from Copilot Money with columns: Date, Description, Amount, Category, Account
         </p>
+        
+        {debugInfo && (
+          <div className="mt-4 p-3 bg-gray-100 rounded-md">
+            <h4 className="font-medium text-sm text-gray-700 mb-2">Debug Info:</h4>
+            <pre className="text-xs text-gray-600 whitespace-pre-wrap">{debugInfo}</pre>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}

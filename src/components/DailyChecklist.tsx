@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
-  CheckSquare, Square, Clock, School, Utensils, 
+  CheckSquare, Square, School, Utensils, 
   Sparkles, DollarSign, Lock, Trophy
 } from 'lucide-react'
 import { getChildScheduleForDate } from '@/lib/scheduleConfig'
@@ -24,62 +24,80 @@ interface DailyChecklistProps {
   date?: Date
 }
 
+// Helper functions moved outside component to prevent recreation
+const getAgeAppropriateChore = (age: number) => {
+  if (age <= 6) {
+    return { title: 'Put Toys Away', description: 'Tidy up play areas' }
+  } else if (age <= 9) {
+    return { title: 'Set/Clear Table', description: 'Help with meal setup and cleanup' }
+  } else if (age <= 12) {
+    return { title: 'Empty Trash Cans', description: 'Collect and empty small trash cans' }
+  } else {
+    return { title: 'Vacuum One Room', description: 'Vacuum assigned room thoroughly' }
+  }
+}
+
+const getPaidChores = (age: number) => {
+  const basePoints = Math.floor(age * 0.5) // Age-based points
+  
+  if (age <= 6) {
+    return [
+      { title: 'Sort Socks', description: 'Match and fold sock pairs', points: basePoints },
+      { title: 'Water Plants', description: 'Water indoor plants', points: basePoints },
+      { title: 'Wipe Baseboards', description: 'Clean baseboards in one room', points: basePoints }
+    ]
+  } else if (age <= 9) {
+    return [
+      { title: 'Load Dishwasher', description: 'Load and start dishwasher', points: basePoints + 1 },
+      { title: 'Sweep Floor', description: 'Sweep kitchen or dining room', points: basePoints + 1 },
+      { title: 'Organize Pantry', description: 'Tidy and organize pantry items', points: basePoints }
+    ]
+  } else if (age <= 12) {
+    return [
+      { title: 'Clean Bathroom', description: 'Clean sink, mirror, and counter', points: basePoints + 2 },
+      { title: 'Mop Floor', description: 'Mop kitchen or bathroom floor', points: basePoints + 2 },
+      { title: 'Fold Laundry', description: 'Fold and put away laundry', points: basePoints + 1 }
+    ]
+  } else {
+    return [
+      { title: 'Deep Clean Room', description: 'Thoroughly clean assigned room', points: basePoints + 3 },
+      { title: 'Meal Prep Help', description: 'Help prepare family meal', points: basePoints + 2 },
+      { title: 'Organize Garage', description: 'Tidy and organize garage area', points: basePoints + 2 }
+    ]
+  }
+}
+
 export default function DailyChecklist({ childName, date = new Date() }: DailyChecklistProps) {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [paidChoresUnlocked, setPaidChoresUnlocked] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const [child, setChild] = useState<any>(null)
+  const [todaySchedule, setTodaySchedule] = useState<any>(null)
 
-  // Get child data for age-appropriate tasks
-  const familyData = getAllFamilyData()
-  const child = familyData.children.find(c => c.name.toLowerCase() === childName.toLowerCase())
-  const todaySchedule = isClient && child ? getChildScheduleForDate(child.name, date) : null
-
+  // Initialize client-side state
   useEffect(() => {
     setIsClient(true)
   }, [])
 
+  // Get child data and today's schedule
   useEffect(() => {
     if (isClient) {
-      loadDailyChecklist()
-    }
-  }, [childName, date, isClient])
-
-  useEffect(() => {
-    // Check if required chores are complete to unlock paid chores
-    const requiredChores = checklist.filter(item => 
-      (item.category === 'required_chore' || item.category === 'dishes') && item.required
-    )
-    const requiredComplete = requiredChores.every(item => item.completed)
-    setPaidChoresUnlocked(requiredComplete)
-  }, [checklist])
-
-  const loadDailyChecklist = async () => {
-    try {
-      setIsLoading(true)
+      const familyData = getAllFamilyData()
+      const foundChild = familyData.children.find(c => c.name.toLowerCase() === childName.toLowerCase())
+      setChild(foundChild)
       
-      // Load existing completion status from database
-      const response = await fetch(`/api/kids/checklist?childName=${childName}&date=${date.toISOString().split('T')[0]}`)
-      let completedTasks: any[] = []
-      
-      if (response.ok) {
-        const data = await response.json()
-        completedTasks = data.completedTasks || []
+      if (foundChild) {
+        const schedule = getChildScheduleForDate(foundChild.name, date)
+        setTodaySchedule(schedule)
       }
-
-      // Generate today's checklist
-      const todayChecklist = generateDailyChecklist(completedTasks)
-      setChecklist(todayChecklist)
-    } catch (error) {
-      console.error('Failed to load checklist:', error)
-      // Generate checklist without completion status
-      setChecklist(generateDailyChecklist([]))
-    } finally {
-      setIsLoading(false)
     }
-  }
+  }, [childName, isClient, date.toDateString()])
 
-  const generateDailyChecklist = (completedTasks: any[]): ChecklistItem[] => {
+  // Generate checklist based on completed tasks
+  const generateDailyChecklist = useCallback((completedTasks: any[]): ChecklistItem[] => {
+    if (!child) return []
+    
     const isCompleted = (category: string, title: string) => 
       completedTasks.some(task => task.category === category && task.task_title === title)
 
@@ -98,7 +116,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
     })
 
     // Add age-appropriate required chore
-    const ageChore = getAgeAppropriateChore(child?.age || 8)
+    const ageChore = getAgeAppropriateChore(child.age || 8)
     items.push({
       id: 'required-chore',
       category: 'required_chore',
@@ -130,7 +148,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
     })
 
     // 3. School Prep (only on school days)
-    if (todaySchedule && todaySchedule.periods.length > 0) {
+    if (todaySchedule && todaySchedule.periods && todaySchedule.periods.length > 0) {
       items.push({
         id: 'school-prep',
         category: 'school_prep',
@@ -143,7 +161,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
     }
 
     // 4. Paid Chores (3 available)
-    const paidChores = getPaidChores(child?.age || 8)
+    const paidChores = getPaidChores(child.age || 8)
     paidChores.forEach((chore, index) => {
       items.push({
         id: `paid-${index}`,
@@ -157,50 +175,73 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
     })
 
     return items
-  }
+  }, [child, todaySchedule])
 
-  const getAgeAppropriateChore = (age: number) => {
-    if (age <= 6) {
-      return { title: 'Put Toys Away', description: 'Tidy up play areas' }
-    } else if (age <= 9) {
-      return { title: 'Set/Clear Table', description: 'Help with meal setup and cleanup' }
-    } else if (age <= 12) {
-      return { title: 'Empty Trash Cans', description: 'Collect and empty small trash cans' }
-    } else {
-      return { title: 'Vacuum One Room', description: 'Vacuum assigned room thoroughly' }
-    }
-  }
-
-  const getPaidChores = (age: number) => {
-    const basePoints = Math.floor(age * 0.5) // Age-based points
+  // Load checklist data
+  const loadDailyChecklist = useCallback(async () => {
+    if (!child) return
     
-    if (age <= 6) {
-      return [
-        { title: 'Sort Socks', description: 'Match and fold sock pairs', points: basePoints },
-        { title: 'Water Plants', description: 'Water indoor plants', points: basePoints },
-        { title: 'Wipe Baseboards', description: 'Clean baseboards in one room', points: basePoints }
-      ]
-    } else if (age <= 9) {
-      return [
-        { title: 'Load Dishwasher', description: 'Load and start dishwasher', points: basePoints + 1 },
-        { title: 'Sweep Floor', description: 'Sweep kitchen or dining room', points: basePoints + 1 },
-        { title: 'Organize Pantry', description: 'Tidy and organize pantry items', points: basePoints }
-      ]
-    } else if (age <= 12) {
-      return [
-        { title: 'Clean Bathroom', description: 'Clean sink, mirror, and counter', points: basePoints + 2 },
-        { title: 'Mop Floor', description: 'Mop kitchen or bathroom floor', points: basePoints + 2 },
-        { title: 'Fold Laundry', description: 'Fold and put away laundry', points: basePoints + 1 }
-      ]
-    } else {
-      return [
-        { title: 'Deep Clean Room', description: 'Thoroughly clean assigned room', points: basePoints + 3 },
-        { title: 'Meal Prep Help', description: 'Help prepare family meal', points: basePoints + 2 },
-        { title: 'Organize Garage', description: 'Tidy and organize garage area', points: basePoints + 2 }
-      ]
-    }
-  }
+    try {
+      setIsLoading(true)
+      
+      // Try to load from API with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      
+      let completedTasks: any[] = []
+      
+      try {
+        const response = await fetch(`/api/kids/checklist?childName=${childName}&date=${date.toISOString().split('T')[0]}`, {
+          signal: controller.signal
+        })
+        clearTimeout(timeoutId)
+        
+        if (response.ok) {
+          const data = await response.json()
+          completedTasks = data.completedTasks || []
+        }
+      } catch (fetchError) {
+        clearTimeout(timeoutId)
+        console.log('API unavailable, using local storage fallback')
+        
+        // Fallback to localStorage
+        if (typeof window !== 'undefined') {
+          const storageKey = `checklist-${childName}-${date.toISOString().split('T')[0]}`
+          const stored = localStorage.getItem(storageKey)
+          if (stored) {
+            completedTasks = JSON.parse(stored)
+          }
+        }
+      }
 
+      // Generate checklist
+      const todayChecklist = generateDailyChecklist(completedTasks)
+      setChecklist(todayChecklist)
+    } catch (error) {
+      console.error('Failed to load checklist:', error)
+      setChecklist(generateDailyChecklist([]))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [childName, date.toDateString(), child, generateDailyChecklist])
+
+  // Load checklist when dependencies change
+  useEffect(() => {
+    if (isClient && child) {
+      loadDailyChecklist()
+    }
+  }, [isClient, child?.name, loadDailyChecklist])
+
+  // Update paid chores unlock status
+  useEffect(() => {
+    const requiredChores = checklist.filter(item => 
+      (item.category === 'required_chore' || item.category === 'dishes') && item.required
+    )
+    const requiredComplete = requiredChores.every(item => item.completed)
+    setPaidChoresUnlocked(requiredComplete)
+  }, [checklist])
+
+  // Toggle item completion
   const toggleItem = async (itemId: string) => {
     const item = checklist.find(i => i.id === itemId)
     if (!item) return
@@ -212,8 +253,16 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
 
     const newCompleted = !item.completed
 
+    // Update local state immediately
+    setChecklist(prev => prev.map(i => 
+      i.id === itemId ? { ...i, completed: newCompleted } : i
+    ))
+
+    // Try to update database
     try {
-      // Update database
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      
       await fetch('/api/kids/checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -225,18 +274,30 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
           taskDescription: item.description,
           completed: newCompleted,
           pointsEarned: newCompleted ? item.points : 0
-        })
+        }),
+        signal: controller.signal
       })
-
-      // Update local state
-      setChecklist(prev => prev.map(i => 
-        i.id === itemId ? { ...i, completed: newCompleted } : i
-      ))
+      clearTimeout(timeoutId)
     } catch (error) {
-      console.error('Failed to update checklist:', error)
+      console.log('Database unavailable, saving to local storage')
+    }
+
+    // Always save to localStorage as backup
+    if (typeof window !== 'undefined') {
+      const storageKey = `checklist-${childName}-${date.toISOString().split('T')[0]}`
+      const currentChecklist = checklist.map(i => 
+        i.id === itemId ? { ...i, completed: newCompleted } : i
+      )
+      const completedTasks = currentChecklist.filter(task => task.completed).map(task => ({
+        category: task.category,
+        task_title: task.title,
+        completed: true
+      }))
+      localStorage.setItem(storageKey, JSON.stringify(completedTasks))
     }
   }
 
+  // Calculate stats
   const getCompletionStats = () => {
     const requiredItems = checklist.filter(item => item.required)
     const requiredComplete = requiredItems.filter(item => item.completed).length
@@ -250,7 +311,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
       totalPoints,
       completedItems,
       totalItems,
-      percentage: Math.round((completedItems / totalItems) * 100)
+      percentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
     }
   }
 
@@ -271,7 +332,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Daily Checklist</h1>
-            <p className="text-blue-100">{isClient ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Loading...'}</p>
+            <p className="text-blue-100">{date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{stats.percentage}%</div>
@@ -292,7 +353,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
       </div>
 
       {/* School Schedule (if school day) */}
-      {todaySchedule && todaySchedule.periods.length > 0 && (
+      {todaySchedule && todaySchedule.periods && todaySchedule.periods.length > 0 && (
         <div className="bg-white p-4 rounded-lg border">
           <div className="flex items-center gap-2 mb-3">
             <School className="w-5 h-5 text-orange-500" />
@@ -304,7 +365,7 @@ export default function DailyChecklist({ childName, date = new Date() }: DailyCh
             )}
           </div>
           <div className="space-y-1 text-sm">
-            {todaySchedule.periods.slice(0, 3).map((period, index) => (
+            {todaySchedule.periods.slice(0, 3).map((period: any, index: number) => (
               <div key={index} className="flex justify-between">
                 <span className="font-medium">{period.course}</span>
                 <span className="text-gray-500">{period.teacher}</span>

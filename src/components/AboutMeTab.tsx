@@ -9,6 +9,7 @@ import {
 import { 
   AboutMeProfile, 
   SAMPLE_ABOUT_ME_DATA, 
+  ALL_KIDS_BIRTH_DATA,
   COLOR_OPTIONS, 
   ANIMAL_OPTIONS, 
   THEME_OPTIONS,
@@ -17,16 +18,31 @@ import {
   ART_OPTIONS,
   getVisibleFields
 } from '@/lib/aboutMeConfig'
+import { getFamilyMemberData } from '@/lib/familyConfig'
 
 interface AboutMeTabProps {
   childAge: number
   childId: string
+  childName?: string
   initialData?: AboutMeProfile
 }
 
-export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTabProps) {
+export default function AboutMeTab({ childAge, childId, childName, initialData }: AboutMeTabProps) {
+  // Get real birth data based on child name
+  const childKey = childName?.toLowerCase() || ''
+  const familyData = childKey ? getFamilyMemberData(childKey) : null
+  const birthData = childKey ? ALL_KIDS_BIRTH_DATA[childKey] : null
+  
+  
+  // Initialize with real birth data if available
+  const defaultData = birthData ? {
+    ...SAMPLE_ABOUT_ME_DATA,
+    childId,
+    birthCertificate: birthData
+  } : { ...SAMPLE_ABOUT_ME_DATA, childId }
+  
   const [aboutData, setAboutData] = useState<AboutMeProfile>(
-    initialData || { ...SAMPLE_ABOUT_ME_DATA, childId }
+    initialData || defaultData
   )
   const [isEditing, setIsEditing] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState('')
@@ -38,15 +54,49 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
   // Load child-specific data on mount
   useEffect(() => {
     if (!initialData) {
-      loadAboutMeData()
+      // If we have birth data, use it directly instead of API call
+      if (birthData) {
+        setIsLoading(true)
+        const dataWithRealBirth = {
+          ...SAMPLE_ABOUT_ME_DATA,
+          childId,
+          birthCertificate: birthData,
+          personal: {
+            ...SAMPLE_ABOUT_ME_DATA.personal,
+            nickname: childName || ''
+          }
+        }
+        setAboutData(dataWithRealBirth)
+        setIsLoading(false)
+      } else {
+        loadAboutMeData()
+      }
     } else {
       setIsLoading(false)
     }
-  }, [childId, initialData])
+  }, [childId, initialData, birthData, childName])
 
   const loadAboutMeData = async () => {
     try {
       setIsLoading(true)
+      
+      // First, try to use the real birth data we already have
+      if (birthData) {
+        const dataWithRealBirth = {
+          ...SAMPLE_ABOUT_ME_DATA,
+          childId,
+          birthCertificate: birthData,
+          personal: {
+            ...SAMPLE_ABOUT_ME_DATA.personal,
+            nickname: childName || ''
+          }
+        }
+        setAboutData(dataWithRealBirth)
+        setIsLoading(false)
+        return
+      }
+      
+      // If no birth data, try API
       const response = await fetch(`/api/kids/about-me?childId=${childId}`)
       if (response.ok) {
         const data = await response.json()
@@ -247,7 +297,7 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
       >
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">All About {aboutData.birthCertificate.fullName.split(' ')[0]}! 🌟</h1>
+            <h1 className="text-2xl font-bold">All About {aboutData.birthCertificate.fullName?.split(' ')[0] || childName || 'Me'}! 🌟</h1>
             <p className="text-white/90">This is my special page!</p>
           </div>
           <div className="text-right">
@@ -270,19 +320,25 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-medium text-gray-600">Full Name</label>
-                <div className="font-medium text-gray-900">{aboutData.birthCertificate.fullName}</div>
+                <div className="font-medium text-gray-900">{aboutData.birthCertificate.fullName || 'Not set'}</div>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">Birthday</label>
                 <div className="flex items-center gap-2">
                   <Cake className="w-4 h-4 text-orange-500" />
                   <span className="font-medium text-gray-900">
-                    {aboutData.birthCertificate.birthDate.toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
+                    {(() => {
+                      const date = aboutData.birthCertificate.birthDate
+                      if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+                        return 'Not set'
+                      }
+                      return date.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })
+                    })()}
                   </span>
                 </div>
               </div>
@@ -291,7 +347,17 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
                   <label className="text-sm font-medium text-gray-600">Time Born</label>
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-blue-500" />
-                    <span className="font-medium text-gray-900">{aboutData.birthCertificate.birthTime}</span>
+                    <span className="font-medium text-gray-900">
+                      {(() => {
+                        const time = aboutData.birthCertificate.birthTime
+                        if (!time) return 'Unknown'
+                        const [hours, minutes] = time.split(':')
+                        const hour = parseInt(hours)
+                        const ampm = hour >= 12 ? 'PM' : 'AM'
+                        const displayHour = hour % 12 || 12
+                        return `${displayHour}:${minutes} ${ampm}`
+                      })()}
+                    </span>
                   </div>
                 </div>
               )}
@@ -301,21 +367,48 @@ export default function AboutMeTab({ childAge, childId, initialData }: AboutMeTa
                 <label className="text-sm font-medium text-gray-600">Where I Was Born</label>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-green-500" />
-                  <span className="font-medium text-gray-900">{aboutData.birthCertificate.birthPlace}</span>
+                  <span className="font-medium text-gray-900">{aboutData.birthCertificate.birthPlace || 'Not set'}</span>
                 </div>
               </div>
               {aboutData.birthCertificate.birthWeight && (
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Weight</label>
+                  <label className="text-sm font-medium text-gray-600">Birth Weight</label>
                   <div className="font-medium text-gray-900">{aboutData.birthCertificate.birthWeight}</div>
                 </div>
               )}
               {aboutData.birthCertificate.birthLength && (
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Length</label>
+                  <label className="text-sm font-medium text-gray-600">Birth Length</label>
                   <div className="font-medium text-gray-900">{aboutData.birthCertificate.birthLength}</div>
                 </div>
               )}
+              {aboutData.birthCertificate.hospitalName && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Hospital</label>
+                  <div className="font-medium text-gray-900">{aboutData.birthCertificate.hospitalName}</div>
+                </div>
+              )}
+              <div>
+                <label className="text-sm font-medium text-gray-600">How Old Am I?</label>
+                <div className="font-medium text-gray-900">
+                  {(() => {
+                    const birthDate = new Date(aboutData.birthCertificate.birthDate)
+                    const today = new Date()
+                    const ageInYears = today.getFullYear() - birthDate.getFullYear()
+                    const monthDiff = today.getMonth() - birthDate.getMonth()
+                    const finalAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate()) ? ageInYears - 1 : ageInYears
+                    
+                    // Calculate days until next birthday
+                    const nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate())
+                    if (nextBirthday < today) {
+                      nextBirthday.setFullYear(today.getFullYear() + 1)
+                    }
+                    const daysUntilBirthday = Math.ceil((nextBirthday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                    
+                    return `${finalAge} years old (${daysUntilBirthday} days until my birthday!)`
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
         </div>
