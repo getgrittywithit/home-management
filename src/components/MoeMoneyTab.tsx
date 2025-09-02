@@ -154,7 +154,7 @@ export default function MoeMoneyTab() {
       alert(`Successfully imported ${newTransactions.length} transactions`)
     } catch (error) {
       console.error('Error parsing CSV:', error)
-      alert(`Error parsing CSV file: ${error.message}`)
+      alert(`Error parsing CSV file: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsUploading(false)
     }
