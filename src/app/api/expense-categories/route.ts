@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { supabase } from '@/lib/database'
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    
     const { data, error } = await supabase
       .from('expense_categories')
       .select('*')
@@ -25,28 +22,13 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const body = await request.json()
-    
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
-    
-    if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    }
+    const defaultProfileId = '11111111-1111-1111-1111-111111111111'
     
     const { data, error } = await supabase
       .from('expense_categories')
       .insert({
-        profile_id: profile.id,
+        profile_id: defaultProfileId,
         name: body.name,
         description: body.description,
         color: body.color

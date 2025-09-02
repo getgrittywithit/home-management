@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { supabase } from '@/lib/database'
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    
     const { data, error } = await supabase
       .from('business_classes')
       .select('*')
@@ -25,7 +22,6 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
     const body = await request.json()
     
     const { data, error } = await supabase
