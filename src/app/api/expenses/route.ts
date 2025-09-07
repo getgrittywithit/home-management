@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/database'
 
+interface Transaction {
+  date: string
+  description: string
+  amount: number
+  category: string
+  account: string
+  type: string
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Get query parameters
@@ -53,7 +62,7 @@ export async function POST(request: NextRequest) {
     
     // Handle batch upload
     if (body.transactions && Array.isArray(body.transactions)) {
-      const expenses = body.transactions.map(transaction => ({
+      const expenses = body.transactions.map((transaction: Transaction) => ({
         profile_id: defaultProfileId,
         expense_date: transaction.date,
         name: transaction.description,
