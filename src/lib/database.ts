@@ -4,7 +4,7 @@ import { Pool } from 'pg'
 // Supabase client configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vhqgzgqklwrjmglaezmh.supabase.co'
 // IMPORTANT: Get this from your Supabase dashboard > Settings > API > anon public key
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY'
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZocWd6Z3FrbHdyam1nbGFlem1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ3MDU4NjIsImV4cCI6MjA1MDI4MTg2Mn0.OgcROY8YZqZzUMj7SQJEP9UqNiGz5Pr0z13bz5OBqwQ'
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
