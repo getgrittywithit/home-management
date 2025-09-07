@@ -282,34 +282,36 @@ export default function WeeklyChecklistTab() {
   return (
     <div className={`space-y-6 ${isPrintMode ? 'print-mode' : ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 bg-gradient-to-r from-ocean-50 to-teal-50 p-6 rounded-xl border border-ocean-200">
         <div className="flex items-center space-x-4">
-          <h2 className="text-2xl font-bold">Levi's Weekly Checklist</h2>
-          <div className="flex items-center space-x-2">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-ocean-600 to-teal-600 bg-clip-text text-transparent">
+            🌊 Levi's Weekly Checklist
+          </h2>
+          <div className="flex items-center space-x-2 bg-white/80 backdrop-blur-sm rounded-lg p-3 border border-ocean-200">
             <button
               onClick={() => navigateWeek('prev')}
-              className="p-1 hover:bg-gray-100 rounded"
+              className="p-1 hover:bg-ocean-100 rounded-md transition-colors"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5 text-ocean-600" />
             </button>
-            <div className="font-semibold">
+            <div className="font-semibold text-ocean-800 px-2">
               Week {currentWeek.week}, {currentWeek.year}
             </div>
             <button
               onClick={() => navigateWeek('next')}
-              className="p-1 hover:bg-gray-100 rounded"
+              className="p-1 hover:bg-ocean-100 rounded-md transition-colors"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5 text-ocean-600" />
             </button>
           </div>
-          <div className="text-sm text-gray-600">
-            {dateRange.start} - {dateRange.end}
+          <div className="text-sm text-ocean-600 bg-white/60 backdrop-blur-sm px-3 py-1 rounded-full border border-ocean-200">
+            📅 {dateRange.start} - {dateRange.end}
           </div>
         </div>
         <div className="flex space-x-2">
           <button
             onClick={() => setIsPrintMode(!isPrintMode)}
-            className="flex items-center space-x-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+            className="flex items-center space-x-2 bg-gradient-to-r from-ocean-500 to-cyan-500 hover:from-ocean-600 hover:to-cyan-600 text-white px-4 py-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105"
           >
             <Printer className="h-4 w-4" />
             <span>{isPrintMode ? 'Exit Print' : 'Print View'}</span>
@@ -317,7 +319,7 @@ export default function WeeklyChecklistTab() {
           {isPrintMode && (
             <button
               onClick={() => window.print()}
-              className="flex items-center space-x-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+              className="flex items-center space-x-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105"
             >
               <Printer className="h-4 w-4" />
               <span>Print</span>
@@ -327,26 +329,32 @@ export default function WeeklyChecklistTab() {
       </div>
 
       {/* Personal Section */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-xl font-semibold mb-4 text-blue-600">Personal</h3>
+      <div className="bg-gradient-to-br from-white to-cyan-50 rounded-xl shadow-lg border border-cyan-200 p-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-cyan-100/50 to-ocean-100/50 rounded-full -translate-y-16 translate-x-16"></div>
+        <h3 className="text-xl font-semibold mb-4 text-cyan-700 flex items-center gap-2 relative z-10">
+          💫 Personal Wellness
+        </h3>
         
         {Object.entries(personalGroups).map(([subcategory, items]) => (
-          <div key={subcategory} className="mb-6">
-            <h4 className="font-medium text-gray-700 mb-3">{subcategory}</h4>
+          <div key={subcategory} className="mb-6 relative z-10">
+            <h4 className="font-medium text-ocean-600 mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-gradient-to-r from-cyan-400 to-ocean-400 rounded-full"></span>
+              {subcategory}
+            </h4>
             <div className="space-y-2">
               {items.map(item => (
-                <div key={item.id} className="grid grid-cols-8 gap-2 items-center">
-                  <div className="col-span-1 text-sm font-medium truncate">
+                <div key={item.id} className="grid grid-cols-8 gap-2 items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-cyan-100 hover:border-cyan-200 transition-colors">
+                  <div className="col-span-1 text-sm font-medium truncate text-ocean-700">
                     {item.name}
                   </div>
                   {DAYS.map((day, dayIndex) => (
                     <div key={day} className="text-center">
-                      <div className="text-xs text-gray-500 mb-1">{day}</div>
+                      <div className="text-xs text-ocean-500 mb-1 font-medium">{day}</div>
                       <input
                         type="checkbox"
                         checked={isCompleted(item.id, dayIndex)}
                         onChange={() => toggleCompletion(item.id, dayIndex)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-cyan-600 rounded-md focus:ring-cyan-400 focus:ring-2 transition-all duration-200 cursor-pointer hover:scale-110"
                       />
                     </div>
                   ))}
@@ -358,26 +366,32 @@ export default function WeeklyChecklistTab() {
       </div>
 
       {/* Business Section */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-xl font-semibold mb-4 text-green-600">Business - Triton</h3>
+      <div className="bg-gradient-to-br from-white to-teal-50 rounded-xl shadow-lg border border-teal-200 p-6 relative overflow-hidden">
+        <div className="absolute bottom-0 left-0 w-40 h-40 bg-gradient-to-tr from-teal-100/50 to-emerald-100/50 rounded-full translate-y-20 -translate-x-20"></div>
+        <h3 className="text-xl font-semibold mb-4 text-teal-700 flex items-center gap-2 relative z-10">
+          🚀 Business - Triton
+        </h3>
         
         {Object.entries(businessGroups).map(([subcategory, items]) => (
-          <div key={subcategory} className="mb-6">
-            <h4 className="font-medium text-gray-700 mb-3">{subcategory}</h4>
+          <div key={subcategory} className="mb-6 relative z-10">
+            <h4 className="font-medium text-teal-600 mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-gradient-to-r from-teal-400 to-emerald-400 rounded-full"></span>
+              {subcategory}
+            </h4>
             <div className="space-y-2">
               {items.map(item => (
-                <div key={item.id} className="grid grid-cols-8 gap-2 items-center">
-                  <div className="col-span-1 text-sm font-medium truncate">
+                <div key={item.id} className="grid grid-cols-8 gap-2 items-center bg-white/60 backdrop-blur-sm rounded-lg p-2 border border-teal-100 hover:border-teal-200 transition-colors">
+                  <div className="col-span-1 text-sm font-medium truncate text-teal-700">
                     {item.name}
                   </div>
                   {DAYS.map((day, dayIndex) => (
                     <div key={day} className="text-center">
-                      <div className="text-xs text-gray-500 mb-1">{day}</div>
+                      <div className="text-xs text-teal-500 mb-1 font-medium">{day}</div>
                       <input
                         type="checkbox"
                         checked={isCompleted(item.id, dayIndex)}
                         onChange={() => toggleCompletion(item.id, dayIndex)}
-                        className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                        className="w-4 h-4 text-teal-600 rounded-md focus:ring-teal-400 focus:ring-2 transition-all duration-200 cursor-pointer hover:scale-110"
                       />
                     </div>
                   ))}
