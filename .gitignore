@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+/.pnp
+.pnp.js
+.yarn/install-state.gz
 
 # Environment variables
 .env
@@ -11,6 +14,18 @@ node_modules/
 *.sqlite
 *.sqlite3
 
+# Testing
+/coverage
+.nyc_output
+
+# Next.js
+/.next/
+/out/
+
+# Production
+/build
+dist/
+
 # Logs
 logs
 *.log
@@ -21,6 +36,7 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+*.pem
 
 # IDE
 .vscode/
@@ -29,10 +45,18 @@ Thumbs.db
 *.swo
 *~
 
-# Testing
-coverage/
-.nyc_output
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
 
-# Build outputs
-dist/
-build/
+# Vercel
+.vercel
+
+# Scripts for local setup
+/src/scripts/
+check-profile-columns.js
+
+# Allow config files
+!tailwind.config.js
+!postcss.config.js
+!next.config.js

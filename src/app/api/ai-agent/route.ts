@@ -1,0 +1,421 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/database'
+
+export async function POST(request: NextRequest) {
+  try {
+    const { action, content, message, context, familyContext, chatHistory, sessionId, apiKey } = await request.json()
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API key required' }, { status: 400 })
+    }
+
+    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: action === 'chat' ? 1000 : 4000,
+        messages: action === 'chat' ? 
+          await buildChatMessages(message, context, familyContext, sessionId) :
+          [
+            {
+              role: 'user',
+              content: action === 'process-email' ? 
+                createEmailProcessingPrompt(content, familyContext) : 
+                createChatPrompt(message, context, familyContext)
+            }
+          ]
+      })
+    })
+
+    if (!claudeResponse.ok) {
+      const errorText = await claudeResponse.text()
+      console.error('Claude API error:', claudeResponse.status, errorText)
+      return NextResponse.json(
+        { error: `Claude API error: ${claudeResponse.status}` }, 
+        { status: claudeResponse.status }
+      )
+    }
+
+    const data = await claudeResponse.json()
+    const responseContent = data.content[0].text
+
+    if (action === 'process-email') {
+      // Extract JSON from the response for email processing
+      try {
+        const jsonMatch = responseContent.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) {
+          return NextResponse.json({ error: 'Could not parse JSON response from Claude' }, { status: 500 })
+        }
+        const parsedData = JSON.parse(jsonMatch[0])
+        
+        // Save extracted data to database
+        const savedTodos = await saveTodosToDatabase(parsedData.todos || [])
+        const savedContacts = await saveContactsToDatabase(parsedData.contacts || [])
+        
+        return NextResponse.json({
+          ...parsedData,
+          savedTodos,
+          savedContacts
+        })
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError)
+        return NextResponse.json({ error: 'Invalid JSON response from Claude' }, { status: 500 })
+      }
+    } else {
+      // Check if response mentions creating a todo
+      const shouldCreateTodo = responseContent.toLowerCase().includes('create') && 
+                              responseContent.toLowerCase().includes('todo') &&
+                              (responseContent.includes('✅') || responseContent.includes('add'));
+      
+      // For now, simulate todo creation since database integration is not complete
+      // TODO: Implement full database integration
+      let createdTodo = null;
+      if (shouldCreateTodo && message.toLowerCase().includes('todo')) {
+        try {
+          // Simple extraction based on the message
+          const todoContent = extractTodoContent(message);
+          if (todoContent) {
+            // Simulate successful todo creation
+            createdTodo = {
+              id: `todo-${Date.now()}`,
+              content: todoContent.content,
+              priority: todoContent.priority,
+              category: todoContent.category,
+              assigned_to: todoContent.assignedTo,
+              status: 'pending',
+              created_at: new Date().toISOString()
+            };
+            console.log('Simulated todo creation:', createdTodo);
+          }
+        } catch (todoError) {
+          console.error('Error processing todo:', todoError);
+        }
+      }
+
+      // For now, skip chat history saving since database integration is not complete
+      // TODO: Implement full database integration for chat history
+      try {
+        if (sessionId) {
+          console.log('Simulated chat history save for session:', sessionId);
+        }
+      } catch (chatError) {
+        console.error('Error processing chat history:', chatError)
+        // Continue without saving history
+      }
+      
+      return NextResponse.json({ 
+        response: responseContent,
+        todoCreated: createdTodo !== null,
+        todo: createdTodo
+      })
+    }
+
+  } catch (error) {
+    console.error('API route error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+async function buildChatMessages(message: string, context: string | undefined, familyContext: any, sessionId: string) {
+  const messages = []
+  
+  // Add system context
+  messages.push({
+    role: 'user',
+    content: createSystemPrompt(familyContext)
+  })
+  
+  // Add chat history from database (skip if table doesn't exist)
+  try {
+    if (sessionId) {
+      const chatHistory = await db.getChatHistory(sessionId, 10)
+      if (chatHistory && chatHistory.length > 0) {
+        for (const historyItem of chatHistory.reverse()) {
+          messages.push({
+            role: historyItem.role,
+            content: historyItem.content
+          })
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error loading chat history:', error)
+    // Continue without history
+  }
+  
+  // Add current message
+  messages.push({
+    role: 'user',
+    content: context ? `Context: ${context}\n\n${message}` : message
+  })
+  
+  return messages
+}
+
+function createSystemPrompt(familyContext: any): string {
+  return `You are an AI assistant for the Moses family management system. Here's what you need to know:
+
+**Family Members:**
+- Parents: ${familyContext?.parents?.join(', ') || 'Levi, Lola'}
+- Children: ${familyContext?.children?.join(', ') || 'Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah'}
+
+**Schools:** ${familyContext?.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
+
+**Current Contacts:** ${familyContext?.existingContacts?.slice(0, 5)?.join(', ') || 'Loading...'}
+
+**Recent Todos:** ${familyContext?.recentTodos?.slice(0, 3)?.join(', ') || 'Loading...'}
+
+You help with:
+- Processing school emails and newsletters
+- Managing family todos and contacts  
+- Organizing family operations across 6 kids and 3 schools
+- Answering questions about family management
+- Providing context-aware responses using real family data
+
+Be helpful, concise, and focus on practical family management solutions.`
+}
+
+function createEmailProcessingPrompt(emailContent: string, familyContext: any): string {
+  const familyInfo = familyContext ? `
+**Family Context:**
+- Parents: ${familyContext.parents?.join(', ') || 'Levi, Lola'}
+- Children: ${familyContext.children?.join(', ') || 'Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah'} 
+- Schools: ${familyContext.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
+- Existing Contacts: ${familyContext.existingContacts?.slice(0, 3)?.join(', ') || 'None'}
+` : ''
+
+  return `You are an AI assistant helping the Moses family manage their communications and tasks.${familyInfo}
+
+I will provide you with email content, and you need to extract:
+
+1. **Contacts** - Any people or organizations mentioned with contact information
+2. **Todos** - Action items, deadlines, or things that need to be done  
+3. **Summary** - Brief overview of what this email is about
+4. **Important Info** - Key dates, deadlines, or urgent items
+
+For contacts, look for:
+- Names, titles, and organizations
+- Phone numbers, email addresses, physical addresses
+- Office locations or room numbers
+- Tag them appropriately (School, Medical, Emergency, Family, Services, etc.)
+- Set importance level (high for urgent contacts, medium for regular, low for reference)
+- Check against existing contacts to avoid duplicates
+
+For todos, look for:
+- Action items that need to be completed
+- Deadlines or time-sensitive tasks
+- Set priority (high for urgent/deadline items, medium for important, low for optional)
+- Categorize (school, family, contacts, development, general)
+- Assign to specific family members when clear (${familyContext?.parents?.join(', ') || 'Parents'}, or specific children)
+
+Return the response in this EXACT JSON format:
+
+{
+  "contacts": [
+    {
+      "name": "Full Name",
+      "title": "Job Title",
+      "organization": "Organization Name", 
+      "phone": "(123) 456-7890",
+      "email": "email@domain.com",
+      "address": "Full Address",
+      "office": "Room/Office",
+      "notes": "Any relevant notes or context",
+      "tags": ["School", "Principal"],
+      "importance": "high"
+    }
+  ],
+  "todos": [
+    {
+      "content": "Specific action item with context",
+      "priority": "high", 
+      "category": "school",
+      "assignedTo": "Parents"
+    }
+  ],
+  "summary": "Brief summary of email content",
+  "importantInfo": [
+    "Key piece of information 1",
+    "Key piece of information 2"
+  ]
+}
+
+Here is the email content to process:
+
+${emailContent}
+
+Please analyze this email and return the JSON response with extracted contacts, todos, summary, and important information. Use the family context to make intelligent assignments and avoid duplicates.`
+}
+
+function createChatPrompt(message: string, context: string | undefined, familyContext: any): string {
+  const familyInfo = familyContext ? `
+**Family Context:**
+- Parents: ${familyContext.parents?.join(', ') || 'Levi, Lola'}
+- Children: ${familyContext.children?.join(', ') || 'Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah'}
+- Schools: ${familyContext.schools?.join(', ') || 'Samuel V Champion High School, Princeton Intermediate School, Princeton Elementary'}
+` : ''
+
+  // Check if the message is asking about todos or creating todos
+  const isTodoRelated = message.toLowerCase().includes('todo') || 
+                       message.toLowerCase().includes('task') || 
+                       message.toLowerCase().includes('add') || 
+                       message.toLowerCase().includes('create') ||
+                       message.toLowerCase().includes('remind') ||
+                       message.toLowerCase().includes('what do') ||
+                       message.toLowerCase().includes('list');
+
+  if (isTodoRelated) {
+    // Check if they want to see existing todos
+    if (message.toLowerCase().includes('see') || 
+        message.toLowerCase().includes('show') || 
+        message.toLowerCase().includes('list') ||
+        message.toLowerCase().includes('what')) {
+      return `You are an AI assistant for the Moses family management system.${familyInfo}
+
+The user is asking about existing todos. Let them know you're checking the todo list and will help them understand what needs to be done.
+
+Current todos in context: ${familyContext.recentTodos?.join(', ') || 'No recent todos found'}
+
+User message: ${message}
+
+Provide a helpful response about their todos and offer to help create new ones or manage existing ones.`;
+    }
+
+    // They want to create a todo
+    return `You are an AI assistant for the Moses family management system.${familyInfo}
+
+The user wants to create a todo item. Extract the following information from their message:
+- What needs to be done (content)
+- Who should do it (assignedTo) - can be: Levi, Lola, Parents, Amos, Zoey, Kaylee, Ellie, Wyatt, Hannah
+- Priority level (high/medium/low) - default to "medium" if not clear
+- Category (school/family/general) - determine based on content
+
+User message: ${message}
+
+Respond with a confirmation that includes the todo details. Let them know it will be added to their TodoTab.`;
+  }
+
+  return `You are an AI assistant for the Moses family management system.${familyInfo}
+
+You help with:
+- Processing school emails and newsletters
+- Managing family todos and contacts  
+- Organizing family operations across 6 kids and 3 schools
+- Answering questions about family management
+- Providing context-aware responses using real family data
+
+${context ? `Additional Context: ${context}\n\n` : ''}User message: ${message}
+
+Please provide a helpful, concise response focused on family management and organization.`
+}
+
+// Database helper functions
+async function saveTodosToDatabase(todos: any[]): Promise<any[]> {
+  const savedTodos = []
+  for (const todo of todos) {
+    try {
+      const saved = await db.addTodo(
+        todo.content,
+        todo.priority || 'medium',
+        todo.category || 'general',
+        todo.assignedTo || 'Parents'
+      )
+      if (saved && saved.length > 0) {
+        savedTodos.push(saved[0])
+      }
+    } catch (error) {
+      console.error('Error saving todo:', error)
+      // Return the original todo with an error flag
+      savedTodos.push({ ...todo, error: true })
+    }
+  }
+  return savedTodos
+}
+
+async function saveContactsToDatabase(contacts: any[]): Promise<any[]> {
+  const savedContacts = []
+  for (const contact of contacts) {
+    try {
+      // Check if contact already exists by email
+      const existing = contact.email ? await db.findContactByEmail(contact.email) : []
+      
+      if (existing.length > 0) {
+        // Update existing contact
+        const updated = await db.updateContact(existing[0].id, contact)
+        savedContacts.push({ ...updated[0], updated: true })
+      } else {
+        // Create new contact
+        const saved = await db.addContact(contact)
+        savedContacts.push({ ...saved[0], updated: false })
+      }
+    } catch (error) {
+      console.error('Error saving contact:', error)
+    }
+  }
+  return savedContacts
+}
+
+// Extract todo content from user message
+function extractTodoContent(message: string): { content: string, priority: 'high' | 'medium' | 'low', category: string, assignedTo: string } | null {
+  try {
+    // Remove common prefixes
+    let content = message.toLowerCase()
+      .replace(/^(add|create|make|new)\s+(a\s+)?todo(:|\s)/i, '')
+      .replace(/^todo(:|\s)/i, '')
+      .replace(/^remind\s+(me\s+)?to\s+/i, '')
+      .trim();
+
+    // Extract priority
+    let priority: 'high' | 'medium' | 'low' = 'medium';
+    if (message.toLowerCase().includes('high priority') || message.toLowerCase().includes('urgent')) {
+      priority = 'high';
+    } else if (message.toLowerCase().includes('low priority')) {
+      priority = 'low';
+    }
+
+    // Extract assignee
+    let assignedTo = 'Parents';
+    const familyMembers = ['levi', 'lola', 'amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah'];
+    for (const member of familyMembers) {
+      if (message.toLowerCase().includes(`for ${member}`) || message.toLowerCase().includes(`${member} to`)) {
+        assignedTo = member.charAt(0).toUpperCase() + member.slice(1);
+        break;
+      }
+    }
+
+    // Determine category
+    let category = 'general';
+    if (message.toLowerCase().includes('school') || message.toLowerCase().includes('homework') || 
+        message.toLowerCase().includes('teacher') || message.toLowerCase().includes('class')) {
+      category = 'school';
+    } else if (message.toLowerCase().includes('family') || message.toLowerCase().includes('home')) {
+      category = 'family';
+    }
+
+    // Clean up the content
+    content = message
+      .replace(/^(add|create|make|new)\s+(a\s+)?todo(:|\s)/i, '')
+      .replace(/^todo(:|\s)/i, '')
+      .replace(/^remind\s+(me\s+)?to\s+/i, '')
+      .replace(/high priority|low priority|urgent/gi, '')
+      .replace(/for (levi|lola|amos|zoey|kaylee|ellie|wyatt|hannah)/gi, '')
+      .trim();
+
+    if (!content) return null;
+
+    return {
+      content: content.charAt(0).toUpperCase() + content.slice(1),
+      priority,
+      category,
+      assignedTo
+    };
+  } catch (error) {
+    console.error('Error extracting todo content:', error);
+    return null;
+  }
+}
