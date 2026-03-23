@@ -570,16 +570,8 @@ function MealPlanWeekView() {
     setUploadError(null)
 
     try {
-      const apiKey = typeof window !== 'undefined' ? localStorage.getItem('claude-api-key') : null
-      if (!apiKey) {
-        setUploadError('Set your Claude API key in Settings first.')
-        setUploadParsing(false)
-        return
-      }
-
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('apiKey', apiKey)
 
       const res = await fetch('/api/recipes/parse', { method: 'POST', body: formData })
 

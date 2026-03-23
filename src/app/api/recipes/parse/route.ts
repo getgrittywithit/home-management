@@ -14,14 +14,15 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const apiKey = formData.get('apiKey') as string | null
+    const apiKey = process.env.ANTHROPIC_API_KEY
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     }
 
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key required' }, { status: 400 })
+      console.error('ANTHROPIC_API_KEY not set in environment')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
     if (file.size > MAX_FILE_SIZE) {
