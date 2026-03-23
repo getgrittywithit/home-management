@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Calendar, Clock, Users, DollarSign,
   MapPin, AlertTriangle, CheckCircle, Zap,
-  Phone, Home
+  Phone, Home, Utensils, Shirt
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange } from '@/lib/zoneRotation'
@@ -217,6 +217,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
           <div className="space-y-6">
             {/* Zone Rotation */}
             <ZoneRotationCard />
+            {/* Today's Duties */}
+            <TodaysDutiesCard />
           </div>
         </div>
 
@@ -245,6 +247,90 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 color="orange"
                 onClick={() => console.log('Open zones modal')}
               />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Fixed weekly schedules (do not rotate)
+const DINNER_MANAGER: Record<number, string> = {
+  0: 'Levi',             // Sunday
+  1: 'Kaylee',           // Monday
+  2: 'Zoey',             // Tuesday
+  3: 'Wyatt',            // Wednesday
+  4: 'Amos',             // Thursday
+  5: 'Ellie & Hannah',   // Friday
+  6: 'Lola',             // Saturday
+}
+
+const LAUNDRY_SCHEDULE: Record<number, { who: string; note: string }> = {
+  0: { who: 'Wyatt',                    note: 'towels + overflow' },
+  1: { who: 'Levi',                     note: 'work clothes' },
+  2: { who: 'Lola',                     note: 'personal + sheets' },
+  3: { who: 'Ellie, Hannah & Kaylee',   note: '' },
+  4: { who: 'Amos',                     note: '' },
+  5: { who: 'Ellie, Hannah & Kaylee',   note: '' },
+  6: { who: 'Zoey',                     note: 'bedding day' },
+}
+
+const DISHES_SCHEDULE = {
+  breakfast: 'Amos & Wyatt',
+  lunch: 'Ellie & Hannah',
+  dinner: 'Zoey & Kaylee',
+}
+
+function TodaysDutiesCard() {
+  const day = new Date().getDay()
+  const dinner = DINNER_MANAGER[day]
+  const laundry = LAUNDRY_SCHEDULE[day]
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border">
+      <div className="p-6 border-b">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Today's Duties
+        </h2>
+      </div>
+      <div className="p-6 space-y-4">
+        {/* Dinner Manager */}
+        <div className="flex items-start gap-3">
+          <Utensils className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dinner Manager</p>
+            <p className="text-sm font-semibold text-gray-900">{dinner}</p>
+          </div>
+        </div>
+
+        {/* Laundry */}
+        <div className="flex items-start gap-3">
+          <Shirt className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Laundry</p>
+            <p className="text-sm font-semibold text-gray-900">{laundry.who}</p>
+            {laundry.note && (
+              <p className="text-xs text-gray-500">{laundry.note}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Dishes */}
+        <div className="border-t pt-3">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Dishes & Cleanup</p>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Breakfast</span>
+              <span className="font-medium text-gray-900">{DISHES_SCHEDULE.breakfast}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Lunch</span>
+              <span className="font-medium text-gray-900">{DISHES_SCHEDULE.lunch}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Dinner</span>
+              <span className="font-medium text-gray-900">{DISHES_SCHEDULE.dinner}</span>
             </div>
           </div>
         </div>
