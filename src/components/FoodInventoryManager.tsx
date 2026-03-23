@@ -472,6 +472,8 @@ function MealPlanWeekView() {
   const [editorSteps, setEditorSteps] = useState<string[]>([''])
   const [editorSaving, setEditorSaving] = useState(false)
   const [viewRecipe, setViewRecipe] = useState<Recipe | null>(null)
+  const [uploadParsing, setUploadParsing] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const weekDates = getWeekDates(weekStart)
   const weekEnd = weekDates[6]
@@ -555,6 +557,58 @@ function MealPlanWeekView() {
     }
     setEditorSaving(false)
     setEditorDate(null)
+  }
+
+  // Upload and parse recipe file
+  const handleRecipeUpload = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File too large — try a smaller image.')
+      return
+    }
+
+    setUploadParsing(true)
+    setUploadError(null)
+
+    try {
+      const apiKey = typeof window !== 'undefined' ? localStorage.getItem('claude-api-key') : null
+      if (!apiKey) {
+        setUploadError('Set your Claude API key in Settings first.')
+        setUploadParsing(false)
+        return
+      }
+
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('apiKey', apiKey)
+
+      const res = await fetch('/api/recipes/parse', { method: 'POST', body: formData })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setUploadError(data.error || "Couldn't read this file — try a clearer image or paste the recipe manually.")
+        setUploadParsing(false)
+        return
+      }
+
+      const parsed = await res.json()
+
+      // Pre-fill editor fields
+      if (parsed.ingredients?.length > 0) {
+        setEditorIngredients(parsed.ingredients)
+      }
+      if (parsed.steps?.length > 0) {
+        setEditorSteps(parsed.steps)
+      }
+
+      // If no meal name set yet for this day, use parsed title
+      if (editorDate && parsed.title && !meals[editorDate]?.meal_name) {
+        saveMeal(editorDate, parsed.title)
+      }
+    } catch {
+      setUploadError("Couldn't read this file — try a clearer image or paste the recipe manually.")
+    } finally {
+      setUploadParsing(false)
+    }
   }
 
   // Open recipe view
@@ -692,6 +746,31 @@ function MealPlanWeekView() {
             </div>
 
             <div className="p-6 space-y-6">
+              {/* Upload Recipe */}
+              <div>
+                <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed text-sm font-medium transition-colors cursor-pointer ${
+                  uploadParsing ? 'border-gray-300 text-gray-400 cursor-wait' : 'border-blue-300 text-blue-600 hover:bg-blue-50'
+                }`}>
+                  <Upload className="w-4 h-4" />
+                  {uploadParsing ? 'Reading recipe...' : 'Upload Recipe'}
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,.txt,.text"
+                    className="hidden"
+                    disabled={uploadParsing}
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) handleRecipeUpload(f)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                <span className="text-xs text-gray-400 ml-2">Image, PDF, or text file</span>
+                {uploadError && (
+                  <p className="text-xs text-red-500 mt-1">{uploadError}</p>
+                )}
+              </div>
+
               {/* Ingredients */}
               <div>
                 <h4 className="font-semibold text-gray-900 mb-2">Ingredients</h4>
