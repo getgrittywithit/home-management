@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Refrigerator, Package, ChefHat, Plus, Edit3, Trash2, Calendar,
   CheckCircle, Clock, AlertTriangle, Upload, Bot, Save, Eye,
-  Home, Car, Snowflake, Coffee, ChevronLeft, ChevronRight, Check
+  Home, Car, Snowflake, Coffee, ChevronLeft, ChevronRight, Check, X
 } from 'lucide-react'
 import { aiAgent } from '@/services/aiAgent'
 import {
@@ -433,12 +433,15 @@ Example:
   )
 }
 
-// ── Meal Plan Week View (Phase 1) ──────────────────────────────
+// ── Meal Plan Week View (Phase 1 + Phase 2 Recipes) ─────────────
+
+interface MealRow { meal_name: string; recipe_id: string | null }
+interface Recipe { id: string; title: string; ingredients: string[]; steps: string[] }
 
 function getMonday(d: Date): Date {
   const date = new Date(d)
   const day = date.getDay()
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is Sunday
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1)
   date.setDate(diff)
   date.setHours(0, 0, 0, 0)
   return date
@@ -458,9 +461,17 @@ function toDateStr(d: Date): string {
 
 function MealPlanWeekView() {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
-  const [meals, setMeals] = useState<Record<string, string>>({})
+  const [meals, setMeals] = useState<Record<string, MealRow>>({})
   const [saving, setSaving] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+
+  // Modal state
+  const [editorDate, setEditorDate] = useState<string | null>(null)
+  const [viewDate, setViewDate] = useState<string | null>(null)
+  const [editorIngredients, setEditorIngredients] = useState<string[]>([''])
+  const [editorSteps, setEditorSteps] = useState<string[]>([''])
+  const [editorSaving, setEditorSaving] = useState(false)
+  const [viewRecipe, setViewRecipe] = useState<Recipe | null>(null)
 
   const weekDates = getWeekDates(weekStart)
   const weekEnd = weekDates[6]
@@ -470,12 +481,11 @@ function MealPlanWeekView() {
     setLoaded(false)
     fetch(`/api/meal-plan?start=${toDateStr(weekStart)}&end=${toDateStr(weekEnd)}`)
       .then(res => res.json())
-      .then((rows: { plan_date: string; meal_name: string | null }[]) => {
-        const map: Record<string, string> = {}
+      .then((rows: { plan_date: string; meal_name: string | null; recipe_id: string | null }[]) => {
+        const map: Record<string, MealRow> = {}
         rows.forEach(r => {
-          // plan_date comes back as YYYY-MM-DD
           const key = r.plan_date.split('T')[0]
-          map[key] = r.meal_name || ''
+          map[key] = { meal_name: r.meal_name || '', recipe_id: r.recipe_id }
         })
         setMeals(map)
         setLoaded(true)
@@ -484,10 +494,8 @@ function MealPlanWeekView() {
   }, [weekStart])
 
   const saveMeal = async (dateStr: string, mealName: string) => {
-    // Update local state immediately
-    setMeals(prev => ({ ...prev, [dateStr]: mealName }))
+    setMeals(prev => ({ ...prev, [dateStr]: { ...prev[dateStr], meal_name: mealName, recipe_id: prev[dateStr]?.recipe_id || null } }))
     setSaving(dateStr)
-
     try {
       await fetch('/api/meal-plan', {
         method: 'POST',
@@ -497,25 +505,75 @@ function MealPlanWeekView() {
     } catch (error) {
       console.error('Error saving meal plan:', error)
     }
-
-    // Show saved indicator briefly
     setTimeout(() => setSaving(prev => (prev === dateStr ? null : prev)), 1200)
   }
 
-  const goToPrevWeek = () => {
-    const prev = new Date(weekStart)
-    prev.setDate(prev.getDate() - 7)
-    setWeekStart(prev)
+  // Open recipe editor
+  const openEditor = async (dateStr: string) => {
+    const row = meals[dateStr]
+    if (row?.recipe_id) {
+      // Load existing recipe
+      try {
+        const res = await fetch(`/api/recipes?id=${row.recipe_id}`)
+        if (res.ok) {
+          const recipe: Recipe = await res.json()
+          setEditorIngredients(recipe.ingredients.length > 0 ? recipe.ingredients : [''])
+          setEditorSteps(recipe.steps.length > 0 ? recipe.steps : [''])
+          setEditorDate(dateStr)
+          return
+        }
+      } catch {}
+    }
+    // New recipe
+    setEditorIngredients([''])
+    setEditorSteps([''])
+    setEditorDate(dateStr)
   }
 
-  const goToNextWeek = () => {
-    const next = new Date(weekStart)
-    next.setDate(next.getDate() + 7)
-    setWeekStart(next)
+  // Save recipe from editor
+  const saveRecipe = async () => {
+    if (!editorDate) return
+    const mealName = meals[editorDate]?.meal_name || ''
+    if (!mealName) return
+
+    setEditorSaving(true)
+    const ingredients = editorIngredients.filter(s => s.trim())
+    const steps = editorSteps.filter(s => s.trim())
+
+    try {
+      const res = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: mealName, ingredients, steps, plan_date: editorDate }),
+      })
+      if (res.ok) {
+        const { recipe_id } = await res.json()
+        setMeals(prev => ({ ...prev, [editorDate!]: { ...prev[editorDate!], recipe_id } }))
+      }
+    } catch (error) {
+      console.error('Error saving recipe:', error)
+    }
+    setEditorSaving(false)
+    setEditorDate(null)
   }
 
+  // Open recipe view
+  const openRecipeView = async (dateStr: string) => {
+    const row = meals[dateStr]
+    if (!row?.recipe_id) return
+    try {
+      const res = await fetch(`/api/recipes?id=${row.recipe_id}`)
+      if (res.ok) {
+        const recipe: Recipe = await res.json()
+        setViewRecipe(recipe)
+        setViewDate(dateStr)
+      }
+    } catch {}
+  }
+
+  const goToPrevWeek = () => { const p = new Date(weekStart); p.setDate(p.getDate() - 7); setWeekStart(p) }
+  const goToNextWeek = () => { const n = new Date(weekStart); n.setDate(n.getDate() + 7); setWeekStart(n) }
   const goToCurrentWeek = () => setWeekStart(getMonday(new Date()))
-
   const isCurrentWeek = toDateStr(weekStart) === toDateStr(getMonday(new Date()))
   const todayStr = toDateStr(new Date())
 
@@ -523,25 +581,19 @@ function MealPlanWeekView() {
     <div className="space-y-4">
       {/* Week navigation */}
       <div className="flex items-center justify-between">
-        <button onClick={goToPrevWeek} className="p-2 rounded hover:bg-gray-100">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
+        <button onClick={goToPrevWeek} className="p-2 rounded hover:bg-gray-100"><ChevronLeft className="w-5 h-5" /></button>
         <div className="text-center">
           <h3 className="text-lg font-semibold text-gray-900">
             {weekStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} – {weekEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </h3>
           {!isCurrentWeek && (
-            <button onClick={goToCurrentWeek} className="text-xs text-blue-600 hover:underline mt-1">
-              Back to this week
-            </button>
+            <button onClick={goToCurrentWeek} className="text-xs text-blue-600 hover:underline mt-1">Back to this week</button>
           )}
         </div>
-        <button onClick={goToNextWeek} className="p-2 rounded hover:bg-gray-100">
-          <ChevronRight className="w-5 h-5" />
-        </button>
+        <button onClick={goToNextWeek} className="p-2 rounded hover:bg-gray-100"><ChevronRight className="w-5 h-5" /></button>
       </div>
 
-      {/* Day cards */}
+      {/* Day rows */}
       {!loaded ? (
         <div className="text-center py-8 text-gray-400">Loading...</div>
       ) : (
@@ -549,7 +601,8 @@ function MealPlanWeekView() {
           {weekDates.map(date => {
             const dateStr = toDateStr(date)
             const isToday = dateStr === todayStr
-            const mealValue = meals[dateStr] || ''
+            const row = meals[dateStr] || { meal_name: '', recipe_id: null }
+            const hasRecipe = !!row.recipe_id
             const justSaved = saving === dateStr
 
             return (
@@ -567,23 +620,51 @@ function MealPlanWeekView() {
                     {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </div>
                 </div>
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    defaultValue={mealValue}
-                    key={`${dateStr}-${mealValue}`}
-                    placeholder="Tonight's dinner..."
-                    onBlur={e => {
-                      const val = e.target.value.trim()
-                      if (val !== (meals[dateStr] || '')) {
-                        saveMeal(dateStr, val)
-                      }
-                    }}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                      isToday ? 'border-blue-300 bg-white' : 'border-gray-200'
-                    }`}
-                  />
+
+                <div className="flex-1 flex items-center gap-2">
+                  {hasRecipe ? (
+                    <>
+                      <button
+                        onClick={() => openRecipeView(dateStr)}
+                        className="px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-medium hover:bg-green-200 transition-colors"
+                      >
+                        {row.meal_name}
+                      </button>
+                      <button
+                        onClick={() => openEditor(dateStr)}
+                        className="text-gray-400 hover:text-gray-600"
+                        title="Edit recipe"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        defaultValue={row.meal_name}
+                        key={`${dateStr}-${row.meal_name}`}
+                        placeholder="Tonight's dinner..."
+                        onBlur={e => {
+                          const val = e.target.value.trim()
+                          if (val !== (row.meal_name || '')) saveMeal(dateStr, val)
+                        }}
+                        className={`flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                          isToday ? 'border-blue-300 bg-white' : 'border-gray-200'
+                        }`}
+                      />
+                      {row.meal_name && (
+                        <button
+                          onClick={() => openEditor(dateStr)}
+                          className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                        >
+                          + Recipe
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
+
                 <div className="w-16 text-right">
                   {justSaved && (
                     <span className="text-xs text-green-600 flex items-center gap-1 justify-end">
@@ -594,6 +675,161 @@ function MealPlanWeekView() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Recipe Editor Modal */}
+      {editorDate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditorDate(null)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">
+                Recipe: {meals[editorDate]?.meal_name || 'Untitled'}
+              </h3>
+              <button onClick={() => setEditorDate(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Ingredients */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">Ingredients</h4>
+                <div className="space-y-2">
+                  {editorIngredients.map((ing, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={ing}
+                        onChange={e => {
+                          const next = [...editorIngredients]
+                          next[i] = e.target.value
+                          setEditorIngredients(next)
+                        }}
+                        placeholder="e.g. 2 cups flour"
+                        className="flex-1 border rounded px-3 py-1.5 text-sm"
+                      />
+                      {editorIngredients.length > 1 && (
+                        <button
+                          onClick={() => setEditorIngredients(editorIngredients.filter((_, j) => j !== i))}
+                          className="text-red-400 hover:text-red-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setEditorIngredients([...editorIngredients, ''])}
+                  className="text-xs text-blue-600 hover:underline mt-2"
+                >
+                  + Add ingredient
+                </button>
+              </div>
+
+              {/* Steps */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">Steps</h4>
+                <div className="space-y-2">
+                  {editorSteps.map((step, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="text-xs font-bold text-gray-400 mt-2 w-5 text-right flex-shrink-0">{i + 1}.</span>
+                      <textarea
+                        value={step}
+                        onChange={e => {
+                          const next = [...editorSteps]
+                          next[i] = e.target.value
+                          setEditorSteps(next)
+                        }}
+                        placeholder="Describe this step..."
+                        rows={2}
+                        className="flex-1 border rounded px-3 py-1.5 text-sm resize-none"
+                      />
+                      {editorSteps.length > 1 && (
+                        <button
+                          onClick={() => setEditorSteps(editorSteps.filter((_, j) => j !== i))}
+                          className="text-red-400 hover:text-red-600 mt-1.5"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setEditorSteps([...editorSteps, ''])}
+                  className="text-xs text-blue-600 hover:underline mt-2"
+                >
+                  + Add step
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 border-t flex justify-end gap-3">
+              <button onClick={() => setEditorDate(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
+                Cancel
+              </button>
+              <button
+                onClick={saveRecipe}
+                disabled={editorSaving}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {editorSaving ? 'Saving...' : 'Save Recipe'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recipe View Modal (read-only) */}
+      {viewDate && viewRecipe && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setViewDate(null); setViewRecipe(null) }}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">{viewRecipe.title}</h3>
+              <button onClick={() => { setViewDate(null); setViewRecipe(null) }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {viewRecipe.ingredients.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Ingredients</h4>
+                  <ul className="space-y-1">
+                    {viewRecipe.ingredients.map((ing, i) => (
+                      <li key={i} className="flex items-start gap-2 text-gray-700">
+                        <span className="text-green-500 mt-0.5">•</span>
+                        <span className="text-base">{ing}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {viewRecipe.steps.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-2">Steps</h4>
+                  <ol className="space-y-3">
+                    {viewRecipe.steps.map((step, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 bg-green-100 text-green-800 rounded-full flex items-center justify-center text-sm font-bold">
+                          {i + 1}
+                        </span>
+                        <span className="text-base text-gray-800 pt-0.5 leading-relaxed">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {viewRecipe.ingredients.length === 0 && viewRecipe.steps.length === 0 && (
+                <p className="text-gray-400 text-center py-4">No recipe details added yet.</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

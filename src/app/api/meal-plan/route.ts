@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = await db.query(
-      'SELECT id, plan_date, meal_name FROM meal_plan WHERE plan_date >= $1 AND plan_date <= $2 ORDER BY plan_date',
+      'SELECT id, plan_date, meal_name, recipe_id FROM meal_plan WHERE plan_date >= $1 AND plan_date <= $2 ORDER BY plan_date',
       [start, end]
     )
 
