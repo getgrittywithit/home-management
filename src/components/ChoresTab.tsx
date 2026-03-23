@@ -78,54 +78,6 @@ export default function ChoresTab({ familyMembers = [] }: ChoresTabProps) {
         </div>
       </div>
 
-      {/* Current Zone */}
-      <div className="bg-white p-6 rounded-lg border-2 border-purple-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-900">This Week's Zone: {ZONES[currentZone - 1].name}</h3>
-          <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm">Zone {currentZone}</span>
-        </div>
-        
-        <div className="mb-4">
-          <p className="text-gray-600 mb-2">Areas to focus on:</p>
-          <div className="flex flex-wrap gap-2">
-            {ZONES[currentZone - 1].areas.map(area => (
-              <span key={area} className="bg-gray-100 px-3 py-1 rounded-full text-sm">{area}</span>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h4 className="font-semibold text-gray-900">Zone Tasks (15 min each):</h4>
-          {ZONES[currentZone - 1].tasks.map((task, index) => {
-            const taskId = `zone-${currentZone}-${index}`
-            return (
-              <div 
-                key={taskId}
-                className={`flex items-start gap-3 p-3 rounded-lg border ${
-                  completedTasks.includes(taskId) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <button
-                  onClick={() => toggleTask(taskId)}
-                  className="mt-1"
-                >
-                  {completedTasks.includes(taskId) ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />
-                  )}
-                </button>
-                <div className="flex-1">
-                  <h5 className="font-medium">{task.name}</h5>
-                  <p className="text-sm text-gray-600">{task.description}</p>
-                  <p className="text-xs text-gray-500 mt-1">Ages {task.ageMinimum}+ • {task.duration} minutes</p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
       {/* Daily Routines */}
       <div className="bg-white p-6 rounded-lg border-2 border-blue-200">
         <h3 className="text-xl font-bold text-gray-900 mb-4">Daily Routines</h3>
@@ -186,34 +138,6 @@ export default function ChoresTab({ familyMembers = [] }: ChoresTabProps) {
           })}
         </div>
       </div>
-
-      {/* Age-Appropriate Chores Guide */}
-      {familyMembers.some(m => m.role === 'child') && (
-        <div className="bg-white p-6 rounded-lg border-2 border-orange-200">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Age-Appropriate Chores</h3>
-          <div className="space-y-4">
-            {familyMembers.filter(m => m.role === 'child').map(child => {
-              const ageGroup = getAgeGroup(child.age)
-              if (!ageGroup) return null
-              
-              return (
-                <div key={child.name} className="bg-orange-50 p-4 rounded-lg">
-                  <h4 className="font-semibold text-orange-900 mb-2">
-                    {child.name} (Age {child.age})
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {AGE_APPROPRIATE_CHORES[ageGroup]?.map(chore => (
-                      <span key={chore} className="bg-white px-3 py-1 rounded-full text-sm border border-orange-200">
-                        {chore}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Progress Overview */}
       <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white p-6 rounded-lg">
