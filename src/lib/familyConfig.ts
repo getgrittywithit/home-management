@@ -25,6 +25,9 @@ export interface SchoolInfo {
 
 // SCHOOLS - UPDATED TO MATCH ACTUAL SCHEDULES
 export const SCHOOLS: Record<string, SchoolInfo> = {
+  'homeschool': {
+    name: 'Homeschool',
+  },
   'champion-high': {
     name: 'BOERNE - SAMUEL V CHAMPION H S',
     address: '1580 Champion Dr, Boerne, TX 78006',
@@ -40,7 +43,7 @@ export const SCHOOLS: Record<string, SchoolInfo> = {
   },
   'herff-elementary': {
     name: 'HERFF EL',
-    address: 'Boerne, TX', 
+    address: 'Boerne, TX',
     phone: '(830) 357-2200',
     principal: 'Mrs. Williams'
   }
@@ -48,17 +51,7 @@ export const SCHOOLS: Record<string, SchoolInfo> = {
 
 // CURRENT TEACHER ASSIGNMENTS - AUTOMATICALLY GENERATED FROM ACTUAL SCHEDULES
 export const TEACHER_ASSIGNMENTS: Record<string, TeacherAssignment[]> = {
-  'amos': [
-    { name: 'Thomas Dillard', subject: 'IPC', room: 'B245' },
-    { name: 'Christopher Troilo', subject: 'English II', room: 'B139' },
-    { name: 'Kallie Cheves', subject: 'Advisory 10', room: 'A112' },
-    { name: 'Raeanna Kempf', subject: 'Astronomy', room: 'B213' },
-    { name: 'Stephen Salazar', subject: 'ASL I', room: 'E150' },
-    { name: 'Daniel Lawrence', subject: 'Geometry', room: 'B272' },
-    { name: 'Isaac Cenoz', subject: 'World History', room: 'A209' },
-    { name: 'Dorman Vick', subject: 'Ag Mechanics & Metal Tech', room: 'J303' },
-    { name: 'Hannah Kovarcik', subject: 'ART 1', room: 'A113' }
-  ],
+  'amos': [],
   'zoey': [
     { name: 'Kendall Reischling', subject: 'Debate I', room: 'T205' },
     { name: 'Isaac Cenoz', subject: 'AP Human Geography', room: 'A209' },
@@ -81,33 +74,9 @@ export const TEACHER_ASSIGNMENTS: Record<string, TeacherAssignment[]> = {
     { name: 'Christy Boerm', subject: 'ELAR 7', room: 'C103' },
     { name: 'Amy Thornton', subject: 'THEATRE 1', room: 'STUD' }
   ],
-  'ellie': [
-    { name: 'Jonathan Rickman', subject: 'BAND I-A BEGIN / Advisory 6', room: 'BAND' },
-    { name: 'Madison Lowe', subject: 'Honors ELAR 6', room: 'C101' },
-    { name: 'Taylor Lancaster', subject: 'Math 6', room: 'B103' },
-    { name: 'Isabel Hold', subject: 'Science 6', room: 'A102' },
-    { name: 'Cheyenne LaFargue', subject: 'Contemporary World Cultures', room: 'C202' },
-    { name: 'Courtney Ludy', subject: 'STEM 6', room: 'E101' },
-    { name: 'Priscilla Garcia-Meier', subject: 'Digital Literacy 6', room: 'E104' },
-    { name: 'Hannah Narvaez', subject: 'Student Leadership / Wellness', room: 'E102' },
-    { name: 'Jeremy Boatright', subject: 'PHYSICAL ED 6', room: 'GYM' }
-  ],
-  'wyatt': [
-    { name: 'Mandy Rice', subject: 'HOMEROOM / ELAR / SOCIAL STUDIES 4TH', room: 'C105' },
-    { name: 'Allycia English', subject: 'SCIENCE / MATH 4TH GRADE', room: 'C104' },
-    { name: 'Matthew Beschoner', subject: 'ART 4TH GRADE', room: 'C129-01' },
-    { name: 'Mindy Kaler', subject: 'COMPUTERS 4TH GRADE', room: 'A102-01' },
-    { name: 'Travis Clark', subject: 'PE 4TH GRADE', room: 'B108-01' },
-    { name: 'Mary Young', subject: 'MUSIC 4TH GRADE', room: 'B119-01' }
-  ],
-  'hannah': [
-    { name: 'Candace Warder', subject: 'HOMEROOM / ELAR / SOCIAL STUDIES 3RD', room: 'C204' },
-    { name: 'Megan Varnum', subject: 'SCIENCE / MATH 3RD GRADE', room: 'C201' },
-    { name: 'Matthew Beschoner', subject: 'ART 3RD GRADE', room: 'C129-03' },
-    { name: 'Mindy Kaler', subject: 'COMPUTERS 3RD GRADE', room: 'A102-03' },
-    { name: 'Travis Clark', subject: 'PE 3RD GRADE', room: 'B108-03' },
-    { name: 'Mary Young', subject: 'MUSIC 3RD GRADE', room: 'B119-03' }
-  ]
+  'ellie': [],
+  'wyatt': [],
+  'hannah': []
 }
 
 // Helper function to calculate current age from birth date
@@ -134,14 +103,14 @@ export const CURRENT_GRADES = {
   'hannah': '3rd Grade'
 } as const
 
-// SCHOOL ASSIGNMENTS - Updated to match actual schedules
+// SCHOOL ASSIGNMENTS - Updated to match actual enrollment
 export const SCHOOL_ASSIGNMENTS = {
-  'amos': 'champion-high',
+  'amos': 'homeschool',
   'zoey': 'champion-high',
-  'kaylee': 'boerne-middle-north', 
-  'ellie': 'boerne-middle-north',
-  'wyatt': 'herff-elementary',
-  'hannah': 'herff-elementary'
+  'kaylee': 'boerne-middle-north',
+  'ellie': 'homeschool',
+  'wyatt': 'homeschool',
+  'hannah': 'homeschool'
 } as const
 
 // EXTRACURRICULAR ACTIVITIES - Update as needed

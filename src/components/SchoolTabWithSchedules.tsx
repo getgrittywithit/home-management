@@ -46,27 +46,34 @@ export default function SchoolTabWithSchedules({ children }: SchoolTabWithSchedu
                     <School className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-700">{child.school.name}</span>
                   </div>
-                  {child.teachers && child.teachers.length > 0 && (
+                  {child.school.name === 'Homeschool' ? (
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-400" />
+                      <span className="text-gray-500 italic">Homeschooled</span>
+                    </div>
+                  ) : child.teachers && child.teachers.length > 0 ? (
                     <div className="flex items-center gap-2">
                       <User className="w-4 h-4 text-gray-400" />
                       <span className="text-gray-600">{child.teachers.length} teachers</span>
                     </div>
-                  )}
+                  ) : null}
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <button 
-                    onClick={() => {
-                      setSelectedChild(child.name.toLowerCase())
-                      setViewMode('schedule')
-                    }}
-                    className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-200"
-                  >
-                    View Schedule
-                  </button>
-                  <button className="text-sm bg-gray-100 text-gray-700 px-3 py-1 rounded-full hover:bg-gray-200">
-                    Teachers
-                  </button>
-                </div>
+                {child.school.name !== 'Homeschool' && (
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedChild(child.name.toLowerCase())
+                        setViewMode('schedule')
+                      }}
+                      className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-200"
+                    >
+                      View Schedule
+                    </button>
+                    <button className="text-sm bg-gray-100 text-gray-700 px-3 py-1 rounded-full hover:bg-gray-200">
+                      Teachers
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -78,7 +85,9 @@ export default function SchoolTabWithSchedules({ children }: SchoolTabWithSchedu
         <h3 className="font-bold text-gray-900 mb-4">School Overview</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">3</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {new Set(familyData.children.map(c => c.school.name)).size}
+            </div>
             <div className="text-sm text-gray-600">Schools</div>
           </div>
           <div className="text-center">
