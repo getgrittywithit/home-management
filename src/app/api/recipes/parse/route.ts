@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!apiKey) {
-      console.error('ANTHROPIC_API_KEY not set in environment')
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+      console.error('ANTHROPIC_API_KEY not set in environment variables')
+      return NextResponse.json({ error: 'Recipe parsing is not configured yet. Add ANTHROPIC_API_KEY to your Vercel environment variables.' }, { status: 500 })
     }
 
     if (file.size > MAX_FILE_SIZE) {
