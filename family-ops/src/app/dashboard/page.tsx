@@ -1,4 +1,4 @@
-import Dashboard from '@/components/Dashboard'
+import ParentPortalWithNav from '@/components/ParentPortalWithNav'
 import { db } from '@/lib/database'
 import { DashboardData } from '@/types'
 
@@ -7,9 +7,7 @@ async function getDashboardData(): Promise<DashboardData> {
   try {
     // Fetch data sequentially to avoid connection pool issues
     const onCallParent = await db.getTodaysOnCall()
-    const waterStatus = await db.getWaterStatus()
     const todaysEvents = await db.getTodaysEvents()
-    const tokensRemaining = await db.getTokensToday()
     const todaysRevenue = await db.getTodaysRevenue()
     const zoneStatus = await db.getZoneStatus()
 
@@ -42,9 +40,7 @@ async function getDashboardData(): Promise<DashboardData> {
 
     return {
       onCallParent,
-      waterStatus,
       todaysEvents,
-      tokensRemaining,
       todaysRevenue,
       weeklyRevenue,
       monthlyRevenue,
@@ -57,9 +53,7 @@ async function getDashboardData(): Promise<DashboardData> {
     
     return {
       onCallParent: 'Not Set',
-      waterStatus: { jugs_full: 0, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 0 },
       todaysEvents: [],
-      tokensRemaining: [],
       todaysRevenue: 0,
       weeklyRevenue: 0,
       monthlyRevenue: 0,
@@ -72,5 +66,5 @@ async function getDashboardData(): Promise<DashboardData> {
 export default async function DashboardPage() {
   const initialData = await getDashboardData()
   
-  return <Dashboard initialData={initialData} />
+  return <ParentPortalWithNav initialData={initialData} />
 }

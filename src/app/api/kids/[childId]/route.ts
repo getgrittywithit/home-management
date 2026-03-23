@@ -34,16 +34,10 @@ export async function GET(
       LIMIT 10
     `, [childId])
 
-    // Get tokens remaining
-    const tokens = await db.query(`
-      SELECT * FROM tokens_available_today WHERE child_id = $1
-    `, [childId])
-
     return NextResponse.json({
       profile: child[0],
       checklist,
-      events,
-      tokens: tokens[0] || { tokens_remaining: 0 }
+      events
     })
 
   } catch (error) {

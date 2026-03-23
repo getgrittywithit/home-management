@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
           INSERT INTO family_events (
             child_id, title, event_type, start_time, end_time,
             captain_id, backup_id, location, contact_info, 
-            gear_needed, pharmacy, tokens_used
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            gear_needed, pharmacy
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           RETURNING *
         `, [
           event_data.child_id,
@@ -64,8 +64,7 @@ export async function POST(request: NextRequest) {
           event_data.location,
           event_data.contact_info,
           event_data.gear_needed,
-          event_data.pharmacy,
-          event_data.tokens_used || 0
+          event_data.pharmacy
         ])
 
         // Then create in Google Calendar

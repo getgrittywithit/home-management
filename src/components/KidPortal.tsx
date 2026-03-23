@@ -14,7 +14,6 @@ interface KidPortalProps {
     todaysEvents: any[]
     weekEvents: any[]
     zones: any[]
-    tokens: any
   }
 }
 
@@ -26,7 +25,7 @@ export default function KidPortal({ kidData }: KidPortalProps) {
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
   const [showModal, setShowModal] = useState(false)
 
-  const { profile, todaysChecklist, todaysEvents, weekEvents, zones, tokens } = kidData
+  const { profile, todaysChecklist, todaysEvents, weekEvents, zones } = kidData
 
   // Calculate completion stats
   const completedTasks = todaysChecklist.filter(item => item.completed).length
@@ -90,10 +89,6 @@ export default function KidPortal({ kidData }: KidPortalProps) {
               
               <div className="text-right">
                 <div className="flex items-center space-x-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary-600">{tokens.tokens_remaining}</div>
-                    <div className="text-xs text-gray-500">Ride Tokens</div>
-                  </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-600">{completionPercentage}%</div>
                     <div className="text-xs text-gray-500">Tasks Done</div>

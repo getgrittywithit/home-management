@@ -80,7 +80,6 @@ export class GoogleCalendarIntegration {
             familyEventId: event.id,
             childId: event.child_id,
             eventType: event.event_type,
-            tokensUsed: event.tokens_used.toString(),
             swapFlag: event.swap_flag.toString()
           }
         }
@@ -106,8 +105,6 @@ export class GoogleCalendarIntegration {
     if (event.location) description += `Location: ${event.location}\n`
     if (event.contact_info) description += `Contact: ${event.contact_info}\n`
     if (event.gear_needed) description += `Gear Needed: ${event.gear_needed}\n`
-    if (event.tokens_used > 0) description += `Ride Tokens: ${event.tokens_used}\n`
-    
     description += `\n--- MEDICAL SWAP RULE ---\n`
     description += `To change captain, edit title ≥6h before (2h urgent)\n`
     description += `Format: [SWAP] Captain: NewName\n`

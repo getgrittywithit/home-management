@@ -21,7 +21,6 @@ interface KidPortalProps {
     todaysEvents: any[]
     weekEvents: any[]
     zones: any[]
-    tokens: any
   }
 }
 
@@ -53,7 +52,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [schoolData, setSchoolData] = useState<SchoolProfile>(SAMPLE_SCHOOL_DATA)
   const [realSchedule, setRealSchedule] = useState<any>(null)
 
-  const { profile, todaysChecklist, todaysEvents, weekEvents, zones, tokens } = kidData
+  const { profile, todaysChecklist, todaysEvents, weekEvents, zones } = kidData
 
   // Load real schedule data based on child name
   useEffect(() => {
@@ -143,10 +142,6 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           <div>
             <h1 className="text-2xl font-bold">Welcome back, {profile.first_name}! {profile.emoji}</h1>
             <p className="text-blue-100">Ready to make today amazing?</p>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-bold">{tokens.tokens_remaining || 0}</div>
-            <div className="text-sm text-blue-100">Tokens Available</div>
           </div>
         </div>
       </div>

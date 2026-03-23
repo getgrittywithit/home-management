@@ -63,18 +63,12 @@ async function getKidData(childName: string) {
       ORDER BY z.cadence ASC, z.name ASC
     `, [childProfile.id])
 
-    const tokens = await db.query(`
-      SELECT * FROM tokens_available_today
-      WHERE child_id = $1
-    `, [childProfile.id])
-
     return {
       profile: childProfile,
       todaysChecklist: checklist,
       todaysEvents: events,
       weekEvents: weekEvents,
-      zones: zones,
-      tokens: tokens[0] || { tokens_remaining: 0 }
+      zones: zones
     }
 
   } catch (error) {

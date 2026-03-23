@@ -49,7 +49,6 @@ interface CalendarEvent {
   icon: string
   assignedTo?: string[]
   priority: 'low' | 'medium' | 'high'
-  rideTokens?: number
 }
 
 const EVENT_CATEGORIES = {
@@ -230,8 +229,7 @@ export default function KidsCalendar({ childName, childAge }: KidsCalendarProps)
           color: EVENT_CATEGORIES.activities.color,
           icon: EVENT_CATEGORIES.activities.icon,
           assignedTo: [child.name],
-          priority: 'medium' as const,
-          rideTokens: childAge >= 12 ? 1 : 0
+          priority: 'medium' as const
         })
       }
 
@@ -618,12 +616,6 @@ export default function KidsCalendar({ childName, childAge }: KidsCalendarProps)
                       <span className="flex items-center gap-1">
                         <MapPin className="w-4 h-4" />
                         {event.location}
-                      </span>
-                    )}
-                    {event.rideTokens && event.rideTokens > 0 && (
-                      <span className="flex items-center gap-1">
-                        <Trophy className="w-4 h-4" />
-                        {event.rideTokens} token{event.rideTokens > 1 ? 's' : ''}
                       </span>
                     )}
                   </div>

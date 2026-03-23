@@ -78,37 +78,6 @@ export const db = {
     `)
   },
 
-  // Water Management
-  async getWaterStatus() {
-    const result = await singleQuery('SELECT * FROM water_status LIMIT 1')
-    return result[0] || { jugs_full: 0, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 0 }
-  },
-
-  async updateWaterJug(jugNumber: number, status: 'full' | 'empty' | 'in_use') {
-    return singleQuery(`
-      UPDATE water_jugs 
-      SET status = $1, updated_at = NOW(),
-          last_filled_date = CASE WHEN $1 = 'full' THEN CURRENT_DATE ELSE last_filled_date END
-      WHERE jug_number = $2
-      RETURNING *
-    `, [status, jugNumber])
-  },
-
-  // Ride Tokens
-  async getTokensToday() {
-    return singleQuery('SELECT * FROM tokens_available_today ORDER BY first_name')
-  },
-
-  async useTokens(childId: string, tokensUsed: number) {
-    return singleQuery(`
-      INSERT INTO ride_tokens (child_id, date, tokens_used, week_start)
-      VALUES ($1, CURRENT_DATE, $2, date_trunc('week', CURRENT_DATE))
-      ON CONFLICT (child_id, date) 
-      DO UPDATE SET tokens_used = ride_tokens.tokens_used + $2
-      RETURNING *
-    `, [childId, tokensUsed])
-  },
-
   // On-Call Schedule
   async getTodaysOnCall() {
     const result = await singleQuery(`

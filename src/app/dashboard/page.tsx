@@ -7,9 +7,7 @@ async function getDashboardData(): Promise<DashboardData> {
   try {
     // Fetch data sequentially to avoid connection pool issues
     const onCallParent = await db.getTodaysOnCall()
-    const waterStatus = await db.getWaterStatus()
     const todaysEvents = await db.getTodaysEvents()
-    const tokensRemaining = await db.getTokensToday()
     const todaysRevenue = await db.getTodaysRevenue()
     const zoneStatus = await db.getZoneStatus()
 
@@ -42,9 +40,7 @@ async function getDashboardData(): Promise<DashboardData> {
 
     return {
       onCallParent,
-      waterStatus,
       todaysEvents,
-      tokensRemaining,
       todaysRevenue,
       weeklyRevenue,
       monthlyRevenue,
@@ -57,9 +53,7 @@ async function getDashboardData(): Promise<DashboardData> {
     
     return {
       onCallParent: 'Not Set',
-      waterStatus: { jugs_full: 0, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 0 },
       todaysEvents: [],
-      tokensRemaining: [],
       todaysRevenue: 0,
       weeklyRevenue: 0,
       monthlyRevenue: 0,

@@ -14,7 +14,6 @@ interface KidData {
   todaysEvents: any[]
   weekEvents: any[]
   zones: any[]
-  tokens: any
 }
 
 interface TabContentProps {
@@ -24,7 +23,7 @@ interface TabContentProps {
 
 export default function KidTabContent({ kidData, activeTab }: TabContentProps) {
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const { profile, todaysChecklist, todaysEvents, weekEvents, zones, tokens } = kidData
+  const { profile, todaysChecklist, todaysEvents, weekEvents, zones } = kidData
 
   const renderCalendarTab = () => {
     const getDayEvents = (date: Date) => {

@@ -11,16 +11,12 @@ export async function GET() {
       // Attempt database queries
       const [
         onCallParent,
-        waterStatus, 
         todaysEvents,
-        tokensRemaining,
         todaysRevenue,
         zoneStatus
       ] = await Promise.all([
         db.getTodaysOnCall(),
-        db.getWaterStatus(),
         db.getTodaysEvents(),
-        db.getTokensToday(),
         db.getTodaysRevenue(),
         db.getZoneStatus()
       ])
@@ -54,9 +50,7 @@ export async function GET() {
 
       dashboardData = {
         onCallParent,
-        waterStatus,
         todaysEvents,
-        tokensRemaining,
         todaysRevenue,
         weeklyRevenue,
         monthlyRevenue,
@@ -69,14 +63,7 @@ export async function GET() {
       // Provide mock data when database is unavailable
       dashboardData = {
         onCallParent: 'Levi',
-        waterStatus: {
-          jugs_full: 6,
-          jugs_empty: 0,
-          jugs_in_use: 0,
-          estimated_days_left: 7
-        },
         todaysEvents: [],
-        tokensRemaining: [],
         todaysRevenue: 0,
         weeklyRevenue: 0,
         monthlyRevenue: 0,
@@ -93,14 +80,7 @@ export async function GET() {
     // Always return valid data structure
     return NextResponse.json({
       onCallParent: 'System Starting',
-      waterStatus: {
-        jugs_full: 6,
-        jugs_empty: 0,
-        jugs_in_use: 0,
-        estimated_days_left: 7
-      },
       todaysEvents: [],
-      tokensRemaining: [],
       todaysRevenue: 0,
       weeklyRevenue: 0,
       monthlyRevenue: 0,
@@ -115,11 +95,6 @@ export async function POST(request: Request) {
     const { action, data } = await request.json()
 
     switch (action) {
-      case 'update_water_jug':
-        const { jug_number, status } = data
-        await db.updateWaterJug(jug_number, status)
-        return NextResponse.json({ success: true })
-
       case 'set_on_call':
         const { date, parent_id } = data
         await db.setOnCall(date, parent_id)

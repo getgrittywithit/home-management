@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { 
-  Calendar, Clock, Users, Droplets, DollarSign, 
-  MapPin, AlertTriangle, CheckCircle, Star, Zap,
-  Phone, Car, Home, Utensils
+import {
+  Calendar, Clock, Users, DollarSign,
+  MapPin, AlertTriangle, CheckCircle, Zap,
+  Phone, Home
 } from 'lucide-react'
-import { DashboardData, TokensAvailable, FamilyEvent, Zone } from '@/types'
+import { DashboardData, FamilyEvent, Zone } from '@/types'
 
 interface DashboardProps {
   initialData?: DashboardData
@@ -16,33 +16,68 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const [data, setData] = useState<DashboardData | null>(initialData || null)
   const [loading, setLoading] = useState(!initialData)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
-    fetchDashboardData()
-    
-    // Refresh every 2 minutes
-    const interval = setInterval(fetchDashboardData, 2 * 60 * 1000)
-    return () => clearInterval(interval)
+    setIsClient(true)
   }, [])
+
+  useEffect(() => {
+    if (isClient) {
+      fetchDashboardData()
+      
+      // Refresh every 2 minutes
+      const interval = setInterval(fetchDashboardData, 2 * 60 * 1000)
+      return () => clearInterval(interval)
+    }
+  }, [isClient])
 
   const fetchDashboardData = async () => {
     try {
       const response = await fetch('/api/dashboard')
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      
       const dashboardData = await response.json()
-      setData(dashboardData)
+      
+      // Provide fallback data structure if API returns incomplete data
+      const safeDashboardData: DashboardData = {
+        onCallParent: dashboardData.onCallParent || 'System Loading',
+        todaysEvents: dashboardData.todaysEvents || [],
+        todaysRevenue: dashboardData.todaysRevenue || 0,
+        weeklyRevenue: dashboardData.weeklyRevenue || 0,
+        monthlyRevenue: dashboardData.monthlyRevenue || 0,
+        overdueZones: dashboardData.overdueZones || [],
+        upcomingPickups: dashboardData.upcomingPickups || []
+      }
+      
+      setData(safeDashboardData)
       setLastUpdated(new Date())
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
+      
+      // Set fallback data instead of leaving it null
+      setData({
+        onCallParent: 'System Loading',
+        todaysEvents: [],
+        todaysRevenue: 0,
+        weeklyRevenue: 0,
+        monthlyRevenue: 0,
+        overdueZones: [],
+        upcomingPickups: []
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading) {
+  if (!isClient || loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading Family Ops Dashboard...</p>
         </div>
       </div>
@@ -72,7 +107,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
               </p>
             </div>
             <div className="text-right text-sm text-gray-500">
-              <p>Last updated: {lastUpdated.toLocaleTimeString()}</p>
+              <p>Last updated: {isClient ? lastUpdated.toLocaleTimeString() : 'Loading...'}</p>
               <div className="flex items-center mt-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                 System operational
@@ -82,7 +117,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
         </header>
 
         {/* Critical Alerts */}
-        {(data.waterStatus.jugs_full <= 2 || data.overdueZones.length > 0) && (
+        {(data.overdueZones?.length || 0) > 0 && (
           <div className="mb-6">
             <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
               <div className="flex">
@@ -90,12 +125,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">Action Required</h3>
                   <div className="mt-2 text-sm text-red-700">
-                    {data.waterStatus.jugs_full <= 2 && (
-                      <p>• Low water: Only {data.waterStatus.jugs_full}/6 jugs remaining</p>
-                    )}
-                    {data.overdueZones.length > 0 && (
-                      <p>• {data.overdueZones.length} zones overdue</p>
-                    )}
+                    <p>• {data.overdueZones?.length || 0} zones overdue</p>
                   </div>
                 </div>
               </div>
@@ -114,26 +144,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <p className="text-2xl font-bold text-gray-900">{data.onCallParent}</p>
                 <p className="text-xs text-gray-500">
                   {getCurrentDayRotation()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Water Status */}
-          <div className={`rounded-lg p-6 shadow-sm border ${
-            data.waterStatus.jugs_full <= 2 ? 'bg-red-50 border-red-200' : 'bg-white'
-          }`}>
-            <div className="flex items-center">
-              <Droplets className={`h-8 w-8 ${
-                data.waterStatus.jugs_full <= 2 ? 'text-red-500' : 'text-blue-500'
-              }`} />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Water Jugs</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {data.waterStatus.jugs_full}/6 Full
-                </p>
-                <p className="text-xs text-gray-500">
-                  ~{data.waterStatus.estimated_days_left} days left
                 </p>
               </div>
             </div>
@@ -204,38 +214,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
 
           {/* Right Sidebar */}
           <div className="space-y-6">
-            {/* Token Status */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Ride Tokens Left Today
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {data.tokensRemaining.map((child: TokensAvailable) => (
-                    <div key={child.child_id} className="flex justify-between items-center">
-                      <span className="text-gray-700">{child.first_name}</span>
-                      <div className="flex items-center">
-                        <span className={`font-semibold ${
-                          child.tokens_remaining <= 0 
-                            ? 'text-red-600' 
-                            : child.tokens_remaining === 1 
-                              ? 'text-orange-600' 
-                              : 'text-primary-600'
-                        }`}>
-                          {child.tokens_remaining}
-                        </span>
-                        {child.tokens_remaining === 0 && (
-                          <AlertTriangle className="h-4 w-4 text-red-500 ml-1" />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
             {/* Zone Status */}
             <div className="bg-white rounded-lg shadow-sm border">
               <div className="p-6 border-b">
@@ -271,12 +249,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 label="Post Greenlight"
                 color="primary"
                 onClick={() => console.log('Open greenlight modal')}
-              />
-              <QuickActionButton
-                icon={<Droplets className="h-5 w-5" />}
-                label="Update Water Jugs"
-                color="blue"
-                onClick={() => console.log('Open water jug modal')}
               />
               <QuickActionButton
                 icon={<DollarSign className="h-5 w-5" />}
@@ -343,13 +315,6 @@ function EventCard({ event }: { event: FamilyEvent }) {
             )}
           </div>
         </div>
-        {event.tokens_used > 0 && (
-          <div className="text-right">
-            <div className="bg-primary-100 text-primary-800 text-xs px-2 py-1 rounded">
-              {event.tokens_used} token{event.tokens_used !== 1 ? 's' : ''}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

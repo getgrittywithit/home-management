@@ -20,7 +20,7 @@ export interface Profile {
   updated_at: string
 }
 
-export type EventType = 'medical' | 'activity' | 'ride' | 'social'
+export type EventType = 'medical' | 'activity' | 'social'
 export type EventStatus = 'scheduled' | 'completed' | 'cancelled' | 'moved'
 
 export interface FamilyEvent {
@@ -39,58 +39,12 @@ export interface FamilyEvent {
   swap_flag: boolean
   swap_requested_at?: string
   status: EventStatus
-  tokens_used: number
   created_at: string
   updated_at: string
   // Joined fields
   child_name?: string
   captain_name?: string
   backup_name?: string
-}
-
-export interface RideToken {
-  id: string
-  child_id: string
-  date: string
-  tokens_available: number
-  tokens_used: number
-  last_minute_penalty: number
-  week_start: string
-  created_at: string
-}
-
-export interface TokenConfig {
-  id: string
-  child_id: string
-  mon_tokens: number
-  tue_tokens: number
-  wed_tokens: number
-  thu_tokens: number
-  fri_tokens: number
-  sat_tokens: number
-  sun_tokens: number
-  weekly_max: number
-  last_minute_cost: number
-  created_at: string
-  updated_at: string
-}
-
-export interface TokensAvailable {
-  child_id: string
-  first_name: string
-  tokens_available: number
-  tokens_used: number
-  tokens_remaining: number
-}
-
-export interface CreditsLog {
-  id: string
-  child_id: string
-  amount: number
-  reason: string
-  awarded_by?: string
-  balance_after: number
-  created_at: string
 }
 
 export type ZoneStatus = 'pending' | 'in_progress' | 'completed' | 'overdue'
@@ -153,35 +107,6 @@ export interface PetCareLog {
   created_at: string
 }
 
-export type WaterJugStatus = 'full' | 'empty' | 'in_use'
-
-export interface WaterJug {
-  id: string
-  jug_number: number
-  status: WaterJugStatus
-  last_filled_date?: string
-  last_sanitized_date?: string
-  created_at: string
-  updated_at: string
-}
-
-export interface WaterStatus {
-  jugs_full: number
-  jugs_empty: number
-  jugs_in_use: number
-  estimated_days_left: number
-}
-
-export interface WaterUsageLog {
-  id: string
-  date: string
-  jugs_filled: number
-  total_gallons: number
-  filled_by?: string
-  notes?: string
-  created_at: string
-}
-
 export type SprintType = 'revenue' | 'fulfill'
 
 export interface MoneySprint {
@@ -223,7 +148,6 @@ export interface DailyGreenlights {
   child_id: string
   date: string
   approved_activities: string[]
-  token_allowance?: number
   special_notes?: string
   posted_by: string
   created_at: string
@@ -238,33 +162,10 @@ export interface FamilyConfig {
   updated_at: string
 }
 
-// Telegram Bot Types
-export interface RideRequest {
-  who: string
-  ready_time: string
-  location: string
-  event: string
-  end_time: string
-  gear: string
-  contact: string
-}
-
-export interface ApprovalReceipt {
-  kid: string
-  title: string
-  start: string
-  end: string
-  tokens: number
-  pickup_location: string
-  date: string
-}
-
 // Dashboard data aggregation types
 export interface DashboardData {
   onCallParent: string
-  waterStatus: WaterStatus
   todaysEvents: FamilyEvent[]
-  tokensRemaining: TokensAvailable[]
   todaysRevenue: number
   weeklyRevenue: number
   monthlyRevenue: number
@@ -285,21 +186,13 @@ export interface CreateEventForm {
   contact_info?: string
   gear_needed?: string
   pharmacy?: string
-  tokens_used?: number
 }
 
 export interface GreenlightForm {
   child_id: string
   date: string
   approved_activities: string[]
-  token_allowance?: number
   special_notes?: string
-}
-
-export interface WaterJugUpdate {
-  jug_number: number
-  status: WaterJugStatus
-  notes?: string
 }
 
 export interface SaleEntry {
@@ -403,7 +296,6 @@ export interface KidPortalData {
   todaysEvents: FamilyEvent[]
   weekEvents: FamilyEvent[]
   zones: Zone[]
-  tokens: TokensAvailable
   achievements?: KidAchievement[]
   pendingRequests?: {
     meals: MealRequest[]

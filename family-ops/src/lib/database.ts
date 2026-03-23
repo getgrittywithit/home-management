@@ -3,7 +3,8 @@ import { Pool } from 'pg'
 
 // Supabase client configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vhqgzgqklwrjmglaezmh.supabase.co'
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY'
+// IMPORTANT: Get this from your Supabase dashboard > Settings > API > anon public key
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZocWd6Z3FrbHdyam1nbGFlem1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ3MDU4NjIsImV4cCI6MjA1MDI4MTg2Mn0.OgcROY8YZqZzUMj7SQJEP9UqNiGz5Pr0z13bz5OBqwQ'
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
@@ -75,37 +76,6 @@ export const db = {
       WHERE DATE(fe.start_time) = CURRENT_DATE
       ORDER BY fe.start_time
     `)
-  },
-
-  // Water Management
-  async getWaterStatus() {
-    const result = await singleQuery('SELECT * FROM water_status LIMIT 1')
-    return result[0] || { jugs_full: 0, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 0 }
-  },
-
-  async updateWaterJug(jugNumber: number, status: 'full' | 'empty' | 'in_use') {
-    return singleQuery(`
-      UPDATE water_jugs 
-      SET status = $1, updated_at = NOW(),
-          last_filled_date = CASE WHEN $1 = 'full' THEN CURRENT_DATE ELSE last_filled_date END
-      WHERE jug_number = $2
-      RETURNING *
-    `, [status, jugNumber])
-  },
-
-  // Ride Tokens
-  async getTokensToday() {
-    return singleQuery('SELECT * FROM tokens_available_today ORDER BY first_name')
-  },
-
-  async useTokens(childId: string, tokensUsed: number) {
-    return singleQuery(`
-      INSERT INTO ride_tokens (child_id, date, tokens_used, week_start)
-      VALUES ($1, CURRENT_DATE, $2, date_trunc('week', CURRENT_DATE))
-      ON CONFLICT (child_id, date) 
-      DO UPDATE SET tokens_used = ride_tokens.tokens_used + $2
-      RETURNING *
-    `, [childId, tokensUsed])
   },
 
   // On-Call Schedule
@@ -201,6 +171,294 @@ export const db = {
       ) zc ON true
       ORDER BY z.name
     `)
+  },
+
+  // Todos - Updated to use Supabase
+  async getTodos() {
+    try {
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching todos:', error)
+      // Fallback to localStorage
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-todos') || '[]')
+      }
+      return []
+    }
+  },
+
+  async addTodo(content: string, priority: 'high' | 'medium' | 'low' = 'medium', category: string = 'general', assignedTo?: string) {
+    try {
+      const { data, error } = await supabase
+        .from('todos')
+        .insert([{
+          content,
+          priority,
+          category,
+          assigned_to: assignedTo,
+          status: 'pending'
+        }])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding todo:', error)
+      throw error
+    }
+  },
+
+  async updateTodoStatus(id: string, status: string) {
+    try {
+      const { data, error } = await supabase
+        .from('todos')
+        .update({ status })
+        .eq('id', id)
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating todo:', error)
+      throw error
+    }
+  },
+
+  async deleteTodo(id: string) {
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+    } catch (error) {
+      console.error('Error deleting todo:', error)
+      throw error
+    }
+  },
+
+  // Contacts
+  async getContacts() {
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .order('name')
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching contacts:', error)
+      // Fallback to localStorage
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-contacts') || '[]')
+      }
+      return []
+    }
+  },
+
+  async addContact(contact: any) {
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert([contact])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding contact:', error)
+      throw error
+    }
+  },
+
+  // Food Inventory
+  async getFoodInventory() {
+    try {
+      const { data, error } = await supabase
+        .from('food_inventory')
+        .select('*')
+        .order('name')
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching food inventory:', error)
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-food-inventory') || '[]')
+      }
+      return []
+    }
+  },
+
+  async addFoodItem(item: any) {
+    try {
+      const { data, error } = await supabase
+        .from('food_inventory')
+        .insert([item])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding food item:', error)
+      throw error
+    }
+  },
+
+  async updateFoodItem(id: string, updates: any) {
+    try {
+      const { data, error } = await supabase
+        .from('food_inventory')
+        .update(updates)
+        .eq('id', id)
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating food item:', error)
+      throw error
+    }
+  },
+
+  async deleteFoodItem(id: string) {
+    try {
+      const { error } = await supabase
+        .from('food_inventory')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+    } catch (error) {
+      console.error('Error deleting food item:', error)
+      throw error
+    }
+  },
+
+  // Meal Plans
+  async getMealPlans(startDate?: string, endDate?: string) {
+    try {
+      let query = supabase
+        .from('meal_plans')
+        .select('*')
+        .order('date')
+        .order('meal_type')
+      
+      if (startDate) {
+        query = query.gte('date', startDate)
+      }
+      if (endDate) {
+        query = query.lte('date', endDate)
+      }
+      
+      const { data, error } = await query
+      
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching meal plans:', error)
+      if (typeof window !== 'undefined') {
+        return JSON.parse(localStorage.getItem('family-meal-plan') || '[]')
+      }
+      return []
+    }
+  },
+
+  async addMealPlan(mealPlan: any) {
+    try {
+      const { data, error } = await supabase
+        .from('meal_plans')
+        .insert([mealPlan])
+        .select()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding meal plan:', error)
+      throw error
+    }
+  },
+
+
+
+  async updateContact(id: string, contactData: {
+    name: string,
+    title?: string,
+    organization?: string,
+    phone?: string,
+    email?: string,
+    address?: string,
+    office?: string,
+    notes?: string,
+    tags: string[],
+    importance: 'high' | 'medium' | 'low'
+  }) {
+    return singleQuery(`
+      UPDATE contacts 
+      SET name = $2, title = $3, organization = $4, phone = $5, 
+          email = $6, address = $7, office = $8, notes = $9, 
+          tags = $10, importance = $11, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [
+      id,
+      contactData.name,
+      contactData.title,
+      contactData.organization,
+      contactData.phone,
+      contactData.email,
+      contactData.address,
+      contactData.office,
+      contactData.notes,
+      JSON.stringify(contactData.tags),
+      contactData.importance
+    ])
+  },
+
+  async findContactByEmail(email: string) {
+    return singleQuery(`
+      SELECT * FROM contacts WHERE email = $1 LIMIT 1
+    `, [email])
+  },
+
+  async deleteContact(id: string) {
+    return singleQuery(`
+      DELETE FROM contacts WHERE id = $1
+      RETURNING *
+    `, [id])
+  },
+
+  // Chat Memory
+  async saveChatMessage(role: 'user' | 'assistant', content: string, session_id?: string) {
+    return singleQuery(`
+      INSERT INTO chat_history (role, content, session_id, created_at)
+      VALUES ($1, $2, $3, NOW())
+      RETURNING *
+    `, [role, content, session_id || 'default'])
+  },
+
+  async getChatHistory(session_id: string = 'default', limit: number = 50) {
+    return singleQuery(`
+      SELECT * FROM chat_history 
+      WHERE session_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `, [session_id, limit])
+  },
+
+  async clearChatHistory(session_id: string = 'default') {
+    return singleQuery(`
+      DELETE FROM chat_history WHERE session_id = $1
+      RETURNING *
+    `, [session_id])
   },
 
   // Configuration

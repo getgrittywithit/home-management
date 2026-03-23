@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { 
-  Calendar, Clock, Users, Droplets, DollarSign, 
-  MapPin, AlertTriangle, CheckCircle, Star, Zap,
-  Phone, Car, Home, Utensils
+import {
+  Calendar, Clock, Users, DollarSign,
+  MapPin, AlertTriangle, CheckCircle, Zap,
+  Phone, Home
 } from 'lucide-react'
-import { DashboardData, TokensAvailable, FamilyEvent, Zone } from '@/types'
+import { DashboardData, FamilyEvent, Zone } from '@/types'
 
 interface DashboardProps {
   initialData?: DashboardData
@@ -45,9 +45,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
       // Provide fallback data structure if API returns incomplete data
       const safeDashboardData: DashboardData = {
         onCallParent: dashboardData.onCallParent || 'System Loading',
-        waterStatus: dashboardData.waterStatus || { jugs_full: 6, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 7 },
         todaysEvents: dashboardData.todaysEvents || [],
-        tokensRemaining: dashboardData.tokensRemaining || [],
         todaysRevenue: dashboardData.todaysRevenue || 0,
         weeklyRevenue: dashboardData.weeklyRevenue || 0,
         monthlyRevenue: dashboardData.monthlyRevenue || 0,
@@ -63,9 +61,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
       // Set fallback data instead of leaving it null
       setData({
         onCallParent: 'System Loading',
-        waterStatus: { jugs_full: 6, jugs_empty: 0, jugs_in_use: 0, estimated_days_left: 7 },
         todaysEvents: [],
-        tokensRemaining: [],
         todaysRevenue: 0,
         weeklyRevenue: 0,
         monthlyRevenue: 0,
@@ -121,7 +117,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
         </header>
 
         {/* Critical Alerts */}
-        {((data.waterStatus?.jugs_full || 6) <= 2 || (data.overdueZones?.length || 0) > 0) && (
+        {(data.overdueZones?.length || 0) > 0 && (
           <div className="mb-6">
             <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
               <div className="flex">
@@ -129,12 +125,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">Action Required</h3>
                   <div className="mt-2 text-sm text-red-700">
-                    {(data.waterStatus?.jugs_full || 6) <= 2 && (
-                      <p>• Low water: Only {data.waterStatus?.jugs_full || 0}/6 jugs remaining</p>
-                    )}
-                    {(data.overdueZones?.length || 0) > 0 && (
-                      <p>• {data.overdueZones?.length || 0} zones overdue</p>
-                    )}
+                    <p>• {data.overdueZones?.length || 0} zones overdue</p>
                   </div>
                 </div>
               </div>
@@ -153,26 +144,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 <p className="text-2xl font-bold text-gray-900">{data.onCallParent}</p>
                 <p className="text-xs text-gray-500">
                   {getCurrentDayRotation()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Water Status */}
-          <div className={`rounded-lg p-6 shadow-sm border ${
-            data.waterStatus.jugs_full <= 2 ? 'bg-red-50 border-red-200' : 'bg-white'
-          }`}>
-            <div className="flex items-center">
-              <Droplets className={`h-8 w-8 ${
-                data.waterStatus.jugs_full <= 2 ? 'text-red-500' : 'text-blue-500'
-              }`} />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Water Jugs</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {data.waterStatus.jugs_full}/6 Full
-                </p>
-                <p className="text-xs text-gray-500">
-                  ~{data.waterStatus.estimated_days_left} days left
                 </p>
               </div>
             </div>
@@ -243,38 +214,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
 
           {/* Right Sidebar */}
           <div className="space-y-6">
-            {/* Token Status */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Ride Tokens Left Today
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {data.tokensRemaining.map((child: TokensAvailable) => (
-                    <div key={child.child_id} className="flex justify-between items-center">
-                      <span className="text-gray-700">{child.first_name}</span>
-                      <div className="flex items-center">
-                        <span className={`font-semibold ${
-                          child.tokens_remaining <= 0 
-                            ? 'text-red-600' 
-                            : child.tokens_remaining === 1 
-                              ? 'text-orange-600' 
-                              : 'text-primary-600'
-                        }`}>
-                          {child.tokens_remaining}
-                        </span>
-                        {child.tokens_remaining === 0 && (
-                          <AlertTriangle className="h-4 w-4 text-red-500 ml-1" />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
             {/* Zone Status */}
             <div className="bg-white rounded-lg shadow-sm border">
               <div className="p-6 border-b">
@@ -310,12 +249,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
                 label="Post Greenlight"
                 color="primary"
                 onClick={() => console.log('Open greenlight modal')}
-              />
-              <QuickActionButton
-                icon={<Droplets className="h-5 w-5" />}
-                label="Update Water Jugs"
-                color="blue"
-                onClick={() => console.log('Open water jug modal')}
               />
               <QuickActionButton
                 icon={<DollarSign className="h-5 w-5" />}
@@ -382,13 +315,6 @@ function EventCard({ event }: { event: FamilyEvent }) {
             )}
           </div>
         </div>
-        {event.tokens_used > 0 && (
-          <div className="text-right">
-            <div className="bg-primary-100 text-primary-800 text-xs px-2 py-1 rounded">
-              {event.tokens_used} token{event.tokens_used !== 1 ? 's' : ''}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
