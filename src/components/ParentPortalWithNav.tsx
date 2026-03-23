@@ -18,11 +18,10 @@ import KidsChecklistOverview from './KidsChecklistOverview'
 import WeeklyChecklistTab from './WeeklyChecklistTab'
 import PrintTab from './PrintTab'
 import MoeMoneyTab from './MoeMoneyTab'
-import BelleTab from './BelleTab'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Dog
+  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -36,7 +35,6 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'overview', name: 'Overview', icon: Home, color: 'bg-blue-500' },
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500' },
-  { id: 'belle', name: 'Belle', icon: Dog, color: 'bg-purple-500' },
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
@@ -201,8 +199,6 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <Dashboard initialData={initialData} />
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
-      case 'belle':
-        return <BelleTab />
       case 'kids-checklist':
         return <KidsChecklistOverview />
       case 'weekly-checklist':

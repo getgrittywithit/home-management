@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import {
   Calendar, Clock, Users, DollarSign,
-  MapPin, CheckCircle, Zap,
-  Phone, Home, Utensils, Shirt, X
+  MapPin, CheckCircle, CheckCircle2, Zap,
+  Phone, Home, Utensils, Shirt, X, Dog
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange } from '@/lib/zoneRotation'
@@ -202,6 +202,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
             <ZoneRotationCard />
             {/* Today's Duties */}
             <TodaysDutiesCard />
+            {/* Belle */}
+            <BelleCard />
           </div>
         </div>
 
@@ -504,6 +506,203 @@ function QuickActionButton({
       {icon}
       <span className="text-sm">{label}</span>
     </button>
+  )
+}
+
+// ── Belle Card ──────────────────────────────────────────────────
+
+const BELLE_WEEKDAY_HELPERS: Record<number, string> = {
+  1: 'Kaylee', 2: 'Amos', 3: 'Hannah', 4: 'Wyatt', 5: 'Ellie',
+}
+
+// 5-week weekend rotation anchored: Mar 21-22, 2026 = Ellie
+// Order: Hannah → Wyatt → Amos → Kaylee → Ellie → repeat
+const BELLE_WEEKEND_ROTATION = ['Hannah', 'Wyatt', 'Amos', 'Kaylee', 'Ellie']
+const BELLE_WEEKEND_ANCHOR = new Date(2026, 2, 15) // Sunday of anchor week (Mar 15). Mar 21-22 is week index 0 mapped to Ellie (index 4 in rotation)
+// Ellie is at index 4. Anchor week (containing Mar 21-22) = week 0 from Mar 15.
+// week 0 → index 4 (Ellie), so offset = 4
+const BELLE_WEEKEND_OFFSET = 4
+
+function getBelleWeekendHelper(date: Date): string {
+  // Always use the Saturday of the weekend to determine rotation
+  // (Sunday belongs to the same weekend as the preceding Saturday)
+  const sat = new Date(date)
+  if (sat.getDay() === 0) sat.setDate(sat.getDate() - 1) // Sunday → use Saturday
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000
+  const weeksSince = Math.floor((sat.getTime() - BELLE_WEEKEND_ANCHOR.getTime()) / msPerWeek)
+  const idx = (((weeksSince + BELLE_WEEKEND_OFFSET) % 5) + 5) % 5
+  return BELLE_WEEKEND_ROTATION[idx]
+}
+
+function getBelleHelper(dayOfWeek: number, date: Date): string {
+  if (dayOfWeek >= 1 && dayOfWeek <= 5) return BELLE_WEEKDAY_HELPERS[dayOfWeek]
+  return getBelleWeekendHelper(date)
+}
+
+function isBelleGroomingWeekend(date: Date): boolean {
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000
+  const weeksSince = Math.floor((date.getTime() - BELLE_WEEKEND_ANCHOR.getTime()) / msPerWeek)
+  return weeksSince % 2 === 0
+}
+
+function getBelleWeekDates(today: Date): Date[] {
+  const dayOfWeek = today.getDay()
+  const sunday = new Date(today)
+  sunday.setDate(today.getDate() - dayOfWeek)
+  sunday.setHours(0, 0, 0, 0)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday)
+    d.setDate(sunday.getDate() + i)
+    return d
+  })
+}
+
+const BELLE_TASKS_KEY = 'belle-daily-tasks'
+const BELLE_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function getBelleTodayKey(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+}
+
+function loadBelleTasks(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(BELLE_TASKS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as { date: string; tasks: string[] }
+    if (parsed.date === getBelleTodayKey()) return parsed.tasks
+  } catch {}
+  return []
+}
+
+function saveBelleTasks(tasks: string[]) {
+  localStorage.setItem(BELLE_TASKS_KEY, JSON.stringify({ date: getBelleTodayKey(), tasks }))
+}
+
+const BELLE_DAILY_TASKS = [
+  { id: 'am-feed-walk', label: 'AM Feed + Walk', time: '7:00 AM' },
+  { id: 'pm-feed', label: 'PM Feed', time: '5:00 PM' },
+  { id: 'pm-walk', label: 'PM Walk', time: '6:30 PM' },
+]
+
+function BelleCard() {
+  const today = new Date()
+  const todayDay = today.getDay()
+  const todayHelper = getBelleHelper(todayDay, today)
+  const grooming = isBelleGroomingWeekend(today)
+  const weekDates = getBelleWeekDates(today)
+
+  const [checked, setChecked] = useState<string[]>([])
+
+  useEffect(() => {
+    setChecked(loadBelleTasks())
+  }, [])
+
+  // Midnight reset timer
+  useEffect(() => {
+    const chicagoNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+    const midnight = new Date(chicagoNow)
+    midnight.setDate(midnight.getDate() + 1)
+    midnight.setHours(0, 0, 0, 0)
+    const ms = midnight.getTime() - chicagoNow.getTime()
+    const timer = setTimeout(() => { setChecked([]); saveBelleTasks([]) }, Math.max(ms, 1000))
+    return () => clearTimeout(timer)
+  }, [checked])
+
+  const toggleTask = (id: string) => {
+    setChecked(prev => {
+      const next = prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+      saveBelleTasks(next)
+      return next
+    })
+  }
+
+  // Build extra grooming tasks for today
+  const extraTasks: { id: string; label: string; time: string; emoji: string }[] = []
+  if (grooming && todayDay === 6) extraTasks.push({ id: 'bath', label: 'Bath Time', time: '10:00 AM', emoji: '🛁' })
+  if (grooming && todayDay === 0) extraTasks.push({ id: 'nail', label: 'Nail Trim', time: '10:00 AM', emoji: '💅' })
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border">
+      {/* Header */}
+      <div className="p-4 border-b bg-purple-50 rounded-t-lg flex items-center gap-2">
+        <Dog className="h-5 w-5 text-purple-600" />
+        <h2 className="text-lg font-semibold text-purple-900">Belle</h2>
+        <span className="ml-auto bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full text-xs font-semibold">
+          {todayHelper}
+        </span>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* Today's tasks with checkboxes */}
+        <div className="space-y-2">
+          {BELLE_DAILY_TASKS.map(task => {
+            const done = checked.includes(task.id)
+            return (
+              <div key={task.id} className="flex items-center gap-2">
+                <button onClick={() => toggleTask(task.id)} className="flex-shrink-0">
+                  {done ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <div className="w-4 h-4 border-2 border-gray-300 rounded-full" />
+                  )}
+                </button>
+                <span className={`text-sm flex-1 ${done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{task.label}</span>
+                <span className="text-xs text-gray-400">{task.time}</span>
+              </div>
+            )
+          })}
+          {extraTasks.map(task => {
+            const done = checked.includes(task.id)
+            return (
+              <div key={task.id} className="flex items-center gap-2">
+                <button onClick={() => toggleTask(task.id)} className="flex-shrink-0">
+                  {done ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <div className="w-4 h-4 border-2 border-gray-300 rounded-full" />
+                  )}
+                </button>
+                <span className={`text-sm flex-1 ${done ? 'line-through text-gray-400' : 'text-gray-700'}`}>{task.emoji} {task.label}</span>
+                <span className="text-xs text-gray-400">{task.time}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* This Week strip */}
+        <div>
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">This Week</p>
+          <div className="grid grid-cols-7 gap-1.5">
+            {weekDates.map((date, i) => {
+              const dayNum = date.getDay()
+              const isToday = date.toDateString() === today.toDateString()
+              const helper = getBelleHelper(dayNum, date)
+              const groomWeek = isBelleGroomingWeekend(date)
+
+              return (
+                <div
+                  key={i}
+                  className={`text-center rounded-lg py-2 px-1 ${
+                    isToday ? 'bg-purple-100 border-2 border-purple-400' : 'bg-gray-50 border border-gray-200'
+                  }`}
+                >
+                  <p className={`text-[10px] font-semibold uppercase ${isToday ? 'text-purple-700' : 'text-gray-500'}`}>
+                    {BELLE_DAY_NAMES[dayNum]}
+                  </p>
+                  <p className={`text-xs font-medium mt-0.5 ${isToday ? 'text-purple-700' : 'text-gray-700'}`}>
+                    {helper}
+                  </p>
+                  {isToday && <Dog className="w-3 h-3 mx-auto mt-0.5 text-purple-500" />}
+                  {groomWeek && dayNum === 6 && <div className="text-xs mt-0.5">🛁</div>}
+                  {groomWeek && dayNum === 0 && <div className="text-xs mt-0.5">💅</div>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
