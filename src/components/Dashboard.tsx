@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Calendar, Clock, Users, DollarSign,
   MapPin, CheckCircle, Zap,
-  Phone, Home, Utensils, Shirt
+  Phone, Home, Utensils, Shirt, X
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange } from '@/lib/zoneRotation'
@@ -265,12 +265,58 @@ const DISHES_SCHEDULE = {
   dinner: 'Zoey & Kaylee',
 }
 
+interface TonightMeal {
+  meal_name: string | null
+  recipe_id: string | null
+}
+
+interface RecipeData {
+  title: string
+  ingredients: string[]
+  steps: string[]
+}
+
 function TodaysDutiesCard() {
   const day = new Date().getDay()
   const dinner = DINNER_MANAGER[day]
   const laundry = LAUNDRY_SCHEDULE[day]
 
+  const [tonightMeal, setTonightMeal] = useState<TonightMeal | null>(null)
+  const [recipeModal, setRecipeModal] = useState<RecipeData | null>(null)
+  const [mealLoaded, setMealLoaded] = useState(false)
+
+  // Fetch tonight's meal
+  useEffect(() => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    fetch(`/api/meal-plan?start=${today}&end=${today}`)
+      .then(r => r.json())
+      .then((rows: { meal_name: string | null; recipe_id: string | null }[]) => {
+        if (rows.length > 0) {
+          setTonightMeal({ meal_name: rows[0].meal_name, recipe_id: rows[0].recipe_id })
+        }
+        setMealLoaded(true)
+      })
+      .catch(() => setMealLoaded(true))
+  }, [])
+
+  const openRecipe = async () => {
+    if (!tonightMeal) return
+    if (tonightMeal.recipe_id) {
+      try {
+        const res = await fetch(`/api/recipes?id=${tonightMeal.recipe_id}`)
+        if (res.ok) {
+          const recipe = await res.json()
+          setRecipeModal({ title: recipe.title, ingredients: recipe.ingredients || [], steps: recipe.steps || [] })
+          return
+        }
+      } catch {}
+    }
+    // No recipe attached — show informational modal
+    setRecipeModal({ title: tonightMeal.meal_name || '', ingredients: [], steps: [] })
+  }
+
   return (
+    <>
     <div className="bg-white rounded-lg shadow-sm border">
       <div className="p-6 border-b">
         <h2 className="text-xl font-semibold text-gray-900">
@@ -284,6 +330,20 @@ function TodaysDutiesCard() {
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dinner Manager</p>
             <p className="text-sm font-semibold text-gray-900">{dinner}</p>
+            {mealLoaded && (
+              <div className="mt-1">
+                {tonightMeal?.meal_name ? (
+                  <button
+                    onClick={openRecipe}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium hover:bg-green-200 transition-colors"
+                  >
+                    🍽️ {tonightMeal.meal_name}
+                  </button>
+                ) : (
+                  <p className="text-xs text-gray-400">No meal planned yet</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -319,6 +379,52 @@ function TodaysDutiesCard() {
         </div>
       </div>
     </div>
+
+    {/* Recipe View Modal */}
+    {recipeModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRecipeModal(null)}>
+        <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="p-6 border-b flex items-center justify-between">
+            <h3 className="text-xl font-bold text-gray-900">{recipeModal.title}</h3>
+            <button onClick={() => setRecipeModal(null)} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-6 space-y-6">
+            {recipeModal.ingredients.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">Ingredients</h4>
+                <ul className="space-y-1">
+                  {recipeModal.ingredients.map((ing, i) => (
+                    <li key={i} className="flex items-start gap-2 text-gray-700">
+                      <span className="text-green-500 mt-0.5">•</span>
+                      <span className="text-base">{ing}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {recipeModal.steps.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-2">Steps</h4>
+                <ol className="space-y-3">
+                  {recipeModal.steps.map((step, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-7 h-7 bg-green-100 text-green-800 rounded-full flex items-center justify-center text-sm font-bold">{i + 1}</span>
+                      <span className="text-base text-gray-800 pt-0.5 leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {recipeModal.ingredients.length === 0 && recipeModal.steps.length === 0 && (
+              <p className="text-gray-400 text-center py-4">No recipe added yet.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
