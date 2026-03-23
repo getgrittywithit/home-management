@@ -23,13 +23,17 @@ interface KidsChecklistOverviewProps {
   date?: Date
 }
 
-export default function KidsChecklistOverview({ date = new Date() }: KidsChecklistOverviewProps) {
+export default function KidsChecklistOverview({ date }: KidsChecklistOverviewProps) {
   const [childrenProgress, setChildrenProgress] = useState<ChildProgress[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
 
   const familyData = getAllFamilyData()
   const children = familyData.children
+
+  // Stable date string to use as dependency (avoids new Date() on every render)
+  const dateStr = (date || new Date()).toISOString().split('T')[0]
+  const displayDate = date || new Date()
 
   useEffect(() => {
     setIsClient(true)
@@ -39,12 +43,11 @@ export default function KidsChecklistOverview({ date = new Date() }: KidsCheckli
     if (isClient) {
       loadChecklistOverview()
     }
-  }, [date, isClient])
+  }, [dateStr, isClient])
 
   const loadChecklistOverview = async () => {
     try {
       setIsLoading(true)
-      const dateStr = date.toISOString().split('T')[0]
       
       const response = await fetch(`/api/kids/checklist?date=${dateStr}`, {
         method: 'PUT' // Using PUT for the summary endpoint
@@ -142,7 +145,7 @@ export default function KidsChecklistOverview({ date = new Date() }: KidsCheckli
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Kids Daily Checklist Overview</h1>
-            <p className="text-green-100">{isClient ? date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Loading...'}</p>
+            <p className="text-green-100">{isClient ? displayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Loading...'}</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{stats.avgCompletion}%</div>
