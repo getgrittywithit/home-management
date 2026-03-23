@@ -25,7 +25,7 @@ export default function FamilyConfigAdmin({}: FamilyConfigAdminProps) {
   const renderGradesSection = () => (
     <div className="space-y-4">
       <div className="bg-blue-50 p-4 rounded-lg border">
-        <h3 className="font-bold text-blue-800 mb-2">📚 School Year 2024-2025</h3>
+        <h3 className="font-bold text-blue-800 mb-2">📚 School Year 2025-2026</h3>
         <p className="text-blue-700 text-sm">Update grades annually at the start of each school year</p>
       </div>
 

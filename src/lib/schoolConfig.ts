@@ -162,7 +162,7 @@ export const SAMPLE_SCHOOL_DATA: SchoolProfile = {
   childId: 'sample-kid',
   grade: '5th',
   school: 'Greenwood Elementary',
-  schoolYear: '2024-2025',
+  schoolYear: '2025-2026',
   personalNotes: 'Remember to bring art supplies on Wednesdays!',
   teachers: [
     {

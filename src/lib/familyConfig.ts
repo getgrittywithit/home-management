@@ -3,8 +3,8 @@
 
 import { ALL_KIDS_BIRTH_DATA } from './aboutMeConfig'
 
-// SCHOOL YEAR 2024-2025 - Update annually
-export const CURRENT_SCHOOL_YEAR = '2024-2025'
+// SCHOOL YEAR 2025-2026 - Update annually
+export const CURRENT_SCHOOL_YEAR = '2025-2026'
 
 // TEACHER ASSIGNMENTS - Update annually
 export interface TeacherAssignment {
@@ -93,7 +93,7 @@ export function calculateAge(birthDate: Date): number {
   return age
 }
 
-// CURRENT GRADES (2024-2025 School Year) - Update annually
+// CURRENT GRADES (2025-2026 School Year) - Update annually
 export const CURRENT_GRADES = {
   'amos': '10th Grade',
   'zoey': '9th Grade', 

@@ -213,7 +213,7 @@ export const SAMPLE_AMOS_PROFILE: EnhancedSchoolProfile = {
   childId: 'amos-2025',
   grade: '10th',
   school: 'Boerne High School',
-  schoolYear: '2024-2025',
+  schoolYear: '2025-2026',
   scheduleType: SCHEDULE_TYPES[1], // A/B Alternating
   teachers: [
     // To be filled with actual teacher data
