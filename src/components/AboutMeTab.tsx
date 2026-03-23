@@ -6,12 +6,13 @@ import {
   Edit3, Save, X, Plus, Trash2, Camera, Palette,
   Baby, Cake, Home, School, Trophy
 } from 'lucide-react'
-import { 
-  AboutMeProfile, 
-  SAMPLE_ABOUT_ME_DATA, 
+import {
+  AboutMeProfile,
+  EMPTY_ABOUT_ME_DATA,
+  ALL_KIDS_ABOUT_ME_DATA,
   ALL_KIDS_BIRTH_DATA,
-  COLOR_OPTIONS, 
-  ANIMAL_OPTIONS, 
+  COLOR_OPTIONS,
+  ANIMAL_OPTIONS,
   THEME_OPTIONS,
   SPORT_OPTIONS,
   INSTRUMENT_OPTIONS,
@@ -28,18 +29,18 @@ interface AboutMeTabProps {
 }
 
 export default function AboutMeTab({ childAge, childId, childName, initialData }: AboutMeTabProps) {
-  // Get real birth data based on child name
+  // Get real data based on child name
   const childKey = childName?.toLowerCase() || ''
   const familyData = childKey ? getFamilyMemberData(childKey) : null
+  const kidData = childKey ? ALL_KIDS_ABOUT_ME_DATA[childKey] : null
   const birthData = childKey ? ALL_KIDS_BIRTH_DATA[childKey] : null
-  
-  
-  // Initialize with real birth data if available
-  const defaultData = birthData ? {
-    ...SAMPLE_ABOUT_ME_DATA,
-    childId,
-    birthCertificate: birthData
-  } : { ...SAMPLE_ABOUT_ME_DATA, childId }
+
+  // Use per-kid data if available, otherwise empty template
+  const defaultData = kidData
+    ? { ...kidData, childId }
+    : birthData
+      ? { ...EMPTY_ABOUT_ME_DATA, childId, birthCertificate: birthData }
+      : { ...EMPTY_ABOUT_ME_DATA, childId }
   
   const [aboutData, setAboutData] = useState<AboutMeProfile>(
     initialData || defaultData
@@ -54,19 +55,10 @@ export default function AboutMeTab({ childAge, childId, childName, initialData }
   // Load child-specific data on mount
   useEffect(() => {
     if (!initialData) {
-      // If we have birth data, use it directly instead of API call
-      if (birthData) {
+      // If we have per-kid data, use it directly
+      if (kidData) {
         setIsLoading(true)
-        const dataWithRealBirth = {
-          ...SAMPLE_ABOUT_ME_DATA,
-          childId,
-          birthCertificate: birthData,
-          personal: {
-            ...SAMPLE_ABOUT_ME_DATA.personal,
-            nickname: childName || ''
-          }
-        }
-        setAboutData(dataWithRealBirth)
+        setAboutData({ ...kidData, childId })
         setIsLoading(false)
       } else {
         loadAboutMeData()
@@ -74,29 +66,13 @@ export default function AboutMeTab({ childAge, childId, childName, initialData }
     } else {
       setIsLoading(false)
     }
-  }, [childId, initialData, birthData, childName])
+  }, [childId, initialData, kidData])
 
   const loadAboutMeData = async () => {
     try {
       setIsLoading(true)
-      
-      // First, try to use the real birth data we already have
-      if (birthData) {
-        const dataWithRealBirth = {
-          ...SAMPLE_ABOUT_ME_DATA,
-          childId,
-          birthCertificate: birthData,
-          personal: {
-            ...SAMPLE_ABOUT_ME_DATA.personal,
-            nickname: childName || ''
-          }
-        }
-        setAboutData(dataWithRealBirth)
-        setIsLoading(false)
-        return
-      }
-      
-      // If no birth data, try API
+
+      // Try API for saved data
       const response = await fetch(`/api/kids/about-me?childId=${childId}`)
       if (response.ok) {
         const data = await response.json()
@@ -106,14 +82,12 @@ export default function AboutMeTab({ childAge, childId, childName, initialData }
         }
         setAboutData(data)
       } else {
-        console.error('Failed to load About Me data')
-        // Keep the default data with the correct childId
-        setAboutData(prev => ({ ...prev, childId }))
+        // No saved data — use default
+        setAboutData(defaultData)
       }
     } catch (error) {
       console.error('Error loading About Me data:', error)
-      // Keep the default data with the correct childId
-      setAboutData(prev => ({ ...prev, childId }))
+      setAboutData(defaultData)
     } finally {
       setIsLoading(false)
     }

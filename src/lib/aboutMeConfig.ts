@@ -122,70 +122,397 @@ export const ART_OPTIONS = [
   'Jewelry Making', 'Pottery', 'Origami', 'Knitting', 'Sewing', 'Woodworking'
 ]
 
-// Sample data for development
-export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = {
-  childId: 'amos-moses-504640',
+// Default empty profile template (used when no saved data exists)
+export const EMPTY_ABOUT_ME_DATA: AboutMeProfile = {
+  childId: '',
   birthCertificate: {
-    fullName: 'Amos Lee Moses',
-    birthDate: new Date(2009, 2, 2), // Year, Month (0-indexed), Day
-    birthTime: '05:55',
-    birthPlace: 'Princeton, Minnesota, USA',
-    birthWeight: '7 lbs 12 oz',
-    birthLength: '21 inches',
-    hospitalName: 'Princeton Hospital',
-    county: 'Sherburne County',
-    state: 'Minnesota',
-    country: 'United States',
+    fullName: '',
+    birthDate: new Date(),
+    birthTime: '',
+    birthPlace: '',
+    county: '',
+    state: '',
+    country: '',
     locked: true
   },
   personal: {
-    nickname: 'Amos',
-    favoriteColor: 'Blue',
-    favoriteAnimal: 'Wolf',
-    favoriteFood: 'Tacos',
-    favoriteBook: 'Ready Player One',
-    favoriteMovie: 'Avengers: Endgame',
-    favoriteSubject: 'Ag Mechanics & Metal Tech',
-    bestFriend: 'Connor',
-    dreamJob: 'Game Developer',
-    superpower: 'Time manipulation',
-    favoritePlace: 'Home gaming setup',
+    nickname: '',
+    favoriteColor: '',
+    favoriteAnimal: '',
+    favoriteFood: '',
+    favoriteBook: '',
+    favoriteMovie: '',
+    favoriteSubject: '',
+    bestFriend: '',
+    dreamJob: '',
+    superpower: '',
+    favoritePlace: '',
     locked: false
   },
   interests: {
-    sports: ['Gaming', 'Basketball'],
+    sports: [],
     instruments: [],
-    arts: ['Digital Art', 'Video Editing'],
-    collections: ['Gaming Collectibles', 'Tech Gadgets'],
-    languages: ['ASL'],
-    clubs: ['Gaming Club', 'Tech Club'],
-    customInterests: ['Astronomy', 'Computer Programming', 'Metal Working']
+    arts: [],
+    collections: [],
+    languages: [],
+    clubs: [],
+    customInterests: []
   },
   family: {
-    siblings: [
-      { name: 'Hannah', relationship: 'Sister', age: 7, locked: true },
-      { name: 'Wyatt', relationship: 'Brother', age: 9, locked: true },
-      { name: 'Ellie', relationship: 'Sister', age: 10, locked: true },
-      { name: 'Kaylee', relationship: 'Sister', age: 12, locked: true },
-      { name: 'Zoey', relationship: 'Sister', age: 14, locked: true }
-    ],
-    pets: [
-      { name: 'Family Pets', type: 'Various', breed: 'Mixed', age: 0, gotWhen: 'Always had pets', locked: false }
-    ],
-    familyTraditions: ['Family gaming nights', 'Tech project time', 'Outdoor adventures'],
+    siblings: [],
+    pets: [],
+    familyTraditions: [],
     locked: false
   },
   physical: {
-    eyeColor: 'Brown',
-    hairColor: 'Brown',
-    height: '5 feet 8 inches',
-    shoeSize: '10',
+    eyeColor: '',
+    hairColor: '',
+    height: '',
+    shoeSize: '',
     locked: false
   },
-  freeText: 'I love gaming, technology, and learning about astronomy. I am really interested in ag mechanics and metal working at school. My goal is to become a game developer or work with technology. I enjoy spending time with my family and working on projects.',
-  backgroundTheme: 'Indigo Purple',
+  freeText: '',
+  backgroundTheme: 'Ocean Blue',
   lastUpdated: new Date()
 }
+
+// Real per-kid profile data for all Moses children
+export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
+  'amos': {
+    childId: '',
+    birthCertificate: {
+      fullName: 'Amos Lee Moses',
+      birthDate: new Date(2009, 2, 2),
+      birthTime: '05:55',
+      birthPlace: 'Princeton, Minnesota, USA',
+      birthWeight: '7 lbs 12 oz',
+      birthLength: '21 inches',
+      hospitalName: 'Princeton Hospital',
+      county: 'Sherburne County',
+      state: 'Minnesota',
+      country: 'United States',
+      locked: true
+    },
+    personal: {
+      nickname: 'Amos',
+      favoriteColor: 'Blue',
+      favoriteAnimal: 'Wolf',
+      favoriteFood: 'Tacos',
+      favoriteBook: 'Ready Player One',
+      favoriteMovie: 'Avengers: Endgame',
+      favoriteSubject: 'Ag Mechanics & Metal Tech',
+      bestFriend: 'Connor',
+      dreamJob: 'Game Developer',
+      superpower: 'Time manipulation',
+      favoritePlace: 'Home gaming setup',
+      locked: false
+    },
+    interests: {
+      sports: ['Gaming', 'Basketball'],
+      instruments: [],
+      arts: ['Digital Art', 'Video Editing'],
+      collections: ['Gaming Collectibles', 'Tech Gadgets'],
+      languages: ['ASL'],
+      clubs: [],
+      customInterests: ['Astronomy', 'Computer Programming', 'Metal Working']
+    },
+    family: {
+      siblings: [
+        { name: 'Zoey', relationship: 'Sister', age: 15, locked: true },
+        { name: 'Kaylee', relationship: 'Sister', age: 13, locked: true },
+        { name: 'Ellie', relationship: 'Sister', age: 11, locked: true },
+        { name: 'Wyatt', relationship: 'Brother', age: 10, locked: true },
+        { name: 'Hannah', relationship: 'Sister', age: 8, locked: true }
+      ],
+      pets: [
+        { name: 'Spike', type: 'Pet', locked: false },
+        { name: 'Belle', type: 'Family Pet', locked: false }
+      ],
+      familyTraditions: ['Family gaming nights', 'Outdoor adventures'],
+      locked: false
+    },
+    physical: { eyeColor: '', hairColor: '', height: '', shoeSize: '', locked: false },
+    freeText: 'I love gaming, technology, and learning about astronomy. I am really interested in ag mechanics and metal working at school. My goal is to become a game developer or work with technology.',
+    backgroundTheme: 'Space Explorer',
+    lastUpdated: new Date()
+  },
+  'zoey': {
+    childId: '',
+    birthCertificate: {
+      fullName: 'Zoey Lynn Moses',
+      birthDate: new Date(2010, 11, 6),
+      birthTime: '09:51',
+      birthPlace: 'Princeton, Minnesota, USA',
+      county: 'Sherburne County',
+      state: 'Minnesota',
+      country: 'United States',
+      locked: true
+    },
+    personal: {
+      nickname: 'Zoey',
+      favoriteColor: '',
+      favoriteAnimal: 'Dog',
+      favoriteFood: '',
+      favoriteBook: '',
+      favoriteMovie: '',
+      favoriteSubject: '',
+      bestFriend: '',
+      dreamJob: '',
+      superpower: '',
+      favoritePlace: '',
+      locked: false
+    },
+    interests: {
+      sports: ['JROTC'],
+      instruments: [],
+      arts: [],
+      collections: [],
+      languages: [],
+      clubs: ['JROTC'],
+      customInterests: []
+    },
+    family: {
+      siblings: [
+        { name: 'Amos', relationship: 'Brother', age: 16, locked: true },
+        { name: 'Kaylee', relationship: 'Sister', age: 13, locked: true },
+        { name: 'Ellie', relationship: 'Sister', age: 11, locked: true },
+        { name: 'Wyatt', relationship: 'Brother', age: 10, locked: true },
+        { name: 'Hannah', relationship: 'Sister', age: 8, locked: true }
+      ],
+      pets: [
+        { name: 'Hades', type: 'Pet', locked: false },
+        { name: 'Belle', type: 'Family Pet', locked: false }
+      ],
+      familyTraditions: [],
+      locked: false
+    },
+    physical: { eyeColor: '', hairColor: '', height: '', shoeSize: '', locked: false },
+    freeText: '',
+    backgroundTheme: 'Purple Dream',
+    lastUpdated: new Date()
+  },
+  'kaylee': {
+    childId: '',
+    birthCertificate: {
+      fullName: 'Kaylee Liberty Moses',
+      birthDate: new Date(2012, 3, 28),
+      birthTime: '12:45',
+      birthPlace: 'Princeton, Minnesota, USA',
+      county: 'Sherburne County',
+      state: 'Minnesota',
+      country: 'United States',
+      locked: true
+    },
+    personal: {
+      nickname: 'Kaylee',
+      favoriteColor: '',
+      favoriteAnimal: '',
+      favoriteFood: '',
+      favoriteBook: '',
+      favoriteMovie: '',
+      favoriteSubject: 'Theater',
+      bestFriend: '',
+      dreamJob: 'Actress',
+      superpower: '',
+      favoritePlace: '',
+      locked: false
+    },
+    interests: {
+      sports: [],
+      instruments: [],
+      arts: ['Theater', 'Acting'],
+      collections: [],
+      languages: [],
+      clubs: [],
+      customInterests: []
+    },
+    family: {
+      siblings: [
+        { name: 'Amos', relationship: 'Brother', age: 16, locked: true },
+        { name: 'Zoey', relationship: 'Sister', age: 15, locked: true },
+        { name: 'Ellie', relationship: 'Sister', age: 11, locked: true },
+        { name: 'Wyatt', relationship: 'Brother', age: 10, locked: true },
+        { name: 'Hannah', relationship: 'Sister', age: 8, locked: true }
+      ],
+      pets: [
+        { name: 'Maple', type: 'Pet', locked: false },
+        { name: 'Belle', type: 'Family Pet', locked: false }
+      ],
+      familyTraditions: [],
+      locked: false
+    },
+    physical: { eyeColor: '', hairColor: '', height: '', shoeSize: '', locked: false },
+    freeText: '',
+    backgroundTheme: 'Pink Paradise',
+    lastUpdated: new Date()
+  },
+  'ellie': {
+    childId: '',
+    birthCertificate: {
+      fullName: 'Ellie Mae Moses',
+      birthDate: new Date(2014, 5, 3),
+      birthTime: '12:00',
+      birthPlace: 'Princeton, Minnesota, USA',
+      county: 'Sherburne County',
+      state: 'Minnesota',
+      country: 'United States',
+      locked: true
+    },
+    personal: {
+      nickname: 'Ellie',
+      favoriteColor: 'Yellow',
+      favoriteAnimal: '',
+      favoriteFood: '',
+      favoriteBook: '',
+      favoriteMovie: '',
+      favoriteSubject: '',
+      bestFriend: '',
+      dreamJob: 'Business Owner',
+      superpower: '',
+      favoritePlace: '',
+      locked: false
+    },
+    interests: {
+      sports: [],
+      instruments: [],
+      arts: [],
+      collections: [],
+      languages: [],
+      clubs: [],
+      customInterests: ['Business', 'Entrepreneurship']
+    },
+    family: {
+      siblings: [
+        { name: 'Amos', relationship: 'Brother', age: 16, locked: true },
+        { name: 'Zoey', relationship: 'Sister', age: 15, locked: true },
+        { name: 'Kaylee', relationship: 'Sister', age: 13, locked: true },
+        { name: 'Wyatt', relationship: 'Brother', age: 10, locked: true },
+        { name: 'Hannah', relationship: 'Sister', age: 8, locked: true }
+      ],
+      pets: [
+        { name: 'Midnight', type: 'Pet', locked: false },
+        { name: 'Belle', type: 'Family Pet', locked: false }
+      ],
+      familyTraditions: [],
+      locked: false
+    },
+    physical: { eyeColor: '', hairColor: '', height: '', shoeSize: '', locked: false },
+    freeText: '',
+    backgroundTheme: 'Golden Sun',
+    lastUpdated: new Date()
+  },
+  'wyatt': {
+    childId: '',
+    birthCertificate: {
+      fullName: 'Wyatt James Moses',
+      birthDate: new Date(2015, 11, 5),
+      birthTime: '02:14',
+      birthPlace: 'Isanti, Minnesota, USA',
+      county: 'Isanti County',
+      state: 'Minnesota',
+      country: 'United States',
+      locked: true
+    },
+    personal: {
+      nickname: 'Wyatt',
+      favoriteColor: '',
+      favoriteAnimal: '',
+      favoriteFood: '',
+      favoriteBook: '',
+      favoriteMovie: '',
+      favoriteSubject: '',
+      bestFriend: '',
+      dreamJob: '',
+      superpower: '',
+      favoritePlace: '',
+      locked: false
+    },
+    interests: {
+      sports: ['Soccer'],
+      instruments: [],
+      arts: [],
+      collections: [],
+      languages: [],
+      clubs: [],
+      customInterests: []
+    },
+    family: {
+      siblings: [
+        { name: 'Amos', relationship: 'Brother', age: 16, locked: true },
+        { name: 'Zoey', relationship: 'Sister', age: 15, locked: true },
+        { name: 'Kaylee', relationship: 'Sister', age: 13, locked: true },
+        { name: 'Ellie', relationship: 'Sister', age: 11, locked: true },
+        { name: 'Hannah', relationship: 'Sister', age: 8, locked: true }
+      ],
+      pets: [
+        { name: 'Belle', type: 'Family Pet', locked: false }
+      ],
+      familyTraditions: [],
+      locked: false
+    },
+    physical: { eyeColor: '', hairColor: '', height: '', shoeSize: '', locked: false },
+    freeText: '',
+    backgroundTheme: 'Ocean Blue',
+    lastUpdated: new Date()
+  },
+  'hannah': {
+    childId: '',
+    birthCertificate: {
+      fullName: 'Hannah Joy Moses',
+      birthDate: new Date(2017, 7, 26),
+      birthTime: '07:49',
+      birthPlace: 'Isanti, Minnesota, USA',
+      county: 'Isanti County',
+      state: 'Minnesota',
+      country: 'United States',
+      locked: true
+    },
+    personal: {
+      nickname: 'Hannah',
+      favoriteColor: '',
+      favoriteAnimal: '',
+      favoriteFood: '',
+      favoriteBook: '',
+      favoriteMovie: '',
+      favoriteSubject: '',
+      bestFriend: '',
+      dreamJob: '',
+      superpower: '',
+      favoritePlace: '',
+      locked: false
+    },
+    interests: {
+      sports: [],
+      instruments: [],
+      arts: [],
+      collections: [],
+      languages: [],
+      clubs: [],
+      customInterests: ['Plants', 'Gardening']
+    },
+    family: {
+      siblings: [
+        { name: 'Amos', relationship: 'Brother', age: 16, locked: true },
+        { name: 'Zoey', relationship: 'Sister', age: 15, locked: true },
+        { name: 'Kaylee', relationship: 'Sister', age: 13, locked: true },
+        { name: 'Ellie', relationship: 'Sister', age: 11, locked: true },
+        { name: 'Wyatt', relationship: 'Brother', age: 10, locked: true }
+      ],
+      pets: [
+        { name: 'Belle', type: 'Family Pet', locked: false }
+      ],
+      familyTraditions: [],
+      locked: false
+    },
+    physical: { eyeColor: '', hairColor: '', height: '', shoeSize: '', locked: false },
+    freeText: '',
+    backgroundTheme: 'Forest Green',
+    lastUpdated: new Date()
+  }
+}
+
+// Legacy alias — prefer ALL_KIDS_ABOUT_ME_DATA for per-kid lookups
+export const SAMPLE_ABOUT_ME_DATA: AboutMeProfile = ALL_KIDS_ABOUT_ME_DATA['amos']
 
 // Additional sample data for all Moses children
 export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
@@ -251,14 +578,14 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   }
 }
 
-// Current grades for 2024-2025 school year
+// Current grades for 2025-2026 school year
 export const CURRENT_GRADES: Record<string, string> = {
-  'amos': '10th',      // Born 2009, age 15-16
-  'zoey': '9th',       // Born 2010, age 14-15
-  'kaylee': '7th',     // Born 2012, age 12-13
-  'ellie': '6th',      // Born 2014, age 10-11
-  'wyatt': '4th',      // Born 2015, age 9-10
-  'hannah': '3rd'      // Born 2017, age 7-8
+  'amos': '12th',      // Born 2009, age 16-17, homeschooled
+  'zoey': '12th',      // Born 2010, age 15-16, public school
+  'kaylee': '10th',    // Born 2012, age 13-14, public school
+  'ellie': '8th',      // Born 2014, age 11-12, homeschooled
+  'wyatt': '4th',      // Born 2015, age 10-11, homeschooled
+  'hannah': '6th'      // Born 2017, age 8-9, homeschooled
 }
 
 // Age-appropriate field visibility
