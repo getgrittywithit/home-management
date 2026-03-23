@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Calendar, Clock, Users, DollarSign,
-  MapPin, AlertTriangle, CheckCircle, Zap,
+  MapPin, CheckCircle, Zap,
   Phone, Home, Utensils, Shirt
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
@@ -116,23 +116,6 @@ export default function Dashboard({ initialData }: DashboardProps) {
             </div>
           </div>
         </header>
-
-        {/* Critical Alerts */}
-        {(data.overdueZones?.length || 0) > 0 && (
-          <div className="mb-6">
-            <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
-              <div className="flex">
-                <AlertTriangle className="h-5 w-5 text-red-400" />
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Action Required</h3>
-                  <div className="mt-2 text-sm text-red-700">
-                    <p>• {data.overdueZones?.length || 0} zones overdue</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
