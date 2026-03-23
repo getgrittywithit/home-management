@@ -7,6 +7,7 @@ import {
   Phone, Home
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
+import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange } from '@/lib/zoneRotation'
 
 interface DashboardProps {
   initialData?: DashboardData
@@ -214,26 +215,8 @@ export default function Dashboard({ initialData }: DashboardProps) {
 
           {/* Right Sidebar */}
           <div className="space-y-6">
-            {/* Zone Status */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Zone Status
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-3">
-                  {getZonesSummary(data.overdueZones).map((zone, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-700">{zone.name}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs ${zone.statusColor}`}>
-                        {zone.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            {/* Zone Rotation */}
+            <ZoneRotationCard />
           </div>
         </div>
 
@@ -373,21 +356,45 @@ function getNextPickupWindow() {
   return `${now.getHours() + 1}:15`
 }
 
-function getZonesSummary(overdueZones: Zone[]) {
-  const zones = [
-    { name: 'Kitchen & Dishes', status: 'On Track', statusColor: 'bg-green-100 text-green-800' },
-    { name: 'Bathrooms', status: 'Due Today', statusColor: 'bg-yellow-100 text-yellow-800' },
-    { name: 'Laundry & Linens', status: 'On Track', statusColor: 'bg-green-100 text-green-800' },
-  ]
-  
-  // Add overdue zones
-  overdueZones.forEach(zone => {
-    zones.push({
-      name: zone.name,
-      status: 'Overdue',
-      statusColor: 'bg-red-100 text-red-800'
-    })
-  })
-  
-  return zones.slice(0, 5) // Show top 5
+function ZoneRotationCard() {
+  const assignments = getCurrentZoneAssignments()
+  const zoneWeek = getCurrentZoneWeek()
+  const { start, end } = getCurrentZoneWeekRange()
+
+  const formatShortDate = (d: Date) =>
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  const zoneColors: Record<string, string> = {
+    'Kitchen': 'bg-amber-100 text-amber-800',
+    'Hotspot': 'bg-red-100 text-red-800',
+    'Guest Bathroom': 'bg-indigo-100 text-indigo-800',
+    'Kids Bathroom': 'bg-purple-100 text-purple-800',
+    'Pantry': 'bg-emerald-100 text-emerald-800',
+    'Floors': 'bg-orange-100 text-orange-800',
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border">
+      <div className="p-6 border-b">
+        <h2 className="text-xl font-semibold text-gray-900">
+          Zone Rotation
+        </h2>
+        <p className="text-xs text-gray-500 mt-1">
+          Week {zoneWeek} of 6 &middot; {formatShortDate(start)} – {formatShortDate(end)}
+        </p>
+      </div>
+      <div className="p-6">
+        <div className="space-y-3">
+          {assignments.map(({ kid, zone }) => (
+            <div key={kid} className="flex items-center justify-between text-sm">
+              <span className="text-gray-700 font-medium">{kid}</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${zoneColors[zone] || 'bg-gray-100 text-gray-800'}`}>
+                {zone}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
