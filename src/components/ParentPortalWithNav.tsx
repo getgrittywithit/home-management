@@ -18,10 +18,11 @@ import KidsChecklistOverview from './KidsChecklistOverview'
 import WeeklyChecklistTab from './WeeklyChecklistTab'
 import PrintTab from './PrintTab'
 import MoeMoneyTab from './MoeMoneyTab'
+import HealthTab from './HealthTab'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck
+  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -41,6 +42,8 @@ const tabs: Tab[] = [
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
   { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
+  { id: 'parents-health', name: 'Parents Health', icon: Heart, color: 'bg-red-500' },
+  { id: 'kids-health', name: 'Kids Health', icon: Heart, color: 'bg-teal-500' },
   { id: 'todos', name: 'Todos', icon: CheckSquare, color: 'bg-indigo-500' },
   { id: 'moe-money', name: 'Moe-Money', icon: DollarSign, color: 'bg-green-600' },
   { id: 'print', name: 'Print Center', icon: Printer, color: 'bg-slate-600' },
@@ -214,6 +217,10 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return renderCalendarTab()
       case 'contacts':
         return <ContactsTab />
+      case 'parents-health':
+        return <HealthTab memberGroup="parents" />
+      case 'kids-health':
+        return <HealthTab memberGroup="kids" />
       case 'todos':
         return <TodoTab />
       case 'moe-money':
