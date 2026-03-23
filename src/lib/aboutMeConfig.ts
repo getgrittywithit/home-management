@@ -185,9 +185,6 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
       birthDate: new Date(2009, 2, 2),
       birthTime: '05:55',
       birthPlace: 'Princeton, Minnesota, USA',
-      birthWeight: '7 lbs 12 oz',
-      birthLength: '21 inches',
-      hospitalName: 'Princeton Hospital',
       county: 'Sherburne County',
       state: 'Minnesota',
       country: 'United States',
@@ -195,24 +192,24 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
     },
     personal: {
       nickname: 'Amos',
-      favoriteColor: 'Blue',
-      favoriteAnimal: 'Wolf',
-      favoriteFood: 'Tacos',
-      favoriteBook: 'Ready Player One',
-      favoriteMovie: 'Avengers: Endgame',
+      favoriteColor: '',
+      favoriteAnimal: '',
+      favoriteFood: '',
+      favoriteBook: '',
+      favoriteMovie: '',
       favoriteSubject: 'Ag Mechanics & Metal Tech',
-      bestFriend: 'Connor',
-      dreamJob: 'Game Developer',
-      superpower: 'Time manipulation',
-      favoritePlace: 'Home gaming setup',
+      bestFriend: '',
+      dreamJob: '',
+      superpower: '',
+      favoritePlace: '',
       locked: false
     },
     interests: {
-      sports: ['Gaming', 'Basketball'],
+      sports: ['Gaming'],
       instruments: [],
-      arts: ['Digital Art', 'Video Editing'],
-      collections: ['Gaming Collectibles', 'Tech Gadgets'],
-      languages: ['ASL'],
+      arts: [],
+      collections: [],
+      languages: [],
       clubs: [],
       customInterests: ['Astronomy', 'Computer Programming', 'Metal Working']
     },
@@ -228,11 +225,11 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
         { name: 'Spike', type: 'Pet', locked: false },
         { name: 'Belle', type: 'Family Pet', locked: false }
       ],
-      familyTraditions: ['Family gaming nights', 'Outdoor adventures'],
+      familyTraditions: [],
       locked: false
     },
     physical: { eyeColor: '', hairColor: '', height: '', shoeSize: '', locked: false },
-    freeText: 'I love gaming, technology, and learning about astronomy. I am really interested in ag mechanics and metal working at school. My goal is to become a game developer or work with technology.',
+    freeText: '',
     backgroundTheme: 'Space Explorer',
     lastUpdated: new Date()
   },
@@ -251,7 +248,7 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
     personal: {
       nickname: 'Zoey',
       favoriteColor: '',
-      favoriteAnimal: 'Dog',
+      favoriteAnimal: '',
       favoriteFood: '',
       favoriteBook: '',
       favoriteMovie: '',
@@ -310,9 +307,9 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
       favoriteFood: '',
       favoriteBook: '',
       favoriteMovie: '',
-      favoriteSubject: 'Theater',
+      favoriteSubject: '',
       bestFriend: '',
-      dreamJob: 'Actress',
+      dreamJob: '',
       superpower: '',
       favoritePlace: '',
       locked: false
@@ -351,7 +348,7 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
     birthCertificate: {
       fullName: 'Ellie Mae Moses',
       birthDate: new Date(2014, 5, 3),
-      birthTime: '12:00',
+      birthTime: '04:18',
       birthPlace: 'Princeton, Minnesota, USA',
       county: 'Sherburne County',
       state: 'Minnesota',
@@ -360,14 +357,14 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
     },
     personal: {
       nickname: 'Ellie',
-      favoriteColor: 'Yellow',
+      favoriteColor: '',
       favoriteAnimal: '',
       favoriteFood: '',
       favoriteBook: '',
       favoriteMovie: '',
       favoriteSubject: '',
       bestFriend: '',
-      dreamJob: 'Business Owner',
+      dreamJob: '',
       superpower: '',
       favoritePlace: '',
       locked: false
@@ -379,7 +376,7 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
       collections: [],
       languages: [],
       clubs: [],
-      customInterests: ['Business', 'Entrepreneurship']
+      customInterests: []
     },
     family: {
       siblings: [
@@ -428,7 +425,7 @@ export const ALL_KIDS_ABOUT_ME_DATA: Record<string, AboutMeProfile> = {
       locked: false
     },
     interests: {
-      sports: ['Soccer'],
+      sports: [],
       instruments: [],
       arts: [],
       collections: [],
@@ -549,7 +546,7 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
   'ellie': {
     fullName: 'Ellie Mae Moses',
     birthDate: new Date(2014, 5, 3), // Year, Month (0-indexed), Day
-    birthTime: '12:00',
+    birthTime: '04:18',
     birthPlace: 'Princeton, Minnesota, USA',
     county: 'Sherburne County',
     state: 'Minnesota',
