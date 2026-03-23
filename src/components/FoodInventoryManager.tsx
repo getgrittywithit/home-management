@@ -1,16 +1,16 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { 
+import {
   Refrigerator, Package, ChefHat, Plus, Edit3, Trash2, Calendar,
   CheckCircle, Clock, AlertTriangle, Upload, Bot, Save, Eye,
-  Home, Car, Snowflake, Coffee
+  Home, Car, Snowflake, Coffee, ChevronLeft, ChevronRight, Check
 } from 'lucide-react'
 import { aiAgent } from '@/services/aiAgent'
 import {
   getFoodInventory, addFoodItem, updateFoodItem, deleteFoodItem,
-  getMealPlans, addBulkMealPlans, getBulkSuggestions, addBulkFoodItems,
-  getCurrentProfileId, type FoodItem, type MealPlan
+  getBulkSuggestions, addBulkFoodItems,
+  getCurrentProfileId, type FoodItem
 } from '@/services/foodService'
 
 // Using types from foodService
@@ -30,7 +30,6 @@ const CATEGORIES = [
 
 export default function FoodInventoryManager() {
   const [inventory, setInventory] = useState<FoodItem[]>([])
-  const [mealPlan, setMealPlan] = useState<MealPlan[]>([])
   const [selectedLocation, setSelectedLocation] = useState<FoodLocation | 'all'>('all')
   const [isProcessing, setIsProcessing] = useState(false)
   const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input'>('inventory')
@@ -44,7 +43,6 @@ export default function FoodInventoryManager() {
       const hasApiKey = localStorage.getItem('claude-api-key') !== null
       setApiKeySet(hasApiKey)
       loadInventory()
-      loadMealPlan()
     }
   }, [])
 
@@ -56,19 +54,6 @@ export default function FoodInventoryManager() {
       console.error('Error loading inventory:', error)
     }
   }
-
-  // No longer needed - individual operations save directly to DB
-
-  const loadMealPlan = async () => {
-    try {
-      const plans = await getMealPlans()
-      setMealPlan(plans)
-    } catch (error) {
-      console.error('Error loading meal plans:', error)
-    }
-  }
-
-  // No longer needed - meal plans save directly to DB
 
   const processBulkInventory = async () => {
     if (!bulkInput.trim()) {
@@ -129,100 +114,6 @@ export default function FoodInventoryManager() {
     } catch (error) {
       console.error('Error processing bulk inventory:', error)
       alert('Error processing inventory. Please try again.')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const generateMealPlan = async () => {
-    if (!apiKeySet) {
-      alert('Please set your Claude API key first')
-      return
-    }
-
-    if (inventory.length === 0) {
-      alert('Please add some inventory items first')
-      return
-    }
-
-    setIsProcessing(true)
-
-    try {
-      // Get current inventory with expiration info
-      const inventoryByLocation = inventory.reduce((acc, item) => {
-        if (!acc[item.location]) acc[item.location] = []
-        const expiryInfo = item.expiration_date ? ` (expires ${item.expiration_date})` : ''
-        acc[item.location].push(`${item.quantity} ${item.unit} ${item.name}${expiryInfo}`)
-        return acc
-      }, {} as Record<string, string[]>)
-
-      const inventoryText = Object.entries(inventoryByLocation)
-        .map(([location, items]) => `${location.toUpperCase()}:\n${items.join('\n')}`)
-        .join('\n\n')
-
-      const today = new Date()
-      const dates = []
-      for (let i = 0; i <= 6; i++) { // 7 days instead of 4
-        const date = new Date(today)
-        date.setDate(today.getDate() + i)
-        dates.push(date.toISOString().split('T')[0])
-      }
-
-      const prompt = `Create a practical 7-day meal plan for the Moses family (8 people: 2 parents + 6 kids ages 5-17).
-
-🏠 CURRENT FOOD INVENTORY:
-${inventoryText}
-
-📅 PLAN FOR: ${dates[0]} through ${dates[6]}
-
-✅ REQUIREMENTS:
-- Use items expiring soon FIRST
-- Kid-friendly meals (they're picky!)
-- 3 meals per day (breakfast, lunch, dinner)
-- Realistic portions for 8 people
-- Note any ingredients to buy
-
-Return JSON array: [{"date": "2024-01-01", "meal_type": "breakfast", "dish_name": "Pancakes", "ingredients": ["flour", "eggs", "milk"], "servings": 8, "notes": "Use milk expiring today"}]`
-
-      const response = await aiAgent.chatResponse(prompt)
-      
-      try {
-        const jsonMatch = response.response.match(/\[[\s\S]*\]/)
-        if (jsonMatch) {
-          const parsedMeals = JSON.parse(jsonMatch[0])
-          const profileId = getCurrentProfileId()
-          
-          const mealPlans = parsedMeals.map((meal: any) => ({
-            profile_id: profileId,
-            date: meal.date,
-            meal_type: meal.meal_type,
-            dish_name: meal.dish_name,
-            ingredients: Array.isArray(meal.ingredients) ? meal.ingredients : [],
-            servings: meal.servings || 8,
-            notes: meal.notes || ''
-          }))
-
-          // Save to database
-          const savedMeals = await addBulkMealPlans(mealPlans)
-          
-          if (savedMeals.length > 0) {
-            await loadMealPlan()
-            setActiveTab('meal-plan')
-            alert(`🎉 Generated ${savedMeals.length} meals using your real food inventory!`)
-          } else {
-            alert('Error saving meal plan to database')
-          }
-        } else {
-          throw new Error('Could not parse meal plan response')
-        }
-      } catch (parseError) {
-        console.error('Error parsing meal plan:', parseError)
-        alert('AI generated meal plan but response format was unexpected. Please try again.')
-      }
-
-    } catch (error) {
-      console.error('Error generating meal plan:', error)
-      alert('Error generating meal plan. Please check your API key and try again.')
     } finally {
       setIsProcessing(false)
     }
@@ -291,8 +182,8 @@ Return JSON array: [{"date": "2024-01-01", "meal_type": "breakfast", "dish_name"
       <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white p-6 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Food Inventory & Meal Planning</h1>
-            <p className="text-green-100">Manage your pantry, fridges, and freezers</p>
+            <h1 className="text-2xl font-bold">Food & Meals</h1>
+            <p className="text-green-100">Meal planning, pantry, and food inventory</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{inventory.length}</div>
@@ -534,132 +425,177 @@ Example:
 
           {/* Meal Plan Tab */}
           {activeTab === 'meal-plan' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Meal Plan</h3>
-                <button
-                  onClick={generateMealPlan}
-                  disabled={isProcessing || inventory.length === 0 || !apiKeySet}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-                >
-                  <ChefHat className="w-4 h-4" />
-                  {isProcessing ? 'Generating...' : 'Generate Meal Plan'}
-                </button>
-              </div>
-              
-              {mealPlan.length > 0 ? (
-                <div className="space-y-6">
-                  {/* Weekly Overview */}
-                  <div className="grid grid-cols-7 gap-2 text-center text-xs">
-                    {Object.entries(
-                      mealPlan.reduce((acc, meal) => {
-                        if (!acc[meal.date]) acc[meal.date] = []
-                        acc[meal.date].push(meal)
-                        return acc
-                      }, {} as Record<string, MealPlan[]>)
-                    ).slice(0, 7).map(([date, meals]) => (
-                      <div key={date} className="bg-gradient-to-b from-blue-50 to-green-50 p-2 rounded">
-                        <div className="font-medium text-gray-800 mb-1">
-                          {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })}
-                        </div>
-                        <div className="space-y-1">
-                          {meals.sort((a, b) => {
-                            const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 }
-                            return order[a.meal_type] - order[b.meal_type]
-                          }).map(meal => (
-                            <div key={meal.id} className="text-xs">
-                              <div className="font-medium">{meal.meal_type.charAt(0).toUpperCase()}</div>
-                              <div className="text-gray-600 truncate">{meal.dish_name}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Detailed Daily View */}
-                  <div className="space-y-4">
-                    {Object.entries(
-                      mealPlan.reduce((acc, meal) => {
-                        if (!acc[meal.date]) acc[meal.date] = []
-                        acc[meal.date].push(meal)
-                        return acc
-                      }, {} as Record<string, MealPlan[]>)
-                    ).map(([date, meals]) => (
-                      <div key={date} className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border">
-                        <h4 className="font-bold text-lg mb-3 text-gray-800">
-                          📅 {new Date(date).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })}
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {meals.sort((a, b) => {
-                            const order = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 }
-                            return order[a.meal_type] - order[b.meal_type]
-                          }).map(meal => {
-                            const mealEmojis = { breakfast: '🍳', lunch: '🥗', dinner: '🍽️', snack: '🍿' }
-                            return (
-                              <div key={meal.id} className="bg-white p-4 rounded-lg border shadow-sm">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span>{mealEmojis[meal.meal_type] || '🍽️'}</span>
-                                  <div className="font-bold capitalize text-gray-800">{meal.meal_type}</div>
-                                </div>
-                                <div className="font-bold text-lg text-gray-900 mb-2">{meal.dish_name}</div>
-                                <div className="text-sm text-gray-600 mb-2">
-                                  👥 Serves {meal.servings} people
-                                </div>
-                                {meal.ingredients.length > 0 && (
-                                  <div className="text-sm text-gray-700 mb-2">
-                                    <div className="font-medium text-gray-800 mb-1">🥗 Ingredients:</div>
-                                    <div className="bg-gray-50 p-2 rounded text-xs">
-                                      {meal.ingredients.join(', ')}
-                                    </div>
-                                  </div>
-                                )}
-                                {meal.notes && (
-                                  <div className="text-sm bg-blue-50 text-blue-800 p-2 rounded mt-2">
-                                    📝 {meal.notes}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Smart Shopping List */}
-                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-                    <h4 className="font-bold text-lg mb-3 text-yellow-800">
-                      🛍️ Smart Shopping List
-                    </h4>
-                    <div className="text-sm text-yellow-700">
-                      AI will suggest items you might need to buy based on your meal plan and current inventory.
-                      <br />
-                      <em>This feature will be enhanced as you use the system!</em>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <ChefHat className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-xl font-medium mb-2">Ready to Plan Your Meals?</h3>
-                  <p className="text-gray-600 mb-4">Add your food inventory above, then generate a smart meal plan</p>
-                  <div className="bg-blue-50 p-4 rounded-lg max-w-md mx-auto">
-                    <p className="text-sm text-blue-800">
-                      🤖 <strong>AI will create meals using your real food!</strong>
-                      <br />No more guessing or wasted ingredients.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+            <MealPlanWeekView />
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Meal Plan Week View (Phase 1) ──────────────────────────────
+
+function getMonday(d: Date): Date {
+  const date = new Date(d)
+  const day = date.getDay()
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is Sunday
+  date.setDate(diff)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function getWeekDates(monday: Date): Date[] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return d
+  })
+}
+
+function toDateStr(d: Date): string {
+  return d.toISOString().split('T')[0]
+}
+
+function MealPlanWeekView() {
+  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()))
+  const [meals, setMeals] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  const weekDates = getWeekDates(weekStart)
+  const weekEnd = weekDates[6]
+
+  // Fetch meals for displayed week
+  useEffect(() => {
+    setLoaded(false)
+    fetch(`/api/meal-plan?start=${toDateStr(weekStart)}&end=${toDateStr(weekEnd)}`)
+      .then(res => res.json())
+      .then((rows: { plan_date: string; meal_name: string | null }[]) => {
+        const map: Record<string, string> = {}
+        rows.forEach(r => {
+          // plan_date comes back as YYYY-MM-DD
+          const key = r.plan_date.split('T')[0]
+          map[key] = r.meal_name || ''
+        })
+        setMeals(map)
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [weekStart])
+
+  const saveMeal = async (dateStr: string, mealName: string) => {
+    // Update local state immediately
+    setMeals(prev => ({ ...prev, [dateStr]: mealName }))
+    setSaving(dateStr)
+
+    try {
+      await fetch('/api/meal-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_date: dateStr, meal_name: mealName || null }),
+      })
+    } catch (error) {
+      console.error('Error saving meal plan:', error)
+    }
+
+    // Show saved indicator briefly
+    setTimeout(() => setSaving(prev => (prev === dateStr ? null : prev)), 1200)
+  }
+
+  const goToPrevWeek = () => {
+    const prev = new Date(weekStart)
+    prev.setDate(prev.getDate() - 7)
+    setWeekStart(prev)
+  }
+
+  const goToNextWeek = () => {
+    const next = new Date(weekStart)
+    next.setDate(next.getDate() + 7)
+    setWeekStart(next)
+  }
+
+  const goToCurrentWeek = () => setWeekStart(getMonday(new Date()))
+
+  const isCurrentWeek = toDateStr(weekStart) === toDateStr(getMonday(new Date()))
+  const todayStr = toDateStr(new Date())
+
+  return (
+    <div className="space-y-4">
+      {/* Week navigation */}
+      <div className="flex items-center justify-between">
+        <button onClick={goToPrevWeek} className="p-2 rounded hover:bg-gray-100">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {weekStart.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} – {weekEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </h3>
+          {!isCurrentWeek && (
+            <button onClick={goToCurrentWeek} className="text-xs text-blue-600 hover:underline mt-1">
+              Back to this week
+            </button>
+          )}
+        </div>
+        <button onClick={goToNextWeek} className="p-2 rounded hover:bg-gray-100">
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Day cards */}
+      {!loaded ? (
+        <div className="text-center py-8 text-gray-400">Loading...</div>
+      ) : (
+        <div className="space-y-3">
+          {weekDates.map(date => {
+            const dateStr = toDateStr(date)
+            const isToday = dateStr === todayStr
+            const mealValue = meals[dateStr] || ''
+            const justSaved = saving === dateStr
+
+            return (
+              <div
+                key={dateStr}
+                className={`flex items-center gap-4 p-4 rounded-lg border ${
+                  isToday ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className="w-36 flex-shrink-0">
+                  <div className={`font-semibold ${isToday ? 'text-blue-700' : 'text-gray-900'}`}>
+                    {date.toLocaleDateString('en-US', { weekday: 'long' })}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </div>
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    defaultValue={mealValue}
+                    key={`${dateStr}-${mealValue}`}
+                    placeholder="Tonight's dinner..."
+                    onBlur={e => {
+                      const val = e.target.value.trim()
+                      if (val !== (meals[dateStr] || '')) {
+                        saveMeal(dateStr, val)
+                      }
+                    }}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                      isToday ? 'border-blue-300 bg-white' : 'border-gray-200'
+                    }`}
+                  />
+                </div>
+                <div className="w-16 text-right">
+                  {justSaved && (
+                    <span className="text-xs text-green-600 flex items-center gap-1 justify-end">
+                      <Check className="w-3 h-3" /> Saved
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
