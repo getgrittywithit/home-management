@@ -67,26 +67,77 @@ const ZONE_COLORS: Record<ZoneName, { bg: string; border: string; tag: string }>
 }
 
 const SIDE_MISSIONS_STORAGE_KEY = 'chores-side-missions'
+const ZONE_TASKS_STORAGE_KEY = 'chores-zone-tasks'
+
+/** Get today's date string in America/Chicago timezone (YYYY-MM-DD) */
+function getTodayKey(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+}
+
+/** Load checked tasks for today only; stale data from other days is discarded. */
+function loadTodayTasks(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(ZONE_TASKS_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as { date: string; tasks: string[] }
+    if (parsed.date === getTodayKey()) return parsed.tasks
+  } catch {}
+  return []
+}
+
+function saveTodayTasks(tasks: string[]) {
+  localStorage.setItem(
+    ZONE_TASKS_STORAGE_KEY,
+    JSON.stringify({ date: getTodayKey(), tasks })
+  )
+}
 
 interface ChoresTabProps {
   familyMembers?: { name: string; age: number; role: 'parent' | 'child' }[]
+  isParent?: boolean
 }
 
-export default function ChoresTab({ familyMembers = [] }: ChoresTabProps) {
+export default function ChoresTab({ familyMembers = [], isParent = true }: ChoresTabProps) {
   const [completedTasks, setCompletedTasks] = useState<string[]>([])
   const [sideMissions, setSideMissions] = useState<Record<string, string>>({})
   const [editingMission, setEditingMission] = useState<string | null>(null)
   const [missionDraft, setMissionDraft] = useState('')
 
-  // Load side missions from localStorage
+  // Load checked tasks for today and side missions from localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      setCompletedTasks(loadTodayTasks())
+
       const saved = localStorage.getItem(SIDE_MISSIONS_STORAGE_KEY)
       if (saved) {
         try { setSideMissions(JSON.parse(saved)) } catch {}
       }
     }
   }, [])
+
+  // Schedule a reset at midnight America/Chicago
+  useEffect(() => {
+    const scheduleReset = () => {
+      const now = new Date()
+      // Get current time in Chicago
+      const chicagoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+      const midnightChicago = new Date(chicagoNow)
+      midnightChicago.setDate(midnightChicago.getDate() + 1)
+      midnightChicago.setHours(0, 0, 0, 0)
+
+      // Convert back to local time offset
+      const msUntilMidnight = midnightChicago.getTime() - chicagoNow.getTime()
+
+      return setTimeout(() => {
+        setCompletedTasks([])
+        saveTodayTasks([])
+      }, Math.max(msUntilMidnight, 1000))
+    }
+
+    const timer = scheduleReset()
+    return () => clearTimeout(timer)
+  }, [completedTasks]) // re-schedule after each reset
 
   const saveSideMission = (kid: string) => {
     const updated = { ...sideMissions }
@@ -102,11 +153,13 @@ export default function ChoresTab({ familyMembers = [] }: ChoresTabProps) {
   }
 
   const toggleTask = (taskId: string) => {
-    setCompletedTasks(prev =>
-      prev.includes(taskId)
+    setCompletedTasks(prev => {
+      const next = prev.includes(taskId)
         ? prev.filter(id => id !== taskId)
         : [...prev, taskId]
-    )
+      saveTodayTasks(next)
+      return next
+    })
   }
 
   const getDayName = (day: number) => {
@@ -188,8 +241,8 @@ export default function ChoresTab({ familyMembers = [] }: ChoresTabProps) {
                   })}
                 </ul>
 
-                {/* Side Mission */}
-                {isEditing ? (
+                {/* Side Mission — editable by parent only, read-only for kids */}
+                {isParent && isEditing ? (
                   <div className="flex items-center gap-1 mt-2">
                     <input
                       type="text"
@@ -205,20 +258,20 @@ export default function ChoresTab({ familyMembers = [] }: ChoresTabProps) {
                   </div>
                 ) : mission ? (
                   <div
-                    className="mt-2 flex items-center justify-between bg-white/60 rounded px-2 py-1 border border-dashed border-gray-300 cursor-pointer"
-                    onClick={() => { setEditingMission(kid); setMissionDraft(mission) }}
+                    className={`mt-2 flex items-center justify-between bg-white/60 rounded px-2 py-1 border border-dashed border-gray-300 ${isParent ? 'cursor-pointer' : ''}`}
+                    onClick={isParent ? () => { setEditingMission(kid); setMissionDraft(mission) } : undefined}
                   >
                     <span className="text-xs text-gray-600">{mission}</span>
-                    <Edit3 className="w-3 h-3 text-gray-400" />
+                    {isParent && <Edit3 className="w-3 h-3 text-gray-400" />}
                   </div>
-                ) : (
+                ) : isParent ? (
                   <button
                     onClick={() => { setEditingMission(kid); setMissionDraft('') }}
                     className="mt-2 text-xs text-gray-400 hover:text-gray-600"
                   >
                     + Add side mission
                   </button>
-                )}
+                ) : null}
               </div>
             )
           })}
@@ -291,8 +344,8 @@ export default function ChoresTab({ familyMembers = [] }: ChoresTabProps) {
         <h3 className="text-xl font-bold mb-2">Family Progress</h3>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <p className="text-3xl font-bold">{completedTasks.length}</p>
-            <p className="text-sm">Tasks Completed</p>
+            <p className="text-3xl font-bold">{completedTasks.filter(t => t.startsWith('zone-')).length}</p>
+            <p className="text-sm">Zone Tasks Today</p>
           </div>
           <div>
             <p className="text-3xl font-bold">{zoneWeek}/6</p>
