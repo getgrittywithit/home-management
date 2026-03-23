@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Calendar, Clock, Users, DollarSign,
   MapPin, CheckCircle, Zap,
-  Phone, Home, Utensils, Shirt, Dog
+  Phone, Home, Utensils, Shirt
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange } from '@/lib/zoneRotation'
@@ -259,16 +259,6 @@ const LAUNDRY_SCHEDULE: Record<number, { who: string; note: string }> = {
   6: { who: 'Zoey',                     note: 'bedding day' },
 }
 
-const BELLE_CARE: Record<number, { who: string; note: string }> = {
-  0: { who: 'Amos',    note: 'AM + PM' },
-  1: { who: 'Kaylee',  note: 'AM + PM' },
-  2: { who: 'Amos',    note: 'AM only' },
-  3: { who: 'Hannah',  note: 'AM + PM' },
-  4: { who: 'Wyatt',   note: 'AM + PM' },
-  5: { who: 'Ellie',   note: 'AM + PM' },
-  6: { who: 'Kaylee',  note: 'weekend' },
-}
-
 const DISHES_SCHEDULE = {
   breakfast: 'Amos & Wyatt',
   lunch: 'Ellie & Hannah',
@@ -279,7 +269,6 @@ function TodaysDutiesCard() {
   const day = new Date().getDay()
   const dinner = DINNER_MANAGER[day]
   const laundry = LAUNDRY_SCHEDULE[day]
-  const belle = BELLE_CARE[day]
 
   return (
     <div className="bg-white rounded-lg shadow-sm border">
@@ -307,16 +296,6 @@ function TodaysDutiesCard() {
             {laundry.note && (
               <p className="text-xs text-gray-500">{laundry.note}</p>
             )}
-          </div>
-        </div>
-
-        {/* Belle Care */}
-        <div className="flex items-start gap-3">
-          <Dog className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Belle Care</p>
-            <p className="text-sm font-semibold text-gray-900">{belle.who}</p>
-            <p className="text-xs text-gray-500">{belle.note}</p>
           </div>
         </div>
 
