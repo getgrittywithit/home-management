@@ -212,7 +212,30 @@ export async function GET(request: NextRequest) {
       wellness,
     }
 
-    return NextResponse.json({ providers, appointments, requests, dailyCare, dental, fitness })
+    // ── Cycle Tracker ──
+    // Only return data if this kid has a row in kid_cycle_settings
+    let cycle = null
+    const cycleSettingsResult = await query(
+      `SELECT mode FROM kid_cycle_settings WHERE kid_name = $1`,
+      [child]
+    )
+    if (cycleSettingsResult.length > 0) {
+      const mode = cycleSettingsResult[0].mode
+      const cycleLog = await query(
+        `SELECT id, event_type, event_date FROM kid_cycle_log
+         WHERE kid_name = $1 ORDER BY event_date DESC, id DESC LIMIT 12`,
+        [child]
+      )
+      const cycleSymptoms = await query(
+        `SELECT id, log_date, mood, cramps, flow, notes FROM kid_cycle_symptoms
+         WHERE kid_name = $1 AND log_date >= ($2::date - interval '30 days') AND log_date <= $2::date
+         ORDER BY log_date DESC`,
+        [child, today]
+      )
+      cycle = { mode, log: cycleLog, symptoms: cycleSymptoms }
+    }
+
+    return NextResponse.json({ providers, appointments, requests, dailyCare, dental, fitness, cycle })
   } catch (error) {
     console.error('Kids health GET error:', error)
     return NextResponse.json({ error: 'Failed to load health data' }, { status: 500 })
@@ -502,6 +525,61 @@ export async function POST(request: NextRequest) {
           [child.toLowerCase(), today, steps || null, waterCups || null, fastingStart || null, fastingEnd || null, weight || null, notes || null]
         )
         return NextResponse.json({ success: true })
+      }
+
+      // ── Cycle Tracker actions ──
+      case 'log_cycle_event': {
+        const { child, eventType } = body
+        if (!child || !eventType) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await query(
+          `INSERT INTO kid_cycle_log (kid_name, event_type, event_date) VALUES ($1, $2, $3)`,
+          [child.toLowerCase(), eventType, today]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'log_cycle_symptoms': {
+        const { child, mood, cramps, flow, notes } = body
+        if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await query(
+          `INSERT INTO kid_cycle_symptoms (kid_name, log_date, mood, cramps, flow, notes)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (kid_name, log_date)
+           DO UPDATE SET mood = $3, cramps = $4, flow = $5, notes = $6`,
+          [child.toLowerCase(), today, mood || null, cramps ?? null, flow || null, notes || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'update_cycle_mode': {
+        const { child, mode } = body
+        if (!child || !mode) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+        await query(
+          `UPDATE kid_cycle_settings SET mode = $1, updated_at = NOW() WHERE kid_name = $2`,
+          [mode, child.toLowerCase()]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'add_kid_to_cycle_tracker': {
+        const { child } = body
+        if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
+        await query(
+          `INSERT INTO kid_cycle_settings (kid_name, mode) VALUES ($1, 'learning') ON CONFLICT DO NOTHING`,
+          [child.toLowerCase()]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'get_cycle_overview': {
+        // Parent portal: all kids with cycle settings + recent log
+        const settings = await query(`SELECT kid_name, mode, updated_at FROM kid_cycle_settings ORDER BY kid_name`)
+        const recentLogs = await query(
+          `SELECT kid_name, event_type, event_date FROM kid_cycle_log ORDER BY event_date DESC, id DESC LIMIT 30`
+        )
+        return NextResponse.json({ settings, recentLogs })
       }
 
       // ── Parent portal overview actions ──

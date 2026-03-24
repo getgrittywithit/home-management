@@ -159,6 +159,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
   const [dailyCare, setDailyCare] = useState<CareItem[]>([])
   const [dental, setDental] = useState<DentalData | null>(null)
   const [fitness, setFitness] = useState<FitnessData | null>(null)
+  const [cycle, setCycle] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   // Health request form state
@@ -198,6 +199,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
       setDailyCare(data.dailyCare || [])
       setDental(data.dental || null)
       setFitness(data.fitness || null)
+      setCycle(data.cycle || null)
       // Pre-fill wellness form for Zoey
       if (data.fitness?.wellness && childKey === 'zoey') {
         const w = data.fitness.wellness
@@ -736,6 +738,13 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
         </div>
       )}
 
+      {/* ================================================================== */}
+      {/* CYCLE TRACKER — only renders if kid has cycle_settings row */}
+      {/* ================================================================== */}
+      {cycle && (
+        <CycleSection cycle={cycle} childKey={childKey} onRefresh={loadData} postAction={postAction} />
+      )}
+
       {/* Something's Bothering Me */}
       <div className="bg-white rounded-lg p-6 shadow-sm border">
         <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
@@ -902,6 +911,359 @@ function CareCheckRow({ item, checked, onToggle }: { item: CareItem; checked: bo
       {endDateLabel && (
         <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap">{endDateLabel}</span>
       )}
+    </div>
+  )
+}
+
+function CycleSection({ cycle, childKey, onRefresh, postAction }: {
+  cycle: any; childKey: string; onRefresh: () => void; postAction: (body: any) => Promise<void>
+}) {
+  const [symptomForm, setSymptomForm] = useState({
+    flow: '', cramps: -1, mood: '', notes: ''
+  })
+  const [editingSymptoms, setEditingSymptoms] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  // Pre-fill symptom form from today's data
+  useEffect(() => {
+    const todaySymptom = cycle.symptoms?.find((s: any) => {
+      const d = new Date(s.log_date).toISOString().slice(0, 10)
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      return d === today
+    })
+    if (todaySymptom) {
+      setSymptomForm({
+        flow: todaySymptom.flow || '',
+        cramps: todaySymptom.cramps ?? -1,
+        mood: todaySymptom.mood || '',
+        notes: todaySymptom.notes || '',
+      })
+    }
+  }, [cycle.symptoms])
+
+  // ── Learning Mode ──
+  if (cycle.mode === 'learning') {
+    const FAQ = [
+      { q: 'What is a period?', a: 'A period is when your body sheds the lining of your uterus each month. It usually means some bleeding for a few days. It\'s a normal part of growing up.' },
+      { q: 'How often does it happen?', a: 'Most people get their period every 28 to 35 days, but it can be different for everyone. It often takes a while for your cycle to become regular.' },
+      { q: 'What\'s normal to feel?', a: 'Cramps, mood changes, feeling tired, and bloating are all very common. Everyone experiences it a little differently, and that\'s totally normal.' },
+    ]
+    return (
+      <div className="bg-white rounded-lg p-6 shadow-sm border border-rose-100">
+        <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-3">
+          🌸 My Cycle
+        </h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Your body goes through a monthly cycle. As you get older, this section will help you track and understand it.
+        </p>
+        <div className="space-y-2">
+          {FAQ.map((item, i) => (
+            <div key={i} className="border border-rose-100 rounded-lg">
+              <button onClick={() => setExpanded(expanded === `faq-${i}` ? null : `faq-${i}`)}
+                className="w-full flex items-center justify-between p-3 text-left text-sm font-medium text-gray-700 hover:bg-rose-50 rounded-lg transition">
+                {item.q}
+                <ChevronRight className={`w-4 h-4 text-gray-400 transition ${expanded === `faq-${i}` ? 'rotate-90' : ''}`} />
+              </button>
+              {expanded === `faq-${i}` && (
+                <p className="px-3 pb-3 text-sm text-gray-600">{item.a}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Full Mode ──
+  const log = cycle.log || []
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+
+  // Determine if a period is active
+  const lastStart = log.find((e: any) => e.event_type === 'start')
+  const lastEnd = log.find((e: any) => e.event_type === 'end')
+  const periodActive = lastStart && (!lastEnd || new Date(lastStart.event_date) > new Date(lastEnd.event_date))
+  const periodStartDate = periodActive ? new Date(lastStart.event_date + 'T12:00:00') : null
+  const dayOfPeriod = periodStartDate
+    ? Math.floor((new Date(today + 'T12:00:00').getTime() - periodStartDate.getTime()) / (86400000)) + 1
+    : 0
+
+  // Calculate estimated next from start events
+  const startEvents = log.filter((e: any) => e.event_type === 'start').map((e: any) => e.event_date).sort()
+  const lastStartDate = startEvents[0] // most recent (log is DESC)
+  let estimatedNext: string | null = null
+  let avgCycleLength: number | null = null
+
+  if (startEvents.length >= 2) {
+    // Calculate average gap between starts
+    const sorted = [...startEvents].sort()
+    let totalDays = 0
+    for (let i = 1; i < sorted.length; i++) {
+      totalDays += (new Date(sorted[i] + 'T12:00:00').getTime() - new Date(sorted[i - 1] + 'T12:00:00').getTime()) / 86400000
+    }
+    avgCycleLength = Math.round(totalDays / (sorted.length - 1))
+    if (lastStartDate) {
+      const next = new Date(lastStartDate + 'T12:00:00')
+      next.setDate(next.getDate() + avgCycleLength)
+      estimatedNext = next.toISOString().slice(0, 10)
+    }
+  } else if (lastStartDate) {
+    const next = new Date(lastStartDate + 'T12:00:00')
+    next.setDate(next.getDate() + 28)
+    estimatedNext = next.toISOString().slice(0, 10)
+  }
+
+  // Should show check-in card?
+  const nearEstimated = estimatedNext && !periodActive
+    ? Math.abs((new Date(estimatedNext + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime()) / 86400000) <= 2
+    : false
+  const showCheckin = periodActive || nearEstimated
+
+  const todaySymptom = cycle.symptoms?.find((s: any) => new Date(s.log_date).toISOString().slice(0, 10) === today)
+
+  // Build cycle history from start/end pairs
+  const startEntries = log.filter((e: any) => e.event_type === 'start').slice(0, 6)
+  const endEntries = log.filter((e: any) => e.event_type === 'end')
+
+  const handleLogEvent = async (eventType: string) => {
+    await postAction({ action: 'log_cycle_event', child: childKey, eventType })
+    onRefresh()
+  }
+
+  const handleSaveSymptoms = async () => {
+    await postAction({
+      action: 'log_cycle_symptoms', child: childKey,
+      mood: symptomForm.mood || null,
+      cramps: symptomForm.cramps >= 0 ? symptomForm.cramps : null,
+      flow: symptomForm.flow || null,
+      notes: symptomForm.notes.trim() || null,
+    })
+    setEditingSymptoms(false)
+    onRefresh()
+  }
+
+  const FLOW_OPTIONS = [
+    { id: 'none', label: 'None' },
+    { id: 'light', label: 'Light' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'heavy', label: 'Heavy' },
+  ]
+  const CRAMP_OPTIONS = [
+    { value: 0, label: 'None', icon: '😌' },
+    { value: 1, label: 'Mild', icon: '😐' },
+    { value: 2, label: 'Moderate', icon: '😣' },
+    { value: 3, label: 'Bad day', icon: '😩' },
+  ]
+  const CYCLE_MOODS = [
+    { id: 'great', emoji: '😊' }, { id: 'good', emoji: '🙂' },
+    { id: 'ok', emoji: '😐' }, { id: 'rough', emoji: '😔' }, { id: 'bad', emoji: '😢' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {/* Card 1: Cycle Status */}
+      <div className="bg-white rounded-lg p-6 shadow-sm border border-rose-100">
+        <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
+          🌸 My Cycle
+        </h2>
+
+        {periodActive ? (
+          <div>
+            <div className="text-sm text-gray-700 mb-3">
+              <span className="font-semibold text-rose-600">Day {dayOfPeriod}</span> of your current period
+              <span className="text-xs text-gray-500 ml-2">
+                (started {new Date(lastStart.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+              </span>
+            </div>
+            <button onClick={() => handleLogEvent('end')}
+              className="px-4 py-2 bg-rose-100 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-200 transition">
+              End Period
+            </button>
+          </div>
+        ) : (
+          <div>
+            {lastStartDate && (
+              <div className="text-sm text-gray-600 mb-1">
+                Last period: {new Date(lastStartDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </div>
+            )}
+            {estimatedNext && startEvents.length >= 2 ? (
+              <div className="text-sm text-gray-600 mb-3">
+                Estimated next: <span className="font-medium text-rose-600">
+                  {new Date(estimatedNext + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
+                </span>
+              </div>
+            ) : startEvents.length < 2 ? (
+              <div className="text-xs text-gray-400 mb-3">Keep tracking to see your pattern</div>
+            ) : null}
+            <button onClick={() => handleLogEvent('start')}
+              className="px-4 py-2 bg-rose-500 text-white rounded-lg text-sm font-medium hover:bg-rose-600 transition">
+              Start Period
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Card 2: Today's Check-in */}
+      {showCheckin && (
+        <div className="bg-white rounded-lg p-6 shadow-sm border border-rose-100">
+          <h3 className="font-bold text-gray-900 mb-3">Today&apos;s Check-in</h3>
+
+          {todaySymptom && !editingSymptoms ? (
+            <div>
+              <div className="grid grid-cols-3 gap-3 text-sm mb-3">
+                {todaySymptom.flow && (
+                  <div className="bg-rose-50 rounded p-2 text-center">
+                    <div className="text-xs text-gray-500">Flow</div>
+                    <div className="capitalize font-medium">{todaySymptom.flow}</div>
+                  </div>
+                )}
+                {todaySymptom.cramps !== null && todaySymptom.cramps !== undefined && (
+                  <div className="bg-rose-50 rounded p-2 text-center">
+                    <div className="text-xs text-gray-500">Cramps</div>
+                    <div>{CRAMP_OPTIONS[todaySymptom.cramps]?.icon} {CRAMP_OPTIONS[todaySymptom.cramps]?.label}</div>
+                  </div>
+                )}
+                {todaySymptom.mood && (
+                  <div className="bg-rose-50 rounded p-2 text-center">
+                    <div className="text-xs text-gray-500">Mood</div>
+                    <div>{CYCLE_MOODS.find(m => m.id === todaySymptom.mood)?.emoji}</div>
+                  </div>
+                )}
+              </div>
+              {todaySymptom.notes && <p className="text-sm text-gray-500 mb-2">{todaySymptom.notes}</p>}
+              <button onClick={() => setEditingSymptoms(true)}
+                className="text-xs text-rose-600 hover:text-rose-700 font-medium">Edit</button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs font-medium text-gray-600 mb-1">Flow</div>
+                <div className="flex gap-1.5">
+                  {FLOW_OPTIONS.map(f => (
+                    <button key={f.id} onClick={() => setSymptomForm(s => ({ ...s, flow: f.id }))}
+                      className={`flex-1 py-1.5 rounded-lg border text-xs font-medium transition ${
+                        symptomForm.flow === f.id ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-gray-200 hover:border-rose-300 text-gray-600'
+                      }`}>{f.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-600 mb-1">Cramps</div>
+                <div className="flex gap-1.5">
+                  {CRAMP_OPTIONS.map(c => (
+                    <button key={c.value} onClick={() => setSymptomForm(s => ({ ...s, cramps: c.value }))}
+                      className={`flex-1 py-1.5 rounded-lg border text-xs font-medium transition ${
+                        symptomForm.cramps === c.value ? 'border-rose-500 bg-rose-50 text-rose-700' : 'border-gray-200 hover:border-rose-300 text-gray-600'
+                      }`}>{c.icon} {c.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-600 mb-1">Mood</div>
+                <div className="flex gap-1.5">
+                  {CYCLE_MOODS.map(m => (
+                    <button key={m.id} onClick={() => setSymptomForm(s => ({ ...s, mood: m.id }))}
+                      className={`flex-1 py-2 rounded-lg border text-center transition ${
+                        symptomForm.mood === m.id ? 'border-rose-500 bg-rose-50' : 'border-gray-200 hover:border-rose-300'
+                      }`}>{m.emoji}</button>
+                  ))}
+                </div>
+              </div>
+              <textarea value={symptomForm.notes} onChange={e => setSymptomForm(s => ({ ...s, notes: e.target.value }))}
+                placeholder="Notes (optional)" rows={2}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none" />
+              <button onClick={handleSaveSymptoms}
+                className="w-full bg-rose-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-rose-600 transition text-sm">
+                Save Check-in
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Card 3: History */}
+      <div className="bg-white rounded-lg p-6 shadow-sm border border-rose-100">
+        <h3 className="font-bold text-gray-900 mb-3">My History</h3>
+
+        {/* Period day dots — last 6 months */}
+        {(() => {
+          // Build set of period days from start/end pairs
+          const periodDays = new Set<string>()
+          const starts = log.filter((e: any) => e.event_type === 'start').sort((a: any, b: any) => a.event_date.localeCompare(b.event_date))
+          const ends = log.filter((e: any) => e.event_type === 'end').sort((a: any, b: any) => a.event_date.localeCompare(b.event_date))
+
+          starts.forEach((s: any) => {
+            const matchingEnd = ends.find((e: any) => e.event_date >= s.event_date)
+            const endDate = matchingEnd ? matchingEnd.event_date : (periodActive && s === lastStart ? today : s.event_date)
+            const start = new Date(s.event_date + 'T12:00:00')
+            const end = new Date(endDate + 'T12:00:00')
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+              periodDays.add(d.toISOString().slice(0, 10))
+            }
+          })
+
+          // Generate last 6 months of month blocks
+          const months: { label: string; days: string[] }[] = []
+          const now = new Date(today + 'T12:00:00')
+          for (let m = 5; m >= 0; m--) {
+            const monthDate = new Date(now.getFullYear(), now.getMonth() - m, 1)
+            const label = monthDate.toLocaleDateString('en-US', { month: 'short' })
+            const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate()
+            const days: string[] = []
+            for (let d = 1; d <= daysInMonth; d++) {
+              days.push(new Date(monthDate.getFullYear(), monthDate.getMonth(), d).toISOString().slice(0, 10))
+            }
+            months.push({ label, days })
+          }
+
+          return (
+            <div className="mb-4 overflow-x-auto">
+              <div className="flex gap-3 min-w-0">
+                {months.map((month, i) => (
+                  <div key={i} className="flex-shrink-0">
+                    <div className="text-[10px] text-gray-400 mb-1 text-center">{month.label}</div>
+                    <div className="flex flex-wrap gap-0.5" style={{ width: '60px' }}>
+                      {month.days.map(day => (
+                        <div
+                          key={day}
+                          className={`w-1.5 h-1.5 rounded-full ${periodDays.has(day) ? 'bg-rose-400' : 'bg-gray-100'}`}
+                          title={day}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Recent cycles list */}
+        {startEntries.length > 0 ? (
+          <div className="space-y-1.5 mb-3">
+            {startEntries.slice(0, 3).map((s: any, i: number) => {
+              const matchEnd = endEntries.find((e: any) => e.event_date >= s.event_date && e.event_date <= new Date(new Date(s.event_date + 'T12:00:00').getTime() + 15 * 86400000).toISOString().slice(0, 10))
+              const duration = matchEnd
+                ? Math.floor((new Date(matchEnd.event_date + 'T12:00:00').getTime() - new Date(s.event_date + 'T12:00:00').getTime()) / 86400000) + 1
+                : null
+              return (
+                <div key={i} className="text-sm text-gray-600">
+                  Started {new Date(s.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {duration && <span className="text-gray-400">, lasted {duration} days</span>}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 mb-3">No cycles logged yet.</p>
+        )}
+
+        {avgCycleLength ? (
+          <div className="text-sm font-medium text-rose-600">Your average cycle: {avgCycleLength} days</div>
+        ) : startEntries.length < 2 ? (
+          <div className="text-xs text-gray-400">Keep tracking — your history will build here over time</div>
+        ) : null}
+      </div>
     </div>
   )
 }

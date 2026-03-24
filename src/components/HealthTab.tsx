@@ -225,6 +225,7 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
   const [kidCareItems, setKidCareItems] = useState<any[]>([])
   const [dentalOverview, setDentalOverview] = useState<any>(null)
   const [activityMoodOverview, setActivityMoodOverview] = useState<any>(null)
+  const [cycleOverview, setCycleOverview] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -332,13 +333,15 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
           setKidRequests(reqData.requests || [])
           const careData = await careRes.json()
           setKidCareItems(careData.careItems || [])
-          // Load dental and activity/mood overviews
-          const [dentalRes, activityRes] = await Promise.all([
+          // Load dental, activity/mood, and cycle overviews
+          const [dentalRes, activityRes, cycleRes] = await Promise.all([
             fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_dental_overview' }) }),
             fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_activity_mood_overview' }) }),
+            fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_cycle_overview' }) }),
           ])
           setDentalOverview(await dentalRes.json())
           setActivityMoodOverview(await activityRes.json())
+          setCycleOverview(await cycleRes.json())
         } catch { /* tables may not exist yet */ }
       }
     } catch (err) {
@@ -1009,6 +1012,7 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
             { id: 'daily_care', label: 'Daily Care', icon: ListChecks },
             { id: 'dental', label: 'Dental', icon: ClipboardList },
             { id: 'activity_mood', label: 'Activity & Mood', icon: Heart },
+            { id: 'cycle', label: 'Cycle Tracker', icon: CircleDot },
             { id: 'kid_requests', label: `Kid Requests${kidRequests.filter(r => r.status === 'pending').length > 0 ? ` (${kidRequests.filter(r => r.status === 'pending').length})` : ''}`, icon: AlertTriangle }
           ] : [])
         ].map(tab => (
@@ -2317,6 +2321,22 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       )}
 
       {/* ================================================================== */}
+      {/* CYCLE TRACKER MANAGER (Parent portal — kids memberGroup only) */}
+      {/* ================================================================== */}
+      {activeSection === 'cycle' && memberGroup === 'kids' && (
+        <CycleManager
+          overview={cycleOverview}
+          onRefresh={async () => {
+            try {
+              const res = await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_cycle_overview' }) })
+              setCycleOverview(await res.json())
+            } catch { /* ignore */ }
+          }}
+          onError={(msg: string) => setError(msg)}
+        />
+      )}
+
+      {/* ================================================================== */}
       {/* KID HEALTH REQUESTS (Parent portal — kids memberGroup only) */}
       {/* ================================================================== */}
       {activeSection === 'kid_requests' && memberGroup === 'kids' && (
@@ -2417,6 +2437,128 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
 // ============================================================================
 // KID REQUEST ACTIONS (inline sub-component)
 // ============================================================================
+
+function CycleManager({ overview, onRefresh, onError }: {
+  overview: any; onRefresh: () => void; onError: (msg: string) => void
+}) {
+  const [addingKid, setAddingKid] = useState(false)
+  const [selectedKid, setSelectedKid] = useState('')
+  const ALL_KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+
+  const settings = overview?.settings || []
+  const recentLogs = overview?.recentLogs || []
+  const trackedKids = settings.map((s: any) => s.kid_name)
+  const availableKids = ALL_KIDS.filter(k => !trackedKids.includes(k))
+
+  const logsByKid: Record<string, any[]> = {}
+  recentLogs.forEach((l: any) => {
+    if (!logsByKid[l.kid_name]) logsByKid[l.kid_name] = []
+    logsByKid[l.kid_name].push(l)
+  })
+
+  const handleToggleMode = async (kid: string, currentMode: string) => {
+    const newMode = currentMode === 'full' ? 'learning' : 'full'
+    try {
+      await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_cycle_mode', child: kid, mode: newMode }) })
+      onRefresh()
+    } catch { onError('Failed to update mode') }
+  }
+
+  const handleAddKid = async () => {
+    if (!selectedKid) return
+    try {
+      await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add_kid_to_cycle_tracker', child: selectedKid }) })
+      setAddingKid(false); setSelectedKid(''); onRefresh()
+    } catch { onError('Failed to add kid') }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-gray-900">🌸 Cycle Tracker</h3>
+        {availableKids.length > 0 && (
+          <button onClick={() => setAddingKid(!addingKid)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-rose-500 text-white hover:bg-rose-600 transition">
+            <Plus className="w-4 h-4" />Add to Tracker
+          </button>
+        )}
+      </div>
+
+      <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-800">
+        Cycle data is private to each child&apos;s profile and is not visible to other kids.
+      </div>
+
+      {addingKid && (
+        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+          <select value={selectedKid} onChange={e => setSelectedKid(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500">
+            <option value="">Select child...</option>
+            {availableKids.map(k => <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>)}
+          </select>
+          <p className="text-xs text-gray-500">Will start in Learning Mode — informational only, no tracking.</p>
+          <div className="flex gap-2">
+            <button onClick={handleAddKid} disabled={!selectedKid}
+              className="flex-1 bg-rose-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-rose-600 transition disabled:opacity-50">Add</button>
+            <button onClick={() => setAddingKid(false)}
+              className="flex-1 bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {settings.length === 0 ? (
+        <div className="bg-white rounded-lg p-8 shadow-sm border text-center text-gray-400">
+          No kids added to cycle tracker yet.
+        </div>
+      ) : (
+        settings.map((s: any) => {
+          const capName = s.kid_name.charAt(0).toUpperCase() + s.kid_name.slice(1)
+          const kidLogs = (logsByKid[s.kid_name] || []).slice(0, 6)
+          // Pair starts with ends
+          const starts = kidLogs.filter((l: any) => l.event_type === 'start')
+          const ends = kidLogs.filter((l: any) => l.event_type === 'end')
+
+          return (
+            <div key={s.kid_name} className="bg-white rounded-lg p-5 shadow-sm border">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-semibold text-gray-900">{capName}</h4>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${s.mode === 'full' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {s.mode === 'full' ? 'Full Tracking' : 'Learning Mode'}
+                  </span>
+                  <button onClick={() => handleToggleMode(s.kid_name, s.mode)}
+                    className="text-xs text-rose-600 hover:text-rose-700 font-medium">
+                    Switch to {s.mode === 'full' ? 'Learning' : 'Full'}
+                  </button>
+                </div>
+              </div>
+
+              {starts.length > 0 ? (
+                <div className="space-y-1">
+                  {starts.slice(0, 3).map((start: any, i: number) => {
+                    const matchEnd = ends.find((e: any) => e.event_date >= start.event_date)
+                    const duration = matchEnd
+                      ? Math.floor((new Date(matchEnd.event_date + 'T12:00:00').getTime() - new Date(start.event_date + 'T12:00:00').getTime()) / 86400000) + 1
+                      : null
+                    return (
+                      <div key={i} className="text-sm text-gray-600">
+                        {new Date(start.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {duration && <span className="text-gray-400"> — {duration} days</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400">No cycles logged yet</p>
+              )}
+            </div>
+          )
+        })
+      )}
+    </div>
+  )
+}
 
 function DentalManager({ overview, onRefresh, onError }: {
   overview: any; onRefresh: () => void; onError: (msg: string) => void
