@@ -924,13 +924,17 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
   const [editingSymptoms, setEditingSymptoms] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
 
+  // Normalize date helper (same as in full mode, but needed before render split)
+  const toDateStr = (d: any): string => {
+    if (!d) return ''
+    if (typeof d === 'string') return d.slice(0, 10)
+    try { return new Date(d).toISOString().slice(0, 10) } catch { return '' }
+  }
+
   // Pre-fill symptom form from today's data
   useEffect(() => {
-    const todaySymptom = cycle.symptoms?.find((s: any) => {
-      const d = new Date(s.log_date).toISOString().slice(0, 10)
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      return d === today
-    })
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    const todaySymptom = (cycle.symptoms || []).find((s: any) => toDateStr(s.log_date) === todayStr)
     if (todaySymptom) {
       setSymptomForm({
         flow: todaySymptom.flow || '',
@@ -975,32 +979,33 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
   }
 
   // ── Full Mode ──
-  const log = cycle.log || []
+  const log = (cycle.log || []).map((e: any) => ({ ...e, event_date: toDateStr(e.event_date) })).filter((e: any) => e.event_date)
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
 
-  // Determine if a period is active
+  // Determine if a period is active (log is DESC from API — first start is most recent)
   const lastStart = log.find((e: any) => e.event_type === 'start')
   const lastEnd = log.find((e: any) => e.event_type === 'end')
-  const periodActive = lastStart && (!lastEnd || new Date(lastStart.event_date) > new Date(lastEnd.event_date))
-  const periodStartDate = periodActive ? new Date(lastStart.event_date + 'T12:00:00') : null
+  const periodActive = !!(lastStart && (!lastEnd || lastStart.event_date > lastEnd.event_date))
+  const periodStartDate = periodActive && lastStart ? new Date(lastStart.event_date + 'T12:00:00') : null
   const dayOfPeriod = periodStartDate
-    ? Math.floor((new Date(today + 'T12:00:00').getTime() - periodStartDate.getTime()) / (86400000)) + 1
+    ? Math.floor((new Date(today + 'T12:00:00').getTime() - periodStartDate.getTime()) / 86400000) + 1
     : 0
 
-  // Calculate estimated next from start events
-  const startEvents = log.filter((e: any) => e.event_type === 'start').map((e: any) => e.event_date).sort()
-  const lastStartDate = startEvents[0] // most recent (log is DESC)
+  // Calculate estimated next from start events (sorted ascending for gap calculation)
+  const startDatesSorted = log
+    .filter((e: any) => e.event_type === 'start')
+    .map((e: any) => e.event_date)
+    .sort()
+  const lastStartDate = startDatesSorted.length > 0 ? startDatesSorted[startDatesSorted.length - 1] : null // most recent
   let estimatedNext: string | null = null
   let avgCycleLength: number | null = null
 
-  if (startEvents.length >= 2) {
-    // Calculate average gap between starts
-    const sorted = [...startEvents].sort()
+  if (startDatesSorted.length >= 2) {
     let totalDays = 0
-    for (let i = 1; i < sorted.length; i++) {
-      totalDays += (new Date(sorted[i] + 'T12:00:00').getTime() - new Date(sorted[i - 1] + 'T12:00:00').getTime()) / 86400000
+    for (let i = 1; i < startDatesSorted.length; i++) {
+      totalDays += (new Date(startDatesSorted[i] + 'T12:00:00').getTime() - new Date(startDatesSorted[i - 1] + 'T12:00:00').getTime()) / 86400000
     }
-    avgCycleLength = Math.round(totalDays / (sorted.length - 1))
+    avgCycleLength = Math.round(totalDays / (startDatesSorted.length - 1))
     if (lastStartDate) {
       const next = new Date(lastStartDate + 'T12:00:00')
       next.setDate(next.getDate() + avgCycleLength)
@@ -1018,27 +1023,35 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
     : false
   const showCheckin = periodActive || nearEstimated
 
-  const todaySymptom = cycle.symptoms?.find((s: any) => new Date(s.log_date).toISOString().slice(0, 10) === today)
+  const todaySymptom = (cycle.symptoms || []).find((s: any) => toDateStr(s.log_date) === today)
 
   // Build cycle history from start/end pairs
   const startEntries = log.filter((e: any) => e.event_type === 'start').slice(0, 6)
   const endEntries = log.filter((e: any) => e.event_type === 'end')
 
   const handleLogEvent = async (eventType: string) => {
-    await postAction({ action: 'log_cycle_event', child: childKey, eventType })
-    onRefresh()
+    try {
+      await postAction({ action: 'log_cycle_event', child: childKey, eventType })
+      onRefresh()
+    } catch (err) {
+      console.error('Failed to log cycle event:', err)
+    }
   }
 
   const handleSaveSymptoms = async () => {
-    await postAction({
-      action: 'log_cycle_symptoms', child: childKey,
-      mood: symptomForm.mood || null,
-      cramps: symptomForm.cramps >= 0 ? symptomForm.cramps : null,
-      flow: symptomForm.flow || null,
-      notes: symptomForm.notes.trim() || null,
-    })
-    setEditingSymptoms(false)
-    onRefresh()
+    try {
+      await postAction({
+        action: 'log_cycle_symptoms', child: childKey,
+        mood: symptomForm.mood || null,
+        cramps: symptomForm.cramps >= 0 ? symptomForm.cramps : null,
+        flow: symptomForm.flow || null,
+        notes: symptomForm.notes.trim() || null,
+      })
+      setEditingSymptoms(false)
+      onRefresh()
+    } catch (err) {
+      console.error('Failed to save symptoms:', err)
+    }
   }
 
   const FLOW_OPTIONS = [
@@ -1066,7 +1079,7 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
           🌸 My Cycle
         </h2>
 
-        {periodActive ? (
+        {periodActive && lastStart ? (
           <div>
             <div className="text-sm text-gray-700 mb-3">
               <span className="font-semibold text-rose-600">Day {dayOfPeriod}</span> of your current period
@@ -1086,13 +1099,13 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
                 Last period: {new Date(lastStartDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </div>
             )}
-            {estimatedNext && startEvents.length >= 2 ? (
+            {estimatedNext && startDatesSorted.length >= 2 ? (
               <div className="text-sm text-gray-600 mb-3">
                 Estimated next: <span className="font-medium text-rose-600">
                   {new Date(estimatedNext + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
                 </span>
               </div>
-            ) : startEvents.length < 2 ? (
+            ) : startDatesSorted.length < 2 ? (
               <div className="text-xs text-gray-400 mb-3">Keep tracking to see your pattern</div>
             ) : null}
             <button onClick={() => handleLogEvent('start')}
@@ -1194,7 +1207,7 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
 
           starts.forEach((s: any) => {
             const matchingEnd = ends.find((e: any) => e.event_date >= s.event_date)
-            const endDate = matchingEnd ? matchingEnd.event_date : (periodActive && s === lastStart ? today : s.event_date)
+            const endDate = matchingEnd ? matchingEnd.event_date : (periodActive && lastStart && s.event_date === lastStart.event_date ? today : s.event_date)
             const start = new Date(s.event_date + 'T12:00:00')
             const end = new Date(endDate + 'T12:00:00')
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
