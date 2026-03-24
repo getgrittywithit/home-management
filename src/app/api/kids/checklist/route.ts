@@ -63,22 +63,48 @@ export async function GET(request: NextRequest) {
     }
 
     // Dishes duty
-    const DISH_DETAILS: Record<string, { time: string; description: string }> = {
-      breakfast: { time: '8:00 AM', description: 'Wash your 5 handwash items · Clear & wipe table/counters · Flip dishwasher if full' },
-      lunch: { time: '12:00 PM', description: 'Wash your 5 handwash items · Clear & wipe table/counters · Unload or flip dishwasher' },
-      dinner: { time: 'After dinner', description: 'Wash your 5 handwash items · Clear & wipe table/counters · Run dishwasher for overnight' },
+    // Breakfast & Lunch: single checkbox each
+    if (DISHES.breakfast.includes(child)) {
+      required.push({
+        id: `dishes-breakfast-${today}`,
+        title: 'Breakfast Dishes',
+        description: 'Wash your 5 handwash items · Put away leftovers, pantry & fridge items · Clear & wipe table/counters · Flip dishwasher if full',
+        category: 'dishes',
+        time: '8:00 AM',
+      })
     }
-    for (const [meal, kids] of Object.entries(DISHES)) {
-      if (kids.includes(child)) {
-        const details = DISH_DETAILS[meal]
-        required.push({
-          id: `dishes-${meal}-${today}`,
-          title: `${meal.charAt(0).toUpperCase() + meal.slice(1)} Dishes`,
-          description: details?.description || `${meal} dish duty`,
-          category: 'dishes',
-          time: details?.time,
-        })
-      }
+    if (DISHES.lunch.includes(child)) {
+      required.push({
+        id: `dishes-lunch-${today}`,
+        title: 'Lunch Dishes',
+        description: 'Wash your 5 handwash items · Put away leftovers, pantry & fridge items · Clear & wipe table/counters · Unload or flip dishwasher',
+        category: 'dishes',
+        time: '12:00 PM',
+      })
+    }
+    // Dinner: 3 separate checkboxes
+    if (DISHES.dinner.includes(child)) {
+      required.push({
+        id: `dishes-dinner-${today}`,
+        title: '\u{1F37D}\u{FE0F} Dinner Dishes',
+        description: 'Wash your 5 handwash items · Put away leftovers, pantry & fridge items · Clear & wipe table/counters · Run dishwasher for overnight',
+        category: 'dishes',
+        time: 'After dinner',
+      })
+      required.push({
+        id: `dishes-dinner-trash-${today}`,
+        title: '\u{1F5D1}\u{FE0F} Kitchen Trash',
+        description: 'Take out the kitchen trash bag and replace with a new one',
+        category: 'dishes',
+        time: 'After dinner',
+      })
+      required.push({
+        id: `dishes-dinner-sink-${today}`,
+        title: '\u{2728} Sink Check',
+        description: 'Sink must be empty, clean, and shining — it\u2019s not done until it shines!',
+        category: 'dishes',
+        time: 'After dinner',
+      })
     }
 
     // Belle care

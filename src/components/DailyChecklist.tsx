@@ -147,9 +147,8 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
             <div className="p-6 text-center text-gray-400">No required tasks today</div>
           )}
           {required.some(item => item.category === 'dishes') && (
-            <div className="px-4 py-2 bg-blue-50 border-t text-xs text-blue-700 italic flex items-center gap-1.5">
-              <Utensils className="w-3 h-3 flex-shrink-0" />
-              Do your dishes at your meal time — not later.
+            <div className="px-4 py-2 bg-blue-50 border-t text-xs text-blue-700 italic">
+              🍴 Wash your 5 handwash items at your meal time — not later.
             </div>
           )}
         </div>
