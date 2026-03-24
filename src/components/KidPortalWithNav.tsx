@@ -6,7 +6,7 @@ import {
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
-  User
+  User, Heart
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -14,6 +14,7 @@ import KidTabContent from './KidTabContent'
 import { getKidZone, type ZoneName } from '@/lib/zoneRotation'
 import AboutMeTab from './AboutMeTab'
 import DailyChecklist from './DailyChecklist'
+import KidHealthTab from './KidHealthTab'
 
 interface KidPortalProps {
   kidData: {
@@ -25,7 +26,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'about' | 'achievements' | 'goals' | 'requests'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'about' | 'health' | 'achievements' | 'goals' | 'requests'
 
 interface NavTab {
   id: TabId
@@ -40,6 +41,7 @@ const navTabs: NavTab[] = [
   { id: 'checklist', name: 'Daily Checklist', icon: CheckSquare, color: 'bg-green-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'about', name: 'About Me', icon: User, color: 'bg-teal-500' },
+  { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
   { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
   { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
   { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' }
@@ -733,6 +735,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return renderSchoolTab()
       case 'about':
         return <AboutMeTab childAge={profile.age || 10} childId={profile.id} childName={profile.first_name || profile.name} />
+      case 'health':
+        return <KidHealthTab childName={profile.first_name || profile.name} />
       case 'checklist':
         return <DailyChecklist childName={profile.first_name || profile.name} />
       case 'calendar':
