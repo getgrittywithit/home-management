@@ -4,8 +4,13 @@ import { useState, useEffect } from 'react'
 import {
   Heart, Stethoscope, Building2, Calendar, Clock,
   ChevronRight, CheckCircle, AlertCircle, Loader2, Send,
-  CheckCircle2, Circle, Pill, Sun, Moon
+  CheckCircle2, Circle, Pill, Sun, Moon, Flame, Dumbbell,
+  Plus, Trash2
 } from 'lucide-react'
+
+// ============================================================================
+// TYPES
+// ============================================================================
 
 interface Provider {
   id: string
@@ -49,9 +54,36 @@ interface CareItem {
   evening_done: boolean | null
 }
 
+interface DentalItem {
+  id: number
+  item_name: string
+  time_of_day: 'morning' | 'evening'
+  completed: boolean
+}
+
+interface DentalData {
+  items: DentalItem[]
+  streak: { current_streak: number; longest_streak: number; last_completed_date: string | null }
+  notes: { id: number; note: string; created_at: string }[]
+  dentist: Provider | null
+  nextDentalVisit: Appointment | null
+}
+
+interface FitnessData {
+  todayActivities: { id: number; activity_type: string; duration_minutes: number | null; notes: string | null; created_at: string }[]
+  moodHistory: { mood: string; log_date: string; notes: string | null }[]
+  todayMood: { mood: string; log_date: string; notes: string | null } | null
+  activityStreak: number
+  wellness: any
+}
+
 interface KidHealthTabProps {
   childName: string
 }
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
 
 const CATEGORIES = [
   { id: 'head', label: 'Head / Headache', emoji: '🤕' },
@@ -86,14 +118,50 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   dismissed: { label: 'Dismissed', color: 'bg-gray-100 text-gray-600' },
 }
 
+const ACTIVITY_TYPES = [
+  { id: 'walking', label: 'Walking', emoji: '🚶' },
+  { id: 'running', label: 'Running', emoji: '🏃' },
+  { id: 'outdoor_play', label: 'Outdoor Play', emoji: '🌳' },
+  { id: 'sports', label: 'Sports', emoji: '⚽' },
+  { id: 'workout', label: 'Workout', emoji: '🏋️' },
+  { id: 'stretching', label: 'Stretching', emoji: '🧘' },
+  { id: 'dance', label: 'Dance', emoji: '💃' },
+  { id: 'bike', label: 'Bike Ride', emoji: '🚲' },
+  { id: 'swimming', label: 'Swimming', emoji: '🏊' },
+  { id: 'other', label: 'Other', emoji: '🎯' },
+]
+
+const DURATION_OPTIONS = [
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 45, label: '45 min' },
+  { value: 60, label: '1 hr' },
+  { value: 90, label: '1.5 hr' },
+  { value: 120, label: '2+ hr' },
+]
+
+const MOODS = [
+  { id: 'great', label: 'Great', emoji: '😊' },
+  { id: 'good', label: 'Good', emoji: '🙂' },
+  { id: 'ok', label: 'OK', emoji: '😐' },
+  { id: 'rough', label: 'Rough', emoji: '😔' },
+  { id: 'bad', label: 'Bad', emoji: '😢' },
+]
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function KidHealthTab({ childName }: KidHealthTabProps) {
   const [providers, setProviders] = useState<Provider[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [requests, setRequests] = useState<HealthRequest[]>([])
   const [dailyCare, setDailyCare] = useState<CareItem[]>([])
+  const [dental, setDental] = useState<DentalData | null>(null)
+  const [fitness, setFitness] = useState<FitnessData | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Form state
+  // Health request form state
   const [showForm, setShowForm] = useState(false)
   const [formStep, setFormStep] = useState(1)
   const [category, setCategory] = useState('')
@@ -103,7 +171,17 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
+  // Activity form state
+  const [showActivityForm, setShowActivityForm] = useState(false)
+  const [activityType, setActivityType] = useState('')
+  const [activityDuration, setActivityDuration] = useState<number | null>(null)
+  const [activityNotes, setActivityNotes] = useState('')
+
+  // Wellness form state (Zoey)
+  const [wellnessForm, setWellnessForm] = useState({ steps: '', waterCups: '', fastingStart: '', fastingEnd: '', weight: '' })
+
   const childKey = childName.toLowerCase()
+  const isZoey = childKey === 'zoey'
 
   useEffect(() => {
     loadData()
@@ -118,6 +196,19 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
       setAppointments(data.appointments || [])
       setRequests(data.requests || [])
       setDailyCare(data.dailyCare || [])
+      setDental(data.dental || null)
+      setFitness(data.fitness || null)
+      // Pre-fill wellness form for Zoey
+      if (data.fitness?.wellness && childKey === 'zoey') {
+        const w = data.fitness.wellness
+        setWellnessForm({
+          steps: w.steps?.toString() || '',
+          waterCups: w.water_cups?.toString() || '',
+          fastingStart: w.fasting_start || '',
+          fastingEnd: w.fasting_end || '',
+          weight: w.weight?.toString() || '',
+        })
+      }
     } catch (err) {
       console.error('Failed to load health data:', err)
     } finally {
@@ -125,26 +216,21 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
     }
   }
 
+  const postAction = async (body: any) => {
+    await fetch('/api/kids/health', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+
+  // ── Health request handlers ──
   const handleSubmit = async () => {
     setSubmitting(true)
     try {
-      await fetch('/api/kids/health', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submit_health_request',
-          child: childKey,
-          category,
-          duration,
-          severity,
-          notes: notes.trim() || null,
-        }),
-      })
+      await postAction({ action: 'submit_health_request', child: childKey, category, duration, severity, notes: notes.trim() || null })
       setSubmitted(true)
-      setTimeout(() => {
-        resetForm()
-        loadData()
-      }, 2500)
+      setTimeout(() => { resetForm(); loadData() }, 2500)
     } catch (err) {
       console.error('Failed to submit request:', err)
     } finally {
@@ -153,32 +239,72 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
   }
 
   const resetForm = () => {
-    setShowForm(false)
-    setFormStep(1)
-    setCategory('')
-    setDuration('')
-    setSeverity('')
-    setNotes('')
-    setSubmitted(false)
+    setShowForm(false); setFormStep(1); setCategory(''); setDuration(''); setSeverity(''); setNotes(''); setSubmitted(false)
   }
 
+  // ── Daily care handlers ──
   const toggleCareItem = async (careItemId: number, timeOfDay: 'morning' | 'evening') => {
-    // Optimistic update
     setDailyCare(prev => prev.map(item => {
       if (item.id !== careItemId) return item
-      if (timeOfDay === 'morning') return { ...item, morning_done: !item.morning_done }
-      return { ...item, evening_done: !item.evening_done }
+      return timeOfDay === 'morning' ? { ...item, morning_done: !item.morning_done } : { ...item, evening_done: !item.evening_done }
     }))
     try {
-      await fetch('/api/kids/health', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle_care_item', child: childKey, careItemId, timeOfDay }),
-      })
-    } catch (err) {
-      console.error('Failed to toggle care item:', err)
+      await postAction({ action: 'toggle_care_item', child: childKey, careItemId, timeOfDay })
+    } catch { loadData() }
+  }
+
+  // ── Dental handlers ──
+  const toggleDentalItem = async (dentalItemId: number) => {
+    if (!dental) return
+    setDental(prev => prev ? {
+      ...prev,
+      items: prev.items.map(i => i.id === dentalItemId ? { ...i, completed: !i.completed } : i)
+    } : prev)
+    try {
+      await postAction({ action: 'toggle_dental_item', child: childKey, dentalItemId })
+      // Reload to get updated streak
+      setTimeout(loadData, 500)
+    } catch { loadData() }
+  }
+
+  // ── Activity handlers ──
+  const logActivity = async () => {
+    if (!activityType) return
+    try {
+      await postAction({ action: 'log_activity', child: childKey, activityType, durationMinutes: activityDuration, notes: activityNotes.trim() || null })
+      setShowActivityForm(false); setActivityType(''); setActivityDuration(null); setActivityNotes('')
       loadData()
-    }
+    } catch (err) { console.error('Failed to log activity:', err) }
+  }
+
+  const deleteActivity = async (id: number) => {
+    try {
+      await postAction({ action: 'delete_activity', activityId: id })
+      loadData()
+    } catch (err) { console.error('Failed to delete activity:', err) }
+  }
+
+  // ── Mood handler ──
+  const logMood = async (mood: string) => {
+    try {
+      await postAction({ action: 'log_mood', child: childKey, mood })
+      loadData()
+    } catch (err) { console.error('Failed to log mood:', err) }
+  }
+
+  // ── Wellness handler (Zoey) ──
+  const saveWellness = async () => {
+    try {
+      await postAction({
+        action: 'log_wellness', child: childKey,
+        steps: wellnessForm.steps ? parseInt(wellnessForm.steps) : null,
+        waterCups: wellnessForm.waterCups ? parseInt(wellnessForm.waterCups) : null,
+        fastingStart: wellnessForm.fastingStart || null,
+        fastingEnd: wellnessForm.fastingEnd || null,
+        weight: wellnessForm.weight ? parseFloat(wellnessForm.weight) : null,
+      })
+      loadData()
+    } catch (err) { console.error('Failed to save wellness:', err) }
   }
 
   // Build a map of provider → next appointment
@@ -196,6 +322,14 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
         <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
       </div>
     )
+  }
+
+  // Streak milestone helper
+  const streakLabel = (count: number) => {
+    if (count >= 100) return '💯 LEGEND'
+    if (count >= 30) return '1 month! 💪'
+    if (count >= 7) return '1 week! 🎉'
+    return null
   }
 
   return (
@@ -258,56 +392,39 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
           <p className="text-gray-400 text-sm text-center py-4">No daily care routines set up. Looking good! 🎉</p>
         ) : (
           <div className="space-y-5">
-            {/* Morning Routine */}
             {(() => {
               const morningItems = dailyCare.filter(i => i.time_of_day === 'morning' || i.time_of_day === 'both')
               if (morningItems.length === 0) return null
-              const allMorningDone = morningItems.every(i => i.morning_done)
+              const allDone = morningItems.every(i => i.morning_done)
               return (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Sun className="w-4 h-4 text-amber-500" />
                     <span className="text-sm font-semibold text-gray-700">☀️ Morning Routine</span>
-                    {allMorningDone && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-auto">Morning done ✅</span>
-                    )}
+                    {allDone && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-auto">Morning done ✅</span>}
                   </div>
                   <div className="space-y-1">
                     {morningItems.map(item => (
-                      <CareCheckRow
-                        key={`${item.id}-morning`}
-                        item={item}
-                        checked={!!item.morning_done}
-                        onToggle={() => toggleCareItem(item.id, 'morning')}
-                      />
+                      <CareCheckRow key={`${item.id}-morning`} item={item} checked={!!item.morning_done} onToggle={() => toggleCareItem(item.id, 'morning')} />
                     ))}
                   </div>
                 </div>
               )
             })()}
-
-            {/* Evening Routine */}
             {(() => {
               const eveningItems = dailyCare.filter(i => i.time_of_day === 'evening' || i.time_of_day === 'both')
               if (eveningItems.length === 0) return null
-              const allEveningDone = eveningItems.every(i => i.evening_done)
+              const allDone = eveningItems.every(i => i.evening_done)
               return (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Moon className="w-4 h-4 text-indigo-500" />
                     <span className="text-sm font-semibold text-gray-700">🌙 Evening Routine</span>
-                    {allEveningDone && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-auto">Evening done ✅</span>
-                    )}
+                    {allDone && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-auto">Evening done ✅</span>}
                   </div>
                   <div className="space-y-1">
                     {eveningItems.map(item => (
-                      <CareCheckRow
-                        key={`${item.id}-evening`}
-                        item={item}
-                        checked={!!item.evening_done}
-                        onToggle={() => toggleCareItem(item.id, 'evening')}
-                      />
+                      <CareCheckRow key={`${item.id}-evening`} item={item} checked={!!item.evening_done} onToggle={() => toggleCareItem(item.id, 'evening')} />
                     ))}
                   </div>
                 </div>
@@ -316,6 +433,308 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
           </div>
         )}
       </div>
+
+      {/* ================================================================== */}
+      {/* DENTAL HEALTH */}
+      {/* ================================================================== */}
+      {dental && (
+        <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
+            🦷 Dental Health
+          </h2>
+
+          {/* Dentist info */}
+          {dental.dentist ? (
+            <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg mb-4">
+              <div className="w-10 h-10 bg-cyan-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Building2 className="w-5 h-5 text-cyan-600" />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900">{dental.dentist.name}</div>
+                <div className="text-sm text-gray-600">{dental.dentist.practice_name}</div>
+                {dental.nextDentalVisit && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-cyan-700 bg-cyan-50 rounded px-2 py-0.5 w-fit">
+                    <Calendar className="w-3 h-3" />
+                    Next visit: {new Date(dental.nextDentalVisit.appointment_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-sm mb-4">No dentist on file. Mom can add one from the parent Health tab.</p>
+          )}
+
+          {/* Dental notes */}
+          {dental.notes.length > 0 && (
+            <div className="mb-4 space-y-1">
+              {dental.notes.map(n => (
+                <div key={n.id} className="text-sm text-gray-600 bg-cyan-50 rounded px-3 py-2">
+                  📝 {n.note}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Streak */}
+          <div className="flex items-center gap-2 mb-4 p-3 bg-orange-50 rounded-lg">
+            <Flame className="w-5 h-5 text-orange-500" />
+            {dental.streak.current_streak > 0 ? (
+              <div>
+                <span className="font-bold text-orange-700">🔥 {dental.streak.current_streak}-day streak!</span>
+                {streakLabel(dental.streak.current_streak) && (
+                  <span className="ml-2 text-sm text-orange-600">{streakLabel(dental.streak.current_streak)}</span>
+                )}
+                {dental.streak.longest_streak > dental.streak.current_streak && (
+                  <span className="text-xs text-gray-500 ml-2">Best: {dental.streak.longest_streak} days</span>
+                )}
+              </div>
+            ) : (
+              <span className="text-sm text-orange-700">Start your streak — check off today&apos;s dental care!</span>
+            )}
+          </div>
+
+          {/* Dental checklist */}
+          {dental.items.length > 0 && (
+            <div className="space-y-4">
+              {/* Morning dental */}
+              {(() => {
+                const morning = dental.items.filter(i => i.time_of_day === 'morning')
+                if (morning.length === 0) return null
+                return (
+                  <div>
+                    <div className="text-sm font-semibold text-gray-700 mb-2">☀️ Morning</div>
+                    <div className="space-y-1">
+                      {morning.map(item => (
+                        <DentalCheckRow key={item.id} item={item} onToggle={() => toggleDentalItem(item.id)} />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+              {/* Evening dental */}
+              {(() => {
+                const evening = dental.items.filter(i => i.time_of_day === 'evening')
+                if (evening.length === 0) return null
+                return (
+                  <div>
+                    <div className="text-sm font-semibold text-gray-700 mb-2">🌙 Evening</div>
+                    <div className="space-y-1">
+                      {evening.map(item => (
+                        <DentalCheckRow key={item.id} item={item} onToggle={() => toggleDentalItem(item.id)} />
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================================================================== */}
+      {/* FITNESS & ACTIVITY */}
+      {/* ================================================================== */}
+      {fitness && (
+        <div className="bg-white rounded-lg p-6 shadow-sm border">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
+            <Dumbbell className="w-5 h-5 text-blue-600" />
+            Fitness & Activity 💪
+          </h2>
+
+          {/* Mood check-in */}
+          <div className="mb-5">
+            <div className="text-sm font-semibold text-gray-700 mb-2">How do you feel today?</div>
+            <div className="flex gap-2">
+              {MOODS.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => logMood(m.id)}
+                  className={`flex-1 p-2 rounded-lg border text-center transition ${
+                    fitness.todayMood?.mood === m.id
+                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <div className="text-xl">{m.emoji}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">{m.label}</div>
+                </button>
+              ))}
+            </div>
+            {/* 7-day mood history */}
+            {fitness.moodHistory.length > 0 && (
+              <div className="flex items-center gap-1 mt-2">
+                <span className="text-xs text-gray-400 mr-1">This week:</span>
+                {fitness.moodHistory.map((m, i) => {
+                  const moodInfo = MOODS.find(x => x.id === m.mood)
+                  const dayLabel = new Date(m.log_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+                  return (
+                    <div key={i} className="text-center" title={`${dayLabel}: ${moodInfo?.label}`}>
+                      <div className="text-sm">{moodInfo?.emoji}</div>
+                      <div className="text-[10px] text-gray-400">{dayLabel.slice(0, 2)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Activity streak */}
+          {fitness.activityStreak > 0 && (
+            <div className="flex items-center gap-2 mb-4 p-2 bg-blue-50 rounded-lg">
+              <Flame className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-bold text-blue-700">🔥 {fitness.activityStreak}-day active streak!</span>
+            </div>
+          )}
+
+          {/* Log activity button / form */}
+          {!showActivityForm ? (
+            <button
+              onClick={() => setShowActivityForm(true)}
+              className="w-full py-3 bg-blue-50 hover:bg-blue-100 border-2 border-dashed border-blue-300 rounded-lg text-blue-700 font-medium transition flex items-center justify-center gap-2 mb-4"
+            >
+              <Plus className="w-4 h-4" />
+              Log Activity
+            </button>
+          ) : (
+            <div className="bg-blue-50 rounded-lg p-4 mb-4 space-y-3">
+              <div className="text-sm font-medium text-gray-700">What did you do?</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {ACTIVITY_TYPES.map(a => (
+                  <button
+                    key={a.id}
+                    onClick={() => setActivityType(a.id)}
+                    className={`p-2 rounded-lg border text-xs font-medium transition ${
+                      activityType === a.id ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300 text-gray-700'
+                    }`}
+                  >
+                    {a.emoji} {a.label}
+                  </button>
+                ))}
+              </div>
+              <div className="text-sm font-medium text-gray-700">How long?</div>
+              <div className="flex gap-1.5 flex-wrap">
+                {DURATION_OPTIONS.map(d => (
+                  <button
+                    key={d.value}
+                    onClick={() => setActivityDuration(d.value)}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
+                      activityDuration === d.value ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-200 bg-white hover:border-blue-300 text-gray-700'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder="Notes (optional)"
+                value={activityNotes}
+                onChange={e => setActivityNotes(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex gap-2">
+                <button onClick={logActivity} disabled={!activityType}
+                  className="flex-1 bg-blue-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50">
+                  Log It
+                </button>
+                <button onClick={() => { setShowActivityForm(false); setActivityType(''); setActivityDuration(null); setActivityNotes('') }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Today's activities */}
+          {fitness.todayActivities.length > 0 && (
+            <div className="mb-4">
+              <div className="text-sm font-semibold text-gray-700 mb-2">Today&apos;s Activities</div>
+              <div className="space-y-1.5">
+                {fitness.todayActivities.map(a => {
+                  const typeInfo = ACTIVITY_TYPES.find(t => t.id === a.activity_type)
+                  return (
+                    <div key={a.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg group">
+                      <span className="text-sm">{typeInfo?.emoji || '🎯'}</span>
+                      <span className="text-sm font-medium text-gray-900">{typeInfo?.label || a.activity_type}</span>
+                      {a.duration_minutes && <span className="text-xs text-gray-500">{a.duration_minutes} min</span>}
+                      {a.notes && <span className="text-xs text-gray-400 truncate">{a.notes}</span>}
+                      <button onClick={() => deleteActivity(a.id)}
+                        className="ml-auto opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-red-400 hover:text-red-600 transition">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Zoey's extended wellness */}
+          {isZoey && (
+            <div className="border-t pt-4 mt-4">
+              <div className="text-sm font-semibold text-gray-700 mb-3">✨ Wellness Journal</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500">Steps</label>
+                  <input type="number" placeholder="0" value={wellnessForm.steps}
+                    onChange={e => setWellnessForm(f => ({ ...f, steps: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Water (cups)</label>
+                  <input type="number" placeholder="0" value={wellnessForm.waterCups}
+                    onChange={e => setWellnessForm(f => ({ ...f, waterCups: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Fasting start</label>
+                  <input type="time" value={wellnessForm.fastingStart}
+                    onChange={e => setWellnessForm(f => ({ ...f, fastingStart: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Fasting end</label>
+                  <input type="time" value={wellnessForm.fastingEnd}
+                    onChange={e => setWellnessForm(f => ({ ...f, fastingEnd: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500">Weight (lbs, optional — private)</label>
+                  <input type="number" step="0.1" placeholder="Optional" value={wellnessForm.weight}
+                    onChange={e => setWellnessForm(f => ({ ...f, weight: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <button onClick={saveWellness}
+                className="mt-3 w-full bg-blue-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-600 transition text-sm">
+                Save Wellness Log
+              </button>
+
+              {/* Weekly activity summary */}
+              {fitness.wellness?.weeklyActivities?.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-xs font-semibold text-gray-500 mb-2">This Week&apos;s Activity</div>
+                  <div className="flex gap-1">
+                    {fitness.wellness.weeklyActivities.map((day: any, i: number) => {
+                      const dayLabel = new Date(day.log_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+                      const height = Math.min(100, Math.max(20, (day.total_minutes || 0) / 120 * 100))
+                      return (
+                        <div key={i} className="flex-1 text-center">
+                          <div className="h-16 flex items-end justify-center">
+                            <div className="w-full bg-blue-400 rounded-t" style={{ height: `${height}%` }}
+                              title={`${day.total_minutes || 0} min`} />
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-1">{dayLabel.slice(0, 2)}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Something's Bothering Me */}
       <div className="bg-white rounded-lg p-6 shadow-sm border">
@@ -340,139 +759,85 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Progress indicator */}
             <div className="flex items-center gap-2 mb-2">
               {[1, 2, 3, 4].map(step => (
                 <div key={step} className="flex items-center gap-2">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                    formStep === step ? 'bg-amber-500 text-white' :
-                    formStep > step ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
-                  }`}>
-                    {formStep > step ? '✓' : step}
-                  </div>
+                    formStep === step ? 'bg-amber-500 text-white' : formStep > step ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
+                  }`}>{formStep > step ? '✓' : step}</div>
                   {step < 4 && <ChevronRight className="w-4 h-4 text-gray-300" />}
                 </div>
               ))}
             </div>
 
-            {/* Step 1: Category */}
             {formStep === 1 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-3">What&apos;s going on?</p>
                 <div className="grid grid-cols-2 gap-2">
                   {CATEGORIES.map(cat => (
-                    <button
-                      key={cat.id}
-                      onClick={() => { setCategory(cat.id); setFormStep(2) }}
-                      className={`p-3 rounded-lg border text-left text-sm font-medium transition ${
-                        category === cat.id
-                          ? 'border-amber-500 bg-amber-50 text-amber-800'
-                          : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50 text-gray-700'
-                      }`}
-                    >
-                      <span className="mr-2">{cat.emoji}</span>
-                      {cat.label}
+                    <button key={cat.id} onClick={() => { setCategory(cat.id); setFormStep(2) }}
+                      className={`p-3 rounded-lg border text-left text-sm font-medium transition ${category === cat.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50 text-gray-700'}`}>
+                      <span className="mr-2">{cat.emoji}</span>{cat.label}
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Step 2: Duration */}
             {formStep === 2 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-3">How long has this been going on?</p>
                 <div className="grid grid-cols-2 gap-2">
                   {DURATIONS.map(dur => (
-                    <button
-                      key={dur.id}
-                      onClick={() => { setDuration(dur.id); setFormStep(3) }}
-                      className={`p-3 rounded-lg border text-sm font-medium transition ${
-                        duration === dur.id
-                          ? 'border-amber-500 bg-amber-50 text-amber-800'
-                          : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50 text-gray-700'
-                      }`}
-                    >
-                      <Clock className="w-4 h-4 inline mr-2" />
-                      {dur.label}
+                    <button key={dur.id} onClick={() => { setDuration(dur.id); setFormStep(3) }}
+                      className={`p-3 rounded-lg border text-sm font-medium transition ${duration === dur.id ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50 text-gray-700'}`}>
+                      <Clock className="w-4 h-4 inline mr-2" />{dur.label}
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setFormStep(1)} className="mt-3 text-xs text-gray-400 hover:text-gray-600">
-                  ← Back
-                </button>
+                <button onClick={() => setFormStep(1)} className="mt-3 text-xs text-gray-400 hover:text-gray-600">← Back</button>
               </div>
             )}
 
-            {/* Step 3: Severity */}
             {formStep === 3 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-3">How bad is it?</p>
                 <div className="grid grid-cols-3 gap-2">
                   {SEVERITIES.map(sev => (
-                    <button
-                      key={sev.id}
-                      onClick={() => { setSeverity(sev.id); setFormStep(4) }}
-                      className={`p-4 rounded-lg border text-center transition ${
-                        severity === sev.id
-                          ? 'border-amber-500 bg-amber-50'
-                          : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50'
-                      }`}
-                    >
+                    <button key={sev.id} onClick={() => { setSeverity(sev.id); setFormStep(4) }}
+                      className={`p-4 rounded-lg border text-center transition ${severity === sev.id ? 'border-amber-500 bg-amber-50' : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50'}`}>
                       <div className="text-2xl mb-1">{sev.emoji}</div>
                       <div className="text-xs font-medium text-gray-700">{sev.label}</div>
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setFormStep(2)} className="mt-3 text-xs text-gray-400 hover:text-gray-600">
-                  ← Back
-                </button>
+                <button onClick={() => setFormStep(2)} className="mt-3 text-xs text-gray-400 hover:text-gray-600">← Back</button>
               </div>
             )}
 
-            {/* Step 4: Notes + Submit */}
             {formStep === 4 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">Want to tell me more? <span className="text-gray-400">(optional)</span></p>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
+                <textarea value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="Anything else you want Mom to know..."
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-                  rows={3}
-                />
-
-                {/* Summary */}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none" rows={3} />
                 <div className="bg-gray-50 rounded-lg p-3 mt-3 text-sm">
                   <div className="font-medium text-gray-700 mb-1">Your request:</div>
                   <div className="text-gray-600">
                     {CATEGORIES.find(c => c.id === category)?.emoji} {CATEGORIES.find(c => c.id === category)?.label}
-                    {' · '}
-                    {DURATIONS.find(d => d.id === duration)?.label}
-                    {' · '}
-                    {SEVERITIES.find(s => s.id === severity)?.emoji} {SEVERITIES.find(s => s.id === severity)?.label}
+                    {' · '}{DURATIONS.find(d => d.id === duration)?.label}
+                    {' · '}{SEVERITIES.find(s => s.id === severity)?.emoji} {SEVERITIES.find(s => s.id === severity)?.label}
                   </div>
                 </div>
-
                 <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className="flex-1 bg-amber-500 text-white px-4 py-3 rounded-lg font-medium hover:bg-amber-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
+                  <button onClick={handleSubmit} disabled={submitting}
+                    className="flex-1 bg-amber-500 text-white px-4 py-3 rounded-lg font-medium hover:bg-amber-600 transition disabled:opacity-50 flex items-center justify-center gap-2">
                     {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     {submitting ? 'Sending...' : 'Send to Mom'}
                   </button>
-                  <button
-                    onClick={resetForm}
-                    className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
-                  >
-                    Cancel
-                  </button>
+                  <button onClick={resetForm} className="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">Cancel</button>
                 </div>
-                <button onClick={() => setFormStep(3)} className="mt-2 text-xs text-gray-400 hover:text-gray-600">
-                  ← Back
-                </button>
+                <button onClick={() => setFormStep(3)} className="mt-2 text-xs text-gray-400 hover:text-gray-600">← Back</button>
               </div>
             )}
           </div>
@@ -494,18 +859,13 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
                 <div key={req.id} className="p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-start justify-between">
                     <div>
-                      <div className="font-medium text-gray-900">
-                        {catInfo?.emoji} {catInfo?.label || req.category}
-                      </div>
+                      <div className="font-medium text-gray-900">{catInfo?.emoji} {catInfo?.label || req.category}</div>
                       <div className="text-xs text-gray-500 mt-0.5">
                         {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        {' · '}
-                        {SEVERITIES.find(s => s.id === req.severity)?.emoji} {SEVERITIES.find(s => s.id === req.severity)?.label}
+                        {' · '}{SEVERITIES.find(s => s.id === req.severity)?.emoji} {SEVERITIES.find(s => s.id === req.severity)?.label}
                       </div>
                     </div>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusInfo.color}`}>
-                      {statusInfo.label}
-                    </span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusInfo.color}`}>{statusInfo.label}</span>
                   </div>
                   {req.parent_response && (
                     <div className="mt-2 text-sm text-teal-700 bg-teal-50 rounded p-2">
@@ -522,33 +882,39 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
   )
 }
 
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
+
 function CareCheckRow({ item, checked, onToggle }: { item: CareItem; checked: boolean; onToggle: () => void }) {
   const endDateLabel = item.end_date
     ? `Until ${new Date(item.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : null
-
   return (
     <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg ${checked ? 'bg-gray-50/50' : 'bg-purple-50/40'}`}>
       <button onClick={onToggle} className="flex-shrink-0">
-        {checked ? (
-          <CheckCircle2 className="w-5 h-5 text-green-600" />
-        ) : (
-          <Circle className="w-5 h-5 text-gray-300" />
-        )}
+        {checked ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : <Circle className="w-5 h-5 text-gray-300" />}
       </button>
       <div className="flex-1 min-w-0">
-        <div className={`text-sm font-medium ${checked ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-          {item.item_name}
-        </div>
-        <div className={`text-xs ${checked ? 'text-gray-300' : 'text-gray-500'}`}>
-          {item.instructions}
-        </div>
+        <div className={`text-sm font-medium ${checked ? 'line-through text-gray-400' : 'text-gray-900'}`}>{item.item_name}</div>
+        <div className={`text-xs ${checked ? 'text-gray-300' : 'text-gray-500'}`}>{item.instructions}</div>
       </div>
       {endDateLabel && (
-        <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap">
-          {endDateLabel}
-        </span>
+        <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap">{endDateLabel}</span>
       )}
+    </div>
+  )
+}
+
+function DentalCheckRow({ item, onToggle }: { item: DentalItem; onToggle: () => void }) {
+  return (
+    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg ${item.completed ? 'bg-gray-50/50' : 'bg-cyan-50/40'}`}>
+      <button onClick={onToggle} className="flex-shrink-0">
+        {item.completed ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : <Circle className="w-5 h-5 text-gray-300" />}
+      </button>
+      <span className={`text-sm font-medium ${item.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+        {item.item_name}
+      </span>
     </div>
   )
 }

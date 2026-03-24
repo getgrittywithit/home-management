@@ -98,7 +98,121 @@ export async function GET(request: NextRequest) {
         ? !!logMap[`${item.id}-evening`] : null,
     }))
 
-    return NextResponse.json({ providers, appointments, requests, dailyCare })
+    // ── Dental Health ──
+    const dentalItems = await query(
+      `SELECT id, item_name, time_of_day, sort_order
+       FROM kid_dental_items
+       WHERE child_name = $1 AND enabled = TRUE
+       ORDER BY sort_order, id`,
+      [child]
+    )
+    const dentalLog = await query(
+      `SELECT dental_item_id, completed
+       FROM kid_dental_log
+       WHERE child_name = $1 AND log_date = $2`,
+      [child, today]
+    )
+    const dentalLogMap: Record<number, boolean> = {}
+    dentalLog.forEach((l: any) => { dentalLogMap[l.dental_item_id] = l.completed })
+    const dentalWithStatus = dentalItems.map((item: any) => ({
+      ...item,
+      completed: !!dentalLogMap[item.id],
+    }))
+
+    const streakResult = await query(
+      `SELECT current_streak, longest_streak, last_completed_date
+       FROM kid_dental_streaks WHERE child_name = $1`,
+      [child]
+    )
+    const streak = streakResult[0] || { current_streak: 0, longest_streak: 0, last_completed_date: null }
+
+    const dentalNotes = await query(
+      `SELECT id, note, created_at FROM kid_dental_notes
+       WHERE child_name = $1 ORDER BY created_at DESC`,
+      [child]
+    )
+
+    // Find dentist from providers
+    const dentistProvider = providers.find((p: any) => p.specialty?.toLowerCase().includes('dentist') || p.specialty?.toLowerCase().includes('dental'))
+    const dentistAppointment = appointments.find((a: any) => a.appointment_type === 'dental')
+
+    const dental = {
+      items: dentalWithStatus,
+      streak,
+      notes: dentalNotes,
+      dentist: dentistProvider || null,
+      nextDentalVisit: dentistAppointment || null,
+    }
+
+    // ── Fitness & Activity ──
+    const todayActivities = await query(
+      `SELECT id, activity_type, duration_minutes, notes, created_at
+       FROM kid_activity_log
+       WHERE child_name = $1 AND log_date = $2
+       ORDER BY created_at DESC`,
+      [child, today]
+    )
+
+    // Mood: today + last 7 days
+    const moodHistory = await query(
+      `SELECT mood, log_date, notes FROM kid_mood_log
+       WHERE child_name = $1 AND log_date >= ($2::date - interval '6 days') AND log_date <= $2::date
+       ORDER BY log_date ASC`,
+      [child, today]
+    )
+    const todayMood = moodHistory.find((m: any) => {
+      const d = new Date(m.log_date)
+      return d.toISOString().slice(0, 10) === today
+    })
+
+    // Activity streak: count consecutive days with at least 1 activity
+    const activityDays = await query(
+      `SELECT DISTINCT log_date FROM kid_activity_log
+       WHERE child_name = $1 AND log_date <= $2
+       ORDER BY log_date DESC LIMIT 60`,
+      [child, today]
+    )
+    let activityStreak = 0
+    const checkDate = new Date(today + 'T12:00:00')
+    for (const row of activityDays) {
+      const d = new Date(row.log_date).toISOString().slice(0, 10)
+      const expected = new Date(checkDate)
+      expected.setDate(expected.getDate() - activityStreak)
+      if (d === expected.toISOString().slice(0, 10)) {
+        activityStreak++
+      } else {
+        break
+      }
+    }
+
+    // Wellness (Zoey only)
+    let wellness = null
+    if (child === 'zoey') {
+      const wellnessResult = await query(
+        `SELECT * FROM kid_wellness_log WHERE child_name = 'zoey' AND log_date = $1`,
+        [today]
+      )
+      wellness = wellnessResult[0] || null
+      // Weekly activity summary for Zoey
+      const weeklyActivities = await query(
+        `SELECT log_date, COUNT(*) as count, SUM(duration_minutes) as total_minutes
+         FROM kid_activity_log
+         WHERE child_name = 'zoey' AND log_date >= ($1::date - interval '6 days') AND log_date <= $1::date
+         GROUP BY log_date ORDER BY log_date ASC`,
+        [today]
+      )
+      wellness = { ...(wellness || {}), weeklyActivities }
+    }
+
+    const fitness = {
+      todayActivities,
+      moodHistory,
+      todayMood: todayMood || null,
+      activityStreak,
+      wellness,
+    }
+
+    return NextResponse.json({ providers, appointments, requests, dailyCare, dental, fitness })
   } catch (error) {
     console.error('Kids health GET error:', error)
     return NextResponse.json({ error: 'Failed to load health data' }, { status: 500 })
@@ -227,6 +341,195 @@ export async function POST(request: NextRequest) {
           evening_done: (item.time_of_day === 'evening' || item.time_of_day === 'both') ? !!logMap[`${item.id}-evening`] : null,
         }))
         return NextResponse.json({ careItems: itemsWithStatus })
+      }
+
+      // ── Dental actions ──
+      case 'toggle_dental_item': {
+        const { child, dentalItemId } = body
+        if (!child || !dentalItemId) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+        const childLower = child.toLowerCase()
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const existing = await query(
+          `SELECT completed FROM kid_dental_log WHERE dental_item_id = $1 AND child_name = $2 AND log_date = $3`,
+          [dentalItemId, childLower, today]
+        )
+        const newCompleted = existing.length > 0 ? !existing[0].completed : true
+        await query(
+          `INSERT INTO kid_dental_log (dental_item_id, child_name, log_date, completed, completed_at)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (dental_item_id, child_name, log_date)
+           DO UPDATE SET completed = $4, completed_at = $5`,
+          [dentalItemId, childLower, today, newCompleted, newCompleted ? new Date().toISOString() : null]
+        )
+
+        // Recalculate streak
+        const allItems = await query(
+          `SELECT id FROM kid_dental_items WHERE child_name = $1 AND enabled = TRUE`,
+          [childLower]
+        )
+        const todayLog = await query(
+          `SELECT dental_item_id, completed FROM kid_dental_log WHERE child_name = $1 AND log_date = $2`,
+          [childLower, today]
+        )
+        const todayCompleteMap: Record<number, boolean> = {}
+        todayLog.forEach((l: any) => { todayCompleteMap[l.dental_item_id] = l.completed })
+        const allDoneToday = allItems.every((i: any) => !!todayCompleteMap[i.id])
+
+        if (allDoneToday) {
+          const streakRow = await query(
+            `SELECT current_streak, longest_streak, last_completed_date FROM kid_dental_streaks WHERE child_name = $1`,
+            [childLower]
+          )
+          if (streakRow.length > 0) {
+            const s = streakRow[0]
+            const lastDate = s.last_completed_date ? new Date(s.last_completed_date).toISOString().slice(0, 10) : null
+            const yesterday = new Date(today + 'T12:00:00')
+            yesterday.setDate(yesterday.getDate() - 1)
+            const yesterdayStr = yesterday.toISOString().slice(0, 10)
+
+            let newStreak = s.current_streak
+            if (lastDate === today) {
+              // Already counted today
+            } else if (lastDate === yesterdayStr) {
+              newStreak = s.current_streak + 1
+            } else {
+              newStreak = 1
+            }
+            const newLongest = Math.max(s.longest_streak, newStreak)
+            await query(
+              `UPDATE kid_dental_streaks SET current_streak = $1, longest_streak = $2, last_completed_date = $3 WHERE child_name = $4`,
+              [newStreak, newLongest, today, childLower]
+            )
+          }
+        }
+
+        return NextResponse.json({ success: true, completed: newCompleted })
+      }
+
+      case 'add_dental_note': {
+        const { child, note } = body
+        if (!child || !note) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+        await query(
+          `INSERT INTO kid_dental_notes (child_name, note) VALUES ($1, $2)`,
+          [child.toLowerCase(), note]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'delete_dental_note': {
+        const { noteId } = body
+        if (!noteId) return NextResponse.json({ error: 'Missing noteId' }, { status: 400 })
+        await query(`DELETE FROM kid_dental_notes WHERE id = $1`, [noteId])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'update_dental_items': {
+        // Parent toggles enabled/disabled for a dental item
+        const { dentalItemId, enabled } = body
+        if (!dentalItemId) return NextResponse.json({ error: 'Missing dentalItemId' }, { status: 400 })
+        await query(`UPDATE kid_dental_items SET enabled = $1 WHERE id = $2`, [!!enabled, dentalItemId])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'add_dental_item': {
+        const { child, itemName, timeOfDay } = body
+        if (!child || !itemName || !timeOfDay) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+        await query(
+          `INSERT INTO kid_dental_items (child_name, item_name, time_of_day) VALUES ($1, $2, $3)`,
+          [child.toLowerCase(), itemName, timeOfDay]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      // ── Fitness & Activity actions ──
+      case 'log_activity': {
+        const { child, activityType, durationMinutes, notes } = body
+        if (!child || !activityType) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const result = await query(
+          `INSERT INTO kid_activity_log (child_name, activity_type, duration_minutes, notes, log_date)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [child.toLowerCase(), activityType, durationMinutes || null, notes || null, today]
+        )
+        return NextResponse.json({ success: true, id: result[0]?.id })
+      }
+
+      case 'delete_activity': {
+        const { activityId } = body
+        if (!activityId) return NextResponse.json({ error: 'Missing activityId' }, { status: 400 })
+        await query(`DELETE FROM kid_activity_log WHERE id = $1`, [activityId])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'log_mood': {
+        const { child, mood, notes } = body
+        if (!child || !mood) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+        }
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await query(
+          `INSERT INTO kid_mood_log (child_name, mood, log_date, notes)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (child_name, log_date)
+           DO UPDATE SET mood = $2, notes = $4`,
+          [child.toLowerCase(), mood, today, notes || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'log_wellness': {
+        const { child, steps, waterCups, fastingStart, fastingEnd, weight, notes } = body
+        if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await query(
+          `INSERT INTO kid_wellness_log (child_name, log_date, steps, water_cups, fasting_start, fasting_end, weight, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (child_name, log_date)
+           DO UPDATE SET steps = COALESCE($3, kid_wellness_log.steps),
+                         water_cups = COALESCE($4, kid_wellness_log.water_cups),
+                         fasting_start = COALESCE($5, kid_wellness_log.fasting_start),
+                         fasting_end = COALESCE($6, kid_wellness_log.fasting_end),
+                         weight = COALESCE($7, kid_wellness_log.weight),
+                         notes = COALESCE($8, kid_wellness_log.notes)`,
+          [child.toLowerCase(), today, steps || null, waterCups || null, fastingStart || null, fastingEnd || null, weight || null, notes || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      // ── Parent portal overview actions ──
+      case 'get_dental_overview': {
+        const kids = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+        const streaks = await query(`SELECT child_name, current_streak, longest_streak FROM kid_dental_streaks ORDER BY child_name`)
+        const items = await query(`SELECT id, child_name, item_name, time_of_day, enabled, sort_order FROM kid_dental_items ORDER BY child_name, sort_order`)
+        const notes = await query(`SELECT id, child_name, note, created_at FROM kid_dental_notes ORDER BY child_name, created_at DESC`)
+        return NextResponse.json({ streaks, items, notes, kids })
+      }
+
+      case 'get_activity_mood_overview': {
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        // Last 7 days of moods for all kids
+        const moods = await query(
+          `SELECT child_name, mood, log_date FROM kid_mood_log
+           WHERE log_date >= ($1::date - interval '6 days') AND log_date <= $1::date
+           ORDER BY child_name, log_date ASC`,
+          [today]
+        )
+        // Today's activity counts per kid
+        const activities = await query(
+          `SELECT child_name, COUNT(*) as count, SUM(duration_minutes) as total_minutes
+           FROM kid_activity_log WHERE log_date = $1
+           GROUP BY child_name`,
+          [today]
+        )
+        return NextResponse.json({ moods, activities })
       }
 
       case 'get_all_requests': {
