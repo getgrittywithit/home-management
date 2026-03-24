@@ -5,8 +5,7 @@ import {
   Calendar, ChevronLeft, ChevronRight, Filter, Eye, EyeOff,
   BookOpen, ClipboardList, Users, Star, Clock, MapPin
 } from 'lucide-react'
-import { AMOS_SCHOOL_PROFILE, getTodaysScheduleType } from '@/lib/amosScheduleData'
-import { generateSchoolCalendarEvents, EVENT_CATEGORIES } from '@/lib/enhancedSchoolConfig'
+import { EVENT_CATEGORIES } from '@/lib/enhancedSchoolConfig'
 
 interface FilterableCalendarProps {
   // Can be extended to accept different children's data
@@ -41,15 +40,12 @@ export default function FilterableCalendar({ selectedChild = 'amos-moses-504640'
   const allEvents = useMemo(() => {
     const events: CalendarEvent[] = []
     
-    // Generate school events for the next month
-    const startDate = new Date()
-    const endDate = new Date()
-    endDate.setMonth(endDate.getMonth() + 1)
-    
-    const schoolEvents = generateSchoolCalendarEvents(AMOS_SCHOOL_PROFILE, startDate, endDate)
-    
+    // TODO: In the future, pull events from Google Calendar API
+    // For now, calendar starts empty — events come from family_events DB
+    const schoolEvents: any[] = []
+
     schoolEvents.forEach(event => {
-      const category = EVENT_CATEGORIES[event.category]
+      const category = EVENT_CATEGORIES[event.category as keyof typeof EVENT_CATEGORIES]
       events.push({
         id: event.id,
         title: event.title,
@@ -60,8 +56,8 @@ export default function FilterableCalendar({ selectedChild = 'amos-moses-504640'
         allDay: event.allDay,
         location: event.location,
         description: event.description,
-        color: category.color,
-        icon: category.icon
+        color: category?.color,
+        icon: category?.icon
       })
     })
 
