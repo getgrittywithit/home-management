@@ -185,7 +185,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
           My Doctors
         </h2>
         {providers.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-4">No doctors added yet. Ask a parent to set this up.</p>
+          <p className="text-gray-400 text-sm text-center py-4">No doctors on file yet. Mom can add them from the parent Health tab.</p>
         ) : (
           <div className="space-y-3">
             {providers.map(provider => {

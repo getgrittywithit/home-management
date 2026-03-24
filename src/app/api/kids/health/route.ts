@@ -10,15 +10,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'child parameter required' }, { status: 400 })
     }
 
-    // Fetch providers visible to kids (no billing/insurance info)
+    // Fetch providers from the health_providers table (kids or shared)
     const providers = await query(
       `SELECT id, name, specialty, practice_name, phone, address
        FROM health_providers
-       WHERE member_group = 'kids' OR member_group = 'both'
+       WHERE member_group IN ('kids', 'both')
        ORDER BY name`
     )
 
-    // Fetch upcoming appointments for this child
+    // Also check health_profiles for this kid's primary doctor (fallback source)
+    const profileResult = await query(
+      `SELECT primary_doctor, primary_doctor_phone, primary_doctor_address, pharmacy_name, pharmacy_phone
+       FROM health_profiles
+       WHERE member_group = 'kids' AND LOWER(family_member_name) = $1
+       LIMIT 1`,
+      [child]
+    )
+    const profile = profileResult[0] || null
+
+    // If the kid has a primary doctor in their profile but it's not in the providers list, include it
+    if (profile?.primary_doctor && profile.primary_doctor.trim()) {
+      const alreadyListed = providers.some(
+        (p: any) => p.name.toLowerCase() === profile.primary_doctor.toLowerCase()
+      )
+      if (!alreadyListed) {
+        providers.unshift({
+          id: `profile-primary`,
+          name: profile.primary_doctor,
+          specialty: 'Primary Care',
+          practice_name: '',
+          phone: profile.primary_doctor_phone || null,
+          address: profile.primary_doctor_address || null,
+        })
+      }
+    }
+
+    // Fetch upcoming appointments for this child (match by name, case-insensitive)
     const appointments = await query(
       `SELECT id, provider_name, appointment_type, appointment_date, location, reason, status
        FROM health_appointments
