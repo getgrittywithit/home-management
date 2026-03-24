@@ -235,6 +235,7 @@ export default function TodoTab() {
       case 'contacts': return '📞'
       case 'development': return '⚙️'
       case 'family': return '👨‍👩‍👧‍👦'
+      case 'doctor': return '🏥'
       default: return '📝'
     }
   }
@@ -353,6 +354,7 @@ export default function TodoTab() {
               <option value="family">Family</option>
               <option value="contacts">Contacts</option>
               <option value="development">Development</option>
+              <option value="doctor">Doctor</option>
             </select>
             <select
               value={selectedAssignee}
