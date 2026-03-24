@@ -11,6 +11,7 @@ import {
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
 import KidTabContent from './KidTabContent'
+import { getKidZone, type ZoneName } from '@/lib/zoneRotation'
 import AboutMeTab from './AboutMeTab'
 import DailyChecklist from './DailyChecklist'
 
@@ -210,7 +211,19 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })
   }
 
+  const ZONE_BANNER_COLORS: Record<string, string> = {
+    'Kitchen': 'from-amber-500 to-orange-500',
+    'Hotspot': 'from-red-500 to-rose-500',
+    'Pantry': 'from-emerald-500 to-green-500',
+    'Floors': 'from-orange-500 to-yellow-500',
+    'Kids Bathroom': 'from-purple-500 to-violet-500',
+    'Guest Bathroom': 'from-indigo-500 to-blue-500',
+  }
+
   const renderDashboard = () => {
+    const kidZone = getKidZone(profile.first_name)
+    const zoneBannerColor = kidZone ? (ZONE_BANNER_COLORS[kidZone] || 'from-gray-500 to-gray-600') : null
+
     // Find current and next events
     const currentIdx = dashboardEvents.findIndex(e => {
       const start = new Date(e.startTime).getTime()
@@ -241,6 +254,14 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             </div>
           </div>
         </div>
+
+        {/* Zone Banner */}
+        {kidZone && zoneBannerColor && (
+          <div className={`bg-gradient-to-r ${zoneBannerColor} text-white px-6 py-3 rounded-lg flex items-center gap-3`}>
+            <span className="text-xl">🧹</span>
+            <span className="font-semibold">This week's zone: {kidZone.toUpperCase()}</span>
+          </div>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
