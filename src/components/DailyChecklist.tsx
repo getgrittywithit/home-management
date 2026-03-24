@@ -1,496 +1,229 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { 
-  CheckSquare, Square, School, Utensils, 
-  Sparkles, DollarSign, Lock, Trophy
+import { useState, useEffect } from 'react'
+import {
+  CheckCircle2, Circle, Lock, DollarSign, Sparkles,
+  Dog, Utensils, Home, Trash2, Trophy
 } from 'lucide-react'
-import { getChildScheduleForDate } from '@/lib/scheduleConfig'
-import { getAllFamilyData } from '@/lib/familyConfig'
 
 interface ChecklistItem {
   id: string
-  category: 'required_chore' | 'dishes' | 'paid_chore' | 'hygiene' | 'school_prep'
   title: string
   description?: string
+  category: string
+  time?: string
+  points?: number
   completed: boolean
-  points: number
-  icon: React.ReactNode
-  required?: boolean
 }
 
 interface DailyChecklistProps {
   childName: string
-  date?: Date
 }
 
-// Helper functions moved outside component to prevent recreation
-const getAgeAppropriateChore = (age: number) => {
-  if (age <= 6) {
-    return { title: 'Put Toys Away', description: 'Tidy up play areas' }
-  } else if (age <= 9) {
-    return { title: 'Set/Clear Table', description: 'Help with meal setup and cleanup' }
-  } else if (age <= 12) {
-    return { title: 'Empty Trash Cans', description: 'Collect and empty small trash cans' }
-  } else {
-    return { title: 'Vacuum One Room', description: 'Vacuum assigned room thoroughly' }
-  }
+const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string }> = {
+  zone: { icon: <Home className="w-4 h-4" />, color: 'text-amber-600' },
+  dishes: { icon: <Utensils className="w-4 h-4" />, color: 'text-blue-600' },
+  belle: { icon: <Dog className="w-4 h-4" />, color: 'text-purple-600' },
+  tidy: { icon: <Sparkles className="w-4 h-4" />, color: 'text-green-600' },
+  school_clean: { icon: <Trash2 className="w-4 h-4" />, color: 'text-teal-600' },
+  parent_task: { icon: <Sparkles className="w-4 h-4" />, color: 'text-rose-600' },
+  hygiene: { icon: <Sparkles className="w-4 h-4" />, color: 'text-sky-600' },
+  earn_money: { icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-600' },
 }
 
-const getPaidChores = (age: number) => {
-  const basePoints = Math.floor(age * 0.5) // Age-based points
-  
-  if (age <= 6) {
-    return [
-      { title: 'Sort Socks', description: 'Match and fold sock pairs', points: basePoints },
-      { title: 'Water Plants', description: 'Water indoor plants', points: basePoints },
-      { title: 'Wipe Baseboards', description: 'Clean baseboards in one room', points: basePoints }
-    ]
-  } else if (age <= 9) {
-    return [
-      { title: 'Load Dishwasher', description: 'Load and start dishwasher', points: basePoints + 1 },
-      { title: 'Sweep Floor', description: 'Sweep kitchen or dining room', points: basePoints + 1 },
-      { title: 'Organize Pantry', description: 'Tidy and organize pantry items', points: basePoints }
-    ]
-  } else if (age <= 12) {
-    return [
-      { title: 'Clean Bathroom', description: 'Clean sink, mirror, and counter', points: basePoints + 2 },
-      { title: 'Mop Floor', description: 'Mop kitchen or bathroom floor', points: basePoints + 2 },
-      { title: 'Fold Laundry', description: 'Fold and put away laundry', points: basePoints + 1 }
-    ]
-  } else {
-    return [
-      { title: 'Deep Clean Room', description: 'Thoroughly clean assigned room', points: basePoints + 3 },
-      { title: 'Meal Prep Help', description: 'Help prepare family meal', points: basePoints + 2 },
-      { title: 'Organize Garage', description: 'Tidy and organize garage area', points: basePoints + 2 }
-    ]
-  }
-}
+export default function DailyChecklist({ childName }: DailyChecklistProps) {
+  const [required, setRequired] = useState<ChecklistItem[]>([])
+  const [dailyCare, setDailyCare] = useState<ChecklistItem[]>([])
+  const [earnMoney, setEarnMoney] = useState<ChecklistItem[]>([])
+  const [allRequiredDone, setAllRequiredDone] = useState(false)
+  const [zone, setZone] = useState<string | null>(null)
+  const [stats, setStats] = useState({ requiredTotal: 0, requiredDone: 0, dailyCareTotal: 0, dailyCareDone: 0, earnMoneyTotal: 0, earnMoneyDone: 0 })
+  const [loaded, setLoaded] = useState(false)
 
-export default function DailyChecklist({ childName, date = new Date() }: DailyChecklistProps) {
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [paidChoresUnlocked, setPaidChoresUnlocked] = useState(false)
-  const [isClient, setIsClient] = useState(false)
-  const [child, setChild] = useState<any>(null)
-  const [todaySchedule, setTodaySchedule] = useState<any>(null)
+  const childKey = childName.toLowerCase()
 
-  // Initialize client-side state
   useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  // Get child data and today's schedule
-  useEffect(() => {
-    if (isClient) {
-      const familyData = getAllFamilyData()
-      const foundChild = familyData.children.find(c => c.name.toLowerCase() === childName.toLowerCase())
-      setChild(foundChild)
-      
-      if (foundChild) {
-        const schedule = getChildScheduleForDate(foundChild.name, date)
-        setTodaySchedule(schedule)
-      }
-    }
-  }, [childName, isClient, date.toDateString()])
-
-  // Generate checklist based on completed tasks
-  const generateDailyChecklist = useCallback((completedTasks: any[]): ChecklistItem[] => {
-    if (!child) return []
-    
-    const isCompleted = (category: string, title: string) => 
-      completedTasks.some(task => task.category === category && task.task_title === title)
-
-    const items: ChecklistItem[] = []
-
-    // 1. Required "Because You Live Here" Chores
-    items.push({
-      id: 'dishes-daily',
-      category: 'dishes',
-      title: '5 Dishes Complete',
-      description: 'Wash, dry, and put away 5 dishes',
-      completed: isCompleted('dishes', '5 Dishes Complete'),
-      points: 0,
-      icon: <Utensils className="w-5 h-5" />,
-      required: true
-    })
-
-    // Add age-appropriate required chore
-    const ageChore = getAgeAppropriateChore(child.age || 8)
-    items.push({
-      id: 'required-chore',
-      category: 'required_chore',
-      title: ageChore.title,
-      description: ageChore.description,
-      completed: isCompleted('required_chore', ageChore.title),
-      points: 0,
-      icon: <CheckSquare className="w-5 h-5" />,
-      required: true
-    })
-
-    // 2. Hygiene Tasks
-    const hygieneItems = [
-      { title: 'Brush Teeth', description: 'Morning and evening' },
-      { title: 'Get Dressed', description: 'Clean clothes for the day' },
-      { title: 'Make Bed', description: 'Tidy up bedroom' }
-    ]
-
-    hygieneItems.forEach((item, index) => {
-      items.push({
-        id: `hygiene-${index}`,
-        category: 'hygiene',
-        title: item.title,
-        description: item.description,
-        completed: isCompleted('hygiene', item.title),
-        points: 0,
-        icon: <Sparkles className="w-5 h-5" />
+    fetch(`/api/kids/checklist?child=${childKey}`)
+      .then(r => r.json())
+      .then(data => {
+        setRequired(data.required || [])
+        setDailyCare(data.dailyCare || [])
+        setEarnMoney(data.earnMoney || [])
+        setAllRequiredDone(data.allRequiredDone || false)
+        setZone(data.zone || null)
+        setStats(data.stats || stats)
+        setLoaded(true)
       })
-    })
+      .catch(() => setLoaded(true))
+  }, [childKey])
 
-    // 3. School Prep (only on school days)
-    if (todaySchedule && todaySchedule.periods && todaySchedule.periods.length > 0) {
-      items.push({
-        id: 'school-prep',
-        category: 'school_prep',
-        title: 'Backpack Ready',
-        description: 'Homework done, supplies packed',
-        completed: isCompleted('school_prep', 'Backpack Ready'),
-        points: 0,
-        icon: <School className="w-5 h-5" />
-      })
+  const toggle = async (item: ChecklistItem, tier: 'required' | 'dailyCare' | 'earnMoney') => {
+    // Optimistic update
+    const update = (items: ChecklistItem[]) => items.map(i => i.id === item.id ? { ...i, completed: !i.completed } : i)
+    if (tier === 'required') {
+      const updated = update(required)
+      setRequired(updated)
+      setAllRequiredDone(updated.every(t => t.completed))
+      setStats(s => ({ ...s, requiredDone: updated.filter(t => t.completed).length }))
+    } else if (tier === 'dailyCare') {
+      const updated = update(dailyCare)
+      setDailyCare(updated)
+      setStats(s => ({ ...s, dailyCareDone: updated.filter(t => t.completed).length }))
+    } else {
+      const updated = update(earnMoney)
+      setEarnMoney(updated)
+      setStats(s => ({ ...s, earnMoneyDone: updated.filter(t => t.completed).length }))
     }
 
-    // 4. Paid Chores (3 available)
-    const paidChores = getPaidChores(child.age || 8)
-    paidChores.forEach((chore, index) => {
-      items.push({
-        id: `paid-${index}`,
-        category: 'paid_chore',
-        title: chore.title,
-        description: chore.description,
-        completed: isCompleted('paid_chore', chore.title),
-        points: chore.points,
-        icon: <DollarSign className="w-5 h-5" />
-      })
-    })
-
-    return items
-  }, [child, todaySchedule])
-
-  // Load checklist data
-  const loadDailyChecklist = useCallback(async () => {
-    if (!child) return
-    
     try {
-      setIsLoading(true)
-      
-      // Try to load from API with timeout
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-      
-      let completedTasks: any[] = []
-      
-      try {
-        const response = await fetch(`/api/kids/checklist?childName=${childName}&date=${date.toISOString().split('T')[0]}`, {
-          signal: controller.signal
-        })
-        clearTimeout(timeoutId)
-        
-        if (response.ok) {
-          const data = await response.json()
-          completedTasks = data.completedTasks || []
-        }
-      } catch (fetchError) {
-        clearTimeout(timeoutId)
-        console.log('API unavailable, using local storage fallback')
-        
-        // Fallback to localStorage
-        if (typeof window !== 'undefined') {
-          const storageKey = `checklist-${childName}-${date.toISOString().split('T')[0]}`
-          const stored = localStorage.getItem(storageKey)
-          if (stored) {
-            completedTasks = JSON.parse(stored)
-          }
-        }
-      }
-
-      // Generate checklist
-      const todayChecklist = generateDailyChecklist(completedTasks)
-      setChecklist(todayChecklist)
-    } catch (error) {
-      console.error('Failed to load checklist:', error)
-      setChecklist(generateDailyChecklist([]))
-    } finally {
-      setIsLoading(false)
-    }
-  }, [childName, date.toDateString(), child, generateDailyChecklist])
-
-  // Load checklist when dependencies change
-  useEffect(() => {
-    if (isClient && child) {
-      loadDailyChecklist()
-    }
-  }, [isClient, child?.name, loadDailyChecklist])
-
-  // Update paid chores unlock status
-  useEffect(() => {
-    const requiredChores = checklist.filter(item => 
-      (item.category === 'required_chore' || item.category === 'dishes') && item.required
-    )
-    const requiredComplete = requiredChores.every(item => item.completed)
-    setPaidChoresUnlocked(requiredComplete)
-  }, [checklist])
-
-  // Toggle item completion
-  const toggleItem = async (itemId: string) => {
-    const item = checklist.find(i => i.id === itemId)
-    if (!item) return
-
-    // Don't allow paid chores if required chores aren't done
-    if (item.category === 'paid_chore' && !paidChoresUnlocked) {
-      return
-    }
-
-    const newCompleted = !item.completed
-
-    // Update local state immediately
-    setChecklist(prev => prev.map(i => 
-      i.id === itemId ? { ...i, completed: newCompleted } : i
-    ))
-
-    // Try to update database
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000)
-      
       await fetch('/api/kids/checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          childName,
-          date: date.toISOString().split('T')[0],
-          category: item.category,
-          taskTitle: item.title,
-          taskDescription: item.description,
-          completed: newCompleted,
-          pointsEarned: newCompleted ? item.points : 0
-        }),
-        signal: controller.signal
+        body: JSON.stringify({ action: 'toggle', child: childKey, eventId: item.id, eventSummary: item.title })
       })
-      clearTimeout(timeoutId)
-    } catch (error) {
-      console.log('Database unavailable, saving to local storage')
-    }
-
-    // Always save to localStorage as backup
-    if (typeof window !== 'undefined') {
-      const storageKey = `checklist-${childName}-${date.toISOString().split('T')[0]}`
-      const currentChecklist = checklist.map(i => 
-        i.id === itemId ? { ...i, completed: newCompleted } : i
-      )
-      const completedTasks = currentChecklist.filter(task => task.completed).map(task => ({
-        category: task.category,
-        task_title: task.title,
-        completed: true
-      }))
-      localStorage.setItem(storageKey, JSON.stringify(completedTasks))
+    } catch (err) {
+      console.error('Toggle error:', err)
     }
   }
 
-  // Calculate stats
-  const getCompletionStats = () => {
-    const requiredItems = checklist.filter(item => item.required)
-    const requiredComplete = requiredItems.filter(item => item.completed).length
-    const totalPoints = checklist.filter(item => item.completed).reduce((sum, item) => sum + item.points, 0)
-    const totalItems = checklist.length
-    const completedItems = checklist.filter(item => item.completed).length
-
-    return {
-      requiredComplete,
-      requiredTotal: requiredItems.length,
-      totalPoints,
-      completedItems,
-      totalItems,
-      percentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
-    }
-  }
-
-  if (!isClient || isLoading) {
+  if (!loaded) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
       </div>
     )
   }
 
-  const stats = getCompletionStats()
+  const totalDone = stats.requiredDone + stats.dailyCareDone + stats.earnMoneyDone
+  const totalAll = stats.requiredTotal + stats.dailyCareTotal + stats.earnMoneyTotal
+  const earnedPoints = earnMoney.filter(c => c.completed).reduce((sum, c) => sum + (c.points || 0), 0)
 
   return (
     <div className="space-y-6">
-      {/* Header with stats */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white p-6 rounded-lg">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-green-500 to-teal-500 text-white p-6 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Daily Checklist</h1>
-            <p className="text-blue-100">{date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p className="text-green-100">{childName}'s tasks for today</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold">{stats.percentage}%</div>
-            <div className="text-sm text-blue-100">Complete</div>
-          </div>
-        </div>
-        
-        <div className="mt-4 flex gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-4 h-4" />
-            <span>{stats.totalPoints} points earned</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CheckSquare className="w-4 h-4" />
-            <span>{stats.completedItems}/{stats.totalItems} tasks done</span>
+            <div className="text-3xl font-bold">{totalDone}/{totalAll}</div>
+            <div className="text-xs text-green-100">Tasks done</div>
           </div>
         </div>
       </div>
 
-      {/* School Schedule (if school day) */}
-      {todaySchedule && todaySchedule.periods && todaySchedule.periods.length > 0 && (
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="flex items-center gap-2 mb-3">
-            <School className="w-5 h-5 text-orange-500" />
-            <h2 className="font-semibold">Today's Schedule</h2>
-            {todaySchedule.dayType && (
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">
-                {todaySchedule.dayType} Day
-              </span>
-            )}
-          </div>
-          <div className="space-y-1 text-sm">
-            {todaySchedule.periods.slice(0, 3).map((period: any, index: number) => (
-              <div key={index} className="flex justify-between">
-                <span className="font-medium">{period.course}</span>
-                <span className="text-gray-500">{period.teacher}</span>
-              </div>
-            ))}
-            {todaySchedule.periods.length > 3 && (
-              <div className="text-gray-500 text-xs">+{todaySchedule.periods.length - 3} more classes</div>
-            )}
-          </div>
+      {/* Stats Row */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white p-3 rounded-lg border text-center">
+          <div className="text-xl font-bold text-amber-600">{stats.requiredDone}/{stats.requiredTotal}</div>
+          <div className="text-xs text-gray-500">Required</div>
         </div>
-      )}
+        <div className="bg-white p-3 rounded-lg border text-center">
+          <div className="text-xl font-bold text-sky-600">{stats.dailyCareDone}/{stats.dailyCareTotal}</div>
+          <div className="text-xs text-gray-500">Daily Care</div>
+        </div>
+        <div className="bg-white p-3 rounded-lg border text-center">
+          <div className="text-xl font-bold text-emerald-600">{earnedPoints} pts</div>
+          <div className="text-xs text-gray-500">Earned</div>
+        </div>
+      </div>
 
-      {/* Required Tasks */}
-      <div className="bg-white p-4 rounded-lg border">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-red-600">Required "Because You Live Here"</h2>
-          <span className="text-sm text-gray-500">
-            {stats.requiredComplete}/{stats.requiredTotal} complete
-          </span>
+      {/* Tier 1: Required */}
+      <div className="bg-white rounded-lg border shadow-sm">
+        <div className="p-4 border-b bg-amber-50 rounded-t-lg">
+          <h2 className="font-bold text-amber-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5" />
+            Required — Because You Live Here
+          </h2>
+          <p className="text-xs text-amber-700 mt-1">No pay — these come first</p>
         </div>
-        <div className="space-y-3">
-          {checklist.filter(item => item.required).map(item => (
-            <div
-              key={item.id}
-              className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                item.completed ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-              }`}
-            >
-              <button
-                onClick={() => toggleItem(item.id)}
-                className={`flex-shrink-0 ${item.completed ? 'text-green-600' : 'text-gray-400'}`}
-              >
-                {item.completed ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
-              </button>
-              {item.icon}
-              <div className="flex-1">
-                <div className={`font-medium ${item.completed ? 'line-through text-gray-500' : ''}`}>
-                  {item.title}
-                </div>
-                {item.description && (
-                  <div className="text-sm text-gray-500">{item.description}</div>
-                )}
-              </div>
-            </div>
+        <div className="divide-y">
+          {required.map(item => (
+            <ChecklistRow key={item.id} item={item} onToggle={() => toggle(item, 'required')} />
           ))}
-        </div>
-      </div>
-
-      {/* Hygiene & School Prep */}
-      <div className="bg-white p-4 rounded-lg border">
-        <h2 className="font-semibold mb-3">Daily Care</h2>
-        <div className="space-y-3">
-          {checklist.filter(item => item.category === 'hygiene' || item.category === 'school_prep').map(item => (
-            <div
-              key={item.id}
-              className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                item.completed ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-              }`}
-            >
-              <button
-                onClick={() => toggleItem(item.id)}
-                className={`flex-shrink-0 ${item.completed ? 'text-green-600' : 'text-gray-400'}`}
-              >
-                {item.completed ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
-              </button>
-              {item.icon}
-              <div className="flex-1">
-                <div className={`font-medium ${item.completed ? 'line-through text-gray-500' : ''}`}>
-                  {item.title}
-                </div>
-                {item.description && (
-                  <div className="text-sm text-gray-500">{item.description}</div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Paid Chores */}
-      <div className="bg-white p-4 rounded-lg border">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-green-600">Earn Money Chores</h2>
-          {!paidChoresUnlocked && (
-            <div className="flex items-center gap-1 text-sm text-orange-600">
-              <Lock className="w-4 h-4" />
-              Complete required tasks first
-            </div>
+          {required.length === 0 && (
+            <div className="p-6 text-center text-gray-400">No required tasks today</div>
           )}
         </div>
-        <div className="space-y-3">
-          {checklist.filter(item => item.category === 'paid_chore').map(item => (
-            <div
-              key={item.id}
-              className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                item.completed ? 'bg-green-50 border-green-200' : 
-                !paidChoresUnlocked ? 'bg-gray-100 border-gray-200 opacity-50' : 'bg-gray-50 border-gray-200'
-              }`}
-            >
-              <button
-                onClick={() => toggleItem(item.id)}
-                disabled={!paidChoresUnlocked}
-                className={`flex-shrink-0 ${
-                  item.completed ? 'text-green-600' : 
-                  !paidChoresUnlocked ? 'text-gray-300' : 'text-gray-400'
-                }`}
-              >
-                {item.completed ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
-              </button>
-              {item.icon}
-              <div className="flex-1">
-                <div className={`font-medium ${item.completed ? 'line-through text-gray-500' : ''}`}>
-                  {item.title}
-                </div>
-                {item.description && (
-                  <div className="text-sm text-gray-500">{item.description}</div>
-                )}
-              </div>
-              <div className="text-sm font-medium text-green-600">
-                +{item.points} pts
-              </div>
-            </div>
+      </div>
+
+      {/* Tier 2: Daily Care */}
+      <div className="bg-white rounded-lg border shadow-sm">
+        <div className="p-4 border-b bg-sky-50 rounded-t-lg">
+          <h2 className="font-bold text-sky-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5" />
+            Daily Care — Take Care of You
+          </h2>
+        </div>
+        <div className="divide-y">
+          {dailyCare.map(item => (
+            <ChecklistRow key={item.id} item={item} onToggle={() => toggle(item, 'dailyCare')} />
           ))}
         </div>
       </div>
+
+      {/* Tier 3: Earn Money */}
+      <div className="bg-white rounded-lg border shadow-sm">
+        <div className={`p-4 border-b rounded-t-lg ${allRequiredDone ? 'bg-emerald-50' : 'bg-gray-100'}`}>
+          <h2 className={`font-bold flex items-center gap-2 ${allRequiredDone ? 'text-emerald-900' : 'text-gray-500'}`}>
+            {allRequiredDone ? <Trophy className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+            Earn Money Chores
+          </h2>
+          <p className={`text-xs mt-1 ${allRequiredDone ? 'text-emerald-700' : 'text-gray-400'}`}>
+            {allRequiredDone
+              ? `${earnMoney.length} chores available — earn points for each!`
+              : 'Complete all required tasks first to unlock'}
+          </p>
+        </div>
+        {allRequiredDone ? (
+          <div className="divide-y">
+            {earnMoney.map(item => (
+              <ChecklistRow key={item.id} item={item} onToggle={() => toggle(item, 'earnMoney')} showPoints />
+            ))}
+            {earnMoney.length === 0 && (
+              <div className="p-6 text-center text-gray-400">No earn-money chores set up yet. Ask a parent to add some!</div>
+            )}
+          </div>
+        ) : (
+          <div className="p-6 text-center">
+            <Lock className="w-8 h-8 mx-auto text-gray-300 mb-2" />
+            <p className="text-gray-400 text-sm">Finish your required tasks to unlock earn-money chores</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ChecklistRow({ item, onToggle, showPoints }: { item: ChecklistItem; onToggle: () => void; showPoints?: boolean }) {
+  const cat = CATEGORY_ICONS[item.category] || { icon: <Circle className="w-4 h-4" />, color: 'text-gray-500' }
+
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 ${item.completed ? 'bg-gray-50/50' : ''}`}>
+      <button onClick={onToggle} className="flex-shrink-0">
+        {item.completed ? (
+          <CheckCircle2 className="w-5 h-5 text-green-600" />
+        ) : (
+          <Circle className="w-5 h-5 text-gray-300" />
+        )}
+      </button>
+      <div className={`flex-shrink-0 ${cat.color}`}>{cat.icon}</div>
+      <div className="flex-1 min-w-0">
+        <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+          {item.title}
+        </span>
+        {item.description && (
+          <p className={`text-xs ${item.completed ? 'text-gray-300' : 'text-gray-500'}`}>{item.description}</p>
+        )}
+      </div>
+      {item.time && <span className="text-xs text-gray-400 flex-shrink-0">{item.time}</span>}
+      {showPoints && item.points && (
+        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">
+          +{item.points} pts
+        </span>
+      )}
     </div>
   )
 }
