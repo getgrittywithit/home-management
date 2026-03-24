@@ -54,6 +54,66 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
   const { profile, todaysChecklist, todaysEvents, weekEvents, zones } = kidData
 
+  // Dashboard state
+  const [dashboardEvents, setDashboardEvents] = useState<any[]>([])
+  const [dashboardStats, setDashboardStats] = useState({ totalEvents: 0, completedEvents: 0, dueSoon: 0 })
+  const [dashboardLoaded, setDashboardLoaded] = useState(false)
+  const [currentMinutes, setCurrentMinutes] = useState(0)
+
+  // Load kid dashboard from API
+  useEffect(() => {
+    if (profile?.first_name) {
+      const childKey = profile.first_name.toLowerCase()
+      fetch(`/api/kids/dashboard?child=${childKey}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.events) setDashboardEvents(data.events)
+          if (data.stats) setDashboardStats(data.stats)
+          setDashboardLoaded(true)
+        })
+        .catch(() => setDashboardLoaded(true))
+    }
+  }, [profile?.first_name])
+
+  // Update current time every minute for "NOW" indicator
+  useEffect(() => {
+    const update = () => {
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+      setCurrentMinutes(now.getHours() * 60 + now.getMinutes())
+    }
+    update()
+    const interval = setInterval(update, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const toggleDashboardItem = async (eventId: string, summary: string, startTime: string) => {
+    // Optimistic update
+    setDashboardEvents(prev => prev.map(e =>
+      e.id === eventId ? { ...e, completed: !e.completed } : e
+    ))
+    setDashboardStats(prev => {
+      const event = dashboardEvents.find(e => e.id === eventId)
+      const delta = event?.completed ? -1 : 1
+      return { ...prev, completedEvents: prev.completedEvents + delta }
+    })
+
+    try {
+      await fetch('/api/kids/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_checklist',
+          child: profile.first_name,
+          eventId,
+          eventSummary: summary,
+          eventStartTime: startTime,
+        })
+      })
+    } catch (error) {
+      console.error('Error toggling checklist item:', error)
+    }
+  }
+
   // Load real schedule data based on child name
   useEffect(() => {
     if (profile?.first_name) {
@@ -134,73 +194,165 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     return `${displayHour}:${minutes} ${ampm}`
   }
 
-  const renderDashboard = () => (
-    <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Welcome back, {profile.first_name}! {profile.emoji}</h1>
-            <p className="text-blue-100">Ready to make today amazing?</p>
-          </div>
-        </div>
-      </div>
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'school': return { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-400' }
+      case 'chores': return { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-400' }
+      case 'break': return { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-400' }
+      case 'creative': return { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-400' }
+      case 'routine': return { bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-400' }
+      default: return { bg: 'bg-gray-100', text: 'text-gray-600', border: 'border-gray-400' }
+    }
+  }
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="flex items-center gap-3">
-            <CheckSquare className="w-8 h-8 text-green-500" />
+  const formatEventTime = (isoTime: string) => {
+    const d = new Date(isoTime)
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })
+  }
+
+  const renderDashboard = () => {
+    // Find current and next events
+    const currentIdx = dashboardEvents.findIndex(e => {
+      const start = new Date(e.startTime).getTime()
+      const end = new Date(e.endTime).getTime()
+      const now = Date.now()
+      return now >= start && now < end
+    })
+    const nextIdx = currentIdx >= 0 ? currentIdx + 1 : dashboardEvents.findIndex(e => new Date(e.startTime).getTime() > Date.now())
+
+    return (
+      <div className="space-y-6">
+        {/* Welcome Header */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6 rounded-lg">
+          <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold">{completedTasks}/{totalTasks}</div>
-              <div className="text-sm text-gray-600">Tasks Complete</div>
+              <h1 className="text-2xl font-bold">Welcome back, {profile.first_name}! {profile.emoji}</h1>
+              <p className="text-blue-100">
+                {currentIdx >= 0
+                  ? `Right now: ${dashboardEvents[currentIdx].summary}`
+                  : 'Ready to make today amazing?'}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold">
+                {dashboardStats.totalEvents > 0 ? Math.round((dashboardStats.completedEvents / dashboardStats.totalEvents) * 100) : 0}%
+              </div>
+              <div className="text-xs text-blue-100">Done today</div>
             </div>
           </div>
         </div>
-        
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="flex items-center gap-3">
-            <Calendar className="w-8 h-8 text-purple-500" />
-            <div>
-              <div className="text-2xl font-bold">{todaysEvents.length}</div>
-              <div className="text-sm text-gray-600">Events Today</div>
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-white p-4 rounded-lg border">
-          <div className="flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-orange-500" />
-            <div>
-              <div className="text-2xl font-bold">{getUpcomingAssignments().length}</div>
-              <div className="text-sm text-gray-600">Due Soon</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Today's Schedule Preview */}
-      <div className="bg-white p-6 rounded-lg border">
-        <h2 className="text-xl font-bold mb-4">Today's Schedule</h2>
-        <div className="space-y-2">
-          {todaysEvents.length > 0 ? todaysEvents.map(event => (
-            <div key={event.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-              <Clock className="w-4 h-4 text-gray-500" />
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg border">
+            <div className="flex items-center gap-3">
+              <CheckSquare className="w-8 h-8 text-green-500" />
               <div>
-                <div className="font-medium">{event.title}</div>
-                <div className="text-sm text-gray-600">
-                  {new Date(event.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  {event.location && ` • ${event.location}`}
-                </div>
+                <div className="text-2xl font-bold">{dashboardStats.completedEvents}/{dashboardStats.totalEvents}</div>
+                <div className="text-sm text-gray-600">Tasks Complete</div>
               </div>
             </div>
-          )) : (
-            <p className="text-gray-500 text-center py-4">No events scheduled for today</p>
+          </div>
+          <div className="bg-white p-4 rounded-lg border">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-8 h-8 text-purple-500" />
+              <div>
+                <div className="text-2xl font-bold">{dashboardStats.totalEvents}</div>
+                <div className="text-sm text-gray-600">Events Today</div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-lg border">
+            <div className="flex items-center gap-3">
+              <Clock className="w-8 h-8 text-orange-500" />
+              <div>
+                <div className="text-2xl font-bold">{dashboardStats.dueSoon}</div>
+                <div className="text-sm text-gray-600">Due Soon</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Today's Schedule Timeline */}
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-4 border-b flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-900">Today's Schedule</h2>
+            <span className="text-xs text-gray-500">
+              {new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'short', day: 'numeric' })}
+            </span>
+          </div>
+          {!dashboardLoaded ? (
+            <div className="p-8 text-center text-gray-400">Loading schedule...</div>
+          ) : dashboardEvents.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">No events scheduled for today</div>
+          ) : (
+            <div className="divide-y">
+              {dashboardEvents.map((event, i) => {
+                const isCurrent = i === currentIdx
+                const isNext = i === nextIdx && !isCurrent
+                const isPast = new Date(event.endTime).getTime() <= Date.now()
+                const colors = getCategoryColor(event.category)
+
+                return (
+                  <div
+                    key={event.id}
+                    className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                      isCurrent ? `bg-blue-50 border-l-4 ${colors.border}` :
+                      isNext ? 'bg-green-50/40' :
+                      event.completed ? 'bg-gray-50/50' :
+                      isPast ? 'bg-gray-50' : ''
+                    }`}
+                  >
+                    <button
+                      onClick={() => toggleDashboardItem(event.id, event.summary, event.startTime)}
+                      className="flex-shrink-0"
+                    >
+                      {event.completed ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <Circle className={`w-5 h-5 ${isCurrent ? 'text-blue-500' : 'text-gray-300'}`} />
+                      )}
+                    </button>
+
+                    <div className="w-20 flex-shrink-0 text-right">
+                      <span className={`text-sm font-medium ${isCurrent ? 'text-blue-700' : 'text-gray-500'}`}>
+                        {formatEventTime(event.startTime)}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 flex items-center gap-2">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+                        {event.category}
+                      </span>
+                      <span className={`text-sm ${
+                        event.completed ? 'line-through text-gray-400' :
+                        isCurrent ? 'font-semibold text-gray-900' : 'text-gray-800'
+                      }`}>
+                        {event.summary}
+                      </span>
+                    </div>
+
+                    <div className="flex-shrink-0">
+                      {isCurrent && (
+                        <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-medium animate-pulse">
+                          NOW
+                        </span>
+                      )}
+                      {isNext && (
+                        <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-medium">
+                          Up Next
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderSchoolTab = () => {
     const todaysSchedule = getChildScheduleForDate(profile.first_name, selectedDate)
