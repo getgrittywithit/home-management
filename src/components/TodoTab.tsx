@@ -18,6 +18,8 @@ interface Todo {
   category?: string
 }
 
+const FAMILY_MEMBERS = ['Lola', 'Levi', 'Amos', 'Zoey', 'Kaylee', 'Ellie', 'Wyatt', 'Hannah']
+
 export default function TodoTab() {
   // Initialize with empty array to ensure consistent hydration
   const [todos, setTodos] = useState<Todo[]>([])
@@ -26,6 +28,7 @@ export default function TodoTab() {
   const [newTodo, setNewTodo] = useState('')
   const [selectedPriority, setSelectedPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [selectedCategory, setSelectedCategory] = useState('general')
+  const [selectedAssignee, setSelectedAssignee] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all')
   const [showArchive, setShowArchive] = useState(false)
@@ -33,6 +36,7 @@ export default function TodoTab() {
   const [editContent, setEditContent] = useState('')
   const [editPriority, setEditPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [editCategory, setEditCategory] = useState('general')
+  const [editAssignee, setEditAssignee] = useState('')
   
   // Animation hooks
   const { 
@@ -105,7 +109,8 @@ export default function TodoTab() {
       status: 'pending',
       priority: selectedPriority,
       createdAt: new Date(),
-      category: selectedCategory
+      category: selectedCategory,
+      assignedTo: selectedAssignee || undefined
     }
 
     // Save to database
@@ -116,7 +121,8 @@ export default function TodoTab() {
         body: JSON.stringify({
           content: newTodo,
           priority: selectedPriority,
-          category: selectedCategory
+          category: selectedCategory,
+          assigned_to: selectedAssignee || undefined
         })
       })
       if (response.ok) {
@@ -131,6 +137,7 @@ export default function TodoTab() {
     setTodos(updatedTodos)
     saveTodosToStorage(updatedTodos)
     setNewTodo('')
+    setSelectedAssignee('')
   }
 
   const updateTodoStatus = async (id: string, status: Todo['status'], event?: React.MouseEvent) => {
@@ -181,14 +188,15 @@ export default function TodoTab() {
     setEditContent(todo.content)
     setEditPriority(todo.priority)
     setEditCategory(todo.category || 'general')
+    setEditAssignee(todo.assignedTo || '')
   }
 
   const saveEdit = () => {
     if (!editContent.trim() || !editingId) return
 
-    const updatedTodos = todos.map(todo => 
-      todo.id === editingId 
-        ? { ...todo, content: editContent, priority: editPriority, category: editCategory }
+    const updatedTodos = todos.map(todo =>
+      todo.id === editingId
+        ? { ...todo, content: editContent, priority: editPriority, category: editCategory, assignedTo: editAssignee || undefined }
         : todo
     )
     setTodos(updatedTodos)
@@ -201,6 +209,7 @@ export default function TodoTab() {
     setEditContent('')
     setEditPriority('medium')
     setEditCategory('general')
+    setEditAssignee('')
   }
 
   const getPriorityColor = (priority: string) => {
@@ -345,6 +354,16 @@ export default function TodoTab() {
               <option value="contacts">Contacts</option>
               <option value="development">Development</option>
             </select>
+            <select
+              value={selectedAssignee}
+              onChange={(e) => setSelectedAssignee(e.target.value)}
+              className="px-3 py-2 border rounded-lg"
+            >
+              <option value="">Unassigned</option>
+              {FAMILY_MEMBERS.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
             <button
               onClick={addTodo}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
@@ -440,6 +459,16 @@ export default function TodoTab() {
                             <option value="family">Family</option>
                             <option value="contacts">Contacts</option>
                             <option value="development">Development</option>
+                          </select>
+                          <select
+                            value={editAssignee}
+                            onChange={(e) => setEditAssignee(e.target.value)}
+                            className="px-2 py-1 border rounded text-xs"
+                          >
+                            <option value="">Unassigned</option>
+                            {FAMILY_MEMBERS.map(name => (
+                              <option key={name} value={name}>{name}</option>
+                            ))}
                           </select>
                           <div className="flex gap-1 ml-auto">
                             <button
