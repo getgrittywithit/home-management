@@ -52,211 +52,35 @@ export default function TodoTab() {
   const loadTodos = async () => {
     try {
       setIsLoading(true)
-      
-      // Check localStorage first (only on client side)
-      if (isClient && typeof window !== 'undefined') {
-        const savedTodos = localStorage.getItem('family-todos')
-        if (savedTodos) {
-          const parsedTodos = JSON.parse(savedTodos).map((todo: any) => ({
-            ...todo,
-            createdAt: new Date(todo.createdAt),
-            dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined
+
+      // Load from database API
+      const response = await fetch('/api/todos')
+      if (response.ok) {
+        const dbTodos = await response.json()
+        if (Array.isArray(dbTodos) && dbTodos.length > 0) {
+          const parsedTodos = dbTodos.map((todo: any) => ({
+            id: todo.id,
+            content: todo.content,
+            status: todo.status || 'pending',
+            priority: todo.priority || 'medium',
+            createdAt: new Date(todo.created_at || todo.createdAt),
+            category: todo.category || 'general',
+            assignedTo: todo.assigned_to || todo.assignedTo,
+            dueDate: todo.due_date ? new Date(todo.due_date) : undefined
           }))
           setTodos(parsedTodos)
+          saveTodosToStorage(parsedTodos)
           return
         }
       }
-      
-      // Fall back to mock data if no saved todos
-      const mockTodos: Todo[] = [
-        {
-          id: 'vaccine-waiver-amos',
-          content: 'URGENT: Renew Amos\' vaccine waiver - expired 05/10/2025, needs notarization and submission to CHS nurse',
-          status: 'pending',
-          priority: 'high',
-          createdAt: new Date(),
-          category: 'school',
-          assignedTo: 'Parents'
-        },
-        {
-          id: 'add-nurse-contact',
-          content: 'Add Laura T. Booth (CHS Nurse) to contacts system',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'contacts'
-        },
-        {
-          id: 'contacts-tab-design',
-          content: 'Design and implement Contacts tab for parent portal',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'development'
-        },
-        {
-          id: 'multi-school-contacts',
-          content: 'Create multi-school contact management system',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'development'
-        },
-        {
-          id: 'todo-edit-functionality',
-          content: 'Add edit functionality to TodoTab with inline editing',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'development'
-        },
-        {
-          id: 'bmsn-pto-meeting-dates',
-          content: 'Check BMSN PTO Meeting Dates for 25-26 school year',
-          status: 'pending',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'bmsn-chick-fil-a-days',
-          content: 'Review Chick-fil-A Days program for BMSN students',
-          status: 'pending',
-          priority: 'low',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'bmsn-spirit-wear',
-          content: 'Consider BMSN PTO Spirit Wear purchases for kids',
-          status: 'pending',
-          priority: 'low',
-          createdAt: new Date(),
-          category: 'family'
-        },
-        {
-          id: 'add-bmsn-pto-contact',
-          content: 'Add BMSN PTO contact to contacts system',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'contacts'
-        },
-        {
-          id: 'technology-aup-consent',
-          content: 'URGENT: Review and consent to Boerne ISD Technology AUP for student',
-          status: 'pending',
-          priority: 'high',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'add-bmsn-principal',
-          content: 'Add Mr. Carr (BMSN Principal) to contacts system',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'contacts'
-        },
-        {
-          id: 'review-hb1481-policy',
-          content: 'Review HB 1481 cell phone policy: Off and Away for the Day',
-          status: 'pending',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'add-bisd-contact',
-          content: 'Add Boerne ISD contact to contacts system',
-          status: 'completed',
-          priority: 'low',
-          createdAt: new Date(),
-          category: 'contacts'
-        },
-        {
-          id: 'payschools-account-setup',
-          content: 'Set up PaySchools account for meal payments - need student IDs',
-          status: 'pending',
-          priority: 'high',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'free-reduced-meals-app',
-          content: 'Apply for Free/Reduced meals if applicable',
-          status: 'pending',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'review-meal-pricing',
-          content: 'Review meal pricing: Breakfast $2.30, Lunch Elementary $3.40, MS/HS $3.65',
-          status: 'pending',
-          priority: 'low',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'monitor-meal-accounts',
-          content: 'Monitor student meal account balances - $50 charge limit',
-          status: 'pending',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'add-nutrition-contacts',
-          content: 'Add Child Nutrition contacts to system',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'contacts'
-        },
-        {
-          id: 'zoey-summer-reading-book',
-          content: 'URGENT: Zoey needs to bring summer reading book to Honors English 1 first day',
-          status: 'pending',
-          priority: 'high',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'add-erika-hill-contact',
-          content: 'Add Erika Hill (Zoey\'s English teacher) to contacts',
-          status: 'completed',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'contacts'
-        },
-        {
-          id: 'register-parentsquare',
-          content: 'Register for ParentSquare communication platform',
-          status: 'pending',
-          priority: 'high',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'download-parentsquare-app',
-          content: 'Download ParentSquare app (optional but recommended)',
-          status: 'pending',
-          priority: 'low',
-          createdAt: new Date(),
-          category: 'school'
-        },
-        {
-          id: 'update-skyward-contacts',
-          content: 'Update contact info in Skyward Family Access if needed',
-          status: 'pending',
-          priority: 'medium',
-          createdAt: new Date(),
-          category: 'school'
-        }
-      ]
-      setTodos(mockTodos)
-      saveTodosToStorage(mockTodos)
+
+      // Clear any stale localStorage data
+      if (isClient && typeof window !== 'undefined') {
+        localStorage.removeItem('family-todos')
+      }
+
+      // Start fresh
+      setTodos([])
     } catch (error) {
       console.error('Failed to load todos:', error)
       // Use empty array if all else fails
@@ -272,7 +96,7 @@ export default function TodoTab() {
     }
   }
 
-  const addTodo = () => {
+  const addTodo = async () => {
     if (!newTodo.trim()) return
 
     const todo: Todo = {
@@ -284,38 +108,72 @@ export default function TodoTab() {
       category: selectedCategory
     }
 
+    // Save to database
+    try {
+      const response = await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: newTodo,
+          priority: selectedPriority,
+          category: selectedCategory
+        })
+      })
+      if (response.ok) {
+        const dbTodo = await response.json()
+        todo.id = dbTodo.id // Use database ID
+      }
+    } catch (err) {
+      console.error('Error saving todo to database:', err)
+    }
+
     const updatedTodos = [todo, ...todos]
     setTodos(updatedTodos)
     saveTodosToStorage(updatedTodos)
     setNewTodo('')
   }
 
-  const updateTodoStatus = (id: string, status: Todo['status'], event?: React.MouseEvent) => {
-    const updatedTodos = todos.map(todo => 
+  const updateTodoStatus = async (id: string, status: Todo['status'], event?: React.MouseEvent) => {
+    const updatedTodos = todos.map(todo =>
       todo.id === id ? { ...todo, status } : todo
     )
-    
+
     setTodos(updatedTodos)
     saveTodosToStorage(updatedTodos)
 
+    // Save to database
+    try {
+      await fetch('/api/todos', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status })
+      })
+    } catch (err) {
+      console.error('Error updating todo in database:', err)
+    }
+
     // Trigger animations when completing a todo
     if (status === 'completed') {
-      // Trigger both glitter burst at click location and flying unicorn
       if (event) {
         triggerGlitterBurst(event.clientX, event.clientY)
       }
-      
-      // Small delay before unicorn so they don't overlap too much
       setTimeout(() => {
         triggerUnicornAnimation()
       }, 500)
     }
   }
 
-  const deleteTodo = (id: string) => {
+  const deleteTodo = async (id: string) => {
     const updatedTodos = todos.filter(todo => todo.id !== id)
     setTodos(updatedTodos)
     saveTodosToStorage(updatedTodos)
+
+    // Delete from database
+    try {
+      await fetch(`/api/todos?id=${id}`, { method: 'DELETE' })
+    } catch (err) {
+      console.error('Error deleting todo from database:', err)
+    }
   }
 
   const startEdit = (todo: Todo) => {
