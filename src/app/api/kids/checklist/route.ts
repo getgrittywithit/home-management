@@ -159,6 +159,21 @@ export async function GET(request: NextRequest) {
       id: `earn-${c.id}`, title: c.title, description: c.description, points: c.points, category: 'earn_money',
     }))
 
+    // ── Sort by time (earliest to latest) ──
+    const parseTime = (t?: string): number => {
+      if (!t) return 9999
+      const lower = t.toLowerCase()
+      if (lower === 'after dinner') return 1900
+      const match = lower.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/)
+      if (!match) return 9999
+      let hours = parseInt(match[1])
+      const mins = parseInt(match[2])
+      if (match[3] === 'pm' && hours !== 12) hours += 12
+      if (match[3] === 'am' && hours === 12) hours = 0
+      return hours * 60 + mins
+    }
+    required.sort((a, b) => parseTime(a.time) - parseTime(b.time))
+
     // ── Completions ──
     const completions = await db.query(
       `SELECT event_id, completed FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2`,
