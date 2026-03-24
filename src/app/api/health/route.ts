@@ -40,11 +40,25 @@ export async function GET(request: NextRequest) {
       )
       : []
 
+    // Fetch appointments
+    const appointmentsResult = await query(
+      `SELECT * FROM health_appointments WHERE member_group = $1 ORDER BY appointment_date DESC`,
+      [group]
+    )
+
+    // Fetch medications
+    const medicationsResult = await query(
+      `SELECT * FROM medications WHERE member_group = $1 ORDER BY is_active DESC, medication_name ASC`,
+      [group]
+    )
+
     return NextResponse.json({
       insurancePlan,
       providers: providersResult,
       healthProfiles: profilesResult,
-      benefitRules: benefitRulesResult
+      benefitRules: benefitRulesResult,
+      appointments: appointmentsResult,
+      medications: medicationsResult
     })
   } catch (error) {
     console.error('Error fetching health data:', error)
@@ -306,6 +320,189 @@ export async function POST(request: NextRequest) {
 
         await query(`DELETE FROM benefit_rules WHERE id = $1`, [id])
         return NextResponse.json({ success: true })
+      }
+
+      // =============================================
+      // PHASE 2: APPOINTMENTS
+      // =============================================
+      case 'add_appointment': {
+        if (!data.family_member_name || !data.appointment_type || !data.appointment_date) {
+          return NextResponse.json(
+            { error: 'Family member name, appointment type, and date are required' },
+            { status: 400 }
+          )
+        }
+
+        const result = await query(
+          `INSERT INTO health_appointments (
+            family_member_name, member_group, provider_id, provider_name,
+            appointment_type, appointment_date, location, reason,
+            status, notes, copay_amount, referral_needed, referral_status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           RETURNING *`,
+          [
+            data.family_member_name,
+            data.member_group,
+            data.provider_id || null,
+            data.provider_name || null,
+            data.appointment_type,
+            data.appointment_date,
+            data.location || null,
+            data.reason || null,
+            data.status || 'scheduled',
+            data.notes || null,
+            data.copay_amount || null,
+            data.referral_needed || false,
+            data.referral_status || null
+          ]
+        )
+        return NextResponse.json(result[0], { status: 201 })
+      }
+
+      case 'update_appointment': {
+        const { id, ...updates } = data
+        if (!id) return NextResponse.json({ error: 'Missing appointment ID' }, { status: 400 })
+
+        const result = await query(
+          `UPDATE health_appointments
+           SET family_member_name = COALESCE($2, family_member_name),
+               provider_name = COALESCE($3, provider_name),
+               appointment_type = COALESCE($4, appointment_type),
+               appointment_date = COALESCE($5, appointment_date),
+               location = COALESCE($6, location),
+               reason = COALESCE($7, reason),
+               status = COALESCE($8, status),
+               notes = COALESCE($9, notes),
+               copay_amount = COALESCE($10, copay_amount),
+               referral_needed = COALESCE($11, referral_needed),
+               referral_status = COALESCE($12, referral_status),
+               updated_at = NOW()
+           WHERE id = $1
+           RETURNING *`,
+          [
+            id,
+            updates.family_member_name,
+            updates.provider_name,
+            updates.appointment_type,
+            updates.appointment_date,
+            updates.location,
+            updates.reason,
+            updates.status,
+            updates.notes,
+            updates.copay_amount,
+            updates.referral_needed,
+            updates.referral_status
+          ]
+        )
+        return NextResponse.json(result[0])
+      }
+
+      case 'delete_appointment': {
+        const { id } = data
+        if (!id) return NextResponse.json({ error: 'Missing appointment ID' }, { status: 400 })
+
+        await query(`DELETE FROM health_appointments WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      // =============================================
+      // PHASE 2: MEDICATIONS
+      // =============================================
+      case 'add_medication': {
+        if (!data.family_member_name || !data.medication_name) {
+          return NextResponse.json(
+            { error: 'Family member name and medication name are required' },
+            { status: 400 }
+          )
+        }
+
+        const result = await query(
+          `INSERT INTO medications (
+            family_member_name, member_group, medication_name, dosage,
+            frequency, prescribing_doctor, pharmacy, start_date, end_date,
+            refill_date, refills_remaining, purpose, side_effects, is_active, notes
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+           RETURNING *`,
+          [
+            data.family_member_name,
+            data.member_group,
+            data.medication_name,
+            data.dosage || null,
+            data.frequency || null,
+            data.prescribing_doctor || null,
+            data.pharmacy || null,
+            data.start_date || null,
+            data.end_date || null,
+            data.refill_date || null,
+            data.refills_remaining ?? null,
+            data.purpose || null,
+            data.side_effects || null,
+            data.is_active ?? true,
+            data.notes || null
+          ]
+        )
+        return NextResponse.json(result[0], { status: 201 })
+      }
+
+      case 'update_medication': {
+        const { id, ...updates } = data
+        if (!id) return NextResponse.json({ error: 'Missing medication ID' }, { status: 400 })
+
+        const result = await query(
+          `UPDATE medications
+           SET medication_name = COALESCE($2, medication_name),
+               dosage = COALESCE($3, dosage),
+               frequency = COALESCE($4, frequency),
+               prescribing_doctor = COALESCE($5, prescribing_doctor),
+               pharmacy = COALESCE($6, pharmacy),
+               start_date = COALESCE($7, start_date),
+               end_date = COALESCE($8, end_date),
+               refill_date = COALESCE($9, refill_date),
+               refills_remaining = COALESCE($10, refills_remaining),
+               purpose = COALESCE($11, purpose),
+               side_effects = COALESCE($12, side_effects),
+               is_active = COALESCE($13, is_active),
+               notes = COALESCE($14, notes),
+               updated_at = NOW()
+           WHERE id = $1
+           RETURNING *`,
+          [
+            id,
+            updates.medication_name,
+            updates.dosage,
+            updates.frequency,
+            updates.prescribing_doctor,
+            updates.pharmacy,
+            updates.start_date,
+            updates.end_date,
+            updates.refill_date,
+            updates.refills_remaining,
+            updates.purpose,
+            updates.side_effects,
+            updates.is_active,
+            updates.notes
+          ]
+        )
+        return NextResponse.json(result[0])
+      }
+
+      case 'delete_medication': {
+        const { id } = data
+        if (!id) return NextResponse.json({ error: 'Missing medication ID' }, { status: 400 })
+
+        await query(`DELETE FROM medications WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'toggle_medication_active': {
+        const { id, is_active } = data
+        if (!id) return NextResponse.json({ error: 'Missing medication ID' }, { status: 400 })
+
+        const result = await query(
+          `UPDATE medications SET is_active = $2, updated_at = NOW() WHERE id = $1 RETURNING *`,
+          [id, is_active]
+        )
+        return NextResponse.json(result[0])
       }
 
       default:
