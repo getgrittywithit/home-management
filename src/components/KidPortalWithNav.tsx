@@ -224,14 +224,26 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     const kidZone = getKidZone(profile.first_name)
     const zoneBannerColor = kidZone ? (ZONE_BANNER_COLORS[kidZone] || 'from-gray-500 to-gray-600') : null
 
-    // Find current and next events
+    // Parse HH:MM from ISO-ish timestamp like "2026-03-24T09:00:00"
+    const toMins = (iso: string) => {
+      const timePart = iso.split('T')[1] || '00:00'
+      const [h, m] = timePart.split(':').map(Number)
+      return h * 60 + m
+    }
+
+    // Find current and next events using Chicago minutes
     const currentIdx = dashboardEvents.findIndex(e => {
-      const start = new Date(e.startTime).getTime()
-      const end = new Date(e.endTime).getTime()
-      const now = Date.now()
-      return now >= start && now < end
+      const startMins = toMins(e.startTime)
+      const endMins = toMins(e.endTime)
+      return currentMinutes >= startMins && currentMinutes < endMins
     })
-    const nextIdx = currentIdx >= 0 ? currentIdx + 1 : dashboardEvents.findIndex(e => new Date(e.startTime).getTime() > Date.now())
+    const nextIdx = currentIdx >= 0
+      ? (currentIdx + 1 < dashboardEvents.length ? currentIdx + 1 : -1)
+      : dashboardEvents.findIndex(e => toMins(e.startTime) > currentMinutes)
+
+    // Check if all blocks are past
+    const lastEnd = dashboardEvents.length > 0 ? toMins(dashboardEvents[dashboardEvents.length - 1].endTime) : 0
+    const allPast = dashboardEvents.length > 0 && currentMinutes >= lastEnd
 
     return (
       <div className="space-y-6">
@@ -241,9 +253,11 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             <div>
               <h1 className="text-2xl font-bold">Welcome back, {profile.first_name}! {profile.emoji}</h1>
               <p className="text-blue-100">
-                {currentIdx >= 0
-                  ? `Right now: ${dashboardEvents[currentIdx].summary}`
-                  : 'Ready to make today amazing?'}
+                {allPast
+                  ? 'Great job today! All done.'
+                  : currentIdx >= 0
+                    ? `Right now: ${dashboardEvents[currentIdx].summary}`
+                    : 'Ready to make today amazing?'}
               </p>
             </div>
             <div className="text-right">
@@ -308,11 +322,17 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             <div className="p-8 text-center text-gray-500">No events scheduled for today</div>
           ) : (
             <div className="divide-y">
+              {allPast && (
+                <div className="px-4 py-3 bg-green-50 text-center">
+                  <span className="text-sm font-medium text-green-700">All done for today! Great job! 🎉</span>
+                </div>
+              )}
               {dashboardEvents.map((event, i) => {
                 const isCurrent = i === currentIdx
                 const isNext = i === nextIdx && !isCurrent
-                const isPast = new Date(event.endTime).getTime() <= Date.now()
+                const isPast = toMins(event.endTime) <= currentMinutes
                 const colors = getCategoryColor(event.category)
+                const faded = (isPast && !isCurrent) || allPast
 
                 return (
                   <div
@@ -320,9 +340,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                     className={`flex items-center gap-3 px-4 py-3 transition-colors ${
                       isCurrent ? `bg-blue-50 border-l-4 ${colors.border}` :
                       isNext ? 'bg-green-50/40' :
-                      event.completed ? 'bg-gray-50/50' :
-                      isPast ? 'bg-gray-50' : ''
-                    }`}
+                      ''
+                    } ${faded && !event.completed ? 'opacity-50' : ''}`}
                   >
                     <button
                       onClick={() => toggleDashboardItem(event.id, event.summary, event.startTime)}
@@ -347,7 +366,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                       </span>
                       <span className={`text-sm ${
                         event.completed ? 'line-through text-gray-400' :
-                        isCurrent ? 'font-semibold text-gray-900' : 'text-gray-800'
+                        isCurrent ? 'font-semibold text-gray-900' :
+                        faded ? 'text-gray-400' : 'text-gray-800'
                       }`}>
                         {event.summary}
                       </span>
