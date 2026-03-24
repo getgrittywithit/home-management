@@ -52,13 +52,30 @@ export async function GET(request: NextRequest) {
       [group]
     )
 
+    // Fetch visit notes
+    const visitNotesResult = await query(
+      `SELECT * FROM health_visit_notes WHERE member_group = $1 ORDER BY visit_date DESC`,
+      [group]
+    )
+
+    // Fetch health tasks
+    const healthTasksResult = await query(
+      `SELECT * FROM health_tasks WHERE member_group = $1 ORDER BY
+        CASE WHEN status = 'pending' THEN 0 WHEN status = 'in_progress' THEN 1 ELSE 2 END,
+        CASE WHEN priority = 'urgent' THEN 0 WHEN priority = 'high' THEN 1 WHEN priority = 'medium' THEN 2 ELSE 3 END,
+        due_date ASC NULLS LAST`,
+      [group]
+    )
+
     return NextResponse.json({
       insurancePlan,
       providers: providersResult,
       healthProfiles: profilesResult,
       benefitRules: benefitRulesResult,
       appointments: appointmentsResult,
-      medications: medicationsResult
+      medications: medicationsResult,
+      visitNotes: visitNotesResult,
+      healthTasks: healthTasksResult
     })
   } catch (error) {
     console.error('Error fetching health data:', error)
@@ -501,6 +518,159 @@ export async function POST(request: NextRequest) {
         const result = await query(
           `UPDATE medications SET is_active = $2, updated_at = NOW() WHERE id = $1 RETURNING *`,
           [id, is_active]
+        )
+        return NextResponse.json(result[0])
+      }
+
+      // =============================================
+      // PHASE 3: VISIT NOTES
+      // =============================================
+      case 'add_visit_note': {
+        if (!data.family_member_name || !data.visit_date) {
+          return NextResponse.json(
+            { error: 'Family member name and visit date are required' },
+            { status: 400 }
+          )
+        }
+
+        const result = await query(
+          `INSERT INTO health_visit_notes (
+            appointment_id, family_member_name, member_group, visit_date,
+            provider_name, raw_notes, ai_synopsis, ai_tasks, ai_prescriptions,
+            ai_diagnoses, ai_followup
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           RETURNING *`,
+          [
+            data.appointment_id || null,
+            data.family_member_name,
+            data.member_group,
+            data.visit_date,
+            data.provider_name || null,
+            data.raw_notes || null,
+            data.ai_synopsis || null,
+            data.ai_tasks ? JSON.stringify(data.ai_tasks) : null,
+            data.ai_prescriptions ? JSON.stringify(data.ai_prescriptions) : null,
+            data.ai_diagnoses ? JSON.stringify(data.ai_diagnoses) : null,
+            data.ai_followup || null
+          ]
+        )
+        return NextResponse.json(result[0], { status: 201 })
+      }
+
+      case 'update_visit_note': {
+        const { id, ...updates } = data
+        if (!id) return NextResponse.json({ error: 'Missing visit note ID' }, { status: 400 })
+
+        const result = await query(
+          `UPDATE health_visit_notes
+           SET raw_notes = COALESCE($2, raw_notes),
+               ai_synopsis = COALESCE($3, ai_synopsis),
+               ai_tasks = COALESCE($4, ai_tasks),
+               ai_prescriptions = COALESCE($5, ai_prescriptions),
+               ai_diagnoses = COALESCE($6, ai_diagnoses),
+               ai_followup = COALESCE($7, ai_followup),
+               provider_name = COALESCE($8, provider_name),
+               updated_at = NOW()
+           WHERE id = $1
+           RETURNING *`,
+          [
+            id,
+            updates.raw_notes,
+            updates.ai_synopsis,
+            updates.ai_tasks ? JSON.stringify(updates.ai_tasks) : null,
+            updates.ai_prescriptions ? JSON.stringify(updates.ai_prescriptions) : null,
+            updates.ai_diagnoses ? JSON.stringify(updates.ai_diagnoses) : null,
+            updates.ai_followup,
+            updates.provider_name
+          ]
+        )
+        return NextResponse.json(result[0])
+      }
+
+      case 'delete_visit_note': {
+        const { id } = data
+        if (!id) return NextResponse.json({ error: 'Missing visit note ID' }, { status: 400 })
+
+        await query(`DELETE FROM health_visit_notes WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      // =============================================
+      // PHASE 3: HEALTH TASKS
+      // =============================================
+      case 'add_health_task': {
+        if (!data.family_member_name || !data.task) {
+          return NextResponse.json(
+            { error: 'Family member name and task description are required' },
+            { status: 400 }
+          )
+        }
+
+        const result = await query(
+          `INSERT INTO health_tasks (
+            family_member_name, member_group, visit_note_id, task,
+            due_date, priority, status, category, notes
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING *`,
+          [
+            data.family_member_name,
+            data.member_group,
+            data.visit_note_id || null,
+            data.task,
+            data.due_date || null,
+            data.priority || 'medium',
+            data.status || 'pending',
+            data.category || null,
+            data.notes || null
+          ]
+        )
+        return NextResponse.json(result[0], { status: 201 })
+      }
+
+      case 'update_health_task': {
+        const { id, ...updates } = data
+        if (!id) return NextResponse.json({ error: 'Missing task ID' }, { status: 400 })
+
+        const result = await query(
+          `UPDATE health_tasks
+           SET task = COALESCE($2, task),
+               due_date = COALESCE($3, due_date),
+               priority = COALESCE($4, priority),
+               status = COALESCE($5, status),
+               category = COALESCE($6, category),
+               notes = COALESCE($7, notes),
+               completed_at = CASE WHEN $5 = 'completed' THEN NOW() ELSE completed_at END,
+               updated_at = NOW()
+           WHERE id = $1
+           RETURNING *`,
+          [
+            id,
+            updates.task,
+            updates.due_date,
+            updates.priority,
+            updates.status,
+            updates.category,
+            updates.notes
+          ]
+        )
+        return NextResponse.json(result[0])
+      }
+
+      case 'delete_health_task': {
+        const { id } = data
+        if (!id) return NextResponse.json({ error: 'Missing task ID' }, { status: 400 })
+
+        await query(`DELETE FROM health_tasks WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'complete_health_task': {
+        const { id } = data
+        if (!id) return NextResponse.json({ error: 'Missing task ID' }, { status: 400 })
+
+        const result = await query(
+          `UPDATE health_tasks SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`,
+          [id]
         )
         return NextResponse.json(result[0])
       }
