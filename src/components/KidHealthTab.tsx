@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import {
   Heart, Stethoscope, Building2, Calendar, Clock,
-  ChevronRight, CheckCircle, AlertCircle, Loader2, Send
+  ChevronRight, CheckCircle, AlertCircle, Loader2, Send,
+  CheckCircle2, Circle, Pill, Sun, Moon
 } from 'lucide-react'
 
 interface Provider {
@@ -35,6 +36,17 @@ interface HealthRequest {
   parent_response?: string
   created_at: string
   resolved_at?: string
+}
+
+interface CareItem {
+  id: number
+  item_name: string
+  instructions: string
+  time_of_day: 'morning' | 'evening' | 'both'
+  category: string
+  end_date?: string
+  morning_done: boolean | null
+  evening_done: boolean | null
 }
 
 interface KidHealthTabProps {
@@ -78,6 +90,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
   const [providers, setProviders] = useState<Provider[]>([])
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [requests, setRequests] = useState<HealthRequest[]>([])
+  const [dailyCare, setDailyCare] = useState<CareItem[]>([])
   const [loading, setLoading] = useState(true)
 
   // Form state
@@ -104,6 +117,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
       setProviders(data.providers || [])
       setAppointments(data.appointments || [])
       setRequests(data.requests || [])
+      setDailyCare(data.dailyCare || [])
     } catch (err) {
       console.error('Failed to load health data:', err)
     } finally {
@@ -146,6 +160,25 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
     setSeverity('')
     setNotes('')
     setSubmitted(false)
+  }
+
+  const toggleCareItem = async (careItemId: number, timeOfDay: 'morning' | 'evening') => {
+    // Optimistic update
+    setDailyCare(prev => prev.map(item => {
+      if (item.id !== careItemId) return item
+      if (timeOfDay === 'morning') return { ...item, morning_done: !item.morning_done }
+      return { ...item, evening_done: !item.evening_done }
+    }))
+    try {
+      await fetch('/api/kids/health', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_care_item', child: childKey, careItemId, timeOfDay }),
+      })
+    } catch (err) {
+      console.error('Failed to toggle care item:', err)
+      loadData()
+    }
   }
 
   // Build a map of provider → next appointment
@@ -211,6 +244,75 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
                 </div>
               )
             })}
+          </div>
+        )}
+      </div>
+
+      {/* My Daily Care */}
+      <div className="bg-white rounded-lg p-6 shadow-sm border">
+        <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
+          <Pill className="w-5 h-5 text-purple-600" />
+          My Daily Care
+        </h2>
+        {dailyCare.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-4">No daily care routines set up. Looking good! 🎉</p>
+        ) : (
+          <div className="space-y-5">
+            {/* Morning Routine */}
+            {(() => {
+              const morningItems = dailyCare.filter(i => i.time_of_day === 'morning' || i.time_of_day === 'both')
+              if (morningItems.length === 0) return null
+              const allMorningDone = morningItems.every(i => i.morning_done)
+              return (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sun className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm font-semibold text-gray-700">☀️ Morning Routine</span>
+                    {allMorningDone && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-auto">Morning done ✅</span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {morningItems.map(item => (
+                      <CareCheckRow
+                        key={`${item.id}-morning`}
+                        item={item}
+                        checked={!!item.morning_done}
+                        onToggle={() => toggleCareItem(item.id, 'morning')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Evening Routine */}
+            {(() => {
+              const eveningItems = dailyCare.filter(i => i.time_of_day === 'evening' || i.time_of_day === 'both')
+              if (eveningItems.length === 0) return null
+              const allEveningDone = eveningItems.every(i => i.evening_done)
+              return (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Moon className="w-4 h-4 text-indigo-500" />
+                    <span className="text-sm font-semibold text-gray-700">🌙 Evening Routine</span>
+                    {allEveningDone && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium ml-auto">Evening done ✅</span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {eveningItems.map(item => (
+                      <CareCheckRow
+                        key={`${item.id}-evening`}
+                        item={item}
+                        checked={!!item.evening_done}
+                        onToggle={() => toggleCareItem(item.id, 'evening')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
       </div>
@@ -415,6 +517,37 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
             })}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+function CareCheckRow({ item, checked, onToggle }: { item: CareItem; checked: boolean; onToggle: () => void }) {
+  const endDateLabel = item.end_date
+    ? `Until ${new Date(item.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : null
+
+  return (
+    <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg ${checked ? 'bg-gray-50/50' : 'bg-purple-50/40'}`}>
+      <button onClick={onToggle} className="flex-shrink-0">
+        {checked ? (
+          <CheckCircle2 className="w-5 h-5 text-green-600" />
+        ) : (
+          <Circle className="w-5 h-5 text-gray-300" />
+        )}
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm font-medium ${checked ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+          {item.item_name}
+        </div>
+        <div className={`text-xs ${checked ? 'text-gray-300' : 'text-gray-500'}`}>
+          {item.instructions}
+        </div>
+      </div>
+      {endDateLabel && (
+        <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap">
+          {endDateLabel}
+        </span>
       )}
     </div>
   )
