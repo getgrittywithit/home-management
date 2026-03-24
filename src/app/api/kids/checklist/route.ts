@@ -63,13 +63,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Dishes duty
+    const DISH_DETAILS: Record<string, { time: string; description: string }> = {
+      breakfast: { time: '8:00 AM', description: 'Wash your 5 handwash items · Clear & wipe table/counters · Flip dishwasher if full' },
+      lunch: { time: '12:00 PM', description: 'Wash your 5 handwash items · Clear & wipe table/counters · Unload or flip dishwasher' },
+      dinner: { time: 'After dinner', description: 'Wash your 5 handwash items · Clear & wipe table/counters · Run dishwasher for overnight' },
+    }
     for (const [meal, kids] of Object.entries(DISHES)) {
       if (kids.includes(child)) {
+        const details = DISH_DETAILS[meal]
         required.push({
           id: `dishes-${meal}-${today}`,
           title: `${meal.charAt(0).toUpperCase() + meal.slice(1)} Dishes`,
-          description: `${meal.charAt(0).toUpperCase() + meal.slice(1)} dish duty`,
+          description: details?.description || `${meal} dish duty`,
           category: 'dishes',
+          time: details?.time,
         })
       }
     }
