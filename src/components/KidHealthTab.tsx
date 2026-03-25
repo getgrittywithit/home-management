@@ -996,19 +996,26 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
     .filter((e: any) => e.event_type === 'start')
     .map((e: any) => e.event_date)
     .sort()
-  const lastStartDate = startDatesSorted.length > 0 ? startDatesSorted[startDatesSorted.length - 1] : null // most recent
+  // Deduplicate start dates (same date = same cycle, not two cycles)
+  const uniqueStartDates = Array.from(new Set(startDatesSorted)) as string[]
+  const lastStartDate = uniqueStartDates.length > 0 ? uniqueStartDates[uniqueStartDates.length - 1] : null
   let estimatedNext: string | null = null
   let avgCycleLength: number | null = null
 
-  if (startDatesSorted.length >= 2) {
+  if (uniqueStartDates.length >= 2) {
     let totalDays = 0
-    for (let i = 1; i < startDatesSorted.length; i++) {
-      totalDays += (new Date(startDatesSorted[i] + 'T12:00:00').getTime() - new Date(startDatesSorted[i - 1] + 'T12:00:00').getTime()) / 86400000
+    for (let i = 1; i < uniqueStartDates.length; i++) {
+      totalDays += (new Date(uniqueStartDates[i] + 'T12:00:00').getTime() - new Date(uniqueStartDates[i - 1] + 'T12:00:00').getTime()) / 86400000
     }
-    avgCycleLength = Math.round(totalDays / (startDatesSorted.length - 1))
-    if (lastStartDate) {
+    avgCycleLength = Math.round(totalDays / (uniqueStartDates.length - 1))
+    if (lastStartDate && avgCycleLength > 0) {
       const next = new Date(lastStartDate + 'T12:00:00')
       next.setDate(next.getDate() + avgCycleLength)
+      estimatedNext = next.toISOString().slice(0, 10)
+    } else if (lastStartDate) {
+      // Fallback if avg somehow is 0
+      const next = new Date(lastStartDate + 'T12:00:00')
+      next.setDate(next.getDate() + 28)
       estimatedNext = next.toISOString().slice(0, 10)
     }
   } else if (lastStartDate) {
@@ -1099,13 +1106,13 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
                 Last period: {new Date(lastStartDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
               </div>
             )}
-            {estimatedNext && startDatesSorted.length >= 2 ? (
+            {estimatedNext && uniqueStartDates.length >= 2 ? (
               <div className="text-sm text-gray-600 mb-3">
                 Estimated next: <span className="font-medium text-rose-600">
                   {new Date(estimatedNext + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
                 </span>
               </div>
-            ) : startDatesSorted.length < 2 ? (
+            ) : uniqueStartDates.length < 2 ? (
               <div className="text-xs text-gray-400 mb-3">Keep tracking to see your pattern</div>
             ) : null}
             <button onClick={() => handleLogEvent('start')}

@@ -573,6 +573,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'delete_cycle_entry': {
+        const { entryId } = body
+        if (!entryId) return NextResponse.json({ error: 'Missing entryId' }, { status: 400 })
+        await query(`DELETE FROM kid_cycle_log WHERE id = $1`, [entryId])
+        return NextResponse.json({ success: true })
+      }
+
       case 'get_cycle_overview': {
         // Parent portal: all kids with cycle settings + recent log
         const settings = await query(`SELECT kid_name, mode, updated_at FROM kid_cycle_settings ORDER BY kid_name`)

@@ -2446,7 +2446,13 @@ function CycleManager({ overview, onRefresh, onError }: {
   const ALL_KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 
   const settings = overview?.settings || []
-  const recentLogs = overview?.recentLogs || []
+  // Normalize dates from pg
+  const toDateStr = (d: any): string => {
+    if (!d) return ''
+    if (typeof d === 'string') return d.slice(0, 10)
+    try { return new Date(d).toISOString().slice(0, 10) } catch { return '' }
+  }
+  const recentLogs = (overview?.recentLogs || []).map((l: any) => ({ ...l, event_date: toDateStr(l.event_date) }))
   const trackedKids = settings.map((s: any) => s.kid_name)
   const availableKids = ALL_KIDS.filter(k => !trackedKids.includes(k))
 
@@ -2455,6 +2461,14 @@ function CycleManager({ overview, onRefresh, onError }: {
     if (!logsByKid[l.kid_name]) logsByKid[l.kid_name] = []
     logsByKid[l.kid_name].push(l)
   })
+
+  const handleDeleteEntry = async (entryId: number) => {
+    try {
+      await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_cycle_entry', entryId }) })
+      onRefresh()
+    } catch { onError('Failed to delete entry') }
+  }
 
   const handleToggleMode = async (kid: string, currentMode: string) => {
     const newMode = currentMode === 'full' ? 'learning' : 'full'
@@ -2534,20 +2548,21 @@ function CycleManager({ overview, onRefresh, onError }: {
                 </div>
               </div>
 
-              {starts.length > 0 ? (
+              {kidLogs.length > 0 ? (
                 <div className="space-y-1">
-                  {starts.slice(0, 3).map((start: any, i: number) => {
-                    const matchEnd = ends.find((e: any) => e.event_date >= start.event_date)
-                    const duration = matchEnd
-                      ? Math.floor((new Date(matchEnd.event_date + 'T12:00:00').getTime() - new Date(start.event_date + 'T12:00:00').getTime()) / 86400000) + 1
-                      : null
-                    return (
-                      <div key={i} className="text-sm text-gray-600">
-                        {new Date(start.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        {duration && <span className="text-gray-400"> — {duration} days</span>}
-                      </div>
-                    )
-                  })}
+                  {kidLogs.map((entry: any) => (
+                    <div key={entry.id} className="flex items-center justify-between text-sm text-gray-600 group">
+                      <span>
+                        {entry.event_type === 'start' ? '🔴 Started' : '⚪ Ended'}{' '}
+                        {new Date(entry.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                      <button onClick={() => handleDeleteEntry(entry.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition"
+                        title="Delete this entry">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="text-sm text-gray-400">No cycles logged yet</p>
