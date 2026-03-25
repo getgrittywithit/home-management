@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Dashboard from './Dashboard'
 import ChoresTab from './ChoresTab'
@@ -70,7 +70,21 @@ const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null v
 
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
   const [activeTab, setActiveTab] = useState('overview')
+  const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
   const router = useRouter()
+
+  // Fetch unread badge counts on load
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/kids/messages?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
+      fetch('/api/kids/school-notes?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
+    ]).then(([msgData, notesData]) => {
+      setBadgeCounts({
+        messages: msgData.count || 0,
+        'needs-board': notesData.count || 0,
+      })
+    })
+  }, [activeTab]) // Re-fetch when switching tabs (clears badges after viewing)
 
   const renderFamilyTab = () => (
     <div className="space-y-6">
@@ -288,7 +302,12 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
                 `}
               >
                 <Icon className="w-5 h-5" />
-                <span className="font-medium">{tab.name}</span>
+                <span className="font-medium flex-1">{tab.name}</span>
+                {!isActive && (badgeCounts[tab.id] || 0) > 0 && (
+                  <span className="bg-teal-500 text-white text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full px-1.5">
+                    {badgeCounts[tab.id]}
+                  </span>
+                )}
               </button>
             )
           })}

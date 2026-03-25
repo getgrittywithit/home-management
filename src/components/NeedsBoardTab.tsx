@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { ShoppingCart, Check, ClipboardList } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ShoppingCart, Check, CheckCircle2, ClipboardList } from 'lucide-react'
 
 const KID_DISPLAY: Record<string, string> = {
   amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', zoey: 'Zoey', kaylee: 'Kaylee'
@@ -20,6 +20,12 @@ const CATEGORY_LABELS: Record<string, { emoji: string; label: string }> = {
   supply_needed: { emoji: '🛒', label: 'Supply' },
   ran_out_of: { emoji: '📦', label: 'Ran Out Of' },
 }
+const RESOLVE_LABELS: Record<string, string> = {
+  supply_needed: 'Got It',
+  ran_out_of: 'Got It',
+  subject_idea: 'Noted',
+  interest: 'Noted',
+}
 const ALL_KIDS = ['all', 'amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
 const CATEGORY_FILTERS = ['all', 'subject_idea', 'interest', 'supply_needed', 'ran_out_of']
 
@@ -29,16 +35,19 @@ interface Note {
   category: string
   note: string
   created_at: string
+  read_at: string | null
+  resolved: boolean
+  resolved_at: string | null
 }
 
 export default function NeedsBoardTab() {
   const [shoppingList, setShoppingList] = useState<Note[]>([])
   const [allNotes, setAllNotes] = useState<Note[]>([])
-  const [recentCount, setRecentCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
   const [kidFilter, setKidFilter] = useState('all')
   const [catFilter, setCatFilter] = useState('all')
-  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set())
   const [loaded, setLoaded] = useState(false)
+  const markedReadRef = useRef(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -49,18 +58,36 @@ export default function NeedsBoardTab() {
     ]).then(([shopData, allData]) => {
       setShoppingList(shopData.items || [])
       setAllNotes(allData.notes || [])
-      setRecentCount(allData.recentCount || 0)
+      setUnreadCount(allData.unreadCount || 0)
       setLoaded(true)
+
+      // Auto-mark unread as read on first load
+      if (!markedReadRef.current) {
+        markedReadRef.current = true
+        const allItems = [...(shopData.items || []), ...(allData.notes || [])]
+        const unreadIds = Array.from(new Set(allItems.filter((n: Note) => !n.read_at && !n.resolved).map((n: Note) => n.id)))
+        if (unreadIds.length > 0) {
+          fetch('/api/kids/school-notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'mark_read', ids: unreadIds })
+          })
+        }
+      }
     }).catch(() => setLoaded(true))
   }
 
   const resolve = async (id: string) => {
-    setResolvedIds(prev => new Set(prev).add(id))
     await fetch('/api/kids/school-notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'resolve_note', id })
     })
+    const update = (notes: Note[]) => notes.map(n =>
+      n.id === id ? { ...n, resolved: true, resolved_at: new Date().toISOString() } : n
+    )
+    setShoppingList(prev => update(prev))
+    setAllNotes(prev => update(prev))
   }
 
   const timeAgo = (date: string) => {
@@ -74,13 +101,13 @@ export default function NeedsBoardTab() {
   }
 
   const filteredNotes = allNotes.filter(n => {
-    if (resolvedIds.has(n.id)) return false
     if (kidFilter !== 'all' && n.kid_name !== kidFilter) return false
     if (catFilter !== 'all' && n.category !== catFilter) return false
     return true
   })
 
-  const activeShoppingItems = shoppingList.filter(n => !resolvedIds.has(n.id))
+  const activeShoppingItems = shoppingList.filter(n => !n.resolved)
+  const resolvedShoppingItems = shoppingList.filter(n => n.resolved)
 
   if (!loaded) {
     return (
@@ -108,32 +135,55 @@ export default function NeedsBoardTab() {
           )}
         </div>
         <div className="divide-y">
-          {activeShoppingItems.length === 0 ? (
+          {activeShoppingItems.length === 0 && resolvedShoppingItems.length === 0 ? (
             <div className="p-6 text-center text-gray-400">All stocked up!</div>
           ) : (
-            activeShoppingItems.map(item => {
-              const cat = CATEGORY_LABELS[item.category] || { emoji: '📝', label: item.category }
-              return (
-                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[item.kid_name] || 'bg-gray-100 text-gray-700'}`}>
-                    {(KID_DISPLAY[item.kid_name] || item.kid_name).charAt(0)}
-                  </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                    item.category === 'ran_out_of' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {cat.emoji} {cat.label}
-                  </span>
-                  <span className="text-sm text-gray-800 flex-1">{item.note}</span>
-                  <span className="text-xs text-gray-400 flex-shrink-0">{timeAgo(item.created_at)}</span>
-                  <button
-                    onClick={() => resolve(item.id)}
-                    className="bg-green-100 text-green-700 px-2.5 py-1 rounded text-xs hover:bg-green-200 flex items-center gap-1 flex-shrink-0"
-                  >
-                    <Check className="w-3 h-3" /> Got It
-                  </button>
-                </div>
-              )
-            })
+            <>
+              {activeShoppingItems.map(item => {
+                const cat = CATEGORY_LABELS[item.category] || { emoji: '📝', label: item.category }
+                const isUnread = !item.read_at
+                return (
+                  <div key={item.id} className={`flex items-center gap-3 px-4 py-3 ${isUnread ? 'bg-blue-50/40' : ''}`}>
+                    {isUnread ? (
+                      <span className="w-2.5 h-2.5 bg-blue-500 rounded-full flex-shrink-0" />
+                    ) : (
+                      <span className="w-2.5 h-2.5 flex-shrink-0" />
+                    )}
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[item.kid_name] || 'bg-gray-100 text-gray-700'}`}>
+                      {(KID_DISPLAY[item.kid_name] || item.kid_name).charAt(0)}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      item.category === 'ran_out_of' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {cat.emoji} {cat.label}
+                    </span>
+                    <span className="text-sm text-gray-800 flex-1">{item.note}</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">{timeAgo(item.created_at)}</span>
+                    <button
+                      onClick={() => resolve(item.id)}
+                      className="bg-green-100 text-green-700 px-2.5 py-1 rounded text-xs hover:bg-green-200 flex items-center gap-1 flex-shrink-0"
+                    >
+                      <Check className="w-3 h-3" /> Got It
+                    </button>
+                  </div>
+                )
+              })}
+              {resolvedShoppingItems.map(item => {
+                const cat = CATEGORY_LABELS[item.category] || { emoji: '📝', label: item.category }
+                return (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3 bg-gray-50/80">
+                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 opacity-50 ${KID_COLORS[item.kid_name] || 'bg-gray-100 text-gray-700'}`}>
+                      {(KID_DISPLAY[item.kid_name] || item.kid_name).charAt(0)}
+                    </span>
+                    <span className="text-sm text-gray-400 line-through flex-1">{item.note}</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">
+                      {item.resolved_at ? timeAgo(item.resolved_at) : ''}
+                    </span>
+                  </div>
+                )
+              })}
+            </>
           )}
         </div>
       </div>
@@ -179,23 +229,42 @@ export default function NeedsBoardTab() {
           ) : (
             filteredNotes.map(note => {
               const cat = CATEGORY_LABELS[note.category] || { emoji: '📝', label: note.category }
+              const isUnread = !note.read_at && !note.resolved
+              const isResolved = note.resolved
+              const resolveLabel = RESOLVE_LABELS[note.category] || 'Done'
+
               return (
-                <div key={note.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[note.kid_name] || 'bg-gray-100 text-gray-700'}`}>
+                <div key={note.id} className={`flex items-center gap-3 px-4 py-3 ${isResolved ? 'bg-gray-50/80' : isUnread ? 'bg-blue-50/40' : ''}`}>
+                  {/* Status indicator */}
+                  {isResolved ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  ) : isUnread ? (
+                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full flex-shrink-0" />
+                  ) : (
+                    <span className="w-2.5 h-2.5 flex-shrink-0" />
+                  )}
+
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isResolved ? 'opacity-50' : ''} ${KID_COLORS[note.kid_name] || 'bg-gray-100 text-gray-700'}`}>
                     {(KID_DISPLAY[note.kid_name] || note.kid_name).charAt(0)}
                   </span>
-                  <span className="text-xs font-medium text-gray-600 w-14 flex-shrink-0">{KID_DISPLAY[note.kid_name]}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 flex-shrink-0">
+                  <span className={`text-xs font-medium w-14 flex-shrink-0 ${isResolved ? 'text-gray-400' : 'text-gray-600'}`}>{KID_DISPLAY[note.kid_name]}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${isResolved ? 'bg-gray-100 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
                     {cat.emoji} {cat.label}
                   </span>
-                  <span className="text-sm text-gray-800 flex-1">{note.note}</span>
+                  <span className={`text-sm flex-1 ${isResolved ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{note.note}</span>
                   <span className="text-xs text-gray-400 flex-shrink-0">{timeAgo(note.created_at)}</span>
-                  <button
-                    onClick={() => resolve(note.id)}
-                    className="text-xs text-gray-400 hover:text-green-600 flex-shrink-0"
-                  >
-                    <Check className="w-4 h-4" />
-                  </button>
+                  {!isResolved ? (
+                    <button
+                      onClick={() => resolve(note.id)}
+                      className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1 flex-shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" /> {resolveLabel}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-green-600 flex-shrink-0">
+                      {note.resolved_at ? timeAgo(note.resolved_at) : ''}
+                    </span>
+                  )}
                 </div>
               )
             })

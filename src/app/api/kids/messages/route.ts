@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       case 'get_messages': {
         if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
         const rows = await db.query(
-          `SELECT id, message, created_at, read_by_parent, parent_reply, reply_at
+          `SELECT id, message, created_at, read_by_parent, read_at, parent_reply, reply_at, resolved, resolved_at
            FROM family_messages WHERE from_kid = $1
            ORDER BY created_at DESC LIMIT 20`,
           [kid]
@@ -21,12 +21,19 @@ export async function GET(request: NextRequest) {
 
       case 'get_all_messages': {
         const rows = await db.query(
-          `SELECT id, from_kid, message, created_at, read_by_parent, parent_reply, reply_at
+          `SELECT id, from_kid, message, created_at, read_by_parent, read_at, parent_reply, reply_at, resolved, resolved_at
            FROM family_messages
-           ORDER BY read_by_parent ASC, created_at DESC LIMIT 50`
+           ORDER BY resolved ASC, read_at IS NOT NULL ASC, created_at DESC LIMIT 50`
         )
-        const unreadCount = rows.filter((r: any) => !r.read_by_parent).length
+        const unreadCount = rows.filter((r: any) => !r.read_at).length
         return NextResponse.json({ messages: rows, unreadCount })
+      }
+
+      case 'get_unread_count': {
+        const rows = await db.query(
+          `SELECT COUNT(*)::int as count FROM family_messages WHERE read_at IS NULL`
+        )
+        return NextResponse.json({ count: rows[0]?.count || 0 })
       }
 
       case 'get_announcements': {
@@ -64,9 +71,22 @@ export async function POST(request: NextRequest) {
       }
 
       case 'mark_read': {
+        const { ids } = body
+        if (!ids || !Array.isArray(ids) || ids.length === 0) return NextResponse.json({ error: 'ids array required' }, { status: 400 })
+        await db.query(
+          `UPDATE family_messages SET read_by_parent = TRUE, read_at = NOW() WHERE id = ANY($1) AND read_at IS NULL`,
+          [ids]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'mark_resolved': {
         const { id } = body
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
-        await db.query(`UPDATE family_messages SET read_by_parent = TRUE WHERE id = $1`, [id])
+        await db.query(
+          `UPDATE family_messages SET resolved = TRUE, resolved_at = NOW(), read_by_parent = TRUE, read_at = COALESCE(read_at, NOW()) WHERE id = $1`,
+          [id]
+        )
         return NextResponse.json({ success: true })
       }
 
@@ -74,7 +94,7 @@ export async function POST(request: NextRequest) {
         const { id, reply } = body
         if (!id || !reply?.trim()) return NextResponse.json({ error: 'id and reply required' }, { status: 400 })
         await db.query(
-          `UPDATE family_messages SET parent_reply = $2, reply_at = NOW(), read_by_parent = TRUE WHERE id = $1`,
+          `UPDATE family_messages SET parent_reply = $2, reply_at = NOW(), read_by_parent = TRUE, read_at = COALESCE(read_at, NOW()) WHERE id = $1`,
           [id, reply.trim()]
         )
         return NextResponse.json({ success: true })

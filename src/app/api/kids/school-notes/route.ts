@@ -9,25 +9,29 @@ export async function GET(request: NextRequest) {
 
     if (action === 'get_all_notes') {
       const rows = await db.query(
-        `SELECT id, kid_name, category, note, created_at
-         FROM kid_school_notes WHERE resolved = FALSE
-         ORDER BY created_at DESC`
+        `SELECT id, kid_name, category, note, created_at, read_at, resolved, resolved_at
+         FROM kid_school_notes
+         ORDER BY resolved ASC, read_at IS NOT NULL ASC, created_at DESC`
       )
-      // Count notes added in last 24 hours for badge
-      const recentCount = rows.filter((r: any) =>
-        Date.now() - new Date(r.created_at).getTime() < 24 * 60 * 60 * 1000
-      ).length
-      return NextResponse.json({ notes: rows, recentCount })
+      const unreadCount = rows.filter((r: any) => !r.read_at && !r.resolved).length
+      return NextResponse.json({ notes: rows, unreadCount })
     }
 
     if (action === 'get_shopping_list') {
       const rows = await db.query(
-        `SELECT id, kid_name, category, note, created_at
+        `SELECT id, kid_name, category, note, created_at, read_at, resolved, resolved_at
          FROM kid_school_notes
-         WHERE resolved = FALSE AND category IN ('supply_needed', 'ran_out_of')
-         ORDER BY created_at DESC`
+         WHERE category IN ('supply_needed', 'ran_out_of')
+         ORDER BY resolved ASC, read_at IS NOT NULL ASC, created_at DESC`
       )
       return NextResponse.json({ items: rows })
+    }
+
+    if (action === 'get_unread_count') {
+      const rows = await db.query(
+        `SELECT COUNT(*)::int as count FROM kid_school_notes WHERE read_at IS NULL AND resolved = FALSE`
+      )
+      return NextResponse.json({ count: rows[0]?.count || 0 })
     }
 
     // Default: get notes for a specific kid
@@ -63,11 +67,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'mark_read': {
+        const { ids } = body
+        if (!ids || !Array.isArray(ids) || ids.length === 0) return NextResponse.json({ error: 'ids array required' }, { status: 400 })
+        await db.query(
+          `UPDATE kid_school_notes SET read_at = NOW() WHERE id = ANY($1) AND read_at IS NULL`,
+          [ids]
+        )
+        return NextResponse.json({ success: true })
+      }
+
       case 'resolve_note': {
         const { id } = body
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         await db.query(
-          `UPDATE kid_school_notes SET resolved = TRUE, resolved_at = NOW() WHERE id = $1`,
+          `UPDATE kid_school_notes SET resolved = TRUE, resolved_at = NOW(), read_at = COALESCE(read_at, NOW()) WHERE id = $1`,
           [id]
         )
         return NextResponse.json({ success: true })

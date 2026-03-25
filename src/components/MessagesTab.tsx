@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
-  Mail, MailOpen, Send, Plus, Trash2, X, MessageCircle, Megaphone
+  Send, Plus, Trash2, X, MessageCircle, Megaphone, CheckCircle2
 } from 'lucide-react'
 
 interface Message {
@@ -10,9 +10,11 @@ interface Message {
   from_kid: string
   message: string
   created_at: string
-  read_by_parent: boolean
+  read_at: string | null
   parent_reply: string | null
   reply_at: string | null
+  resolved: boolean
+  resolved_at: string | null
 }
 
 interface Announcement {
@@ -45,6 +47,7 @@ export default function MessagesTab() {
   const [showNewAnnouncement, setShowNewAnnouncement] = useState(false)
   const [announcementText, setAnnouncementText] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const markedReadRef = useRef(false)
 
   useEffect(() => { loadData() }, [])
 
@@ -53,21 +56,34 @@ export default function MessagesTab() {
       fetch('/api/kids/messages?action=get_all_messages').then(r => r.json()),
       fetch('/api/kids/messages?action=get_announcements').then(r => r.json()),
     ]).then(([msgData, annData]) => {
-      setMessages(msgData.messages || [])
+      const msgs: Message[] = msgData.messages || []
+      setMessages(msgs)
       setUnreadCount(msgData.unreadCount || 0)
       setAnnouncements(annData.announcements || [])
       setLoaded(true)
+
+      // Auto-mark unread as read on first load
+      if (!markedReadRef.current) {
+        markedReadRef.current = true
+        const unreadIds = msgs.filter(m => !m.read_at).map(m => m.id)
+        if (unreadIds.length > 0) {
+          fetch('/api/kids/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'mark_read', ids: unreadIds })
+          })
+        }
+      }
     }).catch(() => setLoaded(true))
   }
 
-  const markRead = async (id: string) => {
+  const markResolved = async (id: string) => {
     await fetch('/api/kids/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_read', id })
+      body: JSON.stringify({ action: 'mark_resolved', id })
     })
-    setMessages(prev => prev.map(m => m.id === id ? { ...m, read_by_parent: true } : m))
-    setUnreadCount(prev => Math.max(0, prev - 1))
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, resolved: true, resolved_at: new Date().toISOString(), read_at: m.read_at || new Date().toISOString() } : m))
   }
 
   const sendReply = async (id: string) => {
@@ -78,7 +94,7 @@ export default function MessagesTab() {
       body: JSON.stringify({ action: 'reply_to_message', id, reply: replyText.trim() })
     })
     setMessages(prev => prev.map(m =>
-      m.id === id ? { ...m, parent_reply: replyText.trim(), reply_at: new Date().toISOString(), read_by_parent: true } : m
+      m.id === id ? { ...m, parent_reply: replyText.trim(), reply_at: new Date().toISOString(), read_at: m.read_at || new Date().toISOString() } : m
     ))
     setReplyingTo(null)
     setReplyText('')
@@ -167,75 +183,89 @@ export default function MessagesTab() {
           {filtered.length === 0 && (
             <div className="p-8 text-center text-gray-400">No messages yet</div>
           )}
-          {filtered.map(msg => (
-            <div key={msg.id} className={`p-4 ${!msg.read_by_parent ? 'bg-pink-50/50' : ''}`}>
-              <div className="flex items-start gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[msg.from_kid] || 'bg-gray-100 text-gray-700'}`}>
-                  {(KID_DISPLAY[msg.from_kid] || msg.from_kid).charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-gray-900 text-sm">{KID_DISPLAY[msg.from_kid] || msg.from_kid}</span>
-                    <span className="text-xs text-gray-400">{timeAgo(msg.created_at)}</span>
-                    {!msg.read_by_parent && (
-                      <span className="w-2 h-2 bg-pink-500 rounded-full flex-shrink-0" />
+          {filtered.map(msg => {
+            const isUnread = !msg.read_at
+            const isResolved = msg.resolved
+
+            return (
+              <div key={msg.id} className={`p-4 ${isResolved ? 'bg-gray-50/80' : isUnread ? 'bg-blue-50/40' : ''}`}>
+                <div className="flex items-start gap-3">
+                  {/* Status indicator */}
+                  <div className="flex-shrink-0 pt-1">
+                    {isResolved ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    ) : isUnread ? (
+                      <span className="block w-2.5 h-2.5 bg-blue-500 rounded-full mt-0.5 ml-0.5" />
+                    ) : (
+                      <span className="block w-2.5 h-2.5 rounded-full mt-0.5 ml-0.5" />
                     )}
                   </div>
-                  <p className="text-sm text-gray-700">{msg.message}</p>
 
-                  {/* Reply display */}
-                  {msg.parent_reply && (
-                    <div className="mt-2 p-2.5 bg-purple-50 rounded-lg border border-purple-100">
-                      <p className="text-xs font-medium text-purple-600 mb-0.5">Your reply:</p>
-                      <p className="text-sm text-purple-900">{msg.parent_reply}</p>
-                      {msg.reply_at && (
-                        <p className="text-xs text-purple-400 mt-1">{timeAgo(msg.reply_at)}</p>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[msg.from_kid] || 'bg-gray-100 text-gray-700'}`}>
+                    {(KID_DISPLAY[msg.from_kid] || msg.from_kid).charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`font-medium text-sm ${isResolved ? 'text-gray-400' : 'text-gray-900'}`}>{KID_DISPLAY[msg.from_kid] || msg.from_kid}</span>
+                      <span className="text-xs text-gray-400">{timeAgo(msg.created_at)}</span>
+                      {isResolved && (
+                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Resolved</span>
                       )}
                     </div>
-                  )}
+                    <p className={`text-sm ${isResolved ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{msg.message}</p>
 
-                  {/* Reply input */}
-                  {replyingTo === msg.id && (
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        type="text"
-                        value={replyText}
-                        onChange={e => setReplyText(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && sendReply(msg.id)}
-                        placeholder="Write a reply..."
-                        className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
-                        autoFocus
-                      />
-                      <button onClick={() => sendReply(msg.id)}
-                        className="bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-purple-600 flex items-center gap-1">
-                        <Send className="w-3.5 h-3.5" /> Reply
-                      </button>
-                      <button onClick={() => { setReplyingTo(null); setReplyText('') }}
-                        className="text-gray-400 hover:text-gray-600">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
+                    {/* Reply display */}
+                    {msg.parent_reply && (
+                      <div className={`mt-2 p-2.5 rounded-lg border ${isResolved ? 'bg-gray-50 border-gray-200' : 'bg-purple-50 border-purple-100'}`}>
+                        <p className={`text-xs font-medium mb-0.5 ${isResolved ? 'text-gray-400' : 'text-purple-600'}`}>Your reply:</p>
+                        <p className={`text-sm ${isResolved ? 'text-gray-400' : 'text-purple-900'}`}>{msg.parent_reply}</p>
+                        {msg.reply_at && (
+                          <p className="text-xs text-gray-400 mt-1">{timeAgo(msg.reply_at)}</p>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Action buttons */}
-                  {replyingTo !== msg.id && (
-                    <div className="mt-2 flex gap-2">
-                      {!msg.read_by_parent && (
-                        <button onClick={() => markRead(msg.id)}
-                          className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                          <MailOpen className="w-3.5 h-3.5" /> Mark Read
+                    {/* Reply input */}
+                    {replyingTo === msg.id && (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          type="text"
+                          value={replyText}
+                          onChange={e => setReplyText(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && sendReply(msg.id)}
+                          placeholder="Write a reply..."
+                          className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          autoFocus
+                        />
+                        <button onClick={() => sendReply(msg.id)}
+                          className="bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-purple-600 flex items-center gap-1">
+                          <Send className="w-3.5 h-3.5" /> Reply
                         </button>
-                      )}
-                      <button onClick={() => { setReplyingTo(msg.id); setReplyText('') }}
-                        className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1">
-                        <Send className="w-3.5 h-3.5" /> {msg.parent_reply ? 'Update Reply' : 'Reply'}
-                      </button>
-                    </div>
-                  )}
+                        <button onClick={() => { setReplyingTo(null); setReplyText('') }}
+                          className="text-gray-400 hover:text-gray-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    {replyingTo !== msg.id && !isResolved && (
+                      <div className="mt-2 flex gap-3">
+                        <button onClick={() => { setReplyingTo(msg.id); setReplyText('') }}
+                          className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1">
+                          <Send className="w-3.5 h-3.5" /> {msg.parent_reply ? 'Update Reply' : 'Reply'}
+                        </button>
+                        <button onClick={() => markResolved(msg.id)}
+                          className="text-xs text-green-600 hover:text-green-800 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Resolved
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
