@@ -605,7 +605,7 @@ export async function POST(request: NextRequest) {
           )
           // Insert end event at start + duration
           await query(
-            `INSERT INTO kid_cycle_log (kid_name, event_type, event_date) VALUES ($1, 'end', $2::date + $3)`,
+            `INSERT INTO kid_cycle_log (kid_name, event_type, event_date) VALUES ($1, 'end', $2::date + $3::int)`,
             [childLower, lastPeriodStart, dur]
           )
         }
