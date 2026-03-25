@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
 
     // ── Tier 3: Earn Money ──
     const earnMoney = await db.query(
-      `SELECT id, title, description, points FROM earn_money_chores WHERE child_name = $1 AND is_active = TRUE ORDER BY title`,
+      `SELECT id, title, description, COALESCE(point_value, points, 10) as points FROM earn_money_chores WHERE child_name = $1 AND is_active = TRUE ORDER BY title`,
       [child]
     )
     const earnMoneyItems = earnMoney.map((c: any) => ({
@@ -218,9 +218,10 @@ export async function POST(request: NextRequest) {
       case 'toggle': {
         const { child, eventId, eventSummary } = body
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const kidName = child.toLowerCase()
         const existing = await db.query(
           `SELECT completed FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2 AND event_id = $3`,
-          [child.toLowerCase(), today, eventId]
+          [kidName, today, eventId]
         )
         const newCompleted = existing.length > 0 ? !existing[0].completed : true
         await db.query(
@@ -228,8 +229,49 @@ export async function POST(request: NextRequest) {
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT (child_name, event_date, event_id)
            DO UPDATE SET completed = $5, completed_at = $6`,
-          [child.toLowerCase(), today, eventId, eventSummary || '', newCompleted, newCompleted ? new Date().toISOString() : null]
+          [kidName, today, eventId, eventSummary || '', newCompleted, newCompleted ? new Date().toISOString() : null]
         )
+
+        // Auto-earn points when completing an Earn Money chore
+        if (eventId.startsWith('earn-') && newCompleted) {
+          const choreId = parseInt(eventId.replace('earn-', ''))
+          const choreRows = await db.query(
+            `SELECT COALESCE(point_value, points, 10) as pts, title FROM earn_money_chores WHERE id = $1`,
+            [choreId]
+          )
+          if (choreRows.length > 0) {
+            const pts = choreRows[0].pts || 10
+            await db.query(
+              `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'earned', $2, $3)`,
+              [kidName, pts, choreRows[0].title]
+            )
+            await db.query(
+              `UPDATE kid_points_balance SET current_points = current_points + $2, total_earned_all_time = total_earned_all_time + $2, updated_at = NOW()
+               WHERE kid_name = $1`,
+              [kidName, pts]
+            )
+          }
+        }
+        // Reverse points if unchecking an Earn Money chore
+        if (eventId.startsWith('earn-') && !newCompleted) {
+          const choreId = parseInt(eventId.replace('earn-', ''))
+          const choreRows = await db.query(
+            `SELECT COALESCE(point_value, points, 10) as pts, title FROM earn_money_chores WHERE id = $1`,
+            [choreId]
+          )
+          if (choreRows.length > 0) {
+            const pts = choreRows[0].pts || 10
+            await db.query(
+              `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'deducted', $2, $3)`,
+              [kidName, pts, 'Unchecked: ' + choreRows[0].title]
+            )
+            await db.query(
+              `UPDATE kid_points_balance SET current_points = GREATEST(current_points - $2, 0), updated_at = NOW() WHERE kid_name = $1`,
+              [kidName, pts]
+            )
+          }
+        }
+
         return NextResponse.json({ success: true, completed: newCompleted })
       }
 
