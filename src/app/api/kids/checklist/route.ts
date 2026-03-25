@@ -146,8 +146,8 @@ export async function GET(request: NextRequest) {
 
     // ── Tier 2: Daily Care ──
     const dailyCare = [
-      { id: `hygiene-morning-${today}`, title: 'Morning Routine', description: 'Brush teeth, get dressed, make bed', category: 'hygiene' },
-      { id: `hygiene-bedtime-${today}`, title: 'Bedtime Routine', description: 'Brush teeth, pajamas, wind down', category: 'hygiene' },
+      { id: `hygiene-morning-${today}`, title: 'Morning Routine', description: 'Brush teeth, get dressed, make bed', category: 'hygiene', time: '7:00 AM' },
+      { id: `hygiene-bedtime-${today}`, title: 'Bedtime Routine', description: 'Brush teeth, pajamas, wind down', category: 'hygiene', time: '8:30 PM' },
     ]
 
     // ── Tier 3: Earn Money ──
@@ -173,6 +173,7 @@ export async function GET(request: NextRequest) {
       return hours * 60 + mins
     }
     required.sort((a, b) => parseTime(a.time) - parseTime(b.time))
+    dailyCare.sort((a, b) => parseTime(a.time) - parseTime(b.time))
 
     // ── Completions ──
     const completions = await db.query(
