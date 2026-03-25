@@ -2443,10 +2443,13 @@ function CycleManager({ overview, onRefresh, onError }: {
 }) {
   const [addingKid, setAddingKid] = useState(false)
   const [selectedKid, setSelectedKid] = useState('')
+  const [reportKid, setReportKid] = useState<string | null>(null)
+  const [reportData, setReportData] = useState<any>(null)
+  const [reportLoading, setReportLoading] = useState(false)
   const ALL_KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 
   const settings = overview?.settings || []
-  // Normalize dates from pg
+  const irrCounts = overview?.irregularityCounts || {}
   const toDateStr = (d: any): string => {
     if (!d) return ''
     if (typeof d === 'string') return d.slice(0, 10)
@@ -2469,7 +2472,6 @@ function CycleManager({ overview, onRefresh, onError }: {
       onRefresh()
     } catch { onError('Failed to delete entry') }
   }
-
   const handleToggleMode = async (kid: string, currentMode: string) => {
     const newMode = currentMode === 'full' ? 'learning' : 'full'
     try {
@@ -2478,7 +2480,6 @@ function CycleManager({ overview, onRefresh, onError }: {
       onRefresh()
     } catch { onError('Failed to update mode') }
   }
-
   const handleAddKid = async () => {
     if (!selectedKid) return
     try {
@@ -2486,6 +2487,61 @@ function CycleManager({ overview, onRefresh, onError }: {
         body: JSON.stringify({ action: 'add_kid_to_cycle_tracker', child: selectedKid }) })
       setAddingKid(false); setSelectedKid(''); onRefresh()
     } catch { onError('Failed to add kid') }
+  }
+  const handleGenerateReport = async (kid: string) => {
+    setReportKid(kid); setReportLoading(true); setReportData(null)
+    try {
+      const res = await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_cycle_report', child: kid }) })
+      setReportData(await res.json())
+    } catch { onError('Failed to generate report') }
+    setReportLoading(false)
+  }
+
+  // Build report text
+  const buildReportText = (kid: string, data: any) => {
+    const s = data.settings
+    const logs = (data.logs || []).map((l: any) => ({ ...l, event_date: toDateStr(l.event_date) }))
+    const symptoms = (data.symptoms || []).map((sym: any) => ({ ...sym, log_date: toDateStr(sym.log_date) }))
+    const capName = kid.charAt(0).toUpperCase() + kid.slice(1)
+    const starts = logs.filter((l: any) => l.event_type === 'start').map((l: any) => l.event_date).sort()
+    const ends = logs.filter((l: any) => l.event_type === 'end').map((l: any) => l.event_date).sort()
+
+    if (starts.length < 2) return `${capName} — Cycle Summary\n\nNot enough data yet — keep tracking and this report will fill in over time.`
+
+    // Avg cycle length from starts
+    let totalGap = 0
+    for (let i = 1; i < starts.length; i++) { totalGap += (new Date(starts[i] + 'T12:00:00').getTime() - new Date(starts[i-1] + 'T12:00:00').getTime()) / 86400000 }
+    const avgCycle = Math.round(totalGap / (starts.length - 1))
+
+    // Avg period duration from start/end pairs
+    let totalDur = 0, durCount = 0
+    starts.forEach((st: string) => {
+      const end = ends.find((e: string) => e >= st)
+      if (end) { totalDur += (new Date(end + 'T12:00:00').getTime() - new Date(st + 'T12:00:00').getTime()) / 86400000 + 1; durCount++ }
+    })
+    const avgDur = durCount > 0 ? Math.round(totalDur / durCount) : (s?.avg_period_duration || 5)
+
+    const regLabel = s?.cycle_regularity === 'regular' ? 'Regular' : s?.cycle_regularity === 'varies' ? 'Varies' : 'Unknown'
+
+    // Irregularities
+    const allIrr: Record<string, number> = {}
+    symptoms.forEach((sym: any) => { (sym.irregularities || []).forEach((ir: string) => { allIrr[ir] = (allIrr[ir] || 0) + 1 }) })
+    const irrLines = Object.entries(allIrr).map(([k, v]) => `  - ${k} (${v}x)`).join('\n')
+
+    // Common symptoms
+    const commonSym = (s?.common_symptoms || []).join(', ')
+
+    // Notes
+    const noteLines = symptoms.filter((sym: any) => sym.notes).map((sym: any) => `  ${sym.log_date}: ${sym.notes}`).join('\n')
+
+    let report = `${capName} — Cycle Summary\nDate range: last 6 months\n\n`
+    report += `Average cycle length: ${avgCycle} days\nAverage period duration: ${avgDur} days\nCycle regularity: ${regLabel}\n\n`
+    report += `Periods logged: ${starts.length}\n`
+    if (irrLines) { report += `\nIrregularities reported:\n${irrLines}\n` }
+    if (commonSym) { report += `\nMost common symptoms: ${commonSym}\n` }
+    if (noteLines) { report += `\nCheck-in notes:\n${noteLines}\n` }
+    return report
   }
 
   return (
@@ -2522,21 +2578,22 @@ function CycleManager({ overview, onRefresh, onError }: {
       )}
 
       {settings.length === 0 ? (
-        <div className="bg-white rounded-lg p-8 shadow-sm border text-center text-gray-400">
-          No kids added to cycle tracker yet.
-        </div>
+        <div className="bg-white rounded-lg p-8 shadow-sm border text-center text-gray-400">No kids added to cycle tracker yet.</div>
       ) : (
         settings.map((s: any) => {
           const capName = s.kid_name.charAt(0).toUpperCase() + s.kid_name.slice(1)
           const kidLogs = (logsByKid[s.kid_name] || []).slice(0, 6)
-          // Pair starts with ends
-          const starts = kidLogs.filter((l: any) => l.event_type === 'start')
-          const ends = kidLogs.filter((l: any) => l.event_type === 'end')
+          const hasIrregularities = (irrCounts[s.kid_name] || 0) >= 2
 
           return (
             <div key={s.kid_name} className="bg-white rounded-lg p-5 shadow-sm border">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="font-semibold text-gray-900">{capName}</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-semibold text-gray-900">{capName}</h4>
+                  {hasIrregularities && (
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠ patterns to review</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${s.mode === 'full' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'}`}>
                     {s.mode === 'full' ? 'Full Tracking' : 'Learning Mode'}
@@ -2548,8 +2605,17 @@ function CycleManager({ overview, onRefresh, onError }: {
                 </div>
               </div>
 
+              {/* Settings summary */}
+              {s.mode === 'full' && s.onboarded && (
+                <div className="flex gap-3 text-xs text-gray-500 mb-2">
+                  {s.cycle_regularity && s.cycle_regularity !== 'unknown' && <span>Regularity: {s.cycle_regularity}</span>}
+                  {s.avg_period_duration && <span>Avg duration: ~{s.avg_period_duration}d</span>}
+                  {s.common_symptoms?.length > 0 && <span>Symptoms: {s.common_symptoms.join(', ')}</span>}
+                </div>
+              )}
+
               {kidLogs.length > 0 ? (
-                <div className="space-y-1">
+                <div className="space-y-1 mb-3">
                   {kidLogs.map((entry: any) => (
                     <div key={entry.id} className="flex items-center justify-between text-sm text-gray-600 group">
                       <span>
@@ -2557,16 +2623,34 @@ function CycleManager({ overview, onRefresh, onError }: {
                         {new Date(entry.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                       <button onClick={() => handleDeleteEntry(entry.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition"
-                        title="Delete this entry">
+                        className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition" title="Delete this entry">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-400">No cycles logged yet</p>
+                <p className="text-sm text-gray-400 mb-3">No cycles logged yet</p>
               )}
+
+              {/* Generate Report button */}
+              {s.mode === 'full' && (
+                <button onClick={() => handleGenerateReport(s.kid_name)}
+                  className="text-xs text-rose-600 hover:text-rose-700 font-medium">
+                  Generate Report
+                </button>
+              )}
+
+              {/* Report display */}
+              {reportKid === s.kid_name && (reportLoading ? (
+                <div className="mt-3 text-sm text-gray-400">Generating report...</div>
+              ) : reportData ? (
+                <div className="mt-3 bg-gray-50 rounded-lg p-4">
+                  <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono">{buildReportText(s.kid_name, reportData)}</pre>
+                  <button onClick={() => { navigator.clipboard.writeText(buildReportText(s.kid_name, reportData)) }}
+                    className="mt-2 text-xs text-rose-600 hover:text-rose-700 font-medium">Copy to clipboard</button>
+                </div>
+              ) : null)}
             </div>
           )
         })

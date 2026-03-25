@@ -216,23 +216,24 @@ export async function GET(request: NextRequest) {
     // Only return data if this kid has a row in kid_cycle_settings
     let cycle = null
     const cycleSettingsResult = await query(
-      `SELECT mode FROM kid_cycle_settings WHERE kid_name = $1`,
+      `SELECT mode, onboarded, avg_cycle_length, avg_period_duration, cycle_regularity, common_symptoms
+       FROM kid_cycle_settings WHERE kid_name = $1`,
       [child]
     )
     if (cycleSettingsResult.length > 0) {
-      const mode = cycleSettingsResult[0].mode
+      const settings = cycleSettingsResult[0]
       const cycleLog = await query(
         `SELECT id, event_type, event_date FROM kid_cycle_log
          WHERE kid_name = $1 ORDER BY event_date DESC, id DESC LIMIT 12`,
         [child]
       )
       const cycleSymptoms = await query(
-        `SELECT id, log_date, mood, cramps, flow, notes FROM kid_cycle_symptoms
+        `SELECT id, log_date, mood, cramps, flow, notes, irregularities FROM kid_cycle_symptoms
          WHERE kid_name = $1 AND log_date >= ($2::date - interval '30 days') AND log_date <= $2::date
          ORDER BY log_date DESC`,
         [child, today]
       )
-      cycle = { mode, log: cycleLog, symptoms: cycleSymptoms }
+      cycle = { ...settings, log: cycleLog, symptoms: cycleSymptoms }
     }
 
     return NextResponse.json({ providers, appointments, requests, dailyCare, dental, fitness, cycle })
@@ -540,15 +541,20 @@ export async function POST(request: NextRequest) {
       }
 
       case 'log_cycle_symptoms': {
-        const { child, mood, cramps, flow, notes } = body
+        const { child, mood, cramps, flow, notes, irregularities, logDate } = body
         if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
-        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const date = logDate || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const irr = irregularities && irregularities.length > 0 ? irregularities : []
         await query(
-          `INSERT INTO kid_cycle_symptoms (kid_name, log_date, mood, cramps, flow, notes)
-           VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO kid_cycle_symptoms (kid_name, log_date, mood, cramps, flow, notes, irregularities)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (kid_name, log_date)
-           DO UPDATE SET mood = $3, cramps = $4, flow = $5, notes = $6`,
-          [child.toLowerCase(), today, mood || null, cramps ?? null, flow || null, notes || null]
+           DO UPDATE SET mood = COALESCE($3, kid_cycle_symptoms.mood),
+                         cramps = COALESCE($4, kid_cycle_symptoms.cramps),
+                         flow = COALESCE($5, kid_cycle_symptoms.flow),
+                         notes = COALESCE($6, kid_cycle_symptoms.notes),
+                         irregularities = CASE WHEN $7::text[] = '{}' THEN kid_cycle_symptoms.irregularities ELSE $7::text[] END`,
+          [child.toLowerCase(), date, mood || null, cramps ?? null, flow || null, notes || null, irr]
         )
         return NextResponse.json({ success: true })
       }
@@ -580,13 +586,102 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'complete_cycle_onboarding': {
+        const { child, regularity, lastPeriodStart, periodDuration, commonSymptoms } = body
+        if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
+        const childLower = child.toLowerCase()
+        const dur = periodDuration === 7 ? 7 : periodDuration === 3 ? 3 : 5
+        await query(
+          `UPDATE kid_cycle_settings
+           SET onboarded = TRUE, cycle_regularity = $1, avg_period_duration = $2, common_symptoms = $3, updated_at = NOW()
+           WHERE kid_name = $4`,
+          [regularity || 'unknown', dur, commonSymptoms || [], childLower]
+        )
+        // Insert initial start event if provided
+        if (lastPeriodStart) {
+          await query(
+            `INSERT INTO kid_cycle_log (kid_name, event_type, event_date) VALUES ($1, 'start', $2)`,
+            [childLower, lastPeriodStart]
+          )
+          // Insert end event at start + duration
+          await query(
+            `INSERT INTO kid_cycle_log (kid_name, event_type, event_date) VALUES ($1, 'end', $2::date + $3)`,
+            [childLower, lastPeriodStart, dur]
+          )
+        }
+        return NextResponse.json({ success: true })
+      }
+
+      case 'skip_cycle_onboarding': {
+        // "Not yet" path — mark onboarded but keep in learning-like state
+        const { child } = body
+        if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
+        await query(
+          `UPDATE kid_cycle_settings SET onboarded = TRUE, updated_at = NOW() WHERE kid_name = $1`,
+          [child.toLowerCase()]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'update_cycle_settings': {
+        // Parent edits onboarding answers
+        const { child, avgCycleLength, avgPeriodDuration, cycleRegularity, commonSymptoms } = body
+        if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
+        await query(
+          `UPDATE kid_cycle_settings
+           SET avg_cycle_length = COALESCE($1, avg_cycle_length),
+               avg_period_duration = COALESCE($2, avg_period_duration),
+               cycle_regularity = COALESCE($3, cycle_regularity),
+               common_symptoms = COALESCE($4, common_symptoms),
+               updated_at = NOW()
+           WHERE kid_name = $5`,
+          [avgCycleLength || null, avgPeriodDuration || null, cycleRegularity || null, commonSymptoms || null, child.toLowerCase()]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'generate_cycle_report': {
+        const { child } = body
+        if (!child) return NextResponse.json({ error: 'Missing child' }, { status: 400 })
+        const childLower = child.toLowerCase()
+        const sixMonthsAgo = new Date()
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+        const startDate = sixMonthsAgo.toISOString().slice(0, 10)
+
+        const settings = await query(`SELECT * FROM kid_cycle_settings WHERE kid_name = $1`, [childLower])
+        const logs = await query(
+          `SELECT event_type, event_date FROM kid_cycle_log WHERE kid_name = $1 AND event_date >= $2 ORDER BY event_date ASC`,
+          [childLower, startDate]
+        )
+        const symptoms = await query(
+          `SELECT log_date, mood, cramps, flow, notes, irregularities FROM kid_cycle_symptoms
+           WHERE kid_name = $1 AND log_date >= $2 ORDER BY log_date ASC`,
+          [childLower, startDate]
+        )
+        return NextResponse.json({ settings: settings[0] || null, logs, symptoms })
+      }
+
       case 'get_cycle_overview': {
-        // Parent portal: all kids with cycle settings + recent log
-        const settings = await query(`SELECT kid_name, mode, updated_at FROM kid_cycle_settings ORDER BY kid_name`)
+        // Parent portal: all kids with full settings + recent log + irregularity counts
+        const settings = await query(
+          `SELECT kid_name, mode, onboarded, avg_cycle_length, avg_period_duration, cycle_regularity, common_symptoms, updated_at
+           FROM kid_cycle_settings ORDER BY kid_name`
+        )
         const recentLogs = await query(
           `SELECT kid_name, event_type, event_date FROM kid_cycle_log ORDER BY event_date DESC, id DESC LIMIT 30`
         )
-        return NextResponse.json({ settings, recentLogs })
+        // Count irregularities in last 60 days per kid
+        const sixtyDaysAgo = new Date()
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+        const irrCounts = await query(
+          `SELECT kid_name, COUNT(*) as count FROM kid_cycle_symptoms
+           WHERE log_date >= $1 AND irregularities != '{}' AND array_length(irregularities, 1) > 0
+           GROUP BY kid_name`,
+          [sixtyDaysAgo.toISOString().slice(0, 10)]
+        )
+        const irrMap: Record<string, number> = {}
+        irrCounts.forEach((r: any) => { irrMap[r.kid_name] = parseInt(r.count) })
+        return NextResponse.json({ settings, recentLogs, irregularityCounts: irrMap })
       }
 
       // ── Parent portal overview actions ──
