@@ -23,6 +23,7 @@ import BreakButton from './BreakButton'
 import DailyCheckInCard from './DailyCheckInCard'
 import RegulationToolsCard from './RegulationToolsCard'
 import BelleCareCard from './BelleCareCard'
+import LearningPortfolioTab from './LearningPortfolioTab'
 
 interface KidPortalProps {
   kidData: {
@@ -34,7 +35,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'about' | 'health' | 'achievements' | 'goals' | 'requests'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'health' | 'achievements' | 'goals' | 'requests'
 
 interface NavTab {
   id: TabId
@@ -48,6 +49,7 @@ const navTabs: NavTab[] = [
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-purple-500' },
   { id: 'checklist', name: 'Daily Checklist', icon: CheckSquare, color: 'bg-green-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
+  { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'about', name: 'About Me', icon: User, color: 'bg-teal-500' },
   { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
   { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
@@ -778,6 +780,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return renderDashboard()
       case 'school':
         return renderSchoolTab()
+      case 'portfolio':
+        return <LearningPortfolioTab childName={profile.first_name || profile.name} />
       case 'about':
         return <AboutMeTab childAge={profile.age || 10} childId={profile.id} childName={profile.first_name || profile.name} />
       case 'health':

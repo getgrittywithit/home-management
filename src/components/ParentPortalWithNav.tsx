@@ -25,6 +25,7 @@ import NeedsBoardTab from './NeedsBoardTab'
 import MoodOverview from './MoodOverview'
 import MoodHistoryCard from './MoodHistoryCard'
 import BelleCareTab from './BelleCareTab'
+import ParentPortfolioPanel from './ParentPortfolioPanel'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -47,6 +48,7 @@ const tabs: Tab[] = [
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
   { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
   { id: 'belle-care', name: 'Belle Care', icon: Dog, color: 'bg-amber-600' },
+  { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
@@ -274,6 +276,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <NeedsBoardTab />
       case 'belle-care':
         return <BelleCareTab />
+      case 'portfolio':
+        return <ParentPortfolioPanel />
       case 'moe-money':
         return <MoeMoneyTab />
       case 'print':
