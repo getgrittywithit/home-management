@@ -21,10 +21,11 @@ import MoeMoneyTab from './MoeMoneyTab'
 import HealthTab from './HealthTab'
 import PointsEarningTab from './PointsEarningTab'
 import MessagesTab from './MessagesTab'
+import NeedsBoardTab from './NeedsBoardTab'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle
+  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -41,6 +42,7 @@ const tabs: Tab[] = [
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
   { id: 'points-earning', name: 'Points & Earning', icon: Star, color: 'bg-amber-500' },
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
+  { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
@@ -231,6 +233,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <PointsEarningTab />
       case 'messages':
         return <MessagesTab />
+      case 'needs-board':
+        return <NeedsBoardTab />
       case 'moe-money':
         return <MoeMoneyTab />
       case 'print':

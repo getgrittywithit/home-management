@@ -18,6 +18,7 @@ import DailyChecklist from './DailyChecklist'
 import KidHealthTab from './KidHealthTab'
 import KidPointsCard from './KidPointsCard'
 import KidCommunicationCards from './KidCommunicationCards'
+import KidSchoolNotesCard from './KidSchoolNotesCard'
 
 interface KidPortalProps {
   kidData: {
@@ -548,6 +549,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             <p className="text-xs text-gray-400 italic">More curriculum details can be added from the parent portal.</p>
           </div>
         </div>
+
+        {/* School Notes */}
+        <KidSchoolNotesCard childName={profile.first_name || ''} />
       </div>
     )
   }
@@ -751,6 +755,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             </div>
           </div>
         )}
+
+        {/* School Notes */}
+        <KidSchoolNotesCard childName={profile.first_name || ''} />
       </div>
     )
   }
