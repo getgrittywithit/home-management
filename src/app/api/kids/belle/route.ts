@@ -5,9 +5,11 @@ import { db } from '@/lib/database'
 const WEEKEND_ANCHOR = new Date('2026-03-28T12:00:00')
 const BELLE_KIDS = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 
-// Hardcoded fallback — same as DB, used when DB query fails or returns empty
+// Hardcoded assignments — permanent, never changes
 const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
 const WEEKEND_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
+// Reverse lookup: kid -> their fixed weekday number
+const KID_WEEKDAY: Record<string, number> = { kaylee: 1, amos: 2, hannah: 3, wyatt: 4, ellie: 5 }
 
 const EXTRA_TASK: Record<number, { task: string; label: string; emoji: string } | null> = {
   1: { task: 'poop_patrol', label: 'Poop Patrol', emoji: '💩' },
@@ -39,6 +41,8 @@ const TASK_POINTS: Record<string, number> = {
   bath: 15, nail_trim: 12, fur_brush: 8, ear_clean: 10,
 }
 
+const DAY_NAMES: Record<number, string> = { 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday' }
+
 // ── Helpers ──
 function getToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
@@ -63,40 +67,37 @@ function getRotationWeek(dateStr: string): number {
   return ((weeks % 5) + 5) % 5 + 1
 }
 
-async function getAssignee(dateStr: string): Promise<string | null> {
+// Pure function — no DB calls. Returns the base assignee for a date.
+function getBaseAssignee(dateStr: string): string | null {
   const dow = getDow(dateStr)
-  if (dow >= 1 && dow <= 5) {
-    // Use hardcoded map as primary source (permanent assignments)
-    return WEEKDAY_MAP[dow] || null
-  }
-  // Weekend: check for accepted swap first
-  const satDate = dow === 0
-    ? new Date(new Date(dateStr + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
-    : dateStr
-  try {
-    const swapRows = await db.query(
-      `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekend' AND swap_date = $1 AND status = 'accepted'`,
-      [satDate]
-    )
-    if (swapRows.length > 0) return swapRows[0].covering_kid
-  } catch { /* fall through to rotation */ }
+  if (dow >= 1 && dow <= 5) return WEEKDAY_MAP[dow] || null
   const rotWeek = getRotationWeek(dateStr)
   return WEEKEND_MAP[rotWeek] || null
 }
 
-// Also check weekday swaps
-async function getEffectiveAssignee(dateStr: string): Promise<string | null> {
-  const dow = getDow(dateStr)
-  if (dow >= 1 && dow <= 5) {
-    try {
+// Checks for accepted swaps, falls back to base assignee
+async function getEffectiveAssignee(dateStr: string): Promise<string> {
+  const base = getBaseAssignee(dateStr) || ''
+  try {
+    const dow = getDow(dateStr)
+    if (dow >= 1 && dow <= 5) {
       const swapRows = await db.query(
         `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekday' AND swap_date = $1 AND status = 'accepted'`,
         [dateStr]
       )
       if (swapRows.length > 0) return swapRows[0].covering_kid
-    } catch { /* fall through to base assignee */ }
-  }
-  return getAssignee(dateStr)
+    } else {
+      const satDate = dow === 0
+        ? new Date(new Date(dateStr + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
+        : dateStr
+      const swapRows = await db.query(
+        `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekend' AND swap_date = $1 AND status = 'accepted'`,
+        [satDate]
+      )
+      if (swapRows.length > 0) return swapRows[0].covering_kid
+    }
+  } catch { /* DB error — use base assignee */ }
+  return base
 }
 
 function getDailyTasks(dateStr: string): string[] {
@@ -109,20 +110,19 @@ function getDailyTasks(dateStr: string): string[] {
 }
 
 function getGroomingTasks(rotWeek: number): string[] {
-  const tasks = ['fur_brush'] // every weekend
-  if (rotWeek % 2 === 1) tasks.push('bath') // odd weeks
-  if (rotWeek % 2 === 0) tasks.push('nail_trim') // even weeks
-  if (rotWeek === 1) tasks.push('ear_clean') // week 1 of cycle
+  const tasks = ['fur_brush']
+  if (rotWeek % 2 === 1) tasks.push('bath')
+  if (rotWeek % 2 === 0) tasks.push('nail_trim')
+  if (rotWeek === 1) tasks.push('ear_clean')
   return tasks
 }
 
 function getSaturdayOfWeek(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
   const dow = d.getDay()
-  const sat = new Date(d)
-  sat.setDate(d.getDate() - ((dow + 1) % 7) + 6)
   if (dow === 6) return dateStr
-  if (dow === 0) { sat.setDate(d.getDate() - 1); return sat.toLocaleDateString('en-CA') }
+  if (dow === 0) return new Date(d.getTime() - 86400000).toLocaleDateString('en-CA')
+  const sat = new Date(d)
   sat.setDate(d.getDate() + (6 - dow))
   return sat.toLocaleDateString('en-CA')
 }
@@ -143,7 +143,7 @@ async function creditPoints(kidName: string, points: number, reason: string) {
       `UPDATE kid_points_balance SET current_points = current_points + $2, total_earned_all_time = total_earned_all_time + $2, updated_at = NOW() WHERE kid_name = $1`,
       [kidName, points]
     )
-  } catch { /* points tables may not exist yet */ }
+  } catch { /* silent */ }
 }
 
 async function debitPoints(kidName: string, points: number, reason: string) {
@@ -159,19 +159,27 @@ async function debitPoints(kidName: string, points: number, reason: string) {
   } catch { /* silent */ }
 }
 
-// ── Ensure grooming rows exist for a weekend ──
 async function ensureGroomingRows(kidName: string, satDate: string) {
   const sunDate = getSundayOfWeek(satDate)
   const rotWeek = getRotationWeek(satDate)
   const tasks = getGroomingTasks(rotWeek)
   for (const task of tasks) {
-    await db.query(
-      `INSERT INTO belle_grooming_log (kid_name, task, due_date, weekend_start)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (due_date, task) DO NOTHING`,
-      [kidName, task, sunDate, satDate]
-    )
+    try {
+      await db.query(
+        `INSERT INTO belle_grooming_log (kid_name, task, due_date, weekend_start) VALUES ($1, $2, $3, $4) ON CONFLICT (due_date, task) DO NOTHING`,
+        [kidName, task, sunDate, satDate]
+      )
+    } catch { /* silent */ }
   }
+}
+
+async function getTaskCompletion(dateStr: string): Promise<Record<string, boolean>> {
+  try {
+    const logs = await db.query(`SELECT task, completed FROM belle_care_log WHERE care_date = $1`, [dateStr])
+    const m: Record<string, boolean> = {}
+    logs.forEach((r: any) => { m[r.task] = r.completed })
+    return m
+  } catch { return {} }
 }
 
 // ── GET ──
@@ -186,33 +194,22 @@ export async function GET(request: NextRequest) {
       case 'get_todays_assignee': {
         const assignee = await getEffectiveAssignee(today)
         const taskKeys = getDailyTasks(today)
-        const logs = await db.query(`SELECT task, completed FROM belle_care_log WHERE care_date = $1`, [today])
-        const cMap: Record<string, boolean> = {}
-        logs.forEach((r: any) => { cMap[r.task] = r.completed })
+        const cMap = await getTaskCompletion(today)
         const tasks = taskKeys.map(k => ({ key: k, ...(TASK_INFO[k] || { label: k, emoji: '', time: '' }), completed: !!cMap[k] }))
 
-        // Grooming if weekend
         let grooming: any[] = []
         if (isWeekend(today) && assignee) {
           const satDate = getDow(today) === 0
             ? new Date(new Date(today + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
             : today
           await ensureGroomingRows(assignee, satDate)
-          const gRows = await db.query(
-            `SELECT task, completed FROM belle_grooming_log WHERE weekend_start = $1`, [satDate]
-          )
-          grooming = gRows.map((r: any) => ({ key: r.task, ...(GROOMING_INFO[r.task] || { label: r.task, emoji: '' }), completed: r.completed }))
+          try {
+            const gRows = await db.query(`SELECT task, completed FROM belle_grooming_log WHERE weekend_start = $1`, [satDate])
+            grooming = gRows.map((r: any) => ({ key: r.task, ...(GROOMING_INFO[r.task] || { label: r.task, emoji: '' }), completed: r.completed }))
+          } catch { /* silent */ }
         }
 
-        // Check active swap
-        const swapRows = await db.query(
-          `SELECT requesting_kid, covering_kid, swap_date, reason, status FROM belle_care_swaps
-           WHERE (swap_date = $1 OR (swap_type = 'weekend' AND swap_date = $1))
-           AND status = 'accepted' LIMIT 1`,
-          [isWeekend(today) ? getSaturdayOfWeek(today) : today]
-        )
-
-        return NextResponse.json({ assignee, tasks, grooming, date: today, activeSwap: swapRows[0] || null })
+        return NextResponse.json({ assignee, tasks, grooming, date: today })
       }
 
       case 'get_my_tasks_today': {
@@ -221,9 +218,7 @@ export async function GET(request: NextRequest) {
         if (assignee !== kid) return NextResponse.json({ assigned: false, assignee })
 
         const taskKeys = getDailyTasks(today)
-        const logs = await db.query(`SELECT task, completed FROM belle_care_log WHERE care_date = $1`, [today])
-        const cMap: Record<string, boolean> = {}
-        logs.forEach((r: any) => { cMap[r.task] = r.completed })
+        const cMap = await getTaskCompletion(today)
         const tasks = taskKeys.map(k => ({ key: k, ...(TASK_INFO[k] || { label: k, emoji: '', time: '' }), completed: !!cMap[k] }))
 
         let grooming: any[] = []
@@ -232,8 +227,10 @@ export async function GET(request: NextRequest) {
             ? new Date(new Date(today + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
             : today
           await ensureGroomingRows(kid, satDate)
-          const gRows = await db.query(`SELECT task, completed FROM belle_grooming_log WHERE weekend_start = $1`, [satDate])
-          grooming = gRows.map((r: any) => ({ key: r.task, ...(GROOMING_INFO[r.task] || { label: r.task, emoji: '' }), completed: r.completed }))
+          try {
+            const gRows = await db.query(`SELECT task, completed FROM belle_grooming_log WHERE weekend_start = $1`, [satDate])
+            grooming = gRows.map((r: any) => ({ key: r.task, ...(GROOMING_INFO[r.task] || { label: r.task, emoji: '' }), completed: r.completed }))
+          } catch { /* silent */ }
         }
 
         return NextResponse.json({ assigned: true, assignee: kid, tasks, grooming, date: today })
@@ -241,70 +238,75 @@ export async function GET(request: NextRequest) {
 
       case 'get_my_assignment_info': {
         if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
-        const assignee = await getEffectiveAssignee(today)
+
+        // All assignment logic is pure — no DB calls needed
+        const assignee = getBaseAssignee(today) || ''
         const isToday = assignee === kid
 
-        // Find this kid's fixed weekday from hardcoded map
-        const fixedDay = Object.entries(WEEKDAY_MAP).find(([, name]) => name === kid)?.[0]
-        const fixedDayNum = fixedDay ? parseInt(fixedDay) : null
-        const dayNames: Record<number, string> = { 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday' }
-        const myWeekday = fixedDayNum ? dayNames[fixedDayNum] : null
+        const fixedDayNum = KID_WEEKDAY[kid] || null
+        const myWeekday = fixedDayNum ? DAY_NAMES[fixedDayNum] : null
 
         // Next occurrence of their weekday
         const todayDate = new Date(today + 'T12:00:00')
         let nextWeekdayDate: string | null = null
         if (fixedDayNum) {
-          const d = new Date(todayDate)
           for (let i = 1; i <= 7; i++) {
-            d.setDate(todayDate.getDate() + i)
+            const d = new Date(todayDate.getTime() + i * 86400000)
             if (d.getDay() === fixedDayNum) { nextWeekdayDate = d.toLocaleDateString('en-CA'); break }
           }
         }
-        const daysUntilWeekday = nextWeekdayDate ? Math.ceil((new Date(nextWeekdayDate + 'T12:00:00').getTime() - todayDate.getTime()) / 86400000) : null
+        const daysUntilWeekday = nextWeekdayDate
+          ? Math.ceil((new Date(nextWeekdayDate + 'T12:00:00').getTime() - todayDate.getTime()) / 86400000)
+          : null
 
-        // Next weekend for this kid
+        // Next weekend for this kid (pure math, no DB)
         const thisWeekSat = getSaturdayOfWeek(today)
         let nextWeekendSat: string | null = null
         let nextWeekendDaysAway: number | null = null
-        const checkSat = new Date(thisWeekSat + 'T12:00:00')
         for (let i = 0; i < 10; i++) {
-          const sat = new Date(checkSat.getTime() + i * 7 * 86400000)
+          const sat = new Date(new Date(thisWeekSat + 'T12:00:00').getTime() + i * 7 * 86400000)
           const satStr = sat.toLocaleDateString('en-CA')
           if (satStr < today) continue
           const rotWeek = getRotationWeek(satStr)
-          const rotRows = await db.query(`SELECT kid_name FROM belle_weekend_rotation WHERE week_number = $1`, [rotWeek])
-          if (rotRows[0]?.kid_name === kid) {
+          if (WEEKEND_MAP[rotWeek] === kid) {
             nextWeekendSat = satStr
             nextWeekendDaysAway = Math.ceil((sat.getTime() - todayDate.getTime()) / 86400000)
             break
           }
         }
 
-        // Is their weekend THIS coming weekend?
         const upcomingWeekendThisWeek = nextWeekendSat === thisWeekSat && getDow(today) >= 3 && getDow(today) <= 5
 
-        // Pending swaps
-        const outgoing = await db.query(
-          `SELECT id, covering_kid, swap_type, swap_date, status FROM belle_care_swaps
-           WHERE requesting_kid = $1 AND status = 'pending' LIMIT 1`, [kid]
-        )
-        const incoming = await db.query(
-          `SELECT id, requesting_kid, swap_type, swap_date, reason FROM belle_care_swaps
-           WHERE covering_kid = $1 AND status = 'pending'`, [kid]
-        )
+        // Swap data — wrapped in try/catch so DB issues don't break the response
+        let outgoingSwap = null
+        let incomingSwaps: any[] = []
+        let acceptedCovering: any[] = []
+        try {
+          const outgoing = await db.query(
+            `SELECT id, covering_kid, swap_type, swap_date, status FROM belle_care_swaps WHERE requesting_kid = $1 AND status = 'pending' LIMIT 1`, [kid]
+          )
+          outgoingSwap = outgoing[0] || null
+          incomingSwaps = await db.query(
+            `SELECT id, requesting_kid, swap_type, swap_date, reason FROM belle_care_swaps WHERE covering_kid = $1 AND status = 'pending'`, [kid]
+          )
+          acceptedCovering = await db.query(
+            `SELECT requesting_kid, swap_date, swap_type FROM belle_care_swaps WHERE covering_kid = $1 AND status = 'accepted' AND swap_date >= $2`, [kid, today]
+          )
+        } catch { /* DB error — swaps just won't show */ }
 
-        // Accepted swaps affecting display
-        const acceptedCovering = await db.query(
-          `SELECT requesting_kid, swap_date, swap_type FROM belle_care_swaps
-           WHERE covering_kid = $1 AND status = 'accepted' AND swap_date >= $2`, [kid, today]
-        )
+        // Check if an accepted swap overrides today's assignee
+        let effectiveIsToday = isToday
+        try {
+          const effectiveAssignee = await getEffectiveAssignee(today)
+          effectiveIsToday = effectiveAssignee === kid
+        } catch {
+          effectiveIsToday = isToday // fallback to base
+        }
 
         return NextResponse.json({
-          isToday, todayAssignee: assignee, myWeekday, nextWeekdayDate, daysUntilWeekday,
+          isToday: effectiveIsToday, todayAssignee: assignee, myWeekday, nextWeekdayDate, daysUntilWeekday,
           nextWeekendSat, nextWeekendDaysAway, upcomingWeekendThisWeek,
-          outgoingSwap: outgoing[0] || null,
-          incomingSwaps: incoming,
-          acceptedCovering: acceptedCovering,
+          outgoingSwap, incomingSwaps, acceptedCovering,
         })
       }
 
@@ -313,15 +315,16 @@ export async function GET(request: NextRequest) {
         const dow = d.getDay()
         const monday = new Date(d)
         monday.setDate(d.getDate() - ((dow + 6) % 7))
+
         const days = []
         for (let i = 0; i < 7; i++) {
           const dd = new Date(monday)
           dd.setDate(monday.getDate() + i)
           const dateStr = dd.toLocaleDateString('en-CA')
-          const assignee = await getEffectiveAssignee(dateStr)
+          const assignee = getBaseAssignee(dateStr) || ''
           const taskKeys = getDailyTasks(dateStr)
-          const logs = await db.query(`SELECT task, completed FROM belle_care_log WHERE care_date = $1`, [dateStr])
-          const done = logs.filter((r: any) => r.completed).length
+          const cMap = await getTaskCompletion(dateStr)
+          const done = Object.values(cMap).filter(Boolean).length
           days.push({ date: dateStr, dayName: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dd.getDay()], assignee, totalTasks: taskKeys.length, completedTasks: done })
         }
         return NextResponse.json({ days })
@@ -337,11 +340,10 @@ export async function GET(request: NextRequest) {
           const sat = new Date(nextSat.getTime() + i * 7 * 86400000)
           const satStr = sat.toLocaleDateString('en-CA')
           const rotWeek = getRotationWeek(satStr)
-          const rows = await db.query(`SELECT kid_name FROM belle_weekend_rotation WHERE week_number = $1`, [rotWeek])
           const groomTasks = getGroomingTasks(rotWeek)
           weekends.push({
             saturday: satStr,
-            kid_name: rows[0]?.kid_name || 'unknown',
+            kid_name: WEEKEND_MAP[rotWeek] || 'unknown',
             label: sat.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             groomingTasks: groomTasks.map(t => ({ key: t, ...(GROOMING_INFO[t] || { label: t, emoji: '' }) })),
           })
@@ -350,32 +352,36 @@ export async function GET(request: NextRequest) {
       }
 
       case 'get_grooming_schedule': {
-        const rows = await db.query(
-          `SELECT kid_name, task, due_date, weekend_start, completed, missed_flag
-           FROM belle_grooming_log WHERE due_date >= $1 ORDER BY due_date`, [today]
-        )
-        return NextResponse.json({ grooming: rows })
+        try {
+          const rows = await db.query(
+            `SELECT kid_name, task, due_date, weekend_start, completed, missed_flag FROM belle_grooming_log WHERE due_date >= $1 ORDER BY due_date`, [today]
+          )
+          return NextResponse.json({ grooming: rows })
+        } catch { return NextResponse.json({ grooming: [] }) }
       }
 
       case 'get_swap_log': {
-        const rows = await db.query(
-          `SELECT id, requesting_kid, covering_kid, swap_type, swap_date, reason, status, requested_at, responded_at
-           FROM belle_care_swaps ORDER BY requested_at DESC LIMIT 50`
-        )
-        return NextResponse.json({ swaps: rows })
+        try {
+          const rows = await db.query(
+            `SELECT id, requesting_kid, covering_kid, swap_type, swap_date, reason, status, requested_at, responded_at FROM belle_care_swaps ORDER BY requested_at DESC LIMIT 50`
+          )
+          return NextResponse.json({ swaps: rows })
+        } catch { return NextResponse.json({ swaps: [] }) }
       }
 
       case 'get_history': {
-        const filterKid = searchParams.get('filter_kid')?.toLowerCase()
-        let q = `SELECT kid_name, care_date, task, completed FROM belle_care_log WHERE care_date >= CURRENT_DATE - INTERVAL '60 days'`
-        const p: any[] = []
-        if (filterKid) { q += ` AND kid_name = $1`; p.push(filterKid) }
-        q += ` ORDER BY care_date DESC, task`
-        const logs = await db.query(q, p)
-        const gLogs = await db.query(
-          `SELECT kid_name, task, due_date, weekend_start, completed, missed_flag FROM belle_grooming_log WHERE due_date >= CURRENT_DATE - INTERVAL '60 days' ORDER BY due_date DESC`
-        )
-        return NextResponse.json({ logs, groomingLogs: gLogs })
+        try {
+          const filterKid = searchParams.get('filter_kid')?.toLowerCase()
+          let q = `SELECT kid_name, care_date, task, completed FROM belle_care_log WHERE care_date >= CURRENT_DATE - INTERVAL '60 days'`
+          const p: any[] = []
+          if (filterKid) { q += ` AND kid_name = $1`; p.push(filterKid) }
+          q += ` ORDER BY care_date DESC, task`
+          const logs = await db.query(q, p)
+          const gLogs = await db.query(
+            `SELECT kid_name, task, due_date, weekend_start, completed, missed_flag FROM belle_grooming_log WHERE due_date >= CURRENT_DATE - INTERVAL '60 days' ORDER BY due_date DESC`
+          )
+          return NextResponse.json({ logs, groomingLogs: gLogs })
+        } catch { return NextResponse.json({ logs: [], groomingLogs: [] }) }
       }
 
       default:
@@ -434,13 +440,11 @@ export async function POST(request: NextRequest) {
         if (!requesting_kid || !covering_kid || !swap_type || !swap_date || !reason?.trim() || reason.trim().length < 5) {
           return NextResponse.json({ error: 'All fields required, reason min 5 chars' }, { status: 400 })
         }
-        // Check no open outgoing
         const existing = await db.query(
           `SELECT id FROM belle_care_swaps WHERE requesting_kid = $1 AND status = 'pending'`, [requesting_kid.toLowerCase()]
         )
         if (existing.length > 0) return NextResponse.json({ error: 'Already have a pending swap request' }, { status: 400 })
 
-        // Validate window
         const todayDate = new Date(today + 'T12:00:00')
         const swapDateObj = new Date(swap_date + 'T12:00:00')
         if (swap_type === 'weekday') {
@@ -452,8 +456,7 @@ export async function POST(request: NextRequest) {
         }
 
         await db.query(
-          `INSERT INTO belle_care_swaps (requesting_kid, covering_kid, swap_type, swap_date, reason)
-           VALUES ($1, $2, $3, $4, $5)`,
+          `INSERT INTO belle_care_swaps (requesting_kid, covering_kid, swap_type, swap_date, reason) VALUES ($1, $2, $3, $4, $5)`,
           [requesting_kid.toLowerCase(), covering_kid.toLowerCase(), swap_type, swap_date, reason.trim()]
         )
         return NextResponse.json({ success: true })
@@ -462,10 +465,7 @@ export async function POST(request: NextRequest) {
       case 'respond_to_swap': {
         const { id, response } = body
         if (!id || !['accepted', 'declined'].includes(response)) return NextResponse.json({ error: 'id and valid response required' }, { status: 400 })
-        await db.query(
-          `UPDATE belle_care_swaps SET status = $2, responded_at = NOW() WHERE id = $1`,
-          [id, response]
-        )
+        await db.query(`UPDATE belle_care_swaps SET status = $2, responded_at = NOW() WHERE id = $1`, [id, response])
         return NextResponse.json({ success: true })
       }
 
