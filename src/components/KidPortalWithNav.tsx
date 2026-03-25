@@ -19,6 +19,9 @@ import KidHealthTab from './KidHealthTab'
 import KidPointsCard from './KidPointsCard'
 import KidCommunicationCards from './KidCommunicationCards'
 import KidSchoolNotesCard from './KidSchoolNotesCard'
+import BreakButton from './BreakButton'
+import DailyCheckInCard from './DailyCheckInCard'
+import RegulationToolsCard from './RegulationToolsCard'
 
 interface KidPortalProps {
   kidData: {
@@ -420,6 +423,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
         {/* Communication Cards */}
         <KidCommunicationCards childName={profile.first_name || ''} />
+
+        {/* Daily Check-In (after 3 PM) */}
+        <DailyCheckInCard childName={profile.first_name || ''} />
       </div>
     )
   }
@@ -771,7 +777,12 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       case 'about':
         return <AboutMeTab childAge={profile.age || 10} childId={profile.id} childName={profile.first_name || profile.name} />
       case 'health':
-        return <KidHealthTab childName={profile.first_name || profile.name} />
+        return (
+          <div className="space-y-6">
+            <RegulationToolsCard />
+            <KidHealthTab childName={profile.first_name || profile.name} />
+          </div>
+        )
       case 'checklist':
         return <DailyChecklist childName={profile.first_name || profile.name} />
       case 'calendar':
@@ -838,6 +849,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           {renderActiveTab()}
         </div>
       </div>
+
+      {/* Break Button — visible on all tabs */}
+      <BreakButton childName={profile.first_name || ''} />
     </div>
   )
 }

@@ -22,6 +22,8 @@ import HealthTab from './HealthTab'
 import PointsEarningTab from './PointsEarningTab'
 import MessagesTab from './MessagesTab'
 import NeedsBoardTab from './NeedsBoardTab'
+import MoodOverview from './MoodOverview'
+import MoodHistoryCard from './MoodHistoryCard'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -78,10 +80,12 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     Promise.all([
       fetch('/api/kids/messages?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
       fetch('/api/kids/school-notes?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
-    ]).then(([msgData, notesData]) => {
+      fetch('/api/kids/mood?action=get_break_flags').then(r => r.json()).catch(() => ({ flags: [] })),
+    ]).then(([msgData, notesData, breakData]) => {
       setBadgeCounts({
         messages: msgData.count || 0,
         'needs-board': notesData.count || 0,
+        'kids-health': (breakData.flags || []).length,
       })
     })
   }, [activeTab]) // Re-fetch when switching tabs (clears badges after viewing)
@@ -219,7 +223,12 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'overview':
-        return <Dashboard initialData={initialData} />
+        return (
+          <div className="space-y-6">
+            <MoodOverview />
+            <Dashboard initialData={initialData} />
+          </div>
+        )
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
       case 'kids-checklist':
@@ -240,7 +249,19 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'parents-health':
         return <HealthTab memberGroup="parents" />
       case 'kids-health':
-        return <HealthTab memberGroup="kids" />
+        return (
+          <div className="space-y-6">
+            <HealthTab memberGroup="kids" />
+            <div className="bg-white rounded-lg border shadow-sm p-6">
+              <h2 className="text-xl font-bold mb-4">Mood Check-In History</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {['Amos', 'Ellie', 'Wyatt', 'Hannah', 'Zoey', 'Kaylee'].map(kid => (
+                  <MoodHistoryCard key={kid} childName={kid} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )
       case 'todos':
         return <TodoTab />
       case 'points-earning':
