@@ -32,7 +32,7 @@ export default function FoodInventoryManager() {
   const [inventory, setInventory] = useState<FoodItem[]>([])
   const [selectedLocation, setSelectedLocation] = useState<FoodLocation | 'all'>('all')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input'>('inventory')
+  const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input' | 'shopping'>('inventory')
   const [bulkInput, setBulkInput] = useState('')
   const [apiKeySet, setApiKeySet] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -198,6 +198,7 @@ export default function FoodInventoryManager() {
           {[
             { id: 'inventory', name: 'Inventory', icon: Package },
             { id: 'meal-plan', name: 'Meal Plan', icon: ChefHat },
+            { id: 'shopping', name: 'Shopping List', icon: Car },
             { id: 'bulk-input', name: 'Bulk Input', icon: Upload }
           ].map(tab => (
             <button
@@ -423,6 +424,9 @@ Example:
             </div>
           )}
 
+          {/* Shopping List Tab */}
+          {activeTab === 'shopping' && <ShoppingListView />}
+
           {/* Meal Plan Tab */}
           {activeTab === 'meal-plan' && (
             <MealPlanWeekView />
@@ -435,7 +439,7 @@ Example:
 
 // ── Meal Plan Week View (Phase 1 + Phase 2 Recipes) ─────────────
 
-interface MealRow { meal_name: string; recipe_id: string | null }
+interface MealRow { dish_name: string; meal_name?: string; recipe_id: string | null }
 interface Recipe { id: string; title: string; ingredients: string[]; steps: string[] }
 
 function getMonday(d: Date): Date {
@@ -483,11 +487,11 @@ function MealPlanWeekView() {
     setLoaded(false)
     fetch(`/api/meal-plan?start=${toDateStr(weekStart)}&end=${toDateStr(weekEnd)}`)
       .then(res => res.json())
-      .then((rows: { plan_date: string; meal_name: string | null; recipe_id: string | null }[]) => {
+      .then((rows: any[]) => {
         const map: Record<string, MealRow> = {}
-        rows.forEach(r => {
-          const key = r.plan_date.split('T')[0]
-          map[key] = { meal_name: r.meal_name || '', recipe_id: r.recipe_id }
+        rows.forEach((r: any) => {
+          const key = (r.date || r.plan_date || '').split('T')[0]
+          map[key] = { dish_name: r.dish_name || r.meal_name || '', meal_name: r.dish_name || r.meal_name || '', recipe_id: r.recipe_id }
         })
         setMeals(map)
         setLoaded(true)
@@ -496,13 +500,13 @@ function MealPlanWeekView() {
   }, [weekStart])
 
   const saveMeal = async (dateStr: string, mealName: string) => {
-    setMeals(prev => ({ ...prev, [dateStr]: { ...prev[dateStr], meal_name: mealName, recipe_id: prev[dateStr]?.recipe_id || null } }))
+    setMeals(prev => ({ ...prev, [dateStr]: { ...prev[dateStr], dish_name: mealName, meal_name: mealName, recipe_id: prev[dateStr]?.recipe_id || null } }))
     setSaving(dateStr)
     try {
       await fetch('/api/meal-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan_date: dateStr, meal_name: mealName || null }),
+        body: JSON.stringify({ date: dateStr, dish_name: mealName || null }),
       })
     } catch (error) {
       console.error('Error saving meal plan:', error)
@@ -902,6 +906,132 @@ function MealPlanWeekView() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── Shopping List View ─────────────
+
+interface ShopItem { id: number; item_name: string; quantity: string | null; category: string; checked: boolean; source: string }
+
+function ShoppingListView() {
+  const [items, setItems] = useState<ShopItem[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [newItem, setNewItem] = useState('')
+  const [newQty, setNewQty] = useState('')
+  const [newCat, setNewCat] = useState('other')
+  const [generating, setGenerating] = useState(false)
+
+  useEffect(() => { loadItems() }, [])
+
+  const loadItems = () => {
+    fetch('/api/shopping-list').then(r => r.json())
+      .then(data => { setItems(data.items || []); setLoaded(true) })
+      .catch(() => setLoaded(true))
+  }
+
+  const addItem = async () => {
+    if (!newItem.trim()) return
+    await fetch('/api/shopping-list', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_item', item_name: newItem.trim(), quantity: newQty || null, category: newCat })
+    })
+    setNewItem(''); setNewQty('')
+    loadItems()
+  }
+
+  const toggle = async (id: number, checked: boolean) => {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, checked: !checked } : i))
+    await fetch('/api/shopping-list', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle_item', id, checked: !checked })
+    })
+  }
+
+  const clearChecked = async () => {
+    await fetch('/api/shopping-list', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'clear_checked' })
+    })
+    setItems(prev => prev.filter(i => !i.checked))
+  }
+
+  const generate = async () => {
+    setGenerating(true)
+    await fetch('/api/shopping-list', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'generate_from_meals' })
+    })
+    setGenerating(false)
+    loadItems()
+  }
+
+  const addLowSupply = async () => {
+    await fetch('/api/shopping-list', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_low_supply' })
+    })
+    loadItems()
+  }
+
+  if (!loaded) return <div className="text-center py-8 text-gray-400">Loading...</div>
+
+  const unchecked = items.filter(i => !i.checked)
+  const checked = items.filter(i => i.checked)
+  const CATS = ['produce', 'proteins', 'dairy', 'grains', 'pantry', 'other']
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Shopping List</h3>
+        <div className="flex gap-2">
+          <button onClick={generate} disabled={generating}
+            className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-600 disabled:opacity-50">
+            {generating ? 'Generating...' : "Generate from this week's meals"}
+          </button>
+          <button onClick={addLowSupply} className="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-amber-600">
+            Add low supply items
+          </button>
+        </div>
+      </div>
+
+      {/* Add item */}
+      <div className="flex gap-2">
+        <input type="text" value={newItem} onChange={e => setNewItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItem()}
+          placeholder="Add item..." className="flex-1 border rounded-lg px-3 py-2 text-sm" />
+        <input type="text" value={newQty} onChange={e => setNewQty(e.target.value)}
+          placeholder="Qty" className="w-20 border rounded-lg px-3 py-2 text-sm" />
+        <select value={newCat} onChange={e => setNewCat(e.target.value)} className="border rounded-lg px-3 py-2 text-sm">
+          {CATS.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+        </select>
+        <button onClick={addItem} disabled={!newItem.trim()} className="bg-green-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-600 disabled:opacity-50">Add</button>
+      </div>
+
+      {/* Items */}
+      {unchecked.length === 0 && checked.length === 0 && (
+        <p className="text-center text-gray-400 py-8">Shopping list is empty. Add items manually or generate from this week's meals.</p>
+      )}
+
+      <div className="divide-y border rounded-lg">
+        {unchecked.map(item => (
+          <div key={item.id} className="flex items-center gap-3 px-4 py-2">
+            <button onClick={() => toggle(item.id, item.checked)} className="w-5 h-5 border-2 border-gray-300 rounded hover:border-green-500 flex-shrink-0" />
+            <span className="text-sm text-gray-800 flex-1">{item.item_name}</span>
+            {item.quantity && <span className="text-xs text-gray-500">{item.quantity}</span>}
+            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{item.category}</span>
+          </div>
+        ))}
+        {checked.map(item => (
+          <div key={item.id} className="flex items-center gap-3 px-4 py-2 bg-gray-50">
+            <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+            <span className="text-sm text-gray-400 line-through flex-1">{item.item_name}</span>
+          </div>
+        ))}
+      </div>
+
+      {checked.length > 0 && (
+        <button onClick={clearChecked} className="text-sm text-red-500 hover:text-red-700">Clear {checked.length} checked item{checked.length > 1 ? 's' : ''}</button>
       )}
     </div>
   )

@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = await db.query(
-      'SELECT id, plan_date, meal_name, recipe_id FROM meal_plan WHERE plan_date >= $1 AND plan_date <= $2 ORDER BY plan_date',
+      `SELECT id, date, meal_type, dish_name, ingredients, servings, notes, recipe_id
+       FROM meal_plans WHERE date >= $1 AND date <= $2 ORDER BY date`,
       [start, end]
     )
 
@@ -25,18 +26,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { plan_date, meal_name } = await request.json()
+    const { date, meal_type, dish_name, ingredients, servings, notes } = await request.json()
 
-    if (!plan_date) {
-      return NextResponse.json({ error: 'plan_date required' }, { status: 400 })
+    if (!date || !dish_name) {
+      return NextResponse.json({ error: 'date and dish_name required' }, { status: 400 })
     }
 
     await db.query(
-      `INSERT INTO meal_plan (plan_date, meal_name, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (plan_date)
-       DO UPDATE SET meal_name = $2, updated_at = NOW()`,
-      [plan_date, meal_name || null]
+      `INSERT INTO meal_plans (date, meal_type, dish_name, ingredients, servings, notes, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (date, meal_type) DO UPDATE SET dish_name = $3, ingredients = $4, servings = $5, notes = $6, updated_at = NOW()`,
+      [date, meal_type || 'dinner', dish_name, ingredients || null, servings || null, notes || null]
     )
 
     return NextResponse.json({ success: true })

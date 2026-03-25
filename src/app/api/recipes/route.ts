@@ -24,42 +24,39 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, ingredients, steps, plan_date } = await request.json()
+    const { title, ingredients, steps, plan_date, notes } = await request.json()
 
-    if (!title || !plan_date) {
-      return NextResponse.json({ error: 'title and plan_date required' }, { status: 400 })
+    if (!title) {
+      return NextResponse.json({ error: 'title required' }, { status: 400 })
     }
 
     // Check if this meal already has a recipe
-    const existing = await db.query(
-      'SELECT recipe_id FROM meal_plan WHERE plan_date = $1',
-      [plan_date]
-    )
+    let existingRecipeId = null
+    if (plan_date) {
+      try {
+        const existing = await db.query('SELECT recipe_id FROM meal_plans WHERE date = $1 LIMIT 1', [plan_date])
+        existingRecipeId = existing[0]?.recipe_id
+      } catch { /* silent */ }
+    }
 
-    const existingRecipeId = existing[0]?.recipe_id
-
-    let recipeId: string
+    let recipeId: number
 
     if (existingRecipeId) {
-      // Update existing recipe
       await db.query(
-        `UPDATE recipes SET title = $1, ingredients = $2, steps = $3, updated_at = NOW() WHERE id = $4`,
-        [title, JSON.stringify(ingredients || []), JSON.stringify(steps || []), existingRecipeId]
+        `UPDATE recipes SET title = $1, ingredients = $2, steps = $3, notes = $4, updated_at = NOW() WHERE id = $5`,
+        [title, JSON.stringify(ingredients || []), JSON.stringify(steps || []), notes || null, existingRecipeId]
       )
       recipeId = existingRecipeId
     } else {
-      // Create new recipe
       const result = await db.query(
-        `INSERT INTO recipes (title, ingredients, steps) VALUES ($1, $2, $3) RETURNING id`,
-        [title, JSON.stringify(ingredients || []), JSON.stringify(steps || [])]
+        `INSERT INTO recipes (title, ingredients, steps, notes) VALUES ($1, $2, $3, $4) RETURNING id`,
+        [title, JSON.stringify(ingredients || []), JSON.stringify(steps || []), notes || null]
       )
       recipeId = result[0].id
 
-      // Link to meal_plan
-      await db.query(
-        `UPDATE meal_plan SET recipe_id = $1, updated_at = NOW() WHERE plan_date = $2`,
-        [recipeId, plan_date]
-      )
+      if (plan_date) {
+        await db.query(`UPDATE meal_plans SET recipe_id = $1, updated_at = NOW() WHERE date = $2`, [recipeId, plan_date])
+      }
     }
 
     return NextResponse.json({ success: true, recipe_id: recipeId })

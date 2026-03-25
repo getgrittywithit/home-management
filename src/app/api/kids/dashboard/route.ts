@@ -136,6 +136,27 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    if (action === 'get_tonights_dinner') {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      const DINNER_MANAGER: Record<number, string[]> = {
+        0: ['Levi'], 1: ['Kaylee'], 2: ['Zoey'], 3: ['Wyatt'], 4: ['Amos'], 5: ['Ellie', 'Hannah'], 6: ['Lola'],
+      }
+      const dow = new Date(today + 'T12:00:00').getDay()
+      const managers = DINNER_MANAGER[dow] || []
+      try {
+        const rows = await db.query(
+          `SELECT dish_name FROM meal_plans WHERE date = $1 AND meal_type = 'dinner' LIMIT 1`,
+          [today]
+        )
+        return NextResponse.json({
+          dinner: rows[0]?.dish_name || null,
+          dinnerManager: managers.join(' & '),
+        })
+      } catch {
+        return NextResponse.json({ dinner: null, dinnerManager: managers.join(' & ') })
+      }
+    }
+
     if (!child) {
       return NextResponse.json({ error: 'child query param required' }, { status: 400 })
     }

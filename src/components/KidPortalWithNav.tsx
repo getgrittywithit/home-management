@@ -24,6 +24,7 @@ import DailyCheckInCard from './DailyCheckInCard'
 import RegulationToolsCard from './RegulationToolsCard'
 import BelleCareCard from './BelleCareCard'
 import DutyCard from './DutyCard'
+import TonightsDinnerCard from './TonightsDinnerCard'
 import LearningPortfolioTab from './LearningPortfolioTab'
 import FamilyEventsStrip from './FamilyEventsStrip'
 import MomAvailabilityBadge from './MomAvailabilityBadge'
@@ -440,6 +441,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         </div>
 
         {/* My Points */}
+        {/* Tonight's Dinner */}
+        <TonightsDinnerCard />
+
         {/* Family Events */}
         <FamilyEventsStrip events={familyEvents} countdowns={countdownEvents} />
 
