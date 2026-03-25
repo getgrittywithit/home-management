@@ -23,6 +23,7 @@ import BreakButton from './BreakButton'
 import DailyCheckInCard from './DailyCheckInCard'
 import RegulationToolsCard from './RegulationToolsCard'
 import BelleCareCard from './BelleCareCard'
+import DutyCard from './DutyCard'
 import LearningPortfolioTab from './LearningPortfolioTab'
 import FamilyEventsStrip from './FamilyEventsStrip'
 import MomAvailabilityBadge from './MomAvailabilityBadge'
@@ -444,6 +445,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
         {/* Belle Care */}
         <BelleCareCard childName={profile.first_name || ''} />
+
+        {/* Dinner Manager & Laundry */}
+        <DutyCard childName={profile.first_name || ''} />
 
         <KidPointsCard childName={profile.first_name || ''} />
 
