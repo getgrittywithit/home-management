@@ -103,6 +103,16 @@ export const CURRENT_GRADES = {
   'hannah': '3rd Grade'
 } as const
 
+// SCHOOL TYPE — 'homeschool' or 'public'
+export const SCHOOL_TYPE: Record<string, 'homeschool' | 'public'> = {
+  'amos': 'homeschool',
+  'zoey': 'public',
+  'kaylee': 'public',
+  'ellie': 'homeschool',
+  'wyatt': 'homeschool',
+  'hannah': 'homeschool',
+}
+
 // SCHOOL ASSIGNMENTS - Updated to match actual enrollment
 export const SCHOOL_ASSIGNMENTS = {
   'amos': 'homeschool',
@@ -144,6 +154,7 @@ export function getFamilyMemberData(childKey: string) {
     fullName: birthData.fullName,
     age: calculateAge(birthData.birthDate),
     grade: CURRENT_GRADES[childKey as keyof typeof CURRENT_GRADES],
+    schoolType: SCHOOL_TYPE[childKey] || 'public',
     school: SCHOOLS[SCHOOL_ASSIGNMENTS[childKey as keyof typeof SCHOOL_ASSIGNMENTS]],
     teachers: TEACHER_ASSIGNMENTS[childKey] || [],
     extracurriculars: EXTRACURRICULARS[childKey] || [],

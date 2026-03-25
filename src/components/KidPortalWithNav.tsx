@@ -12,6 +12,7 @@ import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
 import KidTabContent from './KidTabContent'
 import { getKidZone, type ZoneName } from '@/lib/zoneRotation'
+import { SCHOOL_TYPE } from '@/lib/familyConfig'
 import AboutMeTab from './AboutMeTab'
 import DailyChecklist from './DailyChecklist'
 import KidHealthTab from './KidHealthTab'
@@ -397,7 +398,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     )
   }
 
-  const isHomeschool = ['amos', 'ellie', 'wyatt', 'hannah'].includes(profile.first_name?.toLowerCase() || '')
+  const isHomeschool = SCHOOL_TYPE[profile.first_name?.toLowerCase() || ''] === 'homeschool'
 
   const renderSchoolTab = () => {
     if (isHomeschool) return renderHomeschoolView()
@@ -481,6 +482,18 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
               })}
             </div>
           )}
+        </div>
+
+        {/* About Our Homeschool */}
+        <div className="bg-white p-6 rounded-lg border">
+          <h2 className="text-lg font-bold mb-3">About Our Homeschool</h2>
+          <p className="text-sm text-gray-700 leading-relaxed">
+            We follow an eclectic, Montessori-based approach adapted for ADHD and autism.
+            Our days mix structured academics with hands-on learning, movement breaks, and
+            independent work blocks. Subjects rotate through math, reading, writing, science,
+            and social studies, with enrichment time built in for art, music, and life skills.
+            The schedule flexes to match each kid&apos;s pace and energy level.
+          </p>
         </div>
 
         {/* Quick Links */}
