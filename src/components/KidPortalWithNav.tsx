@@ -55,6 +55,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [showModal, setShowModal] = useState(false)
   const [schoolData, setSchoolData] = useState<SchoolProfile>(SAMPLE_SCHOOL_DATA)
   const [realSchedule, setRealSchedule] = useState<any>(null)
+  const [currentlyReading, setCurrentlyReading] = useState<string>('')
 
   const { profile, todaysChecklist, todaysEvents, weekEvents, zones } = kidData
 
@@ -76,6 +77,22 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           setDashboardLoaded(true)
         })
         .catch(() => setDashboardLoaded(true))
+    }
+  }, [profile?.first_name])
+
+  // Load currently reading for homeschool kids
+  useEffect(() => {
+    const kidName = profile?.first_name || ''
+    const isHS = SCHOOL_TYPE[kidName.toLowerCase()] === 'homeschool'
+    if (isHS && kidName) {
+      fetch('/api/school/homeschool')
+        .then(r => r.json())
+        .then(data => {
+          if (data.currentlyReading) {
+            setCurrentlyReading(data.currentlyReading[kidName] || '')
+          }
+        })
+        .catch(() => {})
     }
   }, [profile?.first_name])
 
@@ -446,18 +463,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                     key={event.id}
                     className={`flex items-center gap-3 px-4 py-3 ${
                       isCurrent ? `bg-teal-50 border-l-4 border-l-teal-500` : ''
-                    } ${isPast && !event.completed ? 'opacity-50' : ''}`}
+                    } ${isPast ? 'opacity-50' : ''}`}
                   >
-                    <button
-                      onClick={() => toggleDashboardItem(event.id, event.summary, event.startTime)}
-                      className="flex-shrink-0"
-                    >
-                      {event.completed ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                      ) : (
-                        <Circle className={`w-5 h-5 ${isCurrent ? 'text-teal-500' : 'text-gray-300'}`} />
-                      )}
-                    </button>
                     <div className="w-20 flex-shrink-0 text-right">
                       <span className={`text-sm font-medium ${isCurrent ? 'text-teal-700' : 'text-gray-500'}`}>
                         {formatEventTime(event.startTime)}
@@ -528,7 +535,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           <h2 className="text-lg font-bold mb-4">What We're Learning</h2>
           <div className="space-y-3 text-sm text-gray-700">
             <div className="p-3 bg-teal-50 rounded-lg">
-              <span className="font-medium text-teal-800">📖 Currently Reading:</span> Olive's Ocean
+              <span className="font-medium text-teal-800">📖 Currently Reading:</span> {currentlyReading || 'Not set'}
             </div>
             <p className="text-xs text-gray-400 italic">More curriculum details can be added from the parent portal.</p>
           </div>

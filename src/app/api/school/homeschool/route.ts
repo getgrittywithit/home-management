@@ -47,11 +47,20 @@ export async function GET(request: NextRequest) {
       completionMap[`${row.child_name}|${row.event_summary}`] = row.completed
     })
 
+    // Fetch currently_reading per kid
+    const readingRows = await db.query(
+      `SELECT kid_name, currently_reading FROM homeschool_settings WHERE kid_name = ANY($1)`,
+      [HOMESCHOOL_KIDS]
+    )
+    const currentlyReading: Record<string, string> = {}
+    readingRows.forEach((r: any) => { currentlyReading[r.kid_name] = r.currently_reading })
+
     return NextResponse.json({
       date,
       schedule: DAILY_SCHEDULE,
       kids: HOMESCHOOL_KIDS,
-      completions: completionMap
+      completions: completionMap,
+      currentlyReading,
     })
   } catch (error) {
     console.error('Homeschool API error:', error)
@@ -72,6 +81,18 @@ export async function POST(request: NextRequest) {
            ON CONFLICT (child_name, checklist_date, event_summary)
            DO UPDATE SET completed = $4, completed_at = $5`,
           [child_name, date, event_summary, completed, completed ? new Date().toISOString() : null]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'update_currently_reading': {
+        const { value } = data
+        if (!value) return NextResponse.json({ error: 'Missing value' }, { status: 400 })
+        // Update all homeschool kids at once (shared group read)
+        await db.query(
+          `UPDATE homeschool_settings SET currently_reading = $1, updated_at = NOW()
+           WHERE kid_name = ANY($2)`,
+          [value, HOMESCHOOL_KIDS]
         )
         return NextResponse.json({ success: true })
       }

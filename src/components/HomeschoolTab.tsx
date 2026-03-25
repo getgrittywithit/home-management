@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   CheckCircle2, Clock, BookOpen, Palette, Coffee, Home as HomeIcon,
-  Sun, TreePine, Utensils, Moon, Sparkles, ChevronRight
+  Sun, TreePine, Utensils, Moon, Sparkles, ChevronRight, Save, Edit3
 } from 'lucide-react'
 
 interface ScheduleBlock {
@@ -51,6 +51,10 @@ export default function HomeschoolTab() {
   const [selectedKid, setSelectedKid] = useState('Amos')
   const [loaded, setLoaded] = useState(false)
   const [currentMinutes, setCurrentMinutes] = useState(0)
+  const [currentlyReading, setCurrentlyReading] = useState('')
+  const [editingReading, setEditingReading] = useState(false)
+  const [readingDraft, setReadingDraft] = useState('')
+  const [savingReading, setSavingReading] = useState(false)
   const dateStr = getTodayKey()
 
   // Load schedule + completions
@@ -60,6 +64,10 @@ export default function HomeschoolTab() {
       .then(data => {
         setSchedule(data.schedule || [])
         setCompletions(data.completions || {})
+        // All kids share the same book — grab from first kid
+        const reading = data.currentlyReading || {}
+        const firstVal = Object.values(reading)[0] as string || ''
+        setCurrentlyReading(firstVal)
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -92,6 +100,24 @@ export default function HomeschoolTab() {
       })
     } catch (error) {
       console.error('Error toggling checklist item:', error)
+    }
+  }
+
+  const saveCurrentlyReading = async () => {
+    if (!readingDraft.trim()) return
+    setSavingReading(true)
+    try {
+      await fetch('/api/school/homeschool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_currently_reading', data: { value: readingDraft.trim() } })
+      })
+      setCurrentlyReading(readingDraft.trim())
+      setEditingReading(false)
+    } catch (error) {
+      console.error('Error saving currently reading:', error)
+    } finally {
+      setSavingReading(false)
     }
   }
 
@@ -239,6 +265,56 @@ export default function HomeschoolTab() {
             )
           })}
         </div>
+      </div>
+
+      {/* Currently Reading */}
+      <div className="bg-white rounded-lg border shadow-sm p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-teal-600" />
+            Currently Reading
+          </h3>
+          {!editingReading && (
+            <button
+              onClick={() => { setReadingDraft(currentlyReading); setEditingReading(true) }}
+              className="text-gray-400 hover:text-teal-600"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {editingReading ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={readingDraft}
+              onChange={(e) => setReadingDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && saveCurrentlyReading()}
+              className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="Book title..."
+              autoFocus
+            />
+            <button
+              onClick={saveCurrentlyReading}
+              disabled={savingReading || !readingDraft.trim()}
+              className="bg-teal-500 text-white px-3 py-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 flex items-center gap-1 text-sm"
+            >
+              <Save className="w-4 h-4" />
+              Save
+            </button>
+            <button
+              onClick={() => setEditingReading(false)}
+              className="text-gray-500 hover:text-gray-700 px-2 py-2 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 bg-teal-50 rounded-lg text-sm">
+            <span className="text-teal-800">{currentlyReading || 'Not set'}</span>
+          </div>
+        )}
+        <p className="text-xs text-gray-400 mt-2">Shared across all homeschool kids</p>
       </div>
     </div>
   )
