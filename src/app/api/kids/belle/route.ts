@@ -5,6 +5,10 @@ import { db } from '@/lib/database'
 const WEEKEND_ANCHOR = new Date('2026-03-28T12:00:00')
 const BELLE_KIDS = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 
+// Hardcoded fallback — same as DB, used when DB query fails or returns empty
+const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
+const WEEKEND_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
+
 const EXTRA_TASK: Record<number, { task: string; label: string; emoji: string } | null> = {
   1: { task: 'poop_patrol', label: 'Poop Patrol', emoji: '💩' },
   2: { task: 'brush_fur', label: 'Brush Fur', emoji: '🐕' },
@@ -62,32 +66,35 @@ function getRotationWeek(dateStr: string): number {
 async function getAssignee(dateStr: string): Promise<string | null> {
   const dow = getDow(dateStr)
   if (dow >= 1 && dow <= 5) {
-    const rows = await db.query(`SELECT kid_name FROM belle_weekday_assignments WHERE day_of_week = $1`, [dow])
-    return rows[0]?.kid_name || null
+    // Use hardcoded map as primary source (permanent assignments)
+    return WEEKDAY_MAP[dow] || null
   }
-  // Check for accepted swap first
+  // Weekend: check for accepted swap first
   const satDate = dow === 0
     ? new Date(new Date(dateStr + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
     : dateStr
-  const swapRows = await db.query(
-    `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekend' AND swap_date = $1 AND status = 'accepted'`,
-    [satDate]
-  )
-  if (swapRows.length > 0) return swapRows[0].covering_kid
+  try {
+    const swapRows = await db.query(
+      `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekend' AND swap_date = $1 AND status = 'accepted'`,
+      [satDate]
+    )
+    if (swapRows.length > 0) return swapRows[0].covering_kid
+  } catch { /* fall through to rotation */ }
   const rotWeek = getRotationWeek(dateStr)
-  const rows = await db.query(`SELECT kid_name FROM belle_weekend_rotation WHERE week_number = $1`, [rotWeek])
-  return rows[0]?.kid_name || null
+  return WEEKEND_MAP[rotWeek] || null
 }
 
 // Also check weekday swaps
 async function getEffectiveAssignee(dateStr: string): Promise<string | null> {
   const dow = getDow(dateStr)
   if (dow >= 1 && dow <= 5) {
-    const swapRows = await db.query(
-      `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekday' AND swap_date = $1 AND status = 'accepted'`,
-      [dateStr]
-    )
-    if (swapRows.length > 0) return swapRows[0].covering_kid
+    try {
+      const swapRows = await db.query(
+        `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekday' AND swap_date = $1 AND status = 'accepted'`,
+        [dateStr]
+      )
+      if (swapRows.length > 0) return swapRows[0].covering_kid
+    } catch { /* fall through to base assignee */ }
   }
   return getAssignee(dateStr)
 }
@@ -237,20 +244,20 @@ export async function GET(request: NextRequest) {
         const assignee = await getEffectiveAssignee(today)
         const isToday = assignee === kid
 
-        // Find this kid's fixed weekday
-        const wdRows = await db.query(`SELECT day_of_week FROM belle_weekday_assignments WHERE kid_name = $1`, [kid])
-        const fixedDay = wdRows[0]?.day_of_week || null
+        // Find this kid's fixed weekday from hardcoded map
+        const fixedDay = Object.entries(WEEKDAY_MAP).find(([, name]) => name === kid)?.[0]
+        const fixedDayNum = fixedDay ? parseInt(fixedDay) : null
         const dayNames: Record<number, string> = { 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday' }
-        const myWeekday = fixedDay ? dayNames[fixedDay] : null
+        const myWeekday = fixedDayNum ? dayNames[fixedDayNum] : null
 
         // Next occurrence of their weekday
         const todayDate = new Date(today + 'T12:00:00')
         let nextWeekdayDate: string | null = null
-        if (fixedDay) {
+        if (fixedDayNum) {
           const d = new Date(todayDate)
           for (let i = 1; i <= 7; i++) {
             d.setDate(todayDate.getDate() + i)
-            if (d.getDay() === fixedDay) { nextWeekdayDate = d.toLocaleDateString('en-CA'); break }
+            if (d.getDay() === fixedDayNum) { nextWeekdayDate = d.toLocaleDateString('en-CA'); break }
           }
         }
         const daysUntilWeekday = nextWeekdayDate ? Math.ceil((new Date(nextWeekdayDate + 'T12:00:00').getTime() - todayDate.getTime()) / 86400000) : null
