@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 
 // ── Constants ──
-const WEEKEND_ANCHOR = new Date('2026-03-28T12:00:00')
 const BELLE_KIDS = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 
-// Hardcoded assignments — permanent, never changes
+// Weekday assignments — fixed, same every week
 const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
-const WEEKEND_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
 // Reverse lookup: kid -> their fixed weekday number
 const KID_WEEKDAY: Record<string, number> = { kaylee: 1, amos: 2, hannah: 3, wyatt: 4, ellie: 5 }
+
+// Weekend rotation — 5-week cycle, anchored March 28, 2026 (Week 1 = Kaylee)
+const WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
+const WEEKEND_ANCHOR_MS = new Date('2026-03-28T00:00:00').getTime()
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 
 const EXTRA_TASK: Record<number, { task: string; label: string; emoji: string } | null> = {
   1: { task: 'poop_patrol', label: 'Poop Patrol', emoji: '💩' },
@@ -57,22 +60,33 @@ function isWeekend(dateStr: string): boolean {
   return d === 0 || d === 6
 }
 
-function getRotationWeek(dateStr: string): number {
-  const d = new Date(dateStr + 'T12:00:00')
+function getSaturdayDate(dateStr: string): Date {
+  const d = new Date(dateStr + 'T00:00:00')
   const dow = d.getDay()
-  const sat = new Date(d)
-  if (dow === 0) sat.setDate(d.getDate() - 1)
-  else if (dow !== 6) sat.setDate(d.getDate() + (6 - dow))
-  const weeks = Math.floor((sat.getTime() - WEEKEND_ANCHOR.getTime()) / (7 * 24 * 60 * 60 * 1000))
-  return ((weeks % 5) + 5) % 5 + 1
+  if (dow === 6) return d
+  if (dow === 0) { d.setDate(d.getDate() - 1); return d }
+  d.setDate(d.getDate() + (6 - dow))
+  return d
 }
 
-// Pure function — no DB calls. Returns the base assignee for a date.
-function getBaseAssignee(dateStr: string): string | null {
+function getWeekendAssignee(dateStr: string): string {
+  const sat = getSaturdayDate(dateStr)
+  const weeksSince = Math.floor((sat.getTime() - WEEKEND_ANCHOR_MS) / MS_PER_WEEK)
+  const index = ((weeksSince % 5) + 5) % 5
+  return WEEKEND_ROTATION[index]
+}
+
+function getRotationWeekNumber(dateStr: string): number {
+  const sat = getSaturdayDate(dateStr)
+  const weeksSince = Math.floor((sat.getTime() - WEEKEND_ANCHOR_MS) / MS_PER_WEEK)
+  return (((weeksSince % 5) + 5) % 5) + 1 // 1..5
+}
+
+// Pure function — no DB calls
+function getBaseAssignee(dateStr: string): string {
   const dow = getDow(dateStr)
-  if (dow >= 1 && dow <= 5) return WEEKDAY_MAP[dow] || null
-  const rotWeek = getRotationWeek(dateStr)
-  return WEEKEND_MAP[rotWeek] || null
+  if (dow >= 1 && dow <= 5) return WEEKDAY_MAP[dow] || ''
+  return getWeekendAssignee(dateStr)
 }
 
 // Checks for accepted swaps, falls back to base assignee
@@ -118,13 +132,7 @@ function getGroomingTasks(rotWeek: number): string[] {
 }
 
 function getSaturdayOfWeek(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
-  const dow = d.getDay()
-  if (dow === 6) return dateStr
-  if (dow === 0) return new Date(d.getTime() - 86400000).toLocaleDateString('en-CA')
-  const sat = new Date(d)
-  sat.setDate(d.getDate() + (6 - dow))
-  return sat.toLocaleDateString('en-CA')
+  return getSaturdayDate(dateStr).toLocaleDateString('en-CA')
 }
 
 function getSundayOfWeek(satDate: string): string {
@@ -161,7 +169,7 @@ async function debitPoints(kidName: string, points: number, reason: string) {
 
 async function ensureGroomingRows(kidName: string, satDate: string) {
   const sunDate = getSundayOfWeek(satDate)
-  const rotWeek = getRotationWeek(satDate)
+  const rotWeek = getRotationWeekNumber(satDate)
   const tasks = getGroomingTasks(rotWeek)
   for (const task of tasks) {
     try {
@@ -267,8 +275,8 @@ export async function GET(request: NextRequest) {
           const sat = new Date(new Date(thisWeekSat + 'T12:00:00').getTime() + i * 7 * 86400000)
           const satStr = sat.toLocaleDateString('en-CA')
           if (satStr < today) continue
-          const rotWeek = getRotationWeek(satStr)
-          if (WEEKEND_MAP[rotWeek] === kid) {
+          const rotWeek = getRotationWeekNumber(satStr)
+          if (WEEKEND_ROTATION[rotWeek - 1] === kid) {
             nextWeekendSat = satStr
             nextWeekendDaysAway = Math.ceil((sat.getTime() - todayDate.getTime()) / 86400000)
             break
@@ -339,11 +347,11 @@ export async function GET(request: NextRequest) {
         for (let i = 0; i < 5; i++) {
           const sat = new Date(nextSat.getTime() + i * 7 * 86400000)
           const satStr = sat.toLocaleDateString('en-CA')
-          const rotWeek = getRotationWeek(satStr)
+          const rotWeek = getRotationWeekNumber(satStr)
           const groomTasks = getGroomingTasks(rotWeek)
           weekends.push({
             saturday: satStr,
-            kid_name: WEEKEND_MAP[rotWeek] || 'unknown',
+            kid_name: WEEKEND_ROTATION[rotWeek - 1] || 'unknown',
             label: sat.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             groomingTasks: groomTasks.map(t => ({ key: t, ...(GROOMING_INFO[t] || { label: t, emoji: '' }) })),
           })
