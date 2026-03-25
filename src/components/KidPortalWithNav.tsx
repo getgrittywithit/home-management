@@ -22,6 +22,7 @@ import KidSchoolNotesCard from './KidSchoolNotesCard'
 import BreakButton from './BreakButton'
 import DailyCheckInCard from './DailyCheckInCard'
 import RegulationToolsCard from './RegulationToolsCard'
+import BelleCareCard from './BelleCareCard'
 
 interface KidPortalProps {
   kidData: {
@@ -419,6 +420,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         </div>
 
         {/* My Points */}
+        {/* Belle Care */}
+        <BelleCareCard childName={profile.first_name || ''} />
+
         <KidPointsCard childName={profile.first_name || ''} />
 
         {/* Communication Cards */}
