@@ -1,34 +1,42 @@
+DROP TABLE IF EXISTS belle_care_log;
+DROP TABLE IF EXISTS belle_care_schedule;
+
+CREATE TABLE IF NOT EXISTS belle_weekday_assignments (
+  day_of_week INTEGER NOT NULL, -- 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri
+  kid_name TEXT NOT NULL,
+  PRIMARY KEY (day_of_week)
+);
+
+INSERT INTO belle_weekday_assignments VALUES
+  (1, 'kaylee'),
+  (2, 'amos'),
+  (3, 'hannah'),
+  (4, 'wyatt'),
+  (5, 'ellie')
+ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS belle_weekend_rotation (
+  week_number INTEGER NOT NULL, -- 1 through 5
+  kid_name TEXT NOT NULL,
+  PRIMARY KEY (week_number)
+);
+
+INSERT INTO belle_weekend_rotation VALUES
+  (1, 'kaylee'),
+  (2, 'amos'),
+  (3, 'hannah'),
+  (4, 'wyatt'),
+  (5, 'ellie')
+ON CONFLICT DO NOTHING;
+
+-- Anchor: Sat March 28, 2026 = week 1 (Kaylee)
+
 CREATE TABLE IF NOT EXISTS belle_care_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   kid_name TEXT NOT NULL,
   care_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  task TEXT NOT NULL,
+  task TEXT NOT NULL CHECK (task IN ('am_feed_walk', 'pm_feed', 'pm_walk', 'poop_patrol', 'brush_fur', 'brush_teeth')),
   completed BOOLEAN DEFAULT FALSE,
   completed_at TIMESTAMPTZ,
-  notes TEXT,
-  UNIQUE(kid_name, care_date, task)
+  UNIQUE(care_date, task)
 );
-
-CREATE TABLE IF NOT EXISTS belle_care_schedule (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  kid_name TEXT NOT NULL,
-  week_start DATE NOT NULL,
-  is_primary BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(week_start)
-);
-
-INSERT INTO belle_care_schedule (kid_name, week_start, is_primary) VALUES
-  ('amos', '2026-03-15', true),
-  ('ellie', '2026-03-22', true),
-  ('wyatt', '2026-03-29', true),
-  ('hannah', '2026-04-05', true),
-  ('zoey', '2026-04-12', true),
-  ('kaylee', '2026-04-19', true),
-  ('amos', '2026-04-26', true),
-  ('ellie', '2026-05-03', true),
-  ('wyatt', '2026-05-10', true),
-  ('hannah', '2026-05-17', true),
-  ('zoey', '2026-05-24', true),
-  ('kaylee', '2026-05-31', true)
-ON CONFLICT DO NOTHING;
