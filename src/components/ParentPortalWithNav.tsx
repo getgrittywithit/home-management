@@ -27,10 +27,11 @@ import MoodHistoryCard from './MoodHistoryCard'
 import BelleCareTab from './BelleCareTab'
 import ParentPortfolioPanel from './ParentPortfolioPanel'
 import AvailabilityWidget from './AvailabilityWidget'
+import WeeklySummaryTab from './WeeklySummaryTab'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog
+  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -43,6 +44,7 @@ interface Tab {
 
 const tabs: Tab[] = [
   { id: 'overview', name: 'Overview', icon: Home, color: 'bg-blue-500' },
+  { id: 'weekly-summary', name: 'Weekly Summary', icon: BarChart2, color: 'bg-violet-500' },
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500' },
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
   { id: 'points-earning', name: 'Points & Earning', icon: Star, color: 'bg-amber-500' },
@@ -235,6 +237,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <Dashboard initialData={initialData} />
           </div>
         )
+      case 'weekly-summary':
+        return <WeeklySummaryTab />
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
       case 'kids-checklist':

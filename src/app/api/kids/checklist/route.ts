@@ -28,8 +28,41 @@ const HOMESCHOOL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah']
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
+    const action = searchParams.get('action')
     const child = searchParams.get('child')?.toLowerCase() || searchParams.get('childName')?.toLowerCase()
     const dateParam = searchParams.get('date')
+
+    // All kids completion overview for the current week
+    if (action === 'get_all_completion') {
+      const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+      const dow = now.getDay()
+      const monday = new Date(now)
+      monday.setDate(now.getDate() - ((dow + 6) % 7))
+      const weekStart = monday.toLocaleDateString('en-CA')
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      const weekEnd = sunday.toLocaleDateString('en-CA')
+
+      try {
+        const rows = await db.query(
+          `SELECT child_name, event_id, completed FROM kid_daily_checklist WHERE event_date >= $1 AND event_date <= $2`,
+          [weekStart, weekEnd]
+        )
+        const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(kid => {
+          const kidRows = (rows as any[]).filter((r: any) => r.child_name === kid)
+          const req = kidRows.filter((r: any) => !r.event_id.startsWith('hygiene-') && !r.event_id.startsWith('earn-'))
+          const care = kidRows.filter((r: any) => r.event_id.startsWith('hygiene-'))
+          const earn = kidRows.filter((r: any) => r.event_id.startsWith('earn-'))
+          return {
+            name: kid,
+            required: { done: req.filter((r: any) => r.completed).length, total: req.length },
+            dailyCare: { done: care.filter((r: any) => r.completed).length, total: care.length },
+            earnMoney: { done: earn.filter((r: any) => r.completed).length, total: earn.length },
+          }
+        })
+        return NextResponse.json({ weekOf: weekStart, kids })
+      } catch { return NextResponse.json({ weekOf: weekStart, kids: [] }) }
+    }
 
     if (!child) {
       return NextResponse.json({ error: 'child required' }, { status: 400 })
