@@ -1,5 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { google } from 'googleapis'
 import { db } from '@/lib/database'
+
+const HOUSEHOLD_CALENDAR_ID = 'family05780461431364461113@group.calendar.google.com'
+
+async function getGoogleCalendarEvents() {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE,
+    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+  })
+  const authClient = await auth.getClient()
+  const cal = google.calendar({ version: 'v3', auth: authClient as any })
+
+  const now = new Date()
+  const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  // For countdowns, look further ahead (60 days)
+  const farFuture = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000)
+
+  const res = await cal.events.list({
+    calendarId: HOUSEHOLD_CALENDAR_ID,
+    timeMin: now.toISOString(),
+    timeMax: farFuture.toISOString(),
+    singleEvents: true,
+    orderBy: 'startTime',
+    maxResults: 30,
+  })
+
+  const items = res.data.items || []
+  const nextWeekISO = nextWeek.toISOString()
+
+  const familyEvents = items
+    .filter(e => (e.start?.dateTime || e.start?.date || '') < nextWeekISO)
+    .slice(0, 10)
+    .map(e => ({
+      id: e.id,
+      title: e.summary || '',
+      start_time: e.start?.dateTime || e.start?.date || '',
+      location: e.location || null,
+      event_type: null,
+    }))
+
+  const countdownEvents = items
+    .filter(e => (e.description || '').includes('#countdown'))
+    .slice(0, 3)
+    .map(e => {
+      const startTime = e.start?.dateTime || e.start?.date || ''
+      const daysAway = Math.ceil((new Date(startTime).getTime() - now.getTime()) / 86400000)
+      return {
+        id: e.id,
+        countdown_label: e.summary || '',
+        start_time: startTime,
+        days_away: daysAway,
+      }
+    })
+
+  return { familyEvents, countdownEvents }
+}
 
 // Google Calendar IDs for each kid (ready for live sync)
 const CALENDAR_IDS: Record<string, string> = {
@@ -61,41 +117,21 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
     const child = searchParams.get('child')?.toLowerCase()
 
-    // Home extras: family events, countdowns, availability
+    // Home extras: family events from Google Calendar, countdowns, availability
     if (action === 'get_home_extras') {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      const nextWeek = new Date(new Date(today + 'T12:00:00').getTime() + 7 * 86400000).toLocaleDateString('en-CA')
 
-      const [eventsRes, countdownRes, availRes] = await Promise.all([
-        db.query(
-          `SELECT id, title, start_time, location, event_type FROM family_events
-           WHERE show_on_kids_home = TRUE AND start_time >= $1 AND start_time < $2
-           ORDER BY start_time ASC LIMIT 10`,
-          [today, nextWeek]
-        ).catch(() => []),
-        db.query(
-          `SELECT id, countdown_label, start_time FROM family_events
-           WHERE is_countdown = TRUE AND start_time >= $1
-           ORDER BY start_time ASC LIMIT 3`,
-          [today]
-        ).catch(() => []),
+      const [calData, availRes] = await Promise.all([
+        getGoogleCalendarEvents().catch(() => ({ familyEvents: [], countdownEvents: [] })),
         db.query(
           `SELECT status, note FROM parent_availability WHERE parent_name = 'lola' AND status_date = $1`,
           [today]
         ).catch(() => []),
       ])
 
-      const now = Date.now()
-      const countdownEvents = (countdownRes as any[]).map((e: any) => ({
-        id: e.id,
-        countdown_label: e.countdown_label || e.title,
-        start_time: e.start_time,
-        days_away: Math.ceil((new Date(e.start_time).getTime() - now) / 86400000),
-      }))
-
       return NextResponse.json({
-        familyEvents: eventsRes || [],
-        countdownEvents,
+        familyEvents: calData.familyEvents,
+        countdownEvents: calData.countdownEvents,
         lolaStatus: (availRes as any[])[0] || { status: 'available', note: null },
       })
     }
