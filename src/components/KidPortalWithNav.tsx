@@ -24,6 +24,8 @@ import DailyCheckInCard from './DailyCheckInCard'
 import RegulationToolsCard from './RegulationToolsCard'
 import BelleCareCard from './BelleCareCard'
 import LearningPortfolioTab from './LearningPortfolioTab'
+import FamilyEventsStrip from './FamilyEventsStrip'
+import MomAvailabilityBadge from './MomAvailabilityBadge'
 
 interface KidPortalProps {
   kidData: {
@@ -73,6 +75,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [dashboardStats, setDashboardStats] = useState({ totalEvents: 0, completedEvents: 0, dueSoon: 0 })
   const [dashboardLoaded, setDashboardLoaded] = useState(false)
   const [currentMinutes, setCurrentMinutes] = useState(0)
+  const [familyEvents, setFamilyEvents] = useState<any[]>([])
+  const [countdownEvents, setCountdownEvents] = useState<any[]>([])
+  const [lolaStatus, setLolaStatus] = useState<{ status: string; note: string | null }>({ status: 'available', note: null })
 
   // Load kid dashboard from API
   useEffect(() => {
@@ -87,6 +92,15 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         })
         .catch(() => setDashboardLoaded(true))
     }
+    // Load family events + availability
+    fetch('/api/kids/dashboard?action=get_home_extras')
+      .then(r => r.json())
+      .then(data => {
+        if (data.familyEvents) setFamilyEvents(data.familyEvents)
+        if (data.countdownEvents) setCountdownEvents(data.countdownEvents)
+        if (data.lolaStatus) setLolaStatus(data.lolaStatus)
+      })
+      .catch(() => {})
   }, [profile?.first_name])
 
   // Load currently reading for homeschool kids
@@ -298,6 +312,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           </div>
         </div>
 
+        {/* Mom's Availability */}
+        <MomAvailabilityBadge status={lolaStatus.status} note={lolaStatus.note} />
+
         {/* Zone Banner */}
         {kidZone && zoneBannerColor && (
           <div className={`bg-gradient-to-r ${zoneBannerColor} text-white px-6 py-3 rounded-lg flex items-center gap-3`}>
@@ -422,6 +439,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         </div>
 
         {/* My Points */}
+        {/* Family Events */}
+        <FamilyEventsStrip events={familyEvents} countdowns={countdownEvents} />
+
         {/* Belle Care */}
         <BelleCareCard childName={profile.first_name || ''} />
 

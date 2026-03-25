@@ -26,6 +26,7 @@ import MoodOverview from './MoodOverview'
 import MoodHistoryCard from './MoodHistoryCard'
 import BelleCareTab from './BelleCareTab'
 import ParentPortfolioPanel from './ParentPortfolioPanel'
+import AvailabilityWidget from './AvailabilityWidget'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -229,6 +230,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'overview':
         return (
           <div className="space-y-6">
+            <AvailabilityWidget />
             <MoodOverview />
             <Dashboard initialData={initialData} />
           </div>

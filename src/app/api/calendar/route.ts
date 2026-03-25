@@ -100,6 +100,20 @@ export async function POST(request: NextRequest) {
         const moveResult = await CalendarService.moveUnconfirmedSwap(calendar_event_id)
         return NextResponse.json(moveResult)
 
+      case 'toggle_kids_home': {
+        const { event_id: toggleId, show } = body
+        if (!toggleId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+        await db.query(`UPDATE family_events SET show_on_kids_home = $2 WHERE id = $1`, [toggleId, !!show])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'set_countdown': {
+        const { event_id: cdId, is_countdown: isCd, countdown_label: cdLabel } = body
+        if (!cdId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+        await db.query(`UPDATE family_events SET is_countdown = $2, countdown_label = $3 WHERE id = $1`, [cdId, !!isCd, cdLabel || null])
+        return NextResponse.json({ success: true })
+      }
+
       default:
         return NextResponse.json(
           { error: 'Unknown action' },

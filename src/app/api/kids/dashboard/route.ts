@@ -58,7 +58,47 @@ function getTemplateForKid(childKey: string) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
+    const action = searchParams.get('action')
     const child = searchParams.get('child')?.toLowerCase()
+
+    // Home extras: family events, countdowns, availability
+    if (action === 'get_home_extras') {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      const nextWeek = new Date(new Date(today + 'T12:00:00').getTime() + 7 * 86400000).toLocaleDateString('en-CA')
+
+      const [eventsRes, countdownRes, availRes] = await Promise.all([
+        db.query(
+          `SELECT id, title, start_time, location, event_type FROM family_events
+           WHERE show_on_kids_home = TRUE AND start_time >= $1 AND start_time < $2
+           ORDER BY start_time ASC LIMIT 10`,
+          [today, nextWeek]
+        ).catch(() => []),
+        db.query(
+          `SELECT id, countdown_label, start_time FROM family_events
+           WHERE is_countdown = TRUE AND start_time >= $1
+           ORDER BY start_time ASC LIMIT 3`,
+          [today]
+        ).catch(() => []),
+        db.query(
+          `SELECT status, note FROM parent_availability WHERE parent_name = 'lola' AND status_date = $1`,
+          [today]
+        ).catch(() => []),
+      ])
+
+      const now = Date.now()
+      const countdownEvents = (countdownRes as any[]).map((e: any) => ({
+        id: e.id,
+        countdown_label: e.countdown_label || e.title,
+        start_time: e.start_time,
+        days_away: Math.ceil((new Date(e.start_time).getTime() - now) / 86400000),
+      }))
+
+      return NextResponse.json({
+        familyEvents: eventsRes || [],
+        countdownEvents,
+        lolaStatus: (availRes as any[])[0] || { status: 'available', note: null },
+      })
+    }
 
     if (!child) {
       return NextResponse.json({ error: 'child query param required' }, { status: 400 })
