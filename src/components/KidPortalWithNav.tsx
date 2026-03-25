@@ -17,6 +17,7 @@ import AboutMeTab from './AboutMeTab'
 import DailyChecklist from './DailyChecklist'
 import KidHealthTab from './KidHealthTab'
 import KidPointsCard from './KidPointsCard'
+import KidCommunicationCards from './KidCommunicationCards'
 
 interface KidPortalProps {
   kidData: {
@@ -415,6 +416,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
         {/* My Points */}
         <KidPointsCard childName={profile.first_name || ''} />
+
+        {/* Communication Cards */}
+        <KidCommunicationCards childName={profile.first_name || ''} />
       </div>
     )
   }
