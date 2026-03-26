@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { 
   Calendar, ChevronLeft, ChevronRight, Filter, Eye, EyeOff,
   BookOpen, ClipboardList, Users, Star, Clock, MapPin
@@ -36,71 +36,29 @@ export default function FilterableCalendar({ selectedChild = 'amos-moses-504640'
     personal: true
   })
 
-  // Generate sample events (in production, these would come from database)
-  const allEvents = useMemo(() => {
-    const events: CalendarEvent[] = []
-    
-    // TODO: In the future, pull events from Google Calendar API
-    // For now, calendar starts empty — events come from family_events DB
-    const schoolEvents: any[] = []
+  // Fetch events from Household Hub Google Calendar
+  const [allEvents, setAllEvents] = useState<CalendarEvent[]>([])
 
-    schoolEvents.forEach(event => {
-      const category = EVENT_CATEGORIES[event.category as keyof typeof EVENT_CATEGORIES]
-      events.push({
-        id: event.id,
-        title: event.title,
-        type: event.category as any,
-        date: event.date,
-        startTime: event.startTime,
-        endTime: event.endTime,
-        allDay: event.allDay,
-        location: event.location,
-        description: event.description,
-        color: category?.color,
-        icon: category?.icon
+  useEffect(() => {
+    fetch('/api/kids/dashboard?action=get_home_extras')
+      .then(r => r.json())
+      .then(data => {
+        const gcalEvents = (data.familyEvents || []).map((e: any) => ({
+          id: e.id || String(Math.random()),
+          title: e.title || 'Untitled',
+          type: 'family' as const,
+          date: new Date(e.start_time || e.start || ''),
+          startTime: e.start_time?.includes('T') ? new Date(e.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : undefined,
+          endTime: undefined,
+          allDay: !e.start_time?.includes('T'),
+          location: e.location || undefined,
+          description: '',
+          color: EVENT_CATEGORIES.family.color,
+          icon: EVENT_CATEGORIES.family.icon,
+        }))
+        setAllEvents(gcalEvents)
       })
-    })
-
-    // Add sample chore events
-    const today = new Date()
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(today)
-      date.setDate(date.getDate() + i)
-      
-      // Skip weekends for chores
-      if (date.getDay() !== 0 && date.getDay() !== 6) {
-        events.push({
-          id: `chore-${i}`,
-          title: i % 3 === 0 ? 'Zone Cleaning' : i % 3 === 1 ? 'Daily Tasks' : 'Weekly Blessing',
-          type: 'chores',
-          date: date,
-          startTime: '16:00',
-          endTime: '17:00',
-          allDay: false,
-          location: 'Home',
-          description: 'Daily chore routine',
-          color: EVENT_CATEGORIES.chores.color,
-          icon: EVENT_CATEGORIES.chores.icon
-        })
-      }
-    }
-
-    // Add sample family events
-    events.push({
-      id: 'family-1',
-      title: 'Soccer Practice',
-      type: 'family',
-      date: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000),
-      startTime: '18:00',
-      endTime: '19:30',
-      allDay: false,
-      location: 'City Park',
-      description: 'Weekly soccer practice',
-      color: EVENT_CATEGORIES.family.color,
-      icon: EVENT_CATEGORIES.family.icon
-    })
-
-    return events
+      .catch(() => {})
   }, [])
 
   const filteredEvents = useMemo(() => {

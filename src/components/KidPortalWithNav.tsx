@@ -28,6 +28,8 @@ import TonightsDinnerCard from './TonightsDinnerCard'
 import LearningPortfolioTab from './LearningPortfolioTab'
 import GoalsTab from './GoalsTab'
 import AchievementsTab from './AchievementsTab'
+import KidRequestsTab from './KidRequestsTab'
+import KidCalendarTab from './KidCalendarTab'
 import FamilyEventsStrip from './FamilyEventsStrip'
 import MomAvailabilityBadge from './MomAvailabilityBadge'
 
@@ -824,18 +826,13 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       case 'checklist':
         return <DailyChecklist childName={profile.first_name || profile.name} />
       case 'calendar':
-        return (
-          <div className="p-6 bg-white rounded-lg border">
-            <h2 className="text-xl font-bold mb-4">Calendar</h2>
-            <p className="text-gray-600">Calendar feature coming soon!</p>
-          </div>
-        )
+        return <KidCalendarTab childName={profile.first_name || profile.name} />
       case 'achievements':
         return <AchievementsTab childName={profile.first_name || profile.name} />
       case 'goals':
         return <GoalsTab childName={profile.first_name || profile.name} />
       case 'requests':
-        return <KidTabContent kidData={kidData} activeTab={activeTab} />
+        return <KidRequestsTab childName={profile.first_name || profile.name} />
       default:
         return renderDashboard()
     }
