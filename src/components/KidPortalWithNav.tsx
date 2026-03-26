@@ -26,6 +26,8 @@ import BelleCareCard from './BelleCareCard'
 import DutyCard from './DutyCard'
 import TonightsDinnerCard from './TonightsDinnerCard'
 import LearningPortfolioTab from './LearningPortfolioTab'
+import GoalsTab from './GoalsTab'
+import AchievementsTab from './AchievementsTab'
 import FamilyEventsStrip from './FamilyEventsStrip'
 import MomAvailabilityBadge from './MomAvailabilityBadge'
 
@@ -829,7 +831,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           </div>
         )
       case 'achievements':
+        return <AchievementsTab childName={profile.first_name || profile.name} />
       case 'goals':
+        return <GoalsTab childName={profile.first_name || profile.name} />
       case 'requests':
         return <KidTabContent kidData={kidData} activeTab={activeTab} />
       default:
