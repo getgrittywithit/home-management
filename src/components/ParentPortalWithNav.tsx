@@ -28,10 +28,11 @@ import BelleCareTab from './BelleCareTab'
 import ParentPortfolioPanel from './ParentPortfolioPanel'
 import AvailabilityWidget from './AvailabilityWidget'
 import WeeklySummaryTab from './WeeklySummaryTab'
+import TeacherDashboard from './TeacherDashboard'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2
+  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -54,6 +55,7 @@ const tabs: Tab[] = [
   { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
+  { id: 'teacher', name: 'Teacher', icon: GraduationCap, color: 'bg-emerald-600' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
   { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
@@ -241,6 +243,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <WeeklySummaryTab />
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
+      case 'teacher':
+        return <TeacherDashboard />
       case 'kids-checklist':
         return <KidsChecklistOverview />
       case 'weekly-checklist':
