@@ -385,6 +385,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Check laundry day ──
+    if (action === 'check_laundry_today') {
+      if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `SELECT laundry_days, extra_duty FROM kid_laundry_schedule WHERE kid_name = $1`,
+          [kid]
+        )
+        if (rows.length === 0) return NextResponse.json({ is_laundry_day: false })
+        const todayDow = new Date(dateParam + 'T12:00:00').getDay()
+        const isLaundryDay = (rows[0].laundry_days || []).includes(todayDow)
+        return NextResponse.json({
+          is_laundry_day: isLaundryDay,
+          extra_duty: isLaundryDay ? rows[0].extra_duty : null
+        })
+      } catch {
+        return NextResponse.json({ is_laundry_day: false })
+      }
+    }
+
     // ── Check feeding reminder (Hades) ──
     if (action === 'check_feeding_reminder') {
       const pet = searchParams.get('pet') || 'hades'

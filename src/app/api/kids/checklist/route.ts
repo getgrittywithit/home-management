@@ -95,13 +95,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Dishes duty
-    // Breakfast & Lunch: single checkbox each
+    // Dish duty — expandable zone cards
     if (DISHES.breakfast.includes(child)) {
       required.push({
         id: `dishes-breakfast-${today}`,
         title: 'Breakfast Dishes',
-        description: 'Wash your 5 handwash items · Put away leftovers, pantry & fridge items · Clear & wipe table/counters · Flip dishwasher if full',
+        description: 'Wash 5 items, dry, put away, wipe counters, flip dishwasher',
         category: 'dishes',
         time: '8:00 AM',
       })
@@ -110,35 +109,57 @@ export async function GET(request: NextRequest) {
       required.push({
         id: `dishes-lunch-${today}`,
         title: 'Lunch Dishes',
-        description: 'Wash your 5 handwash items · Put away leftovers, pantry & fridge items · Clear & wipe table/counters · Unload or flip dishwasher',
+        description: 'Wash 5 items, dry, put away, wipe counters, check dishwasher',
         category: 'dishes',
         time: '12:00 PM',
       })
     }
-    // Dinner: 3 separate checkboxes
     if (DISHES.dinner.includes(child)) {
       required.push({
-        id: `dishes-dinner-${today}`,
-        title: '\u{1F37D}\u{FE0F} Dinner Dishes',
-        description: 'Wash your 5 handwash items · Put away leftovers, pantry & fridge items · Clear & wipe table/counters · Run dishwasher for overnight',
-        category: 'dishes',
-        time: 'After dinner',
-      })
-      required.push({
-        id: `dishes-dinner-trash-${today}`,
-        title: '\u{1F5D1}\u{FE0F} Kitchen Trash',
-        description: 'Take out the kitchen trash bag and replace with a new one',
-        category: 'dishes',
-        time: 'After dinner',
-      })
-      required.push({
-        id: `dishes-dinner-sink-${today}`,
-        title: '\u{2728} Sink Check',
-        description: 'Sink must be empty, clean, and shining — it\u2019s not done until it shines!',
+        id: `dishes-evening-${today}`,
+        title: 'Evening Dishes',
+        description: 'Wash 5 items, dry, put away, wipe everything, flip dishwasher',
         category: 'dishes',
         time: 'After dinner',
       })
     }
+
+    // Dinner Manager — day-gated per fixed weekly schedule
+    const DINNER_MANAGER: Record<number, string[]> = {
+      0: [],             // Sunday = Dad
+      1: ['kaylee'],     // Monday
+      2: ['zoey'],       // Tuesday
+      3: ['wyatt'],      // Wednesday
+      4: ['amos'],       // Thursday
+      5: ['ellie', 'hannah'], // Friday — shared
+      6: [],             // Saturday = Mom
+    }
+    if ((DINNER_MANAGER[dayOfWeek] || []).includes(child)) {
+      required.push({
+        id: `dinner-manager-${today}`,
+        title: 'Dinner Manager',
+        description: 'Set up, cook assist, clean up after dinner',
+        category: 'dishes',
+        time: '5:00 PM',
+      })
+    }
+
+    // Laundry — day-gated per kid_laundry_schedule
+    try {
+      const laundryRows = await db.query(
+        `SELECT laundry_days, extra_duty FROM kid_laundry_schedule WHERE kid_name = $1`,
+        [child]
+      )
+      if (laundryRows.length > 0 && (laundryRows[0].laundry_days || []).includes(dayOfWeek)) {
+        required.push({
+          id: `laundry-${today}`,
+          title: 'Laundry Day',
+          description: 'Collect, sort, wash, dry, fold, put away — all same day',
+          category: 'tidy',
+          time: '9:00 AM',
+        })
+      }
+    } catch { /* laundry schedule table may not exist */ }
 
     // Belle care
     if (getBelleHelper(todayDate) === child) {

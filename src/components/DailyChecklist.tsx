@@ -62,6 +62,18 @@ function getZoneKeyForItem(item: ChecklistItem, childName: string, currentZone: 
   if (titleLower.includes('spike helper')) return 'pet_spike'
   if (titleLower.includes('midnight care')) return 'pet_midnight'
 
+  // Dish duty — map per kid to their assigned block
+  const kidLower = childName.toLowerCase()
+  if (titleLower.includes('breakfast dishes')) return 'breakfast_dishes'
+  if (titleLower.includes('lunch dishes')) return 'lunch_dishes'
+  if (titleLower.includes('evening dishes')) return 'evening_dishes'
+
+  // Dinner manager
+  if (titleLower.includes('dinner manager')) return 'dinner_manager'
+
+  // Laundry
+  if (titleLower.includes('laundry day')) return 'laundry_room'
+
   // School room
   if (item.category === 'school_clean' || titleLower.includes('school room')) return 'school_room'
 
@@ -70,7 +82,7 @@ function getZoneKeyForItem(item: ChecklistItem, childName: string, currentZone: 
   if (titleLower.includes('bedtime routine')) return 'bedtime_routine'
 
   // Evening tidy maps to bedroom
-  if (titleLower.includes('evening tidy')) return `bedroom_${childName.toLowerCase()}`
+  if (titleLower.includes('evening tidy')) return `bedroom_${kidLower}`
 
   return null
 }
@@ -80,10 +92,13 @@ function isExpandableItem(item: ChecklistItem): boolean {
   return item.category === 'zone' ||
     item.category === 'belle' ||
     item.category === 'pet' ||
+    item.category === 'dishes' ||
     item.category === 'school_clean' ||
     titleLower.includes('morning routine') ||
     titleLower.includes('bedtime routine') ||
-    titleLower.includes('evening tidy')
+    titleLower.includes('evening tidy') ||
+    titleLower.includes('dinner manager') ||
+    titleLower.includes('laundry day')
 }
 
 export default function DailyChecklist({ childName }: DailyChecklistProps) {
