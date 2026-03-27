@@ -31,10 +31,12 @@ import WeeklySummaryTab from './WeeklySummaryTab'
 import TeacherDashboard from './TeacherDashboard'
 import HouseholdConfigTab from './HouseholdConfigTab'
 import ParentPetOverview from './ParentPetOverview'
+import FamilyQuickActions from './FamilyQuickActions'
+import FamilyActivityFeed from './FamilyActivityFeed'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, Bell, Zap, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap
+  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -168,61 +170,10 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white p-6 rounded-lg border">
-        <h2 className="text-xl font-bold mb-4">Family Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-            <Zap className="w-6 h-6 mx-auto mb-2 text-green-500" />
-            <div className="text-sm font-medium">Post Greenlight</div>
-          </button>
-          <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-            <Bell className="w-6 h-6 mx-auto mb-2 text-blue-500" />
-            <div className="text-sm font-medium">Send Alert</div>
-          </button>
-          <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-            <Calendar className="w-6 h-6 mx-auto mb-2 text-purple-500" />
-            <div className="text-sm font-medium">Add Event</div>
-          </button>
-          <button className="p-4 border rounded-lg hover:bg-gray-50 text-center">
-            <Users className="w-6 h-6 mx-auto mb-2 text-pink-500" />
-            <div className="text-sm font-medium">Family Meeting</div>
-          </button>
-        </div>
-      </div>
+      <FamilyQuickActions />
 
       {/* Recent Activity */}
-      <div className="bg-white p-6 rounded-lg border">
-        <h2 className="text-xl font-bold mb-4">Recent Family Activity</h2>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-              <Zap className="w-4 h-4 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Hannah completed all morning tasks</p>
-              <p className="text-xs text-gray-500">2 hours ago</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <Calendar className="w-4 h-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Wyatt's soccer practice added to calendar</p>
-              <p className="text-xs text-gray-500">4 hours ago</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-              <Users className="w-4 h-4 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Ellie updated her About Me profile</p>
-              <p className="text-xs text-gray-500">1 day ago</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <FamilyActivityFeed />
     </div>
   )
 

@@ -204,6 +204,66 @@ export default function MoeMoneyReports({ onClose, selectedMonth }: MoeMoneyRepo
     </div>
   )
 
+  const TrendsChart = ({ data }: { data: { month: string; expenses: number; income: number }[] }) => {
+    if (!data || data.length === 0) return (
+      <p className="text-sm text-gray-400 text-center py-8">No trend data available for this period.</p>
+    )
+
+    const maxVal = Math.max(...data.map(d => Math.max(d.expenses, d.income)), 1)
+
+    const formatMonth = (m: string) => {
+      const [year, month] = m.split('-')
+      return new Date(Number(year), Number(month) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    }
+
+    const totalExpenses = data.reduce((s, d) => s + d.expenses, 0)
+    const totalIncome = data.reduce((s, d) => s + d.income, 0)
+
+    return (
+      <div>
+        <p className="text-sm font-medium text-gray-700 mb-4">Monthly Spending vs Income</p>
+        <div className="flex items-end gap-3 h-48 border-b border-gray-200 pb-1">
+          {data.map((d) => {
+            const expPct = maxVal > 0 ? (d.expenses / maxVal) * 100 : 0
+            const incPct = maxVal > 0 ? (d.income / maxVal) * 100 : 0
+            return (
+              <div key={d.month} className="flex items-end gap-1 flex-1">
+                <div className="flex flex-col items-center flex-1 gap-1">
+                  <span className="text-xs text-red-500">${d.expenses.toFixed(0)}</span>
+                  <div
+                    className="w-full bg-red-400 rounded-t transition-all duration-500 hover:bg-red-500"
+                    style={{ height: `${Math.max(expPct, 3)}%` }}
+                    title={`${formatMonth(d.month)} expenses: $${d.expenses.toFixed(2)}`}
+                  />
+                </div>
+                <div className="flex flex-col items-center flex-1 gap-1">
+                  <span className="text-xs text-green-500">${d.income.toFixed(0)}</span>
+                  <div
+                    className="w-full bg-green-400 rounded-t transition-all duration-500 hover:bg-green-500"
+                    style={{ height: `${Math.max(incPct, 3)}%` }}
+                    title={`${formatMonth(d.month)} income: $${d.income.toFixed(2)}`}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex gap-3 mt-1">
+          {data.map((d) => (
+            <div key={d.month} className="flex-1 text-center">
+              <span className="text-xs text-gray-400">{formatMonth(d.month)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex gap-4 text-sm text-gray-600 flex-wrap">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-400 rounded" /> Expenses: <strong>${totalExpenses.toFixed(2)}</strong></span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-400 rounded" /> Income: <strong>${totalIncome.toFixed(2)}</strong></span>
+          <span>Net: <strong className={totalIncome - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}>${(totalIncome - totalExpenses).toFixed(2)}</strong></span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
@@ -310,9 +370,7 @@ export default function MoeMoneyReports({ onClose, selectedMonth }: MoeMoneyRepo
               {reportType === 'categories' && renderCategoryReport()}
               {reportType === 'business' && renderBusinessReport()}
               {reportType === 'trends' && (
-                <div className="text-center py-8 text-gray-500">
-                  Monthly trends chart coming soon...
-                </div>
+                <TrendsChart data={reportData?.monthlyTrend || []} />
               )}
             </>
           )}

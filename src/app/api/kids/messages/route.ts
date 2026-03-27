@@ -101,11 +101,11 @@ export async function POST(request: NextRequest) {
       }
 
       case 'create_announcement': {
-        const { message } = body
+        const { message, type, target_kid } = body
         if (!message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 })
         await db.query(
-          `INSERT INTO family_announcements (message) VALUES ($1)`,
-          [message.trim()]
+          `INSERT INTO family_announcements (message, announcement_type, target_kid) VALUES ($1, $2, $3)`,
+          [message.trim(), type || 'general', target_kid || 'all']
         )
         return NextResponse.json({ success: true })
       }
