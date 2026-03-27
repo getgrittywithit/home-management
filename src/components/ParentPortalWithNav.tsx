@@ -24,13 +24,12 @@ import MessagesTab from './MessagesTab'
 import NeedsBoardTab from './NeedsBoardTab'
 import MoodOverview from './MoodOverview'
 import MoodHistoryCard from './MoodHistoryCard'
-import BelleCareTab from './BelleCareTab'
 import ParentPortfolioPanel from './ParentPortfolioPanel'
 import AvailabilityWidget from './AvailabilityWidget'
 import WeeklySummaryTab from './WeeklySummaryTab'
 import TeacherDashboard from './TeacherDashboard'
 import HouseholdConfigTab from './HouseholdConfigTab'
-import ParentPetOverview from './ParentPetOverview'
+import PetsTab from './PetsTab'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
 import { getAllFamilyData } from '@/lib/familyConfig'
@@ -55,7 +54,7 @@ const tabs: Tab[] = [
   { id: 'points-earning', name: 'Points & Earning', icon: Star, color: 'bg-amber-500' },
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
   { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
-  { id: 'belle-care', name: 'Belle Care', icon: Dog, color: 'bg-amber-600' },
+  { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600' },
   { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'teacher', name: 'Teacher', icon: GraduationCap, color: 'bg-emerald-600' },
@@ -218,12 +217,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'teacher':
         return <TeacherDashboard />
       case 'household-config':
-        return (
-          <div className="space-y-6">
-            <ParentPetOverview />
-            <HouseholdConfigTab />
-          </div>
-        )
+        return <HouseholdConfigTab />
       case 'kids-checklist':
         return <KidsChecklistOverview />
       case 'weekly-checklist':
@@ -264,7 +258,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'needs-board':
         return <NeedsBoardTab />
       case 'belle-care':
-        return <BelleCareTab />
+        return <PetsTab />
       case 'portfolio':
         return <ParentPortfolioPanel />
       case 'moe-money':
