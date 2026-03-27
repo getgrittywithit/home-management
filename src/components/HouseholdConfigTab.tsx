@@ -69,18 +69,30 @@ export default function HouseholdConfigTab() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/parent/household-config?action=get_zones').then(r => r.json()).catch(() => ({ zones: [] })),
-      fetch('/api/parent/household-config?action=get_routine_flags').then(r => r.json()).catch(() => ({ flags: [] })),
-      fetch('/api/parent/household-config?action=get_bonus_log').then(r => r.json()).catch(() => ({ bonusTasks: [] })),
-      fetch('/api/parent/household-config?action=get_morning_weekly').then(r => r.json()).catch(() => ({ checkins: [] })),
-    ]).then(([zonesData, flagsData, bonusData, morningData]) => {
-      setZones(zonesData.zones || [])
-      setRoutineFlags(flagsData.flags || [])
-      setBonusTasks(bonusData.bonusTasks || [])
-      setMorningCheckins(morningData.checkins || [])
-      setLoaded(true)
-    })
+    // Load zones first (critical), then load supplementary data
+    fetch('/api/parent/household-config?action=get_zones')
+      .then(r => r.json())
+      .then(data => {
+        setZones(data.zones || [])
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+
+    // Load supplementary data separately so zone loading isn't blocked
+    fetch('/api/parent/household-config?action=get_routine_flags')
+      .then(r => r.json())
+      .then(data => setRoutineFlags(data.flags || []))
+      .catch(() => {})
+
+    fetch('/api/parent/household-config?action=get_bonus_log')
+      .then(r => r.json())
+      .then(data => setBonusTasks(data.bonusTasks || []))
+      .catch(() => {})
+
+    fetch('/api/parent/household-config?action=get_morning_weekly')
+      .then(r => r.json())
+      .then(data => setMorningCheckins(data.checkins || []))
+      .catch(() => {})
   }, [])
 
   const loadZoneTasks = async (zoneKey: string) => {
@@ -190,8 +202,8 @@ export default function HouseholdConfigTab() {
   const bedroomZones = zones.filter(z => z.zone_type === 'bedroom')
   const routineZones = zones.filter(z => z.zone_type === 'routine')
 
-  const ZoneButton = ({ z }: { z: ZoneDef }) => (
-    <button onClick={() => loadZoneTasks(z.zone_key)}
+  const renderZoneButton = (z: ZoneDef) => (
+    <button key={z.zone_key} onClick={() => loadZoneTasks(z.zone_key)}
       className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 ${selectedZone === z.zone_key ? 'bg-emerald-50' : ''}`}>
       <div className="text-sm font-medium text-gray-900">{z.display_name}</div>
       <div className="text-xs text-gray-400">{z.anchor_count} anchor &middot; {z.rotating_count} rotating</div>
@@ -281,19 +293,31 @@ export default function HouseholdConfigTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-3 border-b bg-amber-50 rounded-t-lg"><h3 className="font-bold text-amber-900 text-sm">Shared Zones</h3></div>
-          <div className="divide-y">{sharedZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
+          <div className="divide-y">
+            {sharedZones.map(z => renderZoneButton(z))}
+            {sharedZones.length === 0 && <p className="p-3 text-xs text-gray-400">No shared zones found</p>}
+          </div>
         </div>
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-3 border-b bg-purple-50 rounded-t-lg"><h3 className="font-bold text-purple-900 text-sm">Duty Zones</h3></div>
-          <div className="divide-y">{dutyZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
+          <div className="divide-y">
+            {dutyZones.map(z => renderZoneButton(z))}
+            {dutyZones.length === 0 && <p className="p-3 text-xs text-gray-400">No duty zones found</p>}
+          </div>
         </div>
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-3 border-b bg-sky-50 rounded-t-lg"><h3 className="font-bold text-sky-900 text-sm">Routines</h3></div>
-          <div className="divide-y">{routineZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
+          <div className="divide-y">
+            {routineZones.map(z => renderZoneButton(z))}
+            {routineZones.length === 0 && <p className="p-3 text-xs text-gray-400">No routines found</p>}
+          </div>
         </div>
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-3 border-b bg-blue-50 rounded-t-lg"><h3 className="font-bold text-blue-900 text-sm">Bedrooms</h3></div>
-          <div className="divide-y">{bedroomZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
+          <div className="divide-y">
+            {bedroomZones.map(z => renderZoneButton(z))}
+            {bedroomZones.length === 0 && <p className="p-3 text-xs text-gray-400">No bedrooms found</p>}
+          </div>
         </div>
       </div>
 
