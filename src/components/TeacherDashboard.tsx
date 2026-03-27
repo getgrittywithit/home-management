@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react'
 import {
   GraduationCap, CalendarCheck, BookOpen, ClipboardList, Mail, FileText,
-  AlertTriangle, Plus, Trash2, Save, Check, Printer, ChevronDown, ChevronUp, X
+  AlertTriangle, Plus, Trash2, Save, Check, Printer, ChevronDown, ChevronUp, X, Shield
 } from 'lucide-react'
+import SpecialEdTab from './SpecialEdTab'
+import AbScheduleSetup from './AbScheduleSetup'
+import PublicMakeupWork from './PublicMakeupWork'
 
 const ALL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
 const HOMESCHOOL = ['amos', 'ellie', 'wyatt', 'hannah']
@@ -13,7 +16,7 @@ const KID_DISPLAY: Record<string, string> = { amos: 'Amos', ellie: 'Ellie', wyat
 const SUBJECTS = ['Math', 'ELAR/Writing', 'Science', 'Social Studies', 'Reading', 'Life Skills']
 const LIFE_CATS = ['Life Skills', 'Practical Arts', 'Character', 'Extracurricular']
 
-type SubTab = 'overview' | 'attendance' | 'academic' | 'makeup' | 'excuse'
+type SubTab = 'overview' | 'attendance' | 'academic' | 'makeup' | 'excuse' | 'special_ed'
 
 export default function TeacherDashboard() {
   const [subTab, setSubTab] = useState<SubTab>('overview')
@@ -143,6 +146,7 @@ export default function TeacherDashboard() {
     { id: 'academic', label: 'Academic Records', icon: BookOpen },
     { id: 'makeup', label: 'Make-Up Work', icon: ClipboardList },
     { id: 'excuse', label: 'Excuse Letters', icon: Mail },
+    { id: 'special_ed', label: 'Special Ed & 504', icon: Shield },
   ]
 
   return (
@@ -234,7 +238,10 @@ export default function TeacherDashboard() {
                   )}
 
                   {PUBLIC_SCHOOL.includes(selectedKid) && (
-                    <p className="text-sm text-gray-500 mb-3">Attendance is tracked by the school. Sick days logged here.</p>
+                    <>
+                      <p className="text-sm text-gray-500 mb-3">Attendance is tracked by the school. Sick days logged here.</p>
+                      <AbScheduleSetup kid={selectedKid} />
+                    </>
                   )}
 
                   <div className="flex gap-2 mb-4">
@@ -333,8 +340,9 @@ export default function TeacherDashboard() {
           {/* ─── Make-Up Work ─── */}
           {subTab === 'makeup' && data && (
             <div className="space-y-3">
-              {(data.openMakeupWork || []).length === 0 && <p className="text-center text-gray-400 py-4">No open make-up work</p>}
-              {ALL_KIDS.map(k => {
+              <h3 className="font-semibold text-sm text-gray-700">Homeschool Make-Up Work</h3>
+              {(data.openMakeupWork || []).filter((m: any) => HOMESCHOOL.includes(m.kid_name)).length === 0 && <p className="text-center text-gray-400 py-2 text-sm">No open homeschool make-up work</p>}
+              {HOMESCHOOL.map(k => {
                 const items = (data.openMakeupWork || []).filter((m: any) => m.kid_name === k)
                 if (items.length === 0) return null
                 return (
@@ -359,8 +367,14 @@ export default function TeacherDashboard() {
                   </div>
                 )
               })}
+
+              {/* Public School Makeup */}
+              <PublicMakeupWork />
             </div>
           )}
+
+          {/* ─── Special Ed & 504 ─── */}
+          {subTab === 'special_ed' && <SpecialEdTab />}
 
           {/* ─── Excuse Letters ─── */}
           {subTab === 'excuse' && (
@@ -389,7 +403,7 @@ export default function TeacherDashboard() {
                       <div className="mt-2 grid grid-cols-2 gap-2">
                         <input type="text" value={contactForm.school_name} onChange={e => setContactForm(p => ({ ...p, school_name: e.target.value }))} placeholder="School name" className="border rounded px-2 py-1 text-sm" />
                         <input type="text" value={contactForm.school_email} onChange={e => setContactForm(p => ({ ...p, school_email: e.target.value }))} placeholder="School email" className="border rounded px-2 py-1 text-sm" />
-                        <input type="text" value={contactForm.attendance_contact} onChange={e => setContactForm(p => ({ ...p, attendance_contact: e.target.value }))} placeholder="Attendance contact" className="border rounded px-2 py-1 text-sm" />
+                        <input type="text" value={contactForm.attendance_contact} onChange={e => setContactForm(p => ({ ...p, attendance_contact: e.target.value }))} placeholder="Attendance secretary" className="border rounded px-2 py-1 text-sm" />
                         <input type="text" value={contactForm.teacher_name} onChange={e => setContactForm(p => ({ ...p, teacher_name: e.target.value }))} placeholder="Teacher name" className="border rounded px-2 py-1 text-sm" />
                         <button onClick={saveContact} className="bg-emerald-500 text-white px-3 py-1 rounded text-xs col-span-2 w-fit">Save Contact</button>
                       </div>

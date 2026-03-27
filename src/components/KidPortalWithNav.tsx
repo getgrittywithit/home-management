@@ -24,6 +24,7 @@ import DailyCheckInCard from './DailyCheckInCard'
 import RegulationToolsCard from './RegulationToolsCard'
 import BelleCareCard from './BelleCareCard'
 import DutyCard from './DutyCard'
+import SchoolMakeupCard from './SchoolMakeupCard'
 import TonightsDinnerCard from './TonightsDinnerCard'
 import LearningPortfolioTab from './LearningPortfolioTab'
 import GoalsTab from './GoalsTab'
@@ -453,6 +454,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
         {/* Belle Care */}
         <BelleCareCard childName={profile.first_name || ''} />
+
+        {/* School Makeup (Zoey + Kaylee only) */}
+        <SchoolMakeupCard childName={profile.first_name || ''} />
 
         {/* Dinner Manager & Laundry */}
         <DutyCard childName={profile.first_name || ''} />

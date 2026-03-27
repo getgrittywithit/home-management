@@ -82,6 +82,75 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ attendance: att, subjects: subjectRes, books: booksRes, lifeSkills: lifeRes })
     }
 
+    // ── Special contacts per kid ──
+    if (action === 'get_special_contacts') {
+      if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+      try {
+        const contacts = await db.query(`SELECT * FROM kid_special_contacts WHERE kid_name = $1 ORDER BY role, contact_name`, [kid])
+        return NextResponse.json({ contacts })
+      } catch { return NextResponse.json({ contacts: [] }) }
+    }
+
+    // ── Special ed plans ──
+    if (action === 'get_special_ed_plans') {
+      if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+      try {
+        const plans = await db.query(`SELECT * FROM kid_special_ed_plans WHERE kid_name = $1 ORDER BY created_at DESC`, [kid])
+        return NextResponse.json({ plans })
+      } catch { return NextResponse.json({ plans: [] }) }
+    }
+
+    // ── Special ed meetings ──
+    if (action === 'get_special_ed_meetings') {
+      if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+      try {
+        const meetings = await db.query(`SELECT * FROM kid_special_ed_meetings WHERE kid_name = $1 ORDER BY meeting_date DESC`, [kid])
+        return NextResponse.json({ meetings })
+      } catch { return NextResponse.json({ meetings: [] }) }
+    }
+
+    // ── School documents ──
+    if (action === 'get_school_documents') {
+      if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+      const docType = searchParams.get('doc_type')
+      try {
+        const query = docType
+          ? `SELECT * FROM kid_school_documents WHERE kid_name = $1 AND doc_type = $2 ORDER BY upload_date DESC`
+          : `SELECT * FROM kid_school_documents WHERE kid_name = $1 ORDER BY upload_date DESC`
+        const params = docType ? [kid, docType] : [kid]
+        const docs = await db.query(query, params)
+        return NextResponse.json({ documents: docs })
+      } catch { return NextResponse.json({ documents: [] }) }
+    }
+
+    // ── A/B schedule ──
+    if (action === 'get_ab_schedule') {
+      if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+      const from = searchParams.get('from') || getToday()
+      const to = searchParams.get('to') || from
+      try {
+        const schedule = await db.query(
+          `SELECT date, day_type FROM kid_ab_schedule WHERE kid_name = $1 AND date >= $2 AND date <= $3 ORDER BY date`,
+          [kid, from, to]
+        )
+        return NextResponse.json({ schedule })
+      } catch { return NextResponse.json({ schedule: [] }) }
+    }
+
+    // ── Public school makeup work ──
+    if (action === 'get_public_makeup') {
+      if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+      const status = searchParams.get('status')
+      try {
+        const query = status
+          ? `SELECT * FROM kid_public_makeup WHERE kid_name = $1 AND status = $2 ORDER BY due_date`
+          : `SELECT * FROM kid_public_makeup WHERE kid_name = $1 ORDER BY due_date DESC`
+        const params = status ? [kid, status] : [kid]
+        const work = await db.query(query, params)
+        return NextResponse.json({ work })
+      } catch { return NextResponse.json({ work: [] }) }
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Teacher GET error:', error)
@@ -222,6 +291,127 @@ export async function POST(request: NextRequest) {
            ON CONFLICT (kid_name) DO UPDATE SET school_name = $2, school_email = $3, attendance_contact = $4, teacher_name = $5, teacher_email = $6, updated_at = NOW()`,
           [kid_name.toLowerCase(), school_name || null, school_email || null, attendance_contact || null, teacher_name || null, teacher_email || null]
         )
+        return NextResponse.json({ success: true })
+      }
+
+      // ── Special contacts CRUD ──
+      case 'create_special_contact': {
+        const { kid, contact_name, role, role_label, email, phone, phone_ext, notes } = body
+        if (!kid || !contact_name || !role) return NextResponse.json({ error: 'kid, contact_name, role required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO kid_special_contacts (kid_name, contact_name, role, role_label, email, phone, phone_ext, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [kid.toLowerCase(), contact_name, role, role_label || role, email || null, phone || null, phone_ext || null, notes || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+      case 'update_special_contact': {
+        const { id, contact_name, role, role_label, email, phone, phone_ext, notes } = body
+        if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+        await db.query(
+          `UPDATE kid_special_contacts SET contact_name=COALESCE($2,contact_name), role=COALESCE($3,role), role_label=COALESCE($4,role_label), email=$5, phone=$6, phone_ext=$7, notes=$8 WHERE id=$1`,
+          [id, contact_name, role, role_label, email || null, phone || null, phone_ext || null, notes || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+      case 'delete_special_contact': {
+        const { id } = body
+        await db.query(`DELETE FROM kid_special_contacts WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      // ── Special ed plan updates ──
+      case 'update_special_ed_plan': {
+        const { id, accommodations, goals, notes: planNotes, next_meeting_date, next_meeting_time, next_meeting_location } = body
+        if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+        await db.query(
+          `UPDATE kid_special_ed_plans SET
+            accommodations = COALESCE($2, accommodations), goals = COALESCE($3, goals),
+            notes = COALESCE($4, notes), next_meeting_date = COALESCE($5, next_meeting_date),
+            next_meeting_time = COALESCE($6, next_meeting_time), next_meeting_location = COALESCE($7, next_meeting_location),
+            updated_at = NOW() WHERE id = $1`,
+          [id, accommodations ? JSON.stringify(accommodations) : null, goals ? JSON.stringify(goals) : null,
+           planNotes || null, next_meeting_date || null, next_meeting_time || null, next_meeting_location || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+      case 'confirm_meeting': {
+        const { plan_id } = body
+        await db.query(`UPDATE kid_special_ed_plans SET meeting_confirmed = TRUE, updated_at = NOW() WHERE id = $1`, [plan_id])
+        return NextResponse.json({ success: true })
+      }
+      case 'log_special_ed_meeting': {
+        const { kid, plan_id, meeting_date, meeting_time, meeting_type, location, attendees, outcome, notes: meetNotes } = body
+        if (!kid || !meeting_date) return NextResponse.json({ error: 'kid, meeting_date required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO kid_special_ed_meetings (kid_name, plan_id, meeting_date, meeting_time, meeting_type, location, attendees, outcome, notes)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [kid.toLowerCase(), plan_id || null, meeting_date, meeting_time || null, meeting_type || null, location || null, attendees || null, outcome || null, meetNotes || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      // ── Documents ──
+      case 'create_document': {
+        const { kid, doc_type, doc_name, academic_year, file_path, file_size_kb, summary } = body
+        if (!kid || !doc_type || !doc_name) return NextResponse.json({ error: 'kid, doc_type, doc_name required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO kid_school_documents (kid_name, doc_type, doc_name, academic_year, file_path, file_size_kb, summary) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [kid.toLowerCase(), doc_type, doc_name, academic_year || null, file_path || null, file_size_kb || null, summary || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+      case 'delete_document': {
+        const { id } = body
+        await db.query(`DELETE FROM kid_school_documents WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      // ── A/B Schedule ──
+      case 'set_ab_pattern': {
+        const { kid, start_date, starting_type } = body
+        if (!kid || !start_date || !starting_type) return NextResponse.json({ error: 'kid, start_date, starting_type required' }, { status: 400 })
+        const startD = new Date(start_date + 'T12:00:00')
+        let currentType = starting_type as string
+        for (let i = 0; i < 40; i++) { // 8 weeks of weekdays
+          const d = new Date(startD.getTime() + i * 86400000)
+          const dow = d.getDay()
+          if (dow === 0 || dow === 6) continue // skip weekends
+          const dateStr = d.toLocaleDateString('en-CA')
+          try {
+            await db.query(
+              `INSERT INTO kid_ab_schedule (kid_name, date, day_type) VALUES ($1, $2, $3)
+               ON CONFLICT (kid_name, date) DO UPDATE SET day_type = $3`,
+              [kid.toLowerCase(), dateStr, currentType]
+            )
+          } catch { /* skip */ }
+          currentType = currentType === 'A' ? 'B' : 'A'
+        }
+        return NextResponse.json({ success: true })
+      }
+      case 'set_ab_day': {
+        const { kid, date, day_type } = body
+        await db.query(
+          `INSERT INTO kid_ab_schedule (kid_name, date, day_type) VALUES ($1, $2, $3)
+           ON CONFLICT (kid_name, date) DO UPDATE SET day_type = $3`,
+          [kid.toLowerCase(), date, day_type]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      // ── Public school makeup ──
+      case 'create_public_makeup': {
+        const { kid, sick_date, ab_day, subject, description, due_date } = body
+        if (!kid || !sick_date || !subject) return NextResponse.json({ error: 'kid, sick_date, subject required' }, { status: 400 })
+        const dueD = due_date || new Date(new Date(sick_date + 'T12:00:00').getTime() + 7 * 86400000).toLocaleDateString('en-CA')
+        await db.query(
+          `INSERT INTO kid_public_makeup (kid_name, sick_date, ab_day, subject, description, due_date) VALUES ($1,$2,$3,$4,$5,$6)`,
+          [kid.toLowerCase(), sick_date, ab_day || null, subject, description || null, dueD]
+        )
+        return NextResponse.json({ success: true })
+      }
+      case 'update_public_makeup_status': {
+        const { id, status } = body
+        await db.query(`UPDATE kid_public_makeup SET status = $2 WHERE id = $1`, [id, status])
         return NextResponse.json({ success: true })
       }
 
