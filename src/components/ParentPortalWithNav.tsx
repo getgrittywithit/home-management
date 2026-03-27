@@ -29,6 +29,7 @@ import ParentPortfolioPanel from './ParentPortfolioPanel'
 import AvailabilityWidget from './AvailabilityWidget'
 import WeeklySummaryTab from './WeeklySummaryTab'
 import TeacherDashboard from './TeacherDashboard'
+import HouseholdConfigTab from './HouseholdConfigTab'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -56,6 +57,7 @@ const tabs: Tab[] = [
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
   { id: 'teacher', name: 'Teacher', icon: GraduationCap, color: 'bg-emerald-600' },
+  { id: 'household-config', name: 'Zone Tasks', icon: ClipboardList, color: 'bg-teal-600' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
   { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
@@ -245,6 +247,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <ChoresTab familyMembers={familyMembers} />
       case 'teacher':
         return <TeacherDashboard />
+      case 'household-config':
+        return <HouseholdConfigTab />
       case 'kids-checklist':
         return <KidsChecklistOverview />
       case 'weekly-checklist':

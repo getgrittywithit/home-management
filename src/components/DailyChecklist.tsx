@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react'
 import {
   CheckCircle2, Circle, Lock, DollarSign, Sparkles,
-  Dog, Utensils, Home, Trash2, Trophy
+  Dog, Utensils, Home, Trash2, Trophy, ChevronDown, ChevronUp
 } from 'lucide-react'
+import ZoneDetailCard from './ZoneDetailCard'
+import MorningCheckinCard from './MorningCheckinCard'
 
 interface ChecklistItem {
   id: string
@@ -31,6 +33,51 @@ const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string }> =
   earn_money: { icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-600' },
 }
 
+// Map zone names from the 6-week rotation to zone_definitions keys
+const ZONE_NAME_TO_KEY: Record<string, string> = {
+  'hotspot': 'kitchen_zone', // Hotspot is kitchen area
+  'kitchen': 'kitchen_zone',
+  'guest bathroom': 'kids_bathroom', // reuse bathroom tasks
+  'kids bathroom': 'kids_bathroom',
+  'pantry': 'kitchen_zone', // pantry tasks overlap kitchen
+  'floors': 'kitchen_zone', // floors tasks overlap kitchen
+}
+
+function getZoneKeyForItem(item: ChecklistItem, childName: string, currentZone: string | null): string | null {
+  const titleLower = item.title.toLowerCase()
+
+  // Zone chores — map from kid's current zone assignment
+  if (item.category === 'zone' && currentZone) {
+    const zoneKey = ZONE_NAME_TO_KEY[currentZone.toLowerCase()]
+    if (zoneKey) return zoneKey
+  }
+
+  // Belle care
+  if (item.category === 'belle' || titleLower.includes('belle care')) return 'belle_care'
+
+  // School room
+  if (item.category === 'school_clean' || titleLower.includes('school room')) return 'school_room'
+
+  // Hygiene / routines
+  if (titleLower.includes('morning routine')) return 'morning_routine'
+  if (titleLower.includes('bedtime routine')) return 'bedtime_routine'
+
+  // Evening tidy maps to bedroom
+  if (titleLower.includes('evening tidy')) return `bedroom_${childName.toLowerCase()}`
+
+  return null
+}
+
+function isExpandableItem(item: ChecklistItem): boolean {
+  const titleLower = item.title.toLowerCase()
+  return item.category === 'zone' ||
+    item.category === 'belle' ||
+    item.category === 'school_clean' ||
+    titleLower.includes('morning routine') ||
+    titleLower.includes('bedtime routine') ||
+    titleLower.includes('evening tidy')
+}
+
 export default function DailyChecklist({ childName }: DailyChecklistProps) {
   const [required, setRequired] = useState<ChecklistItem[]>([])
   const [dailyCare, setDailyCare] = useState<ChecklistItem[]>([])
@@ -39,6 +86,7 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
   const [zone, setZone] = useState<string | null>(null)
   const [stats, setStats] = useState({ requiredTotal: 0, requiredDone: 0, dailyCareTotal: 0, dailyCareDone: 0, earnMoneyTotal: 0, earnMoneyDone: 0 })
   const [loaded, setLoaded] = useState(false)
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
 
   const childKey = childName.toLowerCase()
 
@@ -86,6 +134,17 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
     }
   }
 
+  const toggleExpand = (itemId: string) => {
+    setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }))
+  }
+
+  const handleZoneAllComplete = (item: ChecklistItem, tier: 'required' | 'dailyCare') => {
+    // Auto-check the parent checklist item when all zone sub-tasks are done
+    if (!item.completed) {
+      toggle(item, tier)
+    }
+  }
+
   if (!loaded) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -100,12 +159,15 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
 
   return (
     <div className="space-y-6">
+      {/* Morning check-in (Kaylee/Zoey only, weekdays) */}
+      <MorningCheckinCard childName={childName} />
+
       {/* Header */}
       <div className="bg-gradient-to-r from-green-500 to-teal-500 text-white p-6 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Daily Checklist</h1>
-            <p className="text-green-100">{childName}'s tasks for today</p>
+            <p className="text-green-100">{childName}&apos;s tasks for today</p>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{totalDone}/{totalAll}</div>
@@ -141,14 +203,23 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
         </div>
         <div className="divide-y">
           {required.map(item => (
-            <ChecklistRow key={item.id} item={item} onToggle={() => toggle(item, 'required')} />
+            <ExpandableChecklistRow
+              key={item.id}
+              item={item}
+              onToggle={() => toggle(item, 'required')}
+              childName={childName}
+              currentZone={zone}
+              expanded={expandedItems[item.id]}
+              onToggleExpand={() => toggleExpand(item.id)}
+              onZoneAllComplete={() => handleZoneAllComplete(item, 'required')}
+            />
           ))}
           {required.length === 0 && (
             <div className="p-6 text-center text-gray-400">No required tasks today</div>
           )}
           {required.some(item => item.category === 'dishes') && (
             <div className="px-4 py-2 bg-blue-50 border-t text-xs text-blue-700 italic">
-              🍴 Wash your 5 handwash items at your meal time — not later.
+              Wash your 5 handwash items at your meal time — not later.
             </div>
           )}
         </div>
@@ -164,7 +235,16 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
         </div>
         <div className="divide-y">
           {dailyCare.map(item => (
-            <ChecklistRow key={item.id} item={item} onToggle={() => toggle(item, 'dailyCare')} />
+            <ExpandableChecklistRow
+              key={item.id}
+              item={item}
+              onToggle={() => toggle(item, 'dailyCare')}
+              childName={childName}
+              currentZone={zone}
+              expanded={expandedItems[item.id]}
+              onToggleExpand={() => toggleExpand(item.id)}
+              onZoneAllComplete={() => handleZoneAllComplete(item, 'dailyCare')}
+            />
           ))}
         </div>
       </div>
@@ -198,6 +278,71 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expanded, onToggleExpand, onZoneAllComplete, showPoints }: {
+  item: ChecklistItem
+  onToggle: () => void
+  childName: string
+  currentZone: string | null
+  expanded?: boolean
+  onToggleExpand: () => void
+  onZoneAllComplete: () => void
+  showPoints?: boolean
+}) {
+  const expandable = isExpandableItem(item)
+  const zoneKey = expandable ? getZoneKeyForItem(item, childName, currentZone) : null
+
+  return (
+    <div>
+      <div className={`flex items-center gap-3 px-4 py-3 ${item.completed ? 'bg-gray-50/50' : ''}`}>
+        <button onClick={onToggle} className="flex-shrink-0">
+          {item.completed ? (
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+          ) : (
+            <Circle className="w-5 h-5 text-gray-300" />
+          )}
+        </button>
+        <div className={`flex-shrink-0 ${(CATEGORY_ICONS[item.category] || { color: 'text-gray-500' }).color}`}>
+          {(CATEGORY_ICONS[item.category] || { icon: <Circle className="w-4 h-4" /> }).icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+            {item.title}
+          </span>
+          {item.description && !expanded && (
+            <p className={`text-xs ${item.completed ? 'text-gray-300' : 'text-gray-500'}`}>{item.description}</p>
+          )}
+        </div>
+        {item.time && !expandable && <span className="text-xs text-gray-400 flex-shrink-0">{item.time}</span>}
+        {showPoints && item.points && (
+          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">
+            +{item.points} pts
+          </span>
+        )}
+        {expandable && zoneKey && (
+          <button onClick={onToggleExpand} className="flex-shrink-0 p-1 hover:bg-gray-100 rounded">
+            {expanded ? (
+              <ChevronUp className="w-4 h-4 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Inline zone detail card */}
+      {expanded && zoneKey && (
+        <div className="px-4 pb-3" style={{ transition: 'max-height 0.3s ease' }}>
+          <ZoneDetailCard
+            zoneKey={zoneKey}
+            childName={childName}
+            onAllComplete={onZoneAllComplete}
+          />
+        </div>
+      )}
     </div>
   )
 }
