@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import {
-  Settings, ChevronDown, ChevronUp, Plus, Eye, EyeOff,
-  Heart, AlertTriangle, CheckCircle2, Clock, Trash2
+  Settings, Plus, Eye, EyeOff, Pencil, Trash2,
+  AlertTriangle, Clock, Check
 } from 'lucide-react'
+
+const ALL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
 
 interface ZoneDef {
   id: number
@@ -27,6 +29,7 @@ interface ZoneTask {
   active: boolean
   last_completed?: string | null
   kid_filter?: string[] | null
+  instructions?: string[] | null
 }
 
 interface RoutineFlag {
@@ -61,6 +64,9 @@ export default function HouseholdConfigTab() {
   const [loaded, setLoaded] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTask, setNewTask] = useState({ task_text: '', task_type: 'rotating', health_priority: false, duration_mins: 5 })
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editForm, setEditForm] = useState({ task_text: '', task_type: '', health_priority: false, duration_mins: 5, kid_filter: [] as string[], instructions: '' })
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -79,6 +85,8 @@ export default function HouseholdConfigTab() {
 
   const loadZoneTasks = async (zoneKey: string) => {
     setSelectedZone(zoneKey)
+    setEditingId(null)
+    setConfirmDeleteId(null)
     const action = viewMode === 'rotation' ? 'get_rotation_overview' : 'get_zone_tasks'
     try {
       const res = await fetch(`/api/parent/household-config?action=${action}&zone=${zoneKey}`)
@@ -92,8 +100,7 @@ export default function HouseholdConfigTab() {
   const toggleTaskActive = async (taskId: number) => {
     setZoneTasks(prev => prev.map(t => t.id === taskId ? { ...t, active: !t.active } : t))
     await fetch('/api/parent/household-config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'toggle_task_active', task_id: taskId })
     })
   }
@@ -101,8 +108,7 @@ export default function HouseholdConfigTab() {
   const addTask = async () => {
     if (!newTask.task_text.trim() || !selectedZone) return
     await fetch('/api/parent/household-config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'add_task', zone_key: selectedZone, ...newTask })
     })
     setNewTask({ task_text: '', task_type: 'rotating', health_priority: false, duration_mins: 5 })
@@ -110,13 +116,55 @@ export default function HouseholdConfigTab() {
     loadZoneTasks(selectedZone)
   }
 
+  const startEdit = (task: ZoneTask) => {
+    setEditingId(task.id)
+    setConfirmDeleteId(null)
+    setEditForm({
+      task_text: task.task_text,
+      task_type: task.task_type,
+      health_priority: task.health_priority,
+      duration_mins: task.duration_mins,
+      kid_filter: task.kid_filter || [],
+      instructions: Array.isArray(task.instructions) ? task.instructions.join('\n') : '',
+    })
+  }
+
+  const saveEdit = async (taskId: number) => {
+    const instrArray = editForm.instructions.trim()
+      ? editForm.instructions.split('\n').filter(s => s.trim())
+      : null
+    await fetch('/api/parent/household-config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update_task',
+        task_id: taskId,
+        task_text: editForm.task_text,
+        task_type: editForm.task_type,
+        health_priority: editForm.health_priority,
+        duration_mins: editForm.duration_mins,
+        kid_filter: editForm.kid_filter.length > 0 ? editForm.kid_filter : null,
+        instructions: instrArray,
+      })
+    })
+    setEditingId(null)
+    if (selectedZone) loadZoneTasks(selectedZone)
+  }
+
+  const deleteTask = async (taskId: number) => {
+    await fetch('/api/parent/household-config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_task', task_id: taskId })
+    })
+    setConfirmDeleteId(null)
+    setZoneTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
   const toggleFlag = async (kid: string, flagKey: string) => {
     setRoutineFlags(prev => prev.map(f =>
       f.kid_name === kid && f.flag_key === flagKey ? { ...f, active: !f.active } : f
     ))
     await fetch('/api/parent/household-config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'toggle_routine_flag', kid, flag_key: flagKey })
     })
   }
@@ -137,15 +185,21 @@ export default function HouseholdConfigTab() {
     return 'text-red-600 bg-red-50'
   }
 
-  // Group zones by type
   const sharedZones = zones.filter(z => z.zone_type === 'shared')
   const dutyZones = zones.filter(z => z.zone_type === 'duty')
   const bedroomZones = zones.filter(z => z.zone_type === 'bedroom')
   const routineZones = zones.filter(z => z.zone_type === 'routine')
 
+  const ZoneButton = ({ z }: { z: ZoneDef }) => (
+    <button onClick={() => loadZoneTasks(z.zone_key)}
+      className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 ${selectedZone === z.zone_key ? 'bg-emerald-50' : ''}`}>
+      <div className="text-sm font-medium text-gray-900">{z.display_name}</div>
+      <div className="text-xs text-gray-400">{z.anchor_count} anchor &middot; {z.rotating_count} rotating</div>
+    </button>
+  )
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6 rounded-lg">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings className="w-6 h-6" /> Zone Task Manager
@@ -153,7 +207,6 @@ export default function HouseholdConfigTab() {
         <p className="text-emerald-100 mt-1">Manage zone tasks, rotation settings, and routine flags</p>
       </div>
 
-      {/* Morning Accountability (Zoey + Kaylee) */}
       {morningCheckins.length > 0 && (
         <div className="bg-white rounded-lg border shadow-sm p-4">
           <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -161,15 +214,11 @@ export default function HouseholdConfigTab() {
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 text-xs">
-                  <th className="text-left py-1">Kid</th>
-                  <th className="text-left py-1">Type</th>
-                  <th className="text-left py-1">Date</th>
-                  <th className="text-left py-1">Time</th>
-                  <th className="text-right py-1">Points</th>
-                </tr>
-              </thead>
+              <thead><tr className="text-gray-500 text-xs">
+                <th className="text-left py-1">Kid</th><th className="text-left py-1">Type</th>
+                <th className="text-left py-1">Date</th><th className="text-left py-1">Time</th>
+                <th className="text-right py-1">Points</th>
+              </tr></thead>
               <tbody>
                 {morningCheckins.map((c, i) => (
                   <tr key={i} className="border-t">
@@ -188,7 +237,6 @@ export default function HouseholdConfigTab() {
         </div>
       )}
 
-      {/* Bonus Task Log */}
       {bonusTasks.length > 0 && (
         <div className="bg-white rounded-lg border shadow-sm p-4">
           <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -207,7 +255,6 @@ export default function HouseholdConfigTab() {
         </div>
       )}
 
-      {/* Routine Flags */}
       {routineFlags.length > 0 && (
         <div className="bg-white rounded-lg border shadow-sm p-4">
           <h2 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -220,10 +267,8 @@ export default function HouseholdConfigTab() {
                   <span className="capitalize font-medium">{f.kid_name}</span>
                   <span className="text-gray-500 ml-2">{f.flag_key.replace(/_/g, ' ')}</span>
                 </span>
-                <button
-                  onClick={() => toggleFlag(f.kid_name, f.flag_key)}
-                  className={`text-xs px-3 py-1 rounded-full font-medium ${f.active ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}
-                >
+                <button onClick={() => toggleFlag(f.kid_name, f.flag_key)}
+                  className={`text-xs px-3 py-1 rounded-full font-medium ${f.active ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
                   {f.active ? 'ACTIVE' : 'Inactive'}
                 </button>
               </div>
@@ -234,65 +279,21 @@ export default function HouseholdConfigTab() {
 
       {/* Zone List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Shared Zones */}
         <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-3 border-b bg-amber-50 rounded-t-lg">
-            <h3 className="font-bold text-amber-900 text-sm">Shared Zones</h3>
-          </div>
-          <div className="divide-y">
-            {sharedZones.map(z => (
-              <button key={z.zone_key} onClick={() => loadZoneTasks(z.zone_key)}
-                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 ${selectedZone === z.zone_key ? 'bg-emerald-50 font-medium' : ''}`}>
-                {z.display_name}
-                <span className="text-xs text-gray-400 ml-2">A:{z.anchor_count} R:{z.rotating_count}</span>
-              </button>
-            ))}
-          </div>
+          <div className="p-3 border-b bg-amber-50 rounded-t-lg"><h3 className="font-bold text-amber-900 text-sm">Shared Zones</h3></div>
+          <div className="divide-y">{sharedZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
         </div>
-
-        {/* Duty Zones */}
         <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-3 border-b bg-purple-50 rounded-t-lg">
-            <h3 className="font-bold text-purple-900 text-sm">Duty Zones</h3>
-          </div>
-          <div className="divide-y">
-            {dutyZones.map(z => (
-              <button key={z.zone_key} onClick={() => loadZoneTasks(z.zone_key)}
-                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 ${selectedZone === z.zone_key ? 'bg-emerald-50 font-medium' : ''}`}>
-                {z.display_name}
-              </button>
-            ))}
-          </div>
+          <div className="p-3 border-b bg-purple-50 rounded-t-lg"><h3 className="font-bold text-purple-900 text-sm">Duty Zones</h3></div>
+          <div className="divide-y">{dutyZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
         </div>
-
-        {/* Routines */}
         <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-3 border-b bg-sky-50 rounded-t-lg">
-            <h3 className="font-bold text-sky-900 text-sm">Routines</h3>
-          </div>
-          <div className="divide-y">
-            {routineZones.map(z => (
-              <button key={z.zone_key} onClick={() => loadZoneTasks(z.zone_key)}
-                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 ${selectedZone === z.zone_key ? 'bg-emerald-50 font-medium' : ''}`}>
-                {z.display_name}
-              </button>
-            ))}
-          </div>
+          <div className="p-3 border-b bg-sky-50 rounded-t-lg"><h3 className="font-bold text-sky-900 text-sm">Routines</h3></div>
+          <div className="divide-y">{routineZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
         </div>
-
-        {/* Bedrooms */}
         <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-3 border-b bg-blue-50 rounded-t-lg">
-            <h3 className="font-bold text-blue-900 text-sm">Bedrooms</h3>
-          </div>
-          <div className="divide-y">
-            {bedroomZones.map(z => (
-              <button key={z.zone_key} onClick={() => loadZoneTasks(z.zone_key)}
-                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 ${selectedZone === z.zone_key ? 'bg-emerald-50 font-medium' : ''}`}>
-                {z.display_name}
-              </button>
-            ))}
-          </div>
+          <div className="p-3 border-b bg-blue-50 rounded-t-lg"><h3 className="font-bold text-blue-900 text-sm">Bedrooms</h3></div>
+          <div className="divide-y">{bedroomZones.map(z => <ZoneButton key={z.zone_key} z={z} />)}</div>
         </div>
       </div>
 
@@ -301,125 +302,146 @@ export default function HouseholdConfigTab() {
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-4 border-b flex items-center justify-between">
             <div>
-              <h2 className="font-bold text-gray-900">
-                {zones.find(z => z.zone_key === selectedZone)?.display_name || selectedZone}
-              </h2>
+              <h2 className="font-bold text-gray-900">{zones.find(z => z.zone_key === selectedZone)?.display_name || selectedZone}</h2>
               <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => { setViewMode('tasks'); loadZoneTasks(selectedZone) }}
-                  className={`text-xs px-3 py-1 rounded-full ${viewMode === 'tasks' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
-                >
+                <button onClick={() => { setViewMode('tasks'); loadZoneTasks(selectedZone) }}
+                  className={`text-xs px-3 py-1 rounded-full ${viewMode === 'tasks' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
                   Task Library
                 </button>
-                <button
-                  onClick={() => { setViewMode('rotation'); loadZoneTasks(selectedZone) }}
-                  className={`text-xs px-3 py-1 rounded-full ${viewMode === 'rotation' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}
-                >
+                <button onClick={() => { setViewMode('rotation'); loadZoneTasks(selectedZone) }}
+                  className={`text-xs px-3 py-1 rounded-full ${viewMode === 'rotation' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
                   Rotation Overview
                 </button>
               </div>
             </div>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-600 flex items-center gap-1"
-            >
+            <button onClick={() => setShowAddForm(!showAddForm)}
+              className="bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-emerald-600 flex items-center gap-1">
               <Plus className="w-3 h-3" /> Add Task
             </button>
           </div>
 
-          {/* Add task form */}
           {showAddForm && (
             <div className="p-4 bg-gray-50 border-b space-y-3">
-              <input
-                type="text"
-                value={newTask.task_text}
-                onChange={e => setNewTask(prev => ({ ...prev, task_text: e.target.value }))}
-                placeholder="Task description"
-                className="w-full text-sm border rounded px-3 py-2"
-              />
+              <input type="text" value={newTask.task_text} onChange={e => setNewTask(prev => ({ ...prev, task_text: e.target.value }))}
+                placeholder="Task description" className="w-full text-sm border rounded px-3 py-2" />
               <div className="flex gap-3 items-center flex-wrap">
-                <select
-                  value={newTask.task_type}
-                  onChange={e => setNewTask(prev => ({ ...prev, task_type: e.target.value }))}
-                  className="text-sm border rounded px-2 py-1"
-                >
-                  <option value="anchor">Anchor (always)</option>
-                  <option value="rotating">Rotating</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
+                <select value={newTask.task_type} onChange={e => setNewTask(prev => ({ ...prev, task_type: e.target.value }))} className="text-sm border rounded px-2 py-1">
+                  <option value="anchor">Anchor (always)</option><option value="rotating">Rotating</option>
+                  <option value="weekly">Weekly</option><option value="monthly">Monthly</option>
                 </select>
                 <label className="flex items-center gap-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={newTask.health_priority}
-                    onChange={e => setNewTask(prev => ({ ...prev, health_priority: e.target.checked }))}
-                  />
+                  <input type="checkbox" checked={newTask.health_priority} onChange={e => setNewTask(prev => ({ ...prev, health_priority: e.target.checked }))} />
                   Health priority
                 </label>
-                <input
-                  type="number"
-                  value={newTask.duration_mins}
-                  onChange={e => setNewTask(prev => ({ ...prev, duration_mins: parseInt(e.target.value) || 5 }))}
-                  className="w-16 text-sm border rounded px-2 py-1"
-                  min={1}
-                  max={60}
-                />
+                <input type="number" value={newTask.duration_mins} onChange={e => setNewTask(prev => ({ ...prev, duration_mins: parseInt(e.target.value) || 5 }))}
+                  className="w-16 text-sm border rounded px-2 py-1" min={1} max={60} />
                 <span className="text-xs text-gray-500">mins</span>
-                <button onClick={addTask} className="bg-emerald-600 text-white text-xs px-4 py-1.5 rounded hover:bg-emerald-700">
-                  Save
-                </button>
-                <button onClick={() => setShowAddForm(false)} className="text-xs text-gray-500 hover:text-gray-700">
-                  Cancel
-                </button>
+                <button onClick={addTask} className="bg-emerald-600 text-white text-xs px-4 py-1.5 rounded hover:bg-emerald-700">Save</button>
+                <button onClick={() => setShowAddForm(false)} className="text-xs text-gray-500">Cancel</button>
               </div>
             </div>
           )}
 
-          {/* Task list */}
-          <div className="divide-y max-h-96 overflow-y-auto">
+          <div className="divide-y max-h-[32rem] overflow-y-auto">
             {zoneTasks.map(task => (
-              <div key={task.id} className={`flex items-center gap-3 px-4 py-2.5 ${!task.active ? 'opacity-50' : ''}`}>
-                <button onClick={() => toggleTaskActive(task.id)} className="flex-shrink-0">
-                  {task.active ? (
-                    <Eye className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <EyeOff className="w-4 h-4 text-gray-400" />
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm text-gray-900">{task.task_text}</span>
-                    {task.health_priority && <span className="text-xs">❤️</span>}
-                    {task.kid_filter && task.kid_filter.length > 0 && (
-                      <span className="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
-                        {task.kid_filter.join(', ')}
-                      </span>
-                    )}
+              <div key={task.id}>
+                {editingId === task.id ? (
+                  /* ── Inline Edit Form ── */
+                  <div className="p-4 bg-amber-50 space-y-3">
+                    <input type="text" value={editForm.task_text} onChange={e => setEditForm(prev => ({ ...prev, task_text: e.target.value }))}
+                      className="w-full text-sm border rounded px-3 py-2" />
+                    <div className="flex gap-3 items-center flex-wrap">
+                      <select value={editForm.task_type} onChange={e => setEditForm(prev => ({ ...prev, task_type: e.target.value }))} className="text-xs border rounded px-2 py-1">
+                        <option value="anchor">Anchor</option><option value="rotating">Rotating</option>
+                        <option value="weekly">Weekly</option><option value="monthly">Monthly</option>
+                      </select>
+                      <label className="flex items-center gap-1 text-xs">
+                        <input type="checkbox" checked={editForm.health_priority} onChange={e => setEditForm(prev => ({ ...prev, health_priority: e.target.checked }))} />
+                        Health priority
+                      </label>
+                      <input type="number" value={editForm.duration_mins} onChange={e => setEditForm(prev => ({ ...prev, duration_mins: parseInt(e.target.value) || 5 }))}
+                        className="w-14 text-xs border rounded px-2 py-1" min={1} max={60} />
+                      <span className="text-xs text-gray-500">mins</span>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Kid filter (select specific kids or leave empty for all)</label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {ALL_KIDS.map(k => (
+                          <button key={k} onClick={() => {
+                            setEditForm(prev => ({
+                              ...prev,
+                              kid_filter: prev.kid_filter.includes(k)
+                                ? prev.kid_filter.filter(x => x !== k)
+                                : [...prev.kid_filter, k]
+                            }))
+                          }}
+                            className={`text-xs px-2 py-0.5 rounded-full capitalize ${editForm.kid_filter.includes(k) ? 'bg-purple-200 text-purple-800' : 'bg-gray-100 text-gray-500'}`}>
+                            {k}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Instructions (one step per line, optional)</label>
+                      <textarea value={editForm.instructions} onChange={e => setEditForm(prev => ({ ...prev, instructions: e.target.value }))}
+                        rows={3} className="w-full text-xs border rounded px-3 py-2 mt-1" placeholder="Step 1&#10;Step 2&#10;Step 3" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => saveEdit(task.id)} className="text-xs bg-emerald-600 text-white px-4 py-1.5 rounded hover:bg-emerald-700 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Save
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 px-3 py-1.5">Cancel</button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      task.task_type === 'anchor' ? 'bg-amber-50 text-amber-700' :
-                      task.task_type === 'weekly' ? 'bg-blue-50 text-blue-700' :
-                      task.task_type === 'monthly' ? 'bg-purple-50 text-purple-700' :
-                      'bg-gray-50 text-gray-600'
-                    }`}>
-                      {task.task_type}
-                    </span>
-                    <span className="text-xs text-gray-400">{task.duration_mins}m</span>
-                    {task.equipment && (
-                      <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
-                        {task.equipment}
-                      </span>
-                    )}
-                    {viewMode === 'rotation' && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${daysSinceColor(task.last_completed || null)}`}>
-                        {task.last_completed
-                          ? `${Math.floor((Date.now() - new Date(task.last_completed).getTime()) / 86400000)}d ago`
-                          : 'Never'}
-                      </span>
-                    )}
+                ) : (
+                  /* ── Read View ── */
+                  <div className={`flex items-center gap-3 px-4 py-2.5 group ${!task.active ? 'opacity-50' : ''}`}>
+                    <button onClick={() => toggleTaskActive(task.id)} className="flex-shrink-0">
+                      {task.active ? <Eye className="w-4 h-4 text-green-500" /> : <EyeOff className="w-4 h-4 text-gray-400" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm text-gray-900">{task.task_text}</span>
+                        {task.health_priority && <span className="text-xs">❤️</span>}
+                        {task.kid_filter && task.kid_filter.length > 0 && (
+                          <span className="text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{task.kid_filter.join(', ')}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          task.task_type === 'anchor' ? 'bg-amber-50 text-amber-700' :
+                          task.task_type === 'weekly' ? 'bg-blue-50 text-blue-700' :
+                          task.task_type === 'monthly' ? 'bg-purple-50 text-purple-700' :
+                          'bg-gray-50 text-gray-600'
+                        }`}>{task.task_type}</span>
+                        <span className="text-xs text-gray-400">{task.duration_mins}m</span>
+                        {task.equipment && <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{task.equipment}</span>}
+                        {viewMode === 'rotation' && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${daysSinceColor(task.last_completed || null)}`}>
+                            {task.last_completed ? `${Math.floor((Date.now() - new Date(task.last_completed).getTime()) / 86400000)}d ago` : 'Never'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Edit/Delete buttons */}
+                    <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => startEdit(task)} className="p-1 hover:bg-gray-100 rounded" title="Edit">
+                        <Pencil className="w-3.5 h-3.5 text-gray-400" />
+                      </button>
+                      {confirmDeleteId === task.id ? (
+                        <div className="flex items-center gap-1 bg-red-50 rounded px-2 py-1">
+                          <span className="text-xs text-red-600">Delete?</span>
+                          <button onClick={() => deleteTask(task.id)} className="text-xs text-red-700 font-medium hover:text-red-900">Yes</button>
+                          <button onClick={() => setConfirmDeleteId(null)} className="text-xs text-gray-500">No</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteId(task.id)} className="p-1 hover:bg-red-50 rounded" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5 text-gray-400" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ))}
             {zoneTasks.length === 0 && (

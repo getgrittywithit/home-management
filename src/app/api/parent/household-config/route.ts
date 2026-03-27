@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       if (!zoneKey) return NextResponse.json({ error: 'zone required' }, { status: 400 })
       try {
         const tasks = await db.query(
-          `SELECT * FROM zone_task_library WHERE zone_key = $1 ORDER BY task_type, sort_order, id`,
+          `SELECT * FROM zone_task_library WHERE zone_key = $1 AND deleted_at IS NULL ORDER BY task_type, sort_order, id`,
           [zoneKey]
         )
         return NextResponse.json({ tasks })
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
             (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
              WHERE r.task_id = t.id AND r.completed = TRUE) as last_completed
            FROM zone_task_library t
-           WHERE t.zone_key = $1
+           WHERE t.zone_key = $1 AND t.deleted_at IS NULL
            ORDER BY t.task_type, t.sort_order, t.id`,
           [zoneKey]
         )
@@ -125,10 +125,26 @@ export async function POST(request: NextRequest) {
       }
 
       case 'update_task': {
-        const { task_id, task_text, task_type, health_priority, duration_mins } = body
+        const { task_id, task_text, task_type, health_priority, duration_mins, kid_filter, instructions } = body
         await db.query(
-          `UPDATE zone_task_library SET task_text = COALESCE($2, task_text), task_type = COALESCE($3, task_type), health_priority = COALESCE($4, health_priority), duration_mins = COALESCE($5, duration_mins) WHERE id = $1`,
-          [task_id, task_text, task_type, health_priority, duration_mins]
+          `UPDATE zone_task_library SET
+            task_text = COALESCE($2, task_text),
+            task_type = COALESCE($3, task_type),
+            health_priority = COALESCE($4, health_priority),
+            duration_mins = COALESCE($5, duration_mins),
+            kid_filter = $6,
+            instructions = $7
+           WHERE id = $1 AND deleted_at IS NULL`,
+          [task_id, task_text, task_type, health_priority, duration_mins, kid_filter || null, instructions ? JSON.stringify(instructions) : null]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'delete_task': {
+        const { task_id } = body
+        await db.query(
+          `UPDATE zone_task_library SET deleted_at = NOW(), active = FALSE WHERE id = $1`,
+          [task_id]
         )
         return NextResponse.json({ success: true })
       }

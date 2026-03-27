@@ -58,7 +58,6 @@ const tabs: Tab[] = [
   { id: 'belle-care', name: 'Belle Care', icon: Dog, color: 'bg-amber-600' },
   { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
-  { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500' },
   { id: 'teacher', name: 'Teacher', icon: GraduationCap, color: 'bg-emerald-600' },
   { id: 'household-config', name: 'Zone Tasks', icon: ClipboardList, color: 'bg-teal-600' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
@@ -181,7 +180,26 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     <FilterableCalendar selectedChild="amos-moses-504640" />
   )
 
-  const renderSettingsTab = () => <FamilyConfigAdmin />
+  const renderSettingsTab = () => (
+    <div className="space-y-6">
+      {/* Family Members (moved from main nav) */}
+      <div className="bg-white rounded-lg border shadow-sm">
+        <button
+          onClick={() => setActiveTab('family')}
+          className="w-full p-4 flex items-center justify-between hover:bg-gray-50 rounded-lg"
+        >
+          <div>
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <Users className="w-5 h-5 text-purple-500" /> Manage Family Members
+            </h3>
+            <p className="text-sm text-gray-500 mt-0.5">Names, ages, grades, schools, and profiles</p>
+          </div>
+          <span className="text-gray-400 text-sm">&rarr;</span>
+        </button>
+      </div>
+      <FamilyConfigAdmin />
+    </div>
+  )
 
   const renderActiveTab = () => {
     switch (activeTab) {

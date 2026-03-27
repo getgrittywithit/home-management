@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
             (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
              WHERE r.task_id = t.id AND r.kid_name = $2 AND r.completed = TRUE) as last_completed
            FROM zone_task_library t
-           WHERE t.zone_key = $1 AND t.task_type = 'rotating' AND t.active = TRUE
+           WHERE t.zone_key = $1 AND t.task_type = 'rotating' AND t.active = TRUE AND t.deleted_at IS NULL
            ORDER BY last_completed ASC NULLS FIRST,
                     t.health_priority DESC,
                     t.sort_order, t.id`,
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
             (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
              WHERE r.task_id = t.id AND r.kid_name = $2 AND r.completed = TRUE) as last_completed
            FROM zone_task_library t
-           WHERE t.zone_key = $1 AND t.task_type = 'weekly' AND t.active = TRUE
+           WHERE t.zone_key = $1 AND t.task_type = 'weekly' AND t.active = TRUE AND t.deleted_at IS NULL
            ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
           [zoneKey, rotationKid]
         )
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest) {
             (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
              WHERE r.task_id = t.id AND r.kid_name = $2 AND r.completed = TRUE) as last_completed
            FROM zone_task_library t
-           WHERE t.zone_key = $1 AND t.task_type = 'monthly' AND t.active = TRUE
+           WHERE t.zone_key = $1 AND t.task_type = 'monthly' AND t.active = TRUE AND t.deleted_at IS NULL
            ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
           [zoneKey, rotationKid]
         )

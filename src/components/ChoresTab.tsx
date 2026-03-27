@@ -1,96 +1,28 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Calendar, Clock, CheckCircle2, Users, Sparkles, Home, Edit3, Save, X } from 'lucide-react'
+import { Calendar, Sparkles, ChevronDown, ChevronUp, CheckCircle2, Circle } from 'lucide-react'
 import {
-  ZONES,
-  DAILY_ROUTINES,
-  WEEKLY_BLESSING,
   DAILY_FOCUS,
-  AGE_APPROPRIATE_CHORES,
   MONTHLY_HABITS
 } from '@/lib/choresConfig'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange, type ZoneName } from '@/lib/zoneRotation'
 
-const ZONE_TASKS: Record<ZoneName, string[]> = {
-  'Kitchen': [
-    'Flip or run the dishwasher',
-    'Hand wash large pans & gadgets that can\'t go in the dishwasher',
-    'Shine the sink — leave it empty and gleaming',
-    'Wipe down & tidy the island',
-    'Sweep the floor',
-  ],
-  'Hotspot': [
-    'Collect & put away shoes on the shoe shelf — keep the walkway clear',
-    'Return out-of-place items to their proper homes',
-    'Wipe down coffee bar + empty & wash Keurig pods',
-    'Sweep floor — coffee grounds, wrappers, and water drips',
-    'Tidy and wipe all hotspot surfaces — entryway table, coffee bar counter, catchall spots',
-  ],
-  'Pantry': [
-    'Check fridges — pull expired or old food, reorganize shelves',
-    'Tidy Ziploc bags — off the floor and neatly stored',
-    'Declutter pantry shelves — check for expired items, straighten and face products',
-    'Wipe down pantry shelves, cabinet faces, and small appliances',
-    'Refill and organize containers, spices, and frequently used items',
-  ],
-  'Floors': [
-    'Pick up items off the floor first — clear the path',
-    'Sweep all high-traffic areas',
-    'Vacuum living areas and rugs',
-    'Spot mop any sticky or dirty patches',
-    'Check floor vents and baseboards for dust buildup',
-  ],
-  'Kids Bathroom': [
-    'Wipe sink & faucet — leave it clean and dry',
-    'Wipe toilet seat, handle & base',
-    'Sweep floor',
-    'Wipe mirror',
-    'Hang or fold towels neatly + restock toilet paper if low',
-  ],
-  'Guest Bathroom': [
-    'Wipe sink & faucet — leave it clean and dry',
-    'Wipe toilet seat, handle & base',
-    'Clean mirror',
-    'Sweep floor',
-    'Freshen towels + restock guest supplies if low',
-  ],
+const ZONE_COLORS: Record<ZoneName, string> = {
+  'Kitchen': 'bg-amber-100 text-amber-800',
+  'Hotspot': 'bg-red-100 text-red-800',
+  'Pantry': 'bg-emerald-100 text-emerald-800',
+  'Floors': 'bg-orange-100 text-orange-800',
+  'Kids Bathroom': 'bg-purple-100 text-purple-800',
+  'Guest Bathroom': 'bg-indigo-100 text-indigo-800',
 }
 
-const ZONE_COLORS: Record<ZoneName, { bg: string; border: string; tag: string }> = {
-  'Kitchen':        { bg: 'bg-amber-50',   border: 'border-amber-300',   tag: 'bg-amber-100 text-amber-800' },
-  'Hotspot':        { bg: 'bg-red-50',     border: 'border-red-300',     tag: 'bg-red-100 text-red-800' },
-  'Pantry':         { bg: 'bg-emerald-50', border: 'border-emerald-300', tag: 'bg-emerald-100 text-emerald-800' },
-  'Floors':         { bg: 'bg-orange-50',  border: 'border-orange-300',  tag: 'bg-orange-100 text-orange-800' },
-  'Kids Bathroom':  { bg: 'bg-purple-50',  border: 'border-purple-300',  tag: 'bg-purple-100 text-purple-800' },
-  'Guest Bathroom': { bg: 'bg-indigo-50',  border: 'border-indigo-300',  tag: 'bg-indigo-100 text-indigo-800' },
-}
-
-const SIDE_MISSIONS_STORAGE_KEY = 'chores-side-missions'
-const ZONE_TASKS_STORAGE_KEY = 'chores-zone-tasks'
-
-/** Get today's date string in America/Chicago timezone (YYYY-MM-DD) */
-function getTodayKey(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-}
-
-/** Load checked tasks for today only; stale data from other days is discarded. */
-function loadTodayTasks(): string[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(ZONE_TASKS_STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as { date: string; tasks: string[] }
-    if (parsed.date === getTodayKey()) return parsed.tasks
-  } catch {}
-  return []
-}
-
-function saveTodayTasks(tasks: string[]) {
-  localStorage.setItem(
-    ZONE_TASKS_STORAGE_KEY,
-    JSON.stringify({ date: getTodayKey(), tasks })
-  )
+interface ZoneProgress {
+  kid: string
+  zone: ZoneName
+  total: number
+  completed: number
+  tasks: { task_text: string; completed: boolean }[]
 }
 
 interface ChoresTabProps {
@@ -99,263 +31,142 @@ interface ChoresTabProps {
 }
 
 export default function ChoresTab({ familyMembers = [], isParent = true }: ChoresTabProps) {
-  const [completedTasks, setCompletedTasks] = useState<string[]>([])
-  const [sideMissions, setSideMissions] = useState<Record<string, string>>({})
-  const [editingMission, setEditingMission] = useState<string | null>(null)
-  const [missionDraft, setMissionDraft] = useState('')
-
-  // Load checked tasks for today and side missions from localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setCompletedTasks(loadTodayTasks())
-
-      const saved = localStorage.getItem(SIDE_MISSIONS_STORAGE_KEY)
-      if (saved) {
-        try { setSideMissions(JSON.parse(saved)) } catch {}
-      }
-    }
-  }, [])
-
-  // Schedule a reset at midnight America/Chicago
-  useEffect(() => {
-    const scheduleReset = () => {
-      const now = new Date()
-      // Get current time in Chicago
-      const chicagoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }))
-      const midnightChicago = new Date(chicagoNow)
-      midnightChicago.setDate(midnightChicago.getDate() + 1)
-      midnightChicago.setHours(0, 0, 0, 0)
-
-      // Convert back to local time offset
-      const msUntilMidnight = midnightChicago.getTime() - chicagoNow.getTime()
-
-      return setTimeout(() => {
-        setCompletedTasks([])
-        saveTodayTasks([])
-      }, Math.max(msUntilMidnight, 1000))
-    }
-
-    const timer = scheduleReset()
-    return () => clearTimeout(timer)
-  }, [completedTasks]) // re-schedule after each reset
-
-  const saveSideMission = (kid: string) => {
-    const updated = { ...sideMissions }
-    if (missionDraft.trim()) {
-      updated[kid] = missionDraft.trim()
-    } else {
-      delete updated[kid]
-    }
-    setSideMissions(updated)
-    localStorage.setItem(SIDE_MISSIONS_STORAGE_KEY, JSON.stringify(updated))
-    setEditingMission(null)
-    setMissionDraft('')
-  }
-
-  const toggleTask = (taskId: string) => {
-    setCompletedTasks(prev => {
-      const next = prev.includes(taskId)
-        ? prev.filter(id => id !== taskId)
-        : [...prev, taskId]
-      saveTodayTasks(next)
-      return next
-    })
-  }
-
-  const getDayName = (day: number) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    return days[day]
-  }
-
-  const getCurrentMonthHabit = () => {
-    const currentMonth = new Date().getMonth() + 1
-    return MONTHLY_HABITS.find(h => h.month === currentMonth)
-  }
+  const [progress, setProgress] = useState<ZoneProgress[]>([])
+  const [expandedKid, setExpandedKid] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
 
   const zoneWeek = getCurrentZoneWeek()
   const { start, end } = getCurrentZoneWeekRange()
   const assignments = getCurrentZoneAssignments()
   const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
+  const getDayName = (day: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][day]
+  const getCurrentMonthHabit = () => MONTHLY_HABITS.find(h => h.month === new Date().getMonth() + 1)
+
+  // Zone key mapping from display names to DB zone_keys
+  const ZONE_DB_KEY: Record<string, string> = {
+    'Kitchen': 'kitchen_zone',
+    'Hotspot': 'hotspot',
+    'Pantry': 'pantry',
+    'Floors': 'floors',
+    'Kids Bathroom': 'kids_bathroom',
+    'Guest Bathroom': 'guest_bathroom',
+  }
+
+  useEffect(() => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    const fetches = assignments.map(({ kid, zone }) => {
+      const zoneKey = ZONE_DB_KEY[zone] || zone.toLowerCase().replace(/\s+/g, '_')
+      return fetch(`/api/kids/zone-tasks?action=get_zone_tasks&zone=${zoneKey}&kid=${kid.toLowerCase()}&date=${today}`)
+        .then(r => r.json())
+        .then(data => ({
+          kid,
+          zone,
+          total: data.total || 0,
+          completed: data.completed_count || 0,
+          tasks: (data.tasks || []).map((t: any) => ({ task_text: t.task_text, completed: t.completed })),
+        }))
+        .catch(() => ({ kid, zone, total: 0, completed: 0, tasks: [] }))
+    })
+
+    Promise.all(fetches).then(results => {
+      setProgress(results)
+      setLoaded(true)
+    })
+  }, [])
+
+  const getStatus = (p: ZoneProgress) => {
+    if (p.total === 0) return { label: 'No Tasks', color: 'text-gray-400', icon: '—' }
+    if (p.completed === p.total) return { label: 'Done', color: 'text-green-600', icon: '✅' }
+    if (p.completed > 0) return { label: 'In Progress', color: 'text-amber-600', icon: '🔄' }
+    return { label: 'Not Started', color: 'text-gray-400', icon: '⏳' }
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header with current focus */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-6 rounded-lg">
         <h2 className="text-2xl font-bold mb-2">Family Chore System</h2>
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 text-sm flex-wrap">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
-            <span>{getDayName(new Date().getDay())}'s Focus: {DAILY_FOCUS[getDayName(new Date().getDay()).toLowerCase() as keyof typeof DAILY_FOCUS]}</span>
+            <span>{getDayName(new Date().getDay())}&apos;s Focus: {DAILY_FOCUS[getDayName(new Date().getDay()).toLowerCase() as keyof typeof DAILY_FOCUS]}</span>
           </div>
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
             <span>Monthly Habit: {getCurrentMonthHabit()?.habit}</span>
           </div>
         </div>
+        <p className="text-purple-200 text-sm mt-2">Week {zoneWeek} of 6 &middot; {formatDate(start)} – {formatDate(end)}</p>
       </div>
 
-      {/* This Week's Zones */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-900">This Week's Zones</h3>
-          <span className="text-sm text-gray-500">
-            Week {zoneWeek} of 6 &middot; {formatDate(start)} – {formatDate(end)}
-          </span>
+      {/* Zone Status Board */}
+      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+        <div className="p-4 border-b bg-gray-50">
+          <h3 className="font-bold text-gray-900">Zone Status Board</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Tap a row to see task details</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {assignments.map(({ kid, zone }) => {
-            const colors = ZONE_COLORS[zone]
-            const tasks = ZONE_TASKS[zone]
-            const mission = sideMissions[kid]
-            const isEditing = editingMission === kid
 
-            return (
-              <div key={kid} className={`rounded-lg border-2 ${colors.border} ${colors.bg} p-4`}>
-                {/* Kid name + zone label */}
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-bold text-gray-900">{kid}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors.tag}`}>
-                    {zone}
-                  </span>
-                </div>
+        {!loaded ? (
+          <div className="p-8 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500" />
+          </div>
+        ) : (
+          <div className="divide-y">
+            {progress.map(p => {
+              const status = getStatus(p)
+              const pct = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0
+              const isExpanded = expandedKid === p.kid
 
-                {/* Task list */}
-                <ul className="space-y-1.5 mb-3">
-                  {tasks.map((task, i) => {
-                    const taskId = `zone-${kid}-${i}`
-                    const done = completedTasks.includes(taskId)
-                    return (
-                      <li key={i} className="flex items-start gap-2">
-                        <button onClick={() => toggleTask(taskId)} className="mt-0.5 flex-shrink-0">
-                          {done ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <div className="w-4 h-4 border-2 border-gray-300 rounded-full" />
-                          )}
-                        </button>
-                        <span className={`text-sm ${done ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                          {task}
-                        </span>
-                      </li>
-                    )
-                  })}
-                </ul>
-
-                {/* Side Mission — editable by parent only, read-only for kids */}
-                {isParent && isEditing ? (
-                  <div className="flex items-center gap-1 mt-2">
-                    <input
-                      type="text"
-                      value={missionDraft}
-                      onChange={e => setMissionDraft(e.target.value)}
-                      placeholder="e.g. 🗑️ Trash — Mon & Tue"
-                      className="flex-1 text-xs border rounded px-2 py-1"
-                      autoFocus
-                      onKeyDown={e => { if (e.key === 'Enter') saveSideMission(kid) }}
-                    />
-                    <button onClick={() => saveSideMission(kid)} className="text-green-600"><Save className="w-4 h-4" /></button>
-                    <button onClick={() => { setEditingMission(null); setMissionDraft('') }} className="text-red-500"><X className="w-4 h-4" /></button>
-                  </div>
-                ) : mission ? (
-                  <div
-                    className={`mt-2 flex items-center justify-between bg-white/60 rounded px-2 py-1 border border-dashed border-gray-300 ${isParent ? 'cursor-pointer' : ''}`}
-                    onClick={isParent ? () => { setEditingMission(kid); setMissionDraft(mission) } : undefined}
-                  >
-                    <span className="text-xs text-gray-600">{mission}</span>
-                    {isParent && <Edit3 className="w-3 h-3 text-gray-400" />}
-                  </div>
-                ) : isParent ? (
+              return (
+                <div key={p.kid}>
                   <button
-                    onClick={() => { setEditingMission(kid); setMissionDraft('') }}
-                    className="mt-2 text-xs text-gray-400 hover:text-gray-600"
+                    onClick={() => setExpandedKid(isExpanded ? null : p.kid)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
                   >
-                    + Add side mission
+                    <span className="font-medium text-sm text-gray-900 w-20 text-left">{p.kid}</span>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${ZONE_COLORS[p.zone] || 'bg-gray-100 text-gray-700'}`}>
+                      {p.zone}
+                    </span>
+                    <div className="flex-1 mx-3">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${pct === 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-gray-200'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500 w-10 text-right">{pct}%</span>
+                    <span className={`text-xs font-medium w-24 text-right ${status.color}`}>
+                      {status.icon} {status.label}
+                    </span>
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                   </button>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      </div>
 
-      {/* Daily Routines */}
-      <div className="bg-white p-6 rounded-lg border-2 border-blue-200">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Daily Routines</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {DAILY_ROUTINES.map(routine => (
-            <div key={routine.name} className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-blue-600" />
-                <h4 className="font-semibold text-blue-900">{routine.name}</h4>
-              </div>
-              <ul className="space-y-1">
-                {routine.tasks.map((task, index) => (
-                  <li key={index} className="text-sm text-gray-700 flex items-start gap-2">
-                    <span className="text-blue-500 mt-0.5">•</span>
-                    <span>{task}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-xs text-gray-500 mt-2">For: {routine.ageGroup}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Weekly Home Blessing */}
-      <div className="bg-white p-6 rounded-lg border-2 border-green-200">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">
-          Weekly Home Blessing (Monday)
-        </h3>
-        <p className="text-gray-600 mb-4">Quick maintenance tasks to keep the house running smoothly</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {WEEKLY_BLESSING.tasks.map((task, index) => {
-            const taskId = `blessing-${index}`
-            return (
-              <div 
-                key={taskId}
-                className={`flex items-start gap-3 p-3 rounded-lg border ${
-                  completedTasks.includes(taskId) ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <button
-                  onClick={() => toggleTask(taskId)}
-                  className="mt-1"
-                >
-                  {completedTasks.includes(taskId) ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <div className="w-5 h-5 border-2 border-gray-300 rounded-full" />
+                  {/* Expandable task detail (read-only) */}
+                  {isExpanded && p.tasks.length > 0 && (
+                    <div className="px-4 pb-3 bg-gray-50">
+                      <div className="pl-20 space-y-1">
+                        {p.tasks.map((t, i) => (
+                          <div key={i} className="flex items-center gap-2 py-0.5">
+                            {t.completed ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                            ) : (
+                              <Circle className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                            )}
+                            <span className={`text-xs ${t.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {t.task_text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                </button>
-                <div className="flex-1">
-                  <h5 className="font-medium">{task.name}</h5>
-                  <p className="text-sm text-gray-600">{task.room}</p>
-                  <p className="text-xs text-gray-500">{task.duration} min • {task.assignTo}</p>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Progress Overview */}
-      <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white p-6 rounded-lg">
-        <h3 className="text-xl font-bold mb-2">Family Progress</h3>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-3xl font-bold">{completedTasks.filter(t => t.startsWith('zone-')).length}</p>
-            <p className="text-sm">Zone Tasks Today</p>
+              )
+            })}
           </div>
-          <div>
-            <p className="text-3xl font-bold">{zoneWeek}/6</p>
-            <p className="text-sm">Zone Week</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold">{new Date().getDate()}</p>
-            <p className="text-sm">Day of Month</p>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )
