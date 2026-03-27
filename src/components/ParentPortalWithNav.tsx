@@ -30,6 +30,7 @@ import AvailabilityWidget from './AvailabilityWidget'
 import WeeklySummaryTab from './WeeklySummaryTab'
 import TeacherDashboard from './TeacherDashboard'
 import HouseholdConfigTab from './HouseholdConfigTab'
+import ParentPetOverview from './ParentPetOverview'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -248,7 +249,12 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'teacher':
         return <TeacherDashboard />
       case 'household-config':
-        return <HouseholdConfigTab />
+        return (
+          <div className="space-y-6">
+            <ParentPetOverview />
+            <HouseholdConfigTab />
+          </div>
+        )
       case 'kids-checklist':
         return <KidsChecklistOverview />
       case 'weekly-checklist':

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   CheckCircle2, Circle, Lock, DollarSign, Sparkles,
-  Dog, Utensils, Home, Trash2, Trophy, ChevronDown, ChevronUp
+  Dog, Utensils, Home, Trash2, Trophy, ChevronDown, ChevronUp, Heart
 } from 'lucide-react'
 import ZoneDetailCard from './ZoneDetailCard'
 import MorningCheckinCard from './MorningCheckinCard'
@@ -31,6 +31,7 @@ const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string }> =
   parent_task: { icon: <Sparkles className="w-4 h-4" />, color: 'text-rose-600' },
   hygiene: { icon: <Sparkles className="w-4 h-4" />, color: 'text-sky-600' },
   earn_money: { icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-600' },
+  pet: { icon: <Heart className="w-4 h-4" />, color: 'text-pink-600' },
 }
 
 // Map zone names from the 6-week rotation to zone_definitions keys
@@ -55,6 +56,12 @@ function getZoneKeyForItem(item: ChecklistItem, childName: string, currentZone: 
   // Belle care
   if (item.category === 'belle' || titleLower.includes('belle care')) return 'belle_care'
 
+  // Pet care zones
+  if (titleLower.includes('hades care')) return 'pet_hades'
+  if (titleLower.includes('spike care') && !titleLower.includes('helper')) return 'pet_spike'
+  if (titleLower.includes('spike helper')) return 'pet_spike'
+  if (titleLower.includes('midnight care')) return 'pet_midnight'
+
   // School room
   if (item.category === 'school_clean' || titleLower.includes('school room')) return 'school_room'
 
@@ -72,6 +79,7 @@ function isExpandableItem(item: ChecklistItem): boolean {
   const titleLower = item.title.toLowerCase()
   return item.category === 'zone' ||
     item.category === 'belle' ||
+    item.category === 'pet' ||
     item.category === 'school_clean' ||
     titleLower.includes('morning routine') ||
     titleLower.includes('bedtime routine') ||

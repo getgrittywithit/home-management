@@ -18,6 +18,19 @@ interface ZoneTask {
   completed_at: string | null
 }
 
+interface FeedingEntry {
+  fed_date: string
+  quantity: number
+  notes: string
+}
+
+interface FeedingReminder {
+  days_since_fed: number | null
+  last_fed: string | null
+  reminder_level: string
+  message: string
+}
+
 interface ZoneInfo {
   zone_key: string
   display_name: string
@@ -25,6 +38,8 @@ interface ZoneInfo {
   done_means: string
   supplies: { item: string; emoji: string }[]
   zone_principle: string | null
+  assigned_to?: string[] | null
+  is_shared?: boolean
 }
 
 interface ZoneDetailCardProps {
@@ -53,6 +68,15 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
   const [showBonusInput, setShowBonusInput] = useState(false)
   const [bonusText, setBonusText] = useState('')
   const [bonusSubmitting, setBonusSubmitting] = useState(false)
+  const [helperNote, setHelperNote] = useState<string | null>(null)
+  const [hasFeedingLog, setHasFeedingLog] = useState(false)
+  const [feedingReminder, setFeedingReminder] = useState<FeedingReminder | null>(null)
+  const [feedingHistory, setFeedingHistory] = useState<FeedingEntry[]>([])
+  const [showFeedingLog, setShowFeedingLog] = useState(false)
+  const [showFeedingForm, setShowFeedingForm] = useState(false)
+  const [feedingQty, setFeedingQty] = useState(2)
+  const [feedingNotes, setFeedingNotes] = useState('Ate immediately')
+  const [feedingSubmitting, setFeedingSubmitting] = useState(false)
 
   const kidKey = childName.toLowerCase()
 
@@ -67,7 +91,20 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
         setCompletedCount(data.completed_count || 0)
         setEstimatedMins(data.estimated_mins || 0)
         setFooterNote(data.footer_note || null)
+        setHelperNote(data.helper_note || null)
+        setHasFeedingLog(data.has_feeding_log || false)
         setLoaded(true)
+
+        // Load feeding data if this is a pet feeding zone
+        if (data.has_feeding_log) {
+          Promise.all([
+            fetch(`/api/kids/zone-tasks?action=check_feeding_reminder&pet=hades&date=${today}`).then(r => r.json()).catch(() => null),
+            fetch(`/api/kids/zone-tasks?action=get_feeding_history&pet=hades&limit=10`).then(r => r.json()).catch(() => ({ feedings: [] })),
+          ]).then(([reminder, history]) => {
+            if (reminder) setFeedingReminder(reminder)
+            if (history?.feedings) setFeedingHistory(history.feedings)
+          })
+        }
       })
       .catch(() => setLoaded(true))
   }, [zoneKey, kidKey])
@@ -133,6 +170,29 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
       setShowBonusInput(false)
     } catch { /* ignore */ }
     setBonusSubmitting(false)
+  }
+
+  const submitFeeding = async () => {
+    setFeedingSubmitting(true)
+    try {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      await fetch('/api/kids/zone-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'log_feeding', pet_key: 'hades', fed_by: kidKey, quantity: feedingQty, notes: feedingNotes, fed_date: today })
+      })
+      // Refresh feeding data
+      const [reminder, history] = await Promise.all([
+        fetch(`/api/kids/zone-tasks?action=check_feeding_reminder&pet=hades&date=${today}`).then(r => r.json()).catch(() => null),
+        fetch(`/api/kids/zone-tasks?action=get_feeding_history&pet=hades&limit=10`).then(r => r.json()).catch(() => ({ feedings: [] })),
+      ])
+      if (reminder) setFeedingReminder(reminder)
+      if (history?.feedings) setFeedingHistory(history.feedings)
+      setShowFeedingForm(false)
+      setFeedingQty(2)
+      setFeedingNotes('Ate immediately')
+    } catch { /* ignore */ }
+    setFeedingSubmitting(false)
   }
 
   const toggleInstructions = (taskId: number) => {
@@ -202,6 +262,42 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
                 {s.emoji} {s.item}
               </span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Helper note (Spike helpers) */}
+      {helperNote && (
+        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+          <p className="text-xs text-gray-400 italic">{helperNote} 👀</p>
+        </div>
+      )}
+
+      {/* Feeding reminder banner (Hades) */}
+      {hasFeedingLog && feedingReminder && feedingReminder.reminder_level !== 'none' && (
+        <div className={`px-3 py-3 border-b ${
+          feedingReminder.reminder_level === 'overdue' ? 'bg-red-50 border-red-200' :
+          feedingReminder.reminder_level === 'due' ? 'bg-orange-50 border-orange-200' :
+          'bg-amber-50 border-amber-200'
+        }`}>
+          <div className="flex items-start gap-2">
+            <span className="text-lg">🐍</span>
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${
+                feedingReminder.reminder_level === 'overdue' ? 'text-red-800' :
+                feedingReminder.reminder_level === 'due' ? 'text-orange-800' :
+                'text-amber-800'
+              }`}>Feeding reminder</p>
+              <p className="text-xs text-gray-600 mt-0.5">{feedingReminder.message}</p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => setShowFeedingForm(true)}
+                  className="text-xs bg-white border rounded px-3 py-1 hover:bg-gray-50 font-medium"
+                >
+                  Log Feeding
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -310,6 +406,85 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
           </div>
         )}
       </div>
+
+      {/* Feeding log section (Hades) */}
+      {hasFeedingLog && (
+        <div className="px-3 py-2 border-t border-gray-100">
+          {/* Log feeding form */}
+          {showFeedingForm && (
+            <div className="mb-3 bg-gray-50 rounded p-3 space-y-2">
+              <p className="text-sm font-medium text-gray-700">Log Feeding</p>
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500">Mice:</label>
+                <input
+                  type="number"
+                  value={feedingQty}
+                  onChange={e => setFeedingQty(parseInt(e.target.value) || 2)}
+                  min={1} max={3}
+                  className="w-14 text-sm border rounded px-2 py-1"
+                />
+                <label className="text-xs text-gray-500">Notes:</label>
+                <select
+                  value={feedingNotes}
+                  onChange={e => setFeedingNotes(e.target.value)}
+                  className="text-xs border rounded px-2 py-1 flex-1"
+                >
+                  <option>Ate immediately</option>
+                  <option>Slow to strike</option>
+                  <option>Refused — in shed</option>
+                  <option>Refused — other</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={submitFeeding}
+                  disabled={feedingSubmitting}
+                  className="text-xs bg-green-600 text-white px-4 py-1.5 rounded hover:bg-green-700 disabled:opacity-50"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setShowFeedingForm(false)}
+                  className="text-xs text-gray-500"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Feeding history toggle */}
+          <button
+            onClick={() => setShowFeedingLog(!showFeedingLog)}
+            className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          >
+            🍽️ Feeding History
+            {showFeedingLog ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {!showFeedingForm && (
+              <span
+                onClick={e => { e.stopPropagation(); setShowFeedingForm(true) }}
+                className="ml-auto text-xs text-blue-500 hover:text-blue-700"
+              >
+                + Log Feeding
+              </span>
+            )}
+          </button>
+
+          {showFeedingLog && feedingHistory.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {feedingHistory.map((f, i) => (
+                <div key={i} className="text-sm text-gray-600">
+                  <span className="font-medium">{new Date(f.fed_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  {' — '}{f.quantity} mice — {f.notes || 'no notes'}
+                </div>
+              ))}
+            </div>
+          )}
+          {showFeedingLog && feedingHistory.length === 0 && (
+            <p className="mt-2 text-xs text-gray-400">No feedings logged yet</p>
+          )}
+        </div>
+      )}
 
       {/* Zone principle footer */}
       {zone.zone_principle && (

@@ -93,6 +93,10 @@ export async function GET(request: NextRequest) {
       const dayOfWeek = todayDate.getDay()
       const isBathDay = bathSchedule ? (bathSchedule.bath_days || []).includes(dayOfWeek) : false
 
+      // For shared zones (Midnight), use a shared key for rotation tracking
+      const isSharedZone = zoneDef.assigned_to && zoneDef.assigned_to.length > 1
+      const rotationKid = isSharedZone ? `${zoneKey}_shared` : kid
+
       // ── Pull anchor tasks ──
       let anchorTasks: any[] = []
       try {
@@ -120,7 +124,7 @@ export async function GET(request: NextRequest) {
            ORDER BY last_completed ASC NULLS FIRST,
                     t.health_priority DESC,
                     t.sort_order, t.id`,
-          [zoneKey, kid]
+          [zoneKey, rotationKid]
         )
         rotatingTasks = filterTasksForKid(allRotating, kid, routineFlags, isBathDay, bathSchedule)
         rotatingTasks = rotatingTasks.slice(0, zoneDef.rotating_count || 4)
@@ -136,7 +140,7 @@ export async function GET(request: NextRequest) {
            FROM zone_task_library t
            WHERE t.zone_key = $1 AND t.task_type = 'weekly' AND t.active = TRUE
            ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
-          [zoneKey, kid]
+          [zoneKey, rotationKid]
         )
         const filtered = filterTasksForKid(allWeekly, kid, routineFlags, isBathDay, bathSchedule)
         // Only show weekly tasks not completed in last 5 days
@@ -157,7 +161,7 @@ export async function GET(request: NextRequest) {
            FROM zone_task_library t
            WHERE t.zone_key = $1 AND t.task_type = 'monthly' AND t.active = TRUE
            ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
-          [zoneKey, kid]
+          [zoneKey, rotationKid]
         )
         const filtered = filterTasksForKid(allMonthly, kid, routineFlags, isBathDay, bathSchedule)
         monthlyTasks = filtered.filter((t: any) => {
@@ -177,7 +181,7 @@ export async function GET(request: NextRequest) {
             `INSERT INTO zone_task_rotation (zone_key, task_id, assigned_date, kid_name)
              VALUES ($1, $2, $3, $4)
              ON CONFLICT (zone_key, task_id, assigned_date, kid_name) DO NOTHING`,
-            [zoneKey, task.id, dateParam, kid]
+            [zoneKey, task.id, dateParam, rotationKid]
           )
         } catch { /* ignore duplicates */ }
       }
@@ -189,7 +193,7 @@ export async function GET(request: NextRequest) {
           `SELECT r.id as rotation_id, r.task_id, r.completed, r.completed_at
            FROM zone_task_rotation r
            WHERE r.zone_key = $1 AND r.kid_name = $2 AND r.assigned_date = $3`,
-          [zoneKey, kid, dateParam]
+          [zoneKey, rotationKid, dateParam]
         )
       } catch { rotationRows = [] }
 
@@ -207,7 +211,7 @@ export async function GET(request: NextRequest) {
               `SELECT id FROM zone_task_rotation
                WHERE task_id = $1 AND kid_name = $2 AND assigned_date = $3 AND completed = TRUE
                LIMIT 1`,
-              [task.id, kid, dateParam]
+              [task.id, rotationKid, dateParam]
             )
             if (anyCompleted.length > 0 && completionMap[task.id]) {
               completionMap[task.id].completed = true
@@ -244,6 +248,15 @@ export async function GET(request: NextRequest) {
         footerNote = "Don't leave your dishes for the zone cleaner. Scrape, rinse, and put away your own mess before you walk away from the table."
       }
 
+      // Check if this is a pet zone with feeding log
+      const isPetFeeding = zoneKey === 'pet_hades'
+
+      // Helper note for Spike helpers
+      let helperNote: string | null = null
+      if (zoneKey === 'pet_spike' && kid !== 'amos') {
+        helperNote = "Amos is Spike's main caretaker — you're the backup eyes"
+      }
+
       return NextResponse.json({
         zone: {
           zone_key: zoneDef.zone_key,
@@ -252,12 +265,16 @@ export async function GET(request: NextRequest) {
           done_means: zoneDef.done_means,
           supplies: zoneDef.supplies || [],
           zone_principle: zoneDef.zone_principle,
+          assigned_to: zoneDef.assigned_to,
+          is_shared: isSharedZone,
         },
         tasks,
         total: tasks.length,
         completed_count: completedCount,
         estimated_mins: totalMins,
         footer_note: footerNote,
+        helper_note: helperNote,
+        has_feeding_log: isPetFeeding,
       })
     }
 
@@ -365,6 +382,96 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ bonusTasks: rows })
       } catch {
         return NextResponse.json({ bonusTasks: [] })
+      }
+    }
+
+    // ── Check feeding reminder (Hades) ──
+    if (action === 'check_feeding_reminder') {
+      const pet = searchParams.get('pet') || 'hades'
+      try {
+        const rows = await db.query(
+          `SELECT fed_date, quantity, notes FROM pet_feeding_log WHERE pet_key = $1 ORDER BY fed_date DESC LIMIT 1`,
+          [pet]
+        )
+        if (rows.length === 0) {
+          return NextResponse.json({ days_since_fed: null, last_fed: null, reminder_level: 'overdue', message: 'No feeding recorded yet.' })
+        }
+        const lastFed = rows[0].fed_date
+        const daysSince = Math.floor((new Date(dateParam).getTime() - new Date(lastFed).getTime()) / 86400000)
+        let reminder_level = 'none'
+        let message = ''
+        if (daysSince >= 16) {
+          reminder_level = 'overdue'
+          message = `Hades last ate ${daysSince} days ago. This is overdue — plan the mice run immediately.`
+        } else if (daysSince >= 13) {
+          reminder_level = 'due'
+          message = `Hades last ate ${daysSince} days ago. He needs to eat now — time to get mice.`
+        } else if (daysSince >= 10) {
+          reminder_level = 'soon'
+          message = `Hades is due to eat in the next few days. Time to plan the trip for mice.`
+        }
+        return NextResponse.json({ days_since_fed: daysSince, last_fed: lastFed, reminder_level, message })
+      } catch {
+        return NextResponse.json({ days_since_fed: null, last_fed: null, reminder_level: 'none', message: '' })
+      }
+    }
+
+    // ── Get feeding history ──
+    if (action === 'get_feeding_history') {
+      const pet = searchParams.get('pet') || 'hades'
+      const limit = parseInt(searchParams.get('limit') || '10')
+      try {
+        const rows = await db.query(
+          `SELECT * FROM pet_feeding_log WHERE pet_key = $1 ORDER BY fed_date DESC LIMIT $2`,
+          [pet, limit]
+        )
+        return NextResponse.json({ feedings: rows })
+      } catch {
+        return NextResponse.json({ feedings: [] })
+      }
+    }
+
+    // ── Get parent pet overview ──
+    if (action === 'get_pet_overview') {
+      try {
+        const [hadesFeeding, spikeBath, midnightClean] = await Promise.all([
+          db.query(`SELECT fed_date FROM pet_feeding_log WHERE pet_key = 'hades' ORDER BY fed_date DESC LIMIT 1`).catch(() => []),
+          db.query(`SELECT MAX(r.assigned_date) as last_date FROM zone_task_rotation r JOIN zone_task_library t ON r.task_id = t.id WHERE t.zone_key = 'pet_spike' AND t.task_text LIKE '%bath%' AND r.completed = TRUE`).catch(() => []),
+          db.query(`SELECT MAX(r.assigned_date) as last_date FROM zone_task_rotation r JOIN zone_task_library t ON r.task_id = t.id WHERE t.zone_key = 'pet_midnight' AND t.task_text LIKE '%Full cage clean%' AND r.completed = TRUE`).catch(() => []),
+        ])
+
+        const today = new Date(dateParam)
+        const hadesDays = hadesFeeding.length > 0 && hadesFeeding[0].fed_date
+          ? Math.floor((today.getTime() - new Date(hadesFeeding[0].fed_date).getTime()) / 86400000)
+          : null
+        const spikeDays = spikeBath.length > 0 && spikeBath[0].last_date
+          ? Math.floor((today.getTime() - new Date(spikeBath[0].last_date).getTime()) / 86400000)
+          : null
+        const midnightDays = midnightClean.length > 0 && midnightClean[0].last_date
+          ? Math.floor((today.getTime() - new Date(midnightClean[0].last_date).getTime()) / 86400000)
+          : null
+
+        return NextResponse.json({
+          pets: [
+            {
+              name: 'Hades', emoji: '🐍', owner: 'Zoey',
+              metric: 'Last fed', days: hadesDays,
+              status: hadesDays === null ? 'unknown' : hadesDays >= 16 ? 'overdue' : hadesDays >= 13 ? 'due' : hadesDays >= 10 ? 'soon' : 'good'
+            },
+            {
+              name: 'Spike', emoji: '🦎', owner: 'Amos',
+              metric: 'Last bathed', days: spikeDays,
+              status: spikeDays === null ? 'unknown' : spikeDays >= 5 ? 'due' : spikeDays >= 3 ? 'soon' : 'good'
+            },
+            {
+              name: 'Midnight', emoji: '🐰', owner: 'Ellie & Hannah',
+              metric: 'Last full clean', days: midnightDays,
+              status: midnightDays === null ? 'unknown' : midnightDays >= 5 ? 'due' : midnightDays >= 3 ? 'soon' : 'good'
+            },
+          ]
+        })
+      } catch {
+        return NextResponse.json({ pets: [] })
       }
     }
 
@@ -502,6 +609,18 @@ export async function POST(request: NextRequest) {
           label,
           checkin_time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
         })
+      }
+
+      // ── Log pet feeding ──
+      case 'log_feeding': {
+        const { pet_key, fed_by, quantity, notes, fed_date } = body
+        if (!pet_key || !fed_by) return NextResponse.json({ error: 'pet_key and fed_by required' }, { status: 400 })
+        const feedDate = fed_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await db.query(
+          `INSERT INTO pet_feeding_log (pet_key, fed_date, fed_by, quantity, notes) VALUES ($1, $2, $3, $4, $5)`,
+          [pet_key, feedDate, fed_by.toLowerCase(), quantity || 2, notes || '']
+        )
+        return NextResponse.json({ success: true })
       }
 
       // ── Parent config: toggle task active/inactive ──

@@ -152,6 +152,36 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Pet care — Hades (Zoey only)
+    if (child === 'zoey') {
+      required.push({
+        id: `pet-hades-${today}`, title: 'Hades Care 🐍',
+        description: 'Water, temps, health check, tank maintenance', category: 'pet', time: '8:00 AM',
+      })
+    }
+
+    // Pet care — Spike (Amos primary, Kaylee + Wyatt helpers)
+    if (child === 'amos') {
+      required.push({
+        id: `pet-spike-${today}`, title: 'Spike Care 🦎',
+        description: 'UVB, greens, temps, spot clean, handling', category: 'pet', time: '8:00 AM',
+      })
+    }
+    if (child === 'kaylee' || child === 'wyatt') {
+      required.push({
+        id: `pet-spike-helper-${today}`, title: 'Spike Helper Check 🦎',
+        description: 'Quick check on water, food, and visual health', category: 'pet', time: '3:00 PM',
+      })
+    }
+
+    // Pet care — Midnight (Ellie + Hannah shared)
+    if (child === 'ellie' || child === 'hannah') {
+      required.push({
+        id: `pet-midnight-${today}`, title: 'Midnight Care 🐰',
+        description: 'Hay, water, veggies, droppings check, cage care', category: 'pet', time: '8:00 AM',
+      })
+    }
+
     // Evening Tidy (daily for everyone)
     required.push({
       id: `evening-tidy-${today}`, title: 'Evening Tidy & Reset',
