@@ -12,6 +12,9 @@ interface MealRequest {
   assigned_date: string
   meal_name: string
   theme?: string
+  sides?: string
+  sub_option_label?: string
+  sub_option_heat?: string
 }
 
 interface FlagData {
@@ -383,10 +386,10 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
                                 <ChefHat className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-900">
-                                    {kidDisplay} requested {mr.meal_name}
+                                    {kidDisplay} requested {mr.meal_name}{mr.sub_option_label ? ` — ${mr.sub_option_label} (${mr.sub_option_heat === 'hot' ? '🔥 Hot' : '😌 Mild'})` : ''}
                                   </p>
                                   <p className="text-xs text-gray-500 mt-0.5">
-                                    For {dateLabel}
+                                    For {dateLabel}{mr.sides ? ` · Sides: ${mr.sides}` : ''}
                                   </p>
                                   <div className="flex gap-2 mt-2">
                                     <button

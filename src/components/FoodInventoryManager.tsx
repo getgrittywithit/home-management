@@ -442,7 +442,7 @@ interface Recipe { id: string; title: string; ingredients: string[]; steps: stri
 
 const DINNER_ROTATION = {
   week1: {
-    monday:    { kid: 'Kaylee',          theme: 'monday-week1',   emoji: '\uD83C\uDF5D', label: 'TBD' },
+    monday:    { kid: 'Kaylee',          theme: 'american-comfort', emoji: '🇺🇸', label: 'American Comfort Night' },
     tuesday:   { kid: 'Zoey',            theme: 'asian',          emoji: '\uD83E\uDD61', label: 'Asian Night' },
     wednesday: { kid: 'Wyatt',           theme: 'bar-night',      emoji: '\uD83E\uDD57', label: 'Bar Night' },
     thursday:  { kid: 'Amos',            theme: 'mexican',        emoji: '\uD83C\uDF2E', label: 'Mexican Night' },

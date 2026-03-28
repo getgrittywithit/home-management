@@ -91,15 +91,18 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
   // Dinner Manager state
   const [mealPickerOpen, setMealPickerOpen] = useState(false)
-  const [availableMeals, setAvailableMeals] = useState<{ id: number; name: string; description: string }[]>([])
-  const [myMealRequest, setMyMealRequest] = useState<{ id: number; meal_name: string; status: string } | null>(null)
+  const [availableMeals, setAvailableMeals] = useState<{ id: number; name: string; description: string; sides: string | null; sub_option_count: number }[]>([])
+  const [myMealRequest, setMyMealRequest] = useState<{ id: number; meal_name: string; status: string; sub_option_label?: string; sub_option_heat?: string } | null>(null)
   const [mealRequestLoaded, setMealRequestLoaded] = useState(false)
   const [mealSubmitting, setMealSubmitting] = useState(false)
+  const [marinadePickerMealId, setMarinadePickerMealId] = useState<number | null>(null)
+  const [marinadeOptions, setMarinadeOptions] = useState<{ id: string; label: string; heat_level: string; sort_order: number }[]>([])
+  const [marinadeLoading, setMarinadeLoading] = useState(false)
 
   // Dinner rotation config
   const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: string; emoji: string; label: string }>> = {
     week1: {
-      monday: { kid: 'kaylee', theme: 'monday-week1', emoji: '🍝', label: 'TBD' },
+      monday: { kid: 'kaylee', theme: 'american-comfort', emoji: '🇺🇸', label: 'American Comfort Night' },
       tuesday: { kid: 'zoey', theme: 'asian', emoji: '🥡', label: 'Asian Night' },
       wednesday: { kid: 'wyatt', theme: 'bar-night', emoji: '🥗', label: 'Bar Night' },
       thursday: { kid: 'amos', theme: 'mexican', emoji: '🌮', label: 'Mexican Night' },
@@ -168,20 +171,33 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     }
   }, [mealPickerOpen, todaysDinner?.theme])
 
-  const handleMealRequest = async (mealId: number) => {
+  const openMarinadePickerForMeal = async (mealId: number) => {
+    setMarinadePickerMealId(mealId)
+    setMarinadeLoading(true)
+    try {
+      const res = await fetch(`/api/parent/meal-requests?action=get_sub_options&meal_id=${mealId}`)
+      const data = await res.json()
+      setMarinadeOptions(data.options || [])
+    } catch { setMarinadeOptions([]) }
+    finally { setMarinadeLoading(false) }
+  }
+
+  const handleMealRequest = async (mealId: number, subOptionId?: string) => {
     if (mealSubmitting) return
     setMealSubmitting(true)
     try {
       const res = await fetch('/api/parent/meal-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'request_meal', kid_name: childKey, meal_id: mealId, date: todayStr }),
+        body: JSON.stringify({ action: 'request_meal', kid_name: childKey, meal_id: mealId, date: todayStr, sub_option_id: subOptionId || null }),
       })
       const data = await res.json()
       if (data.success) {
         const meal = availableMeals.find(m => m.id === mealId)
-        setMyMealRequest({ id: data.request_id, meal_name: meal?.name || '', status: 'pending' })
+        const subOpt = subOptionId ? marinadeOptions.find(o => o.id === subOptionId) : null
+        setMyMealRequest({ id: data.request_id, meal_name: meal?.name || '', status: 'pending', sub_option_label: subOpt?.label, sub_option_heat: subOpt?.heat_level })
         setMealPickerOpen(false)
+        setMarinadePickerMealId(null)
       }
     } catch (err) {
       console.error('Meal request error:', err)
@@ -640,8 +656,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">✅</span>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">Tonight&apos;s dinner: {myMealRequest.meal_name}</p>
-                  <p className="text-xs text-green-600 mt-0.5">Approved by Mom</p>
+                  <p className="text-sm font-semibold text-gray-900">Tonight&apos;s dinner: {myMealRequest.meal_name}{myMealRequest.sub_option_label ? ` — ${myMealRequest.sub_option_label}` : ''}</p>
+                  <p className="text-xs text-green-600 mt-0.5">Approved by Mom{myMealRequest.sub_option_heat ? ` · ${myMealRequest.sub_option_heat === 'hot' ? '🔥 Hot' : '😌 Mild'}` : ''}</p>
                 </div>
               </div>
             ) : myMealRequest?.status === 'pending' ? (
@@ -649,7 +665,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 <span className="text-2xl">⏳</span>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Your pick is waiting for approval</p>
-                  <p className="text-xs text-amber-600 mt-0.5">{myMealRequest.meal_name} — {todaysDinner.label} {todaysDinner.emoji}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">{myMealRequest.meal_name}{myMealRequest.sub_option_label ? ` — ${myMealRequest.sub_option_label}` : ''} — {todaysDinner.label} {todaysDinner.emoji}</p>
                 </div>
               </div>
             ) : myMealRequest?.status === 'swapped' ? (
@@ -705,13 +721,58 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                     <div key={meal.id} className="bg-gray-50 rounded-lg p-4 border hover:border-orange-300 transition-colors">
                       <p className="font-medium text-gray-900">{meal.name}</p>
                       {meal.description && <p className="text-xs text-gray-500 mt-1">{meal.description}</p>}
-                      <button
-                        onClick={() => handleMealRequest(meal.id)}
-                        disabled={mealSubmitting}
-                        className="mt-2 bg-orange-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
-                      >
-                        {mealSubmitting ? 'Requesting...' : 'Request This Meal'}
-                      </button>
+                      {meal.sides && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          <span className="font-medium text-gray-600">Sides:</span> {meal.sides}
+                        </p>
+                      )}
+
+                      {/* Marinade sub-picker for meals with sub-options (e.g. Oven Drumsticks) */}
+                      {marinadePickerMealId === meal.id ? (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-sm font-semibold text-gray-800">Pick your marinade 🍗</p>
+                          {marinadeLoading ? (
+                            <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                              <div className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-orange-500 rounded-full" />
+                              Loading marinades...
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              {marinadeOptions.map(opt => (
+                                <button
+                                  key={opt.id}
+                                  onClick={() => handleMealRequest(meal.id, opt.id)}
+                                  disabled={mealSubmitting}
+                                  className={`text-left p-2.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
+                                    opt.heat_level === 'hot'
+                                      ? 'bg-red-50 border-red-200 hover:border-red-400'
+                                      : 'bg-green-50 border-green-200 hover:border-green-400'
+                                  }`}
+                                >
+                                  <span className="font-medium">{opt.heat_level === 'hot' ? '🔥' : '😌'} {opt.label}</span>
+                                  <span className={`block text-xs mt-0.5 ${opt.heat_level === 'hot' ? 'text-red-500' : 'text-green-600'}`}>
+                                    {opt.heat_level === 'hot' ? 'Hot' : 'Mild'}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => setMarinadePickerMealId(null)}
+                            className="text-xs text-gray-400 hover:text-gray-600"
+                          >
+                            Back to meals
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => meal.sub_option_count > 0 ? openMarinadePickerForMeal(meal.id) : handleMealRequest(meal.id)}
+                          disabled={mealSubmitting}
+                          className="mt-2 bg-orange-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                        >
+                          {mealSubmitting ? 'Requesting...' : meal.sub_option_count > 0 ? 'Choose Marinade' : 'Request This Meal'}
+                        </button>
+                      )}
                     </div>
                   ))
                 )}

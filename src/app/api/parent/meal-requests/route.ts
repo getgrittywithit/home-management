@@ -14,9 +14,11 @@ export async function GET(request: NextRequest) {
     if (action === 'pending') {
       const rows = await db.query(
         `SELECT mr.id, mr.kid_name, mr.meal_id, mr.assigned_date, mr.status,
-                ml.name as meal_name, ml.theme
+                ml.name as meal_name, ml.theme, ml.sides,
+                mso.label as sub_option_label, mso.heat_level as sub_option_heat
          FROM meal_requests mr
          JOIN meal_library ml ON mr.meal_id = ml.id
+         LEFT JOIN meal_sub_options mso ON mr.sub_option_id = mso.id
          WHERE mr.status = 'pending'
          ORDER BY mr.assigned_date`
       )
@@ -30,9 +32,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'kid and date required' }, { status: 400 })
       }
       const rows = await db.query(
-        `SELECT mr.id, mr.status, ml.name as meal_name
+        `SELECT mr.id, mr.status, ml.name as meal_name,
+                mso.label as sub_option_label, mso.heat_level as sub_option_heat
          FROM meal_requests mr
          JOIN meal_library ml ON mr.meal_id = ml.id
+         LEFT JOIN meal_sub_options mso ON mr.sub_option_id = mso.id
          WHERE mr.kid_name = $1 AND mr.assigned_date = $2
          ORDER BY mr.created_at DESC LIMIT 1`,
         [kid, date]
@@ -47,13 +51,26 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'theme required' }, { status: 400 })
       }
       const rows = await db.query(
-        `SELECT id, name, description FROM meal_library
-         WHERE theme = $1 AND (season = $2 OR season = 'year-round') AND active = true
-         ORDER BY CASE WHEN season = 'year-round' THEN 0 ELSE 1 END, name
+        `SELECT ml.id, ml.name, ml.description, ml.sides,
+                (SELECT COUNT(*)::int FROM meal_sub_options mso WHERE mso.meal_id = ml.id) as sub_option_count
+         FROM meal_library ml
+         WHERE ml.theme = $1 AND (ml.season = $2 OR ml.season = 'year-round') AND ml.active = true
+         ORDER BY CASE WHEN ml.season = 'year-round' THEN 0 ELSE 1 END, ml.name
          LIMIT 8`,
         [theme, season]
       )
       return NextResponse.json({ meals: rows })
+    }
+
+    if (action === 'get_sub_options') {
+      const mealId = searchParams.get('meal_id')
+      if (!mealId) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
+      const rows = await db.query(
+        `SELECT id, label, heat_level, sort_order FROM meal_sub_options
+         WHERE meal_id = $1 ORDER BY sort_order`,
+        [mealId]
+      )
+      return NextResponse.json({ options: rows })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
@@ -69,7 +86,7 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     if (action === 'request_meal') {
-      const { kid_name, meal_id, date } = body
+      const { kid_name, meal_id, date, sub_option_id } = body
       if (!kid_name || !meal_id || !date) {
         return NextResponse.json({ error: 'kid_name, meal_id, and date required' }, { status: 400 })
       }
@@ -84,10 +101,10 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await db.query(
-        `INSERT INTO meal_requests (kid_name, meal_id, assigned_date, status, created_at)
-         VALUES ($1, $2, $3, 'pending', NOW())
+        `INSERT INTO meal_requests (kid_name, meal_id, assigned_date, status, sub_option_id, created_at)
+         VALUES ($1, $2, $3, 'pending', $4, NOW())
          RETURNING id`,
-        [kid_name, meal_id, date]
+        [kid_name, meal_id, date, sub_option_id || null]
       )
       return NextResponse.json({ success: true, request_id: result[0]?.id })
     }
