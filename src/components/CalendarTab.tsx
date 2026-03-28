@@ -17,11 +17,23 @@ interface CalEvent {
 const CALENDAR_COLORS: Record<string, string> = {
   'Household Hub': 'bg-indigo-500',
   'Zoey': 'bg-purple-500',
-  "Zoey's calendar": 'bg-purple-500',
   'Kaylee': 'bg-pink-500',
-  "Kaylee's calendar": 'bg-pink-500',
-  'School events': 'bg-blue-500',
+  'Amos': 'bg-blue-500',
+  'Hannah': 'bg-rose-400',
+  'Wyatt': 'bg-green-500',
+  'Ellie': 'bg-amber-500',
+  'Champion High': 'bg-blue-600',
+  'BMSN': 'bg-teal-500',
+  'BISD': 'bg-blue-500',
   'School': 'bg-blue-500',
+  'Primary': 'bg-violet-500',
+  'Chores': 'bg-amber-600',
+  'Meal Plan': 'bg-orange-500',
+  'Pet': 'bg-red-400',
+  'Levi': 'bg-cyan-600',
+  'Lola Work': 'bg-gray-500',
+  'Local Adventures': 'bg-emerald-500',
+  'Finance': 'bg-purple-600',
 }
 const DEFAULT_COLOR = 'bg-slate-400'
 

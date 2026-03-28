@@ -239,7 +239,7 @@ export default function Dashboard({ initialData }: DashboardProps) {
                     )}
                   </span>
                 }
-                label={greenlightActive ? "Update Greenlight" : "Post Greenlight"}
+                label={greenlightActive ? "Update Family Alert" : "Post Family Alert"}
                 color="primary"
                 onClick={() => setGreenlightOpen(true)}
               />
