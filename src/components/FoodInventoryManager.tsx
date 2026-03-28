@@ -34,14 +34,12 @@ export default function FoodInventoryManager() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input' | 'shopping'>('inventory')
   const [bulkInput, setBulkInput] = useState('')
-  const [apiKeySet, setApiKeySet] = useState(false)
+  const [apiKeySet] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check API key and load data on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const hasApiKey = localStorage.getItem('claude-api-key') !== null
-      setApiKeySet(hasApiKey)
       loadInventory()
     }
   }, [])
@@ -405,15 +403,10 @@ Example:
 ✨ Smart AI will automatically sort by fridge/freezer/pantry!"
                 />
                 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">API Key:</span>
-                    <div className={`w-3 h-3 rounded-full ${apiKeySet ? 'bg-green-500' : 'bg-red-500'}`} />
-                  </div>
-                  
+                <div className="flex items-center justify-end">
                   <button
                     onClick={processBulkInventory}
-                    disabled={isProcessing || !bulkInput.trim() || !apiKeySet}
+                    disabled={isProcessing || !bulkInput.trim()}
                     className="flex items-center gap-2 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
                   >
                     <Bot className="w-4 h-4" />
