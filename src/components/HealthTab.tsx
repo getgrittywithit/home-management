@@ -8,6 +8,7 @@ import {
   ArrowRight, Eye, EyeOff, Upload, Sparkles, ClipboardList, ListChecks,
   CircleDot, ChevronDown, ChevronUp
 } from 'lucide-react'
+import MoodHistoryCard from './MoodHistoryCard'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -307,8 +308,33 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       const data = await response.json()
       setInsurancePlan(data.insurancePlan)
       setProviders(data.providers || [])
-      setHealthProfiles(data.healthProfiles || [])
       setBenefitRules(data.benefitRules || [])
+
+      // Auto-populate health profiles for all kids if any are missing
+      let profiles: HealthProfile[] = data.healthProfiles || []
+      if (memberGroup === 'kids') {
+        const KIDS_NAMES = ['Amos', 'Ellie', 'Wyatt', 'Hannah', 'Zoey', 'Kaylee']
+        const existingNames = new Set(profiles.map((p: HealthProfile) => p.family_member_name.toLowerCase()))
+        const missing = KIDS_NAMES.filter(name => !existingNames.has(name.toLowerCase()))
+        if (missing.length > 0) {
+          const created: HealthProfile[] = []
+          for (const name of missing) {
+            try {
+              const res = await fetch('/api/health', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add_health_profile', data: { family_member_name: name, member_group: 'kids' } })
+              })
+              if (res.ok) {
+                const newProfile = await res.json()
+                created.push(newProfile)
+              }
+            } catch { /* ignore individual failures */ }
+          }
+          profiles = [...profiles, ...created]
+        }
+      }
+      setHealthProfiles(profiles)
       setAppointments(data.appointments || [])
       setMedications(data.medications || [])
       setVisitNotes(data.visitNotes || [])
@@ -712,7 +738,10 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
   // ============================================================================
 
   const handleAddVisitNote = async (aiData?: { synopsis: string; diagnoses: string[]; tasks: string[]; prescriptions: string[]; followup: string }) => {
-    if (!visitNoteForm.family_member_name?.trim() || !visitNoteForm.visit_date) return
+    if (!visitNoteForm.family_member_name?.trim() || !visitNoteForm.visit_date) {
+      setError('Please fill in family member name and visit date')
+      return
+    }
     try {
       const response = await fetch('/api/health', {
         method: 'POST',
@@ -779,31 +808,44 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       setError('Please enter or upload visit notes first')
       return
     }
+    if (!visitNoteForm.family_member_name?.trim() || !visitNoteForm.visit_date) {
+      setError('Please fill in family member name and visit date before analyzing')
+      return
+    }
     setAnalyzingNotes(true)
     setError(null)
     try {
-      let response
-      if (uploadFile) {
-        const formData = new FormData()
-        formData.append('file', uploadFile)
-        response = await fetch('/api/health/analyze', { method: 'POST', body: formData })
-      } else {
-        response = await fetch('/api/health/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rawNotes: visitNoteForm.raw_notes })
-        })
+      let aiData = null
+      try {
+        let response
+        if (uploadFile) {
+          const formData = new FormData()
+          formData.append('file', uploadFile)
+          response = await fetch('/api/health/analyze', { method: 'POST', body: formData })
+        } else {
+          response = await fetch('/api/health/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rawNotes: visitNoteForm.raw_notes })
+          })
+        }
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}))
+          console.error('AI analysis error:', errData.error || response.statusText)
+        } else {
+          aiData = await response.json()
+        }
+      } catch (analyzeErr) {
+        console.error('AI analysis request failed:', analyzeErr)
       }
-      if (!response.ok) {
-        const errData = await response.json()
-        throw new Error(errData.error || 'AI analysis failed')
+      // Save the note — with AI results if available, without if AI failed
+      await handleAddVisitNote(aiData || undefined)
+      if (!aiData) {
+        setError('AI analysis unavailable — note saved without AI summary. Check that ANTHROPIC_API_KEY is set in your environment.')
       }
-      const aiData = await response.json()
-      // Save the note with AI results
-      await handleAddVisitNote(aiData)
     } catch (err: any) {
-      console.error('Error analyzing notes:', err)
-      setError(err.message || 'Failed to analyze notes')
+      console.error('Error saving visit note:', err)
+      setError(err.message || 'Failed to save visit note')
     } finally {
       setAnalyzingNotes(false)
     }
@@ -2255,67 +2297,81 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       {/* ================================================================== */}
       {/* ACTIVITY & MOOD OVERVIEW (Parent portal — kids memberGroup only) */}
       {/* ================================================================== */}
-      {activeSection === 'activity_mood' && memberGroup === 'kids' && activityMoodOverview && (
+      {activeSection === 'activity_mood' && memberGroup === 'kids' && (
         <div className="space-y-4">
           <h3 className="font-semibold text-gray-900">Activity & Mood Overview</h3>
 
           {/* Mood trends */}
-          <div className="bg-white rounded-lg p-5 shadow-sm border">
-            <h4 className="font-semibold text-gray-900 mb-3">Mood Trends (Last 7 Days)</h4>
-            {(() => {
-              const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
-              const moodEmoji: Record<string, string> = { great: '😊', good: '🙂', ok: '😐', rough: '😔', bad: '😢' }
-              const byKid: Record<string, any[]> = {}
-              activityMoodOverview.moods?.forEach((m: any) => {
-                if (!byKid[m.child_name]) byKid[m.child_name] = []
-                byKid[m.child_name].push(m)
-              })
-              return (
-                <div className="space-y-2">
-                  {KIDS.map(kid => {
-                    const moods = byKid[kid] || []
-                    return (
-                      <div key={kid} className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-700 w-16">{kid.charAt(0).toUpperCase() + kid.slice(1)}</span>
-                        <div className="flex gap-1">
-                          {moods.length > 0 ? moods.map((m: any, i: number) => {
-                            const dayLabel = new Date(m.log_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })
-                            return (
-                              <div key={i} className="text-center" title={`${dayLabel}: ${m.mood}`}>
-                                <div className="text-sm">{moodEmoji[m.mood] || '❓'}</div>
-                                <div className="text-[10px] text-gray-400">{dayLabel.slice(0, 2)}</div>
-                              </div>
-                            )
-                          }) : <span className="text-xs text-gray-400">No mood data</span>}
+          {activityMoodOverview && (
+            <div className="bg-white rounded-lg p-5 shadow-sm border">
+              <h4 className="font-semibold text-gray-900 mb-3">Mood Trends (Last 7 Days)</h4>
+              {(() => {
+                const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+                const moodEmoji: Record<string, string> = { great: '😊', good: '🙂', ok: '😐', rough: '😔', bad: '😢' }
+                const byKid: Record<string, any[]> = {}
+                activityMoodOverview.moods?.forEach((m: any) => {
+                  if (!byKid[m.child_name]) byKid[m.child_name] = []
+                  byKid[m.child_name].push(m)
+                })
+                return (
+                  <div className="space-y-2">
+                    {KIDS.map(kid => {
+                      const moods = byKid[kid] || []
+                      return (
+                        <div key={kid} className="flex items-center gap-3">
+                          <span className="text-sm font-medium text-gray-700 w-16">{kid.charAt(0).toUpperCase() + kid.slice(1)}</span>
+                          <div className="flex gap-1">
+                            {moods.length > 0 ? moods.map((m: any, i: number) => {
+                              const dayLabel = new Date(m.log_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+                              return (
+                                <div key={i} className="text-center" title={`${dayLabel}: ${m.mood}`}>
+                                  <div className="text-sm">{moodEmoji[m.mood] || '❓'}</div>
+                                  <div className="text-[10px] text-gray-400">{dayLabel.slice(0, 2)}</div>
+                                </div>
+                              )
+                            }) : <span className="text-xs text-gray-400">No mood data</span>}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-          </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
 
           {/* Today's activity */}
-          <div className="bg-white rounded-lg p-5 shadow-sm border">
-            <h4 className="font-semibold text-gray-900 mb-3">Today&apos;s Activity</h4>
-            {(() => {
-              const activities = activityMoodOverview.activities || []
-              if (activities.length === 0) return <p className="text-sm text-gray-400">No activities logged today</p>
-              return (
-                <div className="space-y-2">
-                  {activities.map((a: any) => (
-                    <div key={a.child_name} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-900">{a.child_name.charAt(0).toUpperCase() + a.child_name.slice(1)}</span>
-                      <div className="text-sm text-gray-600">
-                        {a.count} {a.count === 1 ? 'activity' : 'activities'}
-                        {a.total_minutes && ` · ${a.total_minutes} min`}
+          {activityMoodOverview && (
+            <div className="bg-white rounded-lg p-5 shadow-sm border">
+              <h4 className="font-semibold text-gray-900 mb-3">Today&apos;s Activity</h4>
+              {(() => {
+                const activities = activityMoodOverview.activities || []
+                if (activities.length === 0) return <p className="text-sm text-gray-400">No activities logged today</p>
+                return (
+                  <div className="space-y-2">
+                    {activities.map((a: any) => (
+                      <div key={a.child_name} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                        <span className="text-sm font-medium text-gray-900">{a.child_name.charAt(0).toUpperCase() + a.child_name.slice(1)}</span>
+                        <div className="text-sm text-gray-600">
+                          {a.count} {a.count === 1 ? 'activity' : 'activities'}
+                          {a.total_minutes && ` · ${a.total_minutes} min`}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            })()}
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* Mood Check-In History */}
+          <div className="bg-white rounded-lg border shadow-sm p-6">
+            <h3 className="text-xl font-bold mb-4">Mood Check-In History</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {['Amos', 'Ellie', 'Wyatt', 'Hannah', 'Zoey', 'Kaylee'].map(kid => (
+                <MoodHistoryCard key={kid} childName={kid} />
+              ))}
+            </div>
           </div>
         </div>
       )}
