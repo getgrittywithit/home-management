@@ -8,6 +8,9 @@ import {
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange } from '@/lib/zoneRotation'
+import PostGreenlightModal from './PostGreenlightModal'
+import LogRevenueModal from './LogRevenueModal'
+import CheckZonesPanel from './CheckZonesPanel'
 
 interface DashboardProps {
   initialData?: DashboardData
@@ -18,6 +21,10 @@ export default function Dashboard({ initialData }: DashboardProps) {
   const [loading, setLoading] = useState(!initialData)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
   const [isClient, setIsClient] = useState(false)
+  const [greenlightOpen, setGreenlightOpen] = useState(false)
+  const [greenlightActive, setGreenlightActive] = useState(false)
+  const [revenueOpen, setRevenueOpen] = useState(false)
+  const [zonesOpen, setZonesOpen] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
@@ -26,10 +33,19 @@ export default function Dashboard({ initialData }: DashboardProps) {
   useEffect(() => {
     if (isClient) {
       fetchDashboardData()
-      
+
       // Refresh every 2 minutes
       const interval = setInterval(fetchDashboardData, 2 * 60 * 1000)
       return () => clearInterval(interval)
+    }
+  }, [isClient])
+
+  useEffect(() => {
+    if (isClient) {
+      fetch('/api/kids/messages?action=get_active_greenlight')
+        .then(r => r.json())
+        .then(data => setGreenlightActive(!!data.greenlight))
+        .catch(() => {})
     }
   }, [isClient])
 
@@ -215,26 +231,37 @@ export default function Dashboard({ initialData }: DashboardProps) {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <QuickActionButton
-                icon={<Zap className="h-5 w-5" />}
-                label="Post Greenlight"
+                icon={
+                  <span className="relative">
+                    <Zap className="h-5 w-5" />
+                    {greenlightActive && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
+                    )}
+                  </span>
+                }
+                label={greenlightActive ? "Update Greenlight" : "Post Greenlight"}
                 color="primary"
-                onClick={() => console.log('Open greenlight modal')}
+                onClick={() => setGreenlightOpen(true)}
               />
               <QuickActionButton
                 icon={<DollarSign className="h-5 w-5" />}
                 label="Log Revenue"
                 color="green"
-                onClick={() => console.log('Open revenue modal')}
+                onClick={() => setRevenueOpen(true)}
               />
               <QuickActionButton
                 icon={<Home className="h-5 w-5" />}
                 label="Check Zones"
                 color="orange"
-                onClick={() => console.log('Open zones modal')}
+                onClick={() => setZonesOpen(true)}
               />
             </div>
           </div>
         </div>
+
+        <PostGreenlightModal open={greenlightOpen} onClose={() => setGreenlightOpen(false)} onPosted={() => { setGreenlightActive(prev => !prev); fetchDashboardData() }} />
+        <LogRevenueModal open={revenueOpen} onClose={() => setRevenueOpen(false)} onLogged={fetchDashboardData} />
+        <CheckZonesPanel open={zonesOpen} onClose={() => setZonesOpen(false)} />
       </div>
     </div>
   )

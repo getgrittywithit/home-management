@@ -64,6 +64,40 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ weekOf: weekStart, kids: [] }) }
     }
 
+    if (action === 'today_zone_status') {
+      const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+
+      const zones: any[] = []
+      for (const kid of kids) {
+        const zone = getKidZone(kid.charAt(0).toUpperCase() + kid.slice(1))
+        if (!zone) continue
+
+        // Count zone tasks completed today
+        try {
+          const rows = await db.query(
+            `SELECT COUNT(*)::int as total,
+                    COUNT(*) FILTER (WHERE completed = TRUE)::int as done
+             FROM kid_daily_checklist
+             WHERE child_name = $1 AND event_date = $2 AND event_id LIKE 'zone-%'`,
+            [kid, today]
+          )
+          const total = rows[0]?.total || 0
+          const done = rows[0]?.done || 0
+          zones.push({
+            kid_name: kid,
+            zone_name: zone,
+            task_count: total,
+            completed_count: done,
+            status: total === 0 ? 'not_started' : done === total ? 'done' : done > 0 ? 'in_progress' : 'not_started'
+          })
+        } catch {
+          zones.push({ kid_name: kid, zone_name: zone, task_count: 0, completed_count: 0, status: 'not_started' })
+        }
+      }
+      return NextResponse.json({ zones })
+    }
+
     if (!child) {
       return NextResponse.json({ error: 'child required' }, { status: 400 })
     }

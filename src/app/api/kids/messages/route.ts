@@ -45,6 +45,15 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ announcements: rows })
       }
 
+      case 'get_active_greenlight': {
+        const rows = await db.query(
+          `SELECT id, message, created_at FROM family_announcements
+           WHERE active = TRUE AND announcement_type = 'greenlight'
+           ORDER BY created_at DESC LIMIT 1`
+        )
+        return NextResponse.json({ greenlight: rows[0] || null })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
@@ -114,6 +123,24 @@ export async function POST(request: NextRequest) {
         const { id } = body
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         await db.query(`UPDATE family_announcements SET active = FALSE WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'post_greenlight': {
+        const { message } = body
+        if (!message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 })
+        // Deactivate any existing greenlight first
+        await db.query(`UPDATE family_announcements SET active = FALSE WHERE announcement_type = 'greenlight' AND active = TRUE`)
+        // Insert new greenlight
+        await db.query(
+          `INSERT INTO family_announcements (message, announcement_type, target_kid, active) VALUES ($1, 'greenlight', 'all', TRUE)`,
+          [message.trim().substring(0, 200)]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'deactivate_greenlight': {
+        await db.query(`UPDATE family_announcements SET active = FALSE WHERE announcement_type = 'greenlight' AND active = TRUE`)
         return NextResponse.json({ success: true })
       }
 
