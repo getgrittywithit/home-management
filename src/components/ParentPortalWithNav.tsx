@@ -6,6 +6,7 @@ import Dashboard from './Dashboard'
 import ChoresTab from './ChoresTab'
 import SchoolTabWithSchedules from './SchoolTabWithSchedules'
 import FilterableCalendar from './FilterableCalendar'
+import CalendarTab from './CalendarTab'
 import TodoTab from './TodoTab'
 import ContactsTab from './ContactsTab'
 import AboutMeAdminTab from './AboutMeAdminTab'
@@ -176,7 +177,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   )
 
   const renderCalendarTab = () => (
-    <FilterableCalendar selectedChild="amos-moses-504640" />
+    <CalendarTab />
   )
 
   const renderSettingsTab = () => (
