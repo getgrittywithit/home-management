@@ -15,13 +15,16 @@ import {
 
 // Using types from foodService
 
-type FoodLocation = 'fridge' | 'freezer' | 'pantry'
+type FoodLocation = 'fridge' | 'freezer' | 'pantry' | 'spice-cabinet' | 'baking-cabinet' | 'other'
 type FoodCategory = 'proteins' | 'dairy' | 'produce' | 'grains' | 'canned' | 'frozen' | 'condiments' | 'snacks' | 'beverages' | 'other'
 
 const LOCATIONS = [
   { id: 'fridge', name: 'Fridge', icon: Refrigerator, color: 'bg-blue-500' },
   { id: 'freezer', name: 'Freezer', icon: Snowflake, color: 'bg-cyan-500' },
-  { id: 'pantry', name: 'Pantry', icon: Package, color: 'bg-amber-500' }
+  { id: 'pantry', name: 'Pantry', icon: Package, color: 'bg-amber-500' },
+  { id: 'spice-cabinet', name: 'Spice Cabinet', icon: Coffee, color: 'bg-orange-500' },
+  { id: 'baking-cabinet', name: 'Baking', icon: ChefHat, color: 'bg-yellow-500' },
+  { id: 'other', name: 'Other', icon: Home, color: 'bg-gray-500' },
 ] as const
 
 const CATEGORIES = [
@@ -430,10 +433,49 @@ Example:
   )
 }
 
-// ── Meal Plan Week View (Phase 1 + Phase 2 Recipes) ─────────────
+// ── Meal Plan Week View (Phase 1 + Phase 2 Recipes + R2 Dinner Rotation) ─────────────
 
 interface MealRow { dish_name: string; meal_name?: string; recipe_id: string | null }
 interface Recipe { id: string; title: string; ingredients: string[]; steps: string[] }
+
+// ── Dinner Rotation Config ─────────────
+
+const DINNER_ROTATION = {
+  week1: {
+    monday:    { kid: 'Kaylee',          theme: 'monday-week1',   emoji: '\uD83C\uDF5D', label: 'TBD' },
+    tuesday:   { kid: 'Zoey',            theme: 'asian',          emoji: '\uD83E\uDD61', label: 'Asian Night' },
+    wednesday: { kid: 'Wyatt',           theme: 'bar-night',      emoji: '\uD83E\uDD57', label: 'Bar Night' },
+    thursday:  { kid: 'Amos',            theme: 'mexican',        emoji: '\uD83C\uDF2E', label: 'Mexican Night' },
+    friday:    { kid: 'Ellie & Hannah',  theme: 'pizza-italian',  emoji: '\uD83C\uDF55', label: 'Pizza & Italian Night' },
+    saturday:  { kid: 'Parents',         theme: 'grill',          emoji: '\uD83D\uDD25', label: 'Grill Night' },
+    sunday:    { kid: 'Parents',         theme: 'roast-comfort',  emoji: '\uD83C\uDFE1', label: 'Roast/Comfort Sunday' },
+  },
+  week2: {
+    monday:    { kid: 'Kaylee',          theme: 'soup-comfort',   emoji: '\uD83C\uDF72', label: 'Soup/Comfort Night' },
+    tuesday:   { kid: 'Zoey',            theme: 'asian',          emoji: '\uD83E\uDD61', label: 'Asian Night' },
+    wednesday: { kid: 'Wyatt',           theme: 'easy-lazy',      emoji: '\uD83E\uDD6A', label: 'Easy/Lazy Night' },
+    thursday:  { kid: 'Amos',            theme: 'mexican',        emoji: '\uD83C\uDF2E', label: 'Mexican Night' },
+    friday:    { kid: 'Ellie & Hannah',  theme: 'pizza-italian',  emoji: '\uD83C\uDF55', label: 'Pizza & Italian Night' },
+    saturday:  { kid: 'Parents',         theme: 'experiment',     emoji: '\uD83D\uDD2C', label: 'Experiment/Big Cook' },
+    sunday:    { kid: 'Parents',         theme: 'brunch',         emoji: '\uD83C\uDF73', label: 'Brunch Sunday' },
+  }
+} as const
+
+const DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+
+const EPOCH = new Date('2026-03-30T00:00:00') // Monday of first Week 1
+
+function getRotationWeek(monday: Date): 1 | 2 {
+  const weeks = Math.floor((monday.getTime() - EPOCH.getTime()) / (7 * 24 * 60 * 60 * 1000))
+  return (((weeks % 2) + 2) % 2) === 0 ? 1 : 2 // handles negative weeks correctly
+}
+
+function getCurrentSeason(): 'spring-summer' | 'fall-winter' {
+  const month = new Date().getMonth() + 1
+  return (month >= 3 && month <= 8) ? 'spring-summer' : 'fall-winter'
+}
+
+interface RotationRequest { date: string; kid_name: string; meal_name: string; status: string; meal_id: string }
 
 function getMonday(d: Date): Date {
   const date = new Date(d)
@@ -472,8 +514,14 @@ function MealPlanWeekView() {
   const [uploadParsing, setUploadParsing] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
+  // Rotation state
+  const [rotationRequests, setRotationRequests] = useState<RotationRequest[]>([])
+
   const weekDates = getWeekDates(weekStart)
   const weekEnd = weekDates[6]
+  const rotationWeek = getRotationWeek(weekStart)
+  const rotation = rotationWeek === 1 ? DINNER_ROTATION.week1 : DINNER_ROTATION.week2
+  const season = getCurrentSeason()
 
   // Fetch meals for displayed week
   useEffect(() => {
@@ -490,6 +538,14 @@ function MealPlanWeekView() {
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
+  }, [weekStart])
+
+  // Fetch rotation requests for displayed week
+  useEffect(() => {
+    fetch(`/api/parent/meal-plan?action=rotation_status&weekStart=${toDateStr(weekStart)}`)
+      .then(res => res.json())
+      .then(data => setRotationRequests(data.requests || []))
+      .catch(() => setRotationRequests([]))
   }, [weekStart])
 
   const saveMeal = async (dateStr: string, mealName: string) => {
@@ -620,8 +676,88 @@ function MealPlanWeekView() {
   const isCurrentWeek = toDateStr(weekStart) === toDateStr(getMonday(new Date()))
   const todayStr = toDateStr(new Date())
 
+  // Build a lookup: dateStr -> rotation request
+  const requestByDate: Record<string, RotationRequest> = {}
+  rotationRequests.forEach(r => { requestByDate[r.date] = r })
+
   return (
     <div className="space-y-4">
+      {/* ── Dinner Rotation Section ── */}
+      <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-lg font-bold text-orange-900 flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Dinner Rotation — Week {rotationWeek}
+            </h3>
+            <p className="text-xs text-orange-600 mt-0.5">
+              {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {' '}&middot;{' '}{season === 'spring-summer' ? 'Spring/Summer' : 'Fall/Winter'} menu
+            </p>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${rotationWeek === 1 ? 'bg-orange-200 text-orange-800' : 'bg-amber-200 text-amber-800'}`}>
+            Week {rotationWeek} of 2
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+          {DAY_KEYS.map((dayKey, idx) => {
+            const info = rotation[dayKey]
+            const dateStr = toDateStr(weekDates[idx])
+            const isToday = dateStr === todayStr
+            const isWeekend = idx >= 5
+            const req = requestByDate[dateStr]
+            const approvedMeal = req?.status === 'approved' ? req.meal_name : null
+            const pendingMeal = req?.status === 'pending' ? req.meal_name : null
+            // Also check if there's a meal in the existing meal plan
+            const plannedMeal = meals[dateStr]?.meal_name
+
+            return (
+              <div
+                key={dayKey}
+                className={`rounded-lg p-3 border-2 transition-all ${
+                  isToday
+                    ? 'border-orange-500 bg-white shadow-md ring-2 ring-orange-300'
+                    : isWeekend
+                      ? 'border-purple-300 bg-purple-50'
+                      : 'border-orange-100 bg-white'
+                } ${isWeekend ? 'sm:col-span-1' : ''}`}
+              >
+                <div className="text-center">
+                  <div className={`text-xs font-semibold uppercase tracking-wide ${isToday ? 'text-orange-600' : isWeekend ? 'text-purple-600' : 'text-gray-500'}`}>
+                    {dayKey.charAt(0).toUpperCase() + dayKey.slice(1, 3)}
+                  </div>
+                  <div className="text-2xl mt-1">{info.emoji}</div>
+                  <div className={`text-xs font-bold mt-1 ${isWeekend ? 'text-purple-800' : 'text-gray-900'}`}>
+                    {info.kid}
+                  </div>
+                  <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">
+                    {info.label}
+                  </div>
+
+                  {/* Show approved meal, pending badge, or planned meal */}
+                  {approvedMeal ? (
+                    <div className="mt-2 px-1.5 py-0.5 bg-green-100 text-green-800 rounded text-[10px] font-medium truncate" title={approvedMeal}>
+                      <CheckCircle className="w-2.5 h-2.5 inline mr-0.5" />
+                      {approvedMeal}
+                    </div>
+                  ) : pendingMeal ? (
+                    <div className="mt-2 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded text-[10px] font-medium truncate" title={pendingMeal}>
+                      <Clock className="w-2.5 h-2.5 inline mr-0.5" />
+                      Pending approval
+                    </div>
+                  ) : plannedMeal ? (
+                    <div className="mt-2 px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-medium truncate" title={plannedMeal}>
+                      {plannedMeal}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Week navigation */}
       <div className="flex items-center justify-between">
         <button onClick={goToPrevWeek} className="p-2 rounded hover:bg-gray-100"><ChevronLeft className="w-5 h-5" /></button>

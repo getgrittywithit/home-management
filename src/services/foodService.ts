@@ -12,7 +12,7 @@ export interface FoodItem {
   name: string
   quantity: number
   unit: string
-  location: 'fridge' | 'freezer' | 'pantry'
+  location: 'fridge' | 'freezer' | 'pantry' | 'spice-cabinet' | 'baking-cabinet' | 'other'
   category: 'proteins' | 'dairy' | 'produce' | 'grains' | 'canned' | 'frozen' | 'condiments' | 'snacks' | 'beverages' | 'other'
   expiration_date?: string
   notes?: string
