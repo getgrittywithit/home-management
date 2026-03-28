@@ -32,7 +32,7 @@ export default function MoodHistoryCard({ childName }: { childName: string }) {
   if (history.length === 0) {
     return (
       <div className="bg-white rounded-lg border shadow-sm p-5">
-        <h3 className="font-semibold text-gray-900 mb-2">Mood History</h3>
+        <h3 className="font-semibold text-gray-900 mb-2">{childName}&apos;s Mood History</h3>
         <p className="text-sm text-gray-400">No mood check-ins yet</p>
       </div>
     )
@@ -43,7 +43,7 @@ export default function MoodHistoryCard({ childName }: { childName: string }) {
 
   return (
     <div className="bg-white rounded-lg border shadow-sm p-5">
-      <h3 className="font-semibold text-gray-900 mb-4">Mood History — Last 30 Days</h3>
+      <h3 className="font-semibold text-gray-900 mb-4">{childName}&apos;s Mood History — Last 30 Days</h3>
 
       {/* Dot chart */}
       <div className="mb-6">

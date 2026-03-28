@@ -25,7 +25,6 @@ import PointsEarningTab from './PointsEarningTab'
 import MessagesTab from './MessagesTab'
 import NeedsBoardTab from './NeedsBoardTab'
 import MoodOverview from './MoodOverview'
-import MoodHistoryCard from './MoodHistoryCard'
 import ParentPortfolioPanel from './ParentPortfolioPanel'
 import AvailabilityWidget from './AvailabilityWidget'
 import WeeklySummaryTab from './WeeklySummaryTab'
@@ -248,19 +247,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'parents-health':
         return <HealthTab memberGroup="parents" />
       case 'kids-health':
-        return (
-          <div className="space-y-6">
-            <HealthTab memberGroup="kids" />
-            <div className="bg-white rounded-lg border shadow-sm p-6">
-              <h2 className="text-xl font-bold mb-4">Mood Check-In History</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {['Amos', 'Ellie', 'Wyatt', 'Hannah', 'Zoey', 'Kaylee'].map(kid => (
-                  <MoodHistoryCard key={kid} childName={kid} />
-                ))}
-              </div>
-            </div>
-          </div>
-        )
+        return <HealthTab memberGroup="kids" />
       case 'todos':
         return <TodoTab />
       case 'points-earning':
