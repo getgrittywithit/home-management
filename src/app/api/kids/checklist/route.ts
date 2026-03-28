@@ -421,6 +421,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'flag_sick_day': {
+        const { kid, date } = body
+        if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+        const sickDate = date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await db.query(
+          `INSERT INTO kid_sick_days (kid_name, sick_date, reason, severity)
+           VALUES ($1, $2, 'Self-reported', 'mild')
+           ON CONFLICT (kid_name, sick_date) DO NOTHING`,
+          [kid.toLowerCase(), sickDate]
+        )
+        return NextResponse.json({ success: true })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }

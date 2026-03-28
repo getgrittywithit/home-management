@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   CheckCircle2, Circle, Lock, DollarSign, Sparkles,
-  Dog, Utensils, Home, Trash2, Trophy, ChevronDown, ChevronUp, Heart
+  Dog, Utensils, Home, Trash2, Trophy, ChevronDown, ChevronUp, Heart,
 } from 'lucide-react'
 import ZoneDetailCard from './ZoneDetailCard'
 import MorningCheckinCard from './MorningCheckinCard'
@@ -110,6 +110,8 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
   const [stats, setStats] = useState({ requiredTotal: 0, requiredDone: 0, dailyCareTotal: 0, dailyCareDone: 0, earnMoneyTotal: 0, earnMoneyDone: 0 })
   const [loaded, setLoaded] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [prevAllDone, setPrevAllDone] = useState(false)
 
   const childKey = childName.toLowerCase()
 
@@ -127,6 +129,19 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
       })
       .catch(() => setLoaded(true))
   }, [childKey])
+
+  // Celebration trigger: fires once per session per day when all required tasks become done
+  useEffect(() => {
+    if (!loaded) return
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    const sessionKey = `checklist-celebrated-${childKey}-${today}`
+    if (allRequiredDone && !prevAllDone && stats.requiredTotal > 0 && !sessionStorage.getItem(sessionKey)) {
+      setShowCelebration(true)
+      sessionStorage.setItem(sessionKey, '1')
+      setTimeout(() => setShowCelebration(false), 2500)
+    }
+    setPrevAllDone(allRequiredDone)
+  }, [allRequiredDone, loaded, stats.requiredTotal, childKey, prevAllDone])
 
   const toggle = async (item: ChecklistItem, tier: 'required' | 'dailyCare' | 'earnMoney') => {
     // Optimistic update
@@ -181,7 +196,10 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
   const earnedPoints = earnMoney.filter(c => c.completed).reduce((sum, c) => sum + (c.points || 0), 0)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Celebration burst overlay */}
+      {showCelebration && <CelebrationBurst />}
+
       {/* Morning check-in (Kaylee/Zoey only, weekdays) */}
       <MorningCheckinCard childName={childName} />
 
@@ -397,6 +415,76 @@ function ChecklistRow({ item, onToggle, showPoints }: { item: ChecklistItem; onT
           +{item.points} pts
         </span>
       )}
+    </div>
+  )
+}
+
+// ── Celebration burst animation ──
+const PARTICLE_COLORS = [
+  'bg-yellow-400', 'bg-pink-400', 'bg-green-400', 'bg-blue-400',
+  'bg-purple-400', 'bg-red-400', 'bg-amber-400', 'bg-teal-400',
+  'bg-rose-400', 'bg-indigo-400', 'bg-orange-400', 'bg-emerald-400',
+]
+
+function CelebrationBurst() {
+  // Generate 20 particles with random angles and distances
+  const particles = Array.from({ length: 20 }, (_, i) => {
+    const angle = (i / 20) * 360
+    const distance = 60 + Math.random() * 80
+    const size = Math.random() > 0.5 ? 'w-3 h-3' : 'w-2 h-2'
+    const shape = Math.random() > 0.4 ? 'rounded-full' : 'rotate-45'
+    const color = PARTICLE_COLORS[i % PARTICLE_COLORS.length]
+    const delay = Math.random() * 200
+    const tx = Math.cos((angle * Math.PI) / 180) * distance
+    const ty = Math.sin((angle * Math.PI) / 180) * distance
+    return { size, shape, color, delay, tx, ty }
+  })
+
+  return (
+    <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center overflow-hidden">
+      {/* Central flash */}
+      <div className="absolute animate-ping w-16 h-16 rounded-full bg-yellow-300 opacity-60" />
+      {/* Trophy text */}
+      <div
+        className="absolute text-center z-10"
+        style={{
+          animation: 'celebFadeIn 0.3s ease-out forwards, celebFadeOut 0.5s ease-in 1.8s forwards',
+        }}
+      >
+        <div className="text-4xl mb-1">
+          <Trophy className="w-10 h-10 text-yellow-500 mx-auto" />
+        </div>
+        <p className="text-lg font-bold text-gray-900">All Done!</p>
+        <p className="text-sm text-gray-500">Required tasks complete</p>
+      </div>
+      {/* Particles */}
+      {particles.map((p, i) => (
+        <div
+          key={i}
+          className={`absolute ${p.size} ${p.shape} ${p.color}`}
+          style={{
+            animation: `celebBurst 0.8s ease-out ${p.delay}ms forwards, celebFadeOut 0.4s ease-in 1.6s forwards`,
+            ['--tx' as string]: `${p.tx}px`,
+            ['--ty' as string]: `${p.ty}px`,
+          }}
+        />
+      ))}
+      {/* Keyframes injected via style tag */}
+      <style>{`
+        @keyframes celebBurst {
+          0% { transform: translate(0, 0) scale(0); opacity: 1; }
+          60% { opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 0.6; }
+        }
+        @keyframes celebFadeIn {
+          0% { opacity: 0; transform: scale(0.5); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes celebFadeOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `}</style>
     </div>
   )
 }

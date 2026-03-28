@@ -36,7 +36,7 @@ const DINNER_TASKS = [
   { key: 'dishwasher_flipped', label: 'Dishwasher flipped (run or emptied)', emoji: '🔄' },
 ]
 
-const LAUNDRY_TASKS = [
+const LAUNDRY_TASKS_FALLBACK = [
   { key: 'collect_guest_bath', label: 'Collect from guest bathroom', emoji: '🧺' },
   { key: 'collect_kids_bath', label: 'Collect from kids bathroom', emoji: '🧺' },
   { key: 'collect_master_bath', label: 'Collect from master bathroom', emoji: '🧺' },
@@ -46,6 +46,27 @@ const LAUNDRY_TASKS = [
   { key: 'collect_girls_room', label: "Collect from girls' room", emoji: '🧺' },
   { key: 'machines_running', label: 'Keep machines running (switch/fold loads)', emoji: '🔄' },
 ]
+
+async function getLaundryTasks(): Promise<{ key: string; label: string; emoji: string; task_type?: string; instructions?: string }[]> {
+  try {
+    const rows = await db.query(
+      `SELECT task_text, instructions, task_type
+       FROM zone_task_library
+       WHERE zone_key = 'laundry_room' AND deleted_at IS NULL
+       ORDER BY task_type, sort_order`
+    )
+    if (rows.length > 0) {
+      return rows.map((r: any, i: number) => ({
+        key: `laundry_${i}_${(r.task_text || '').replace(/\s+/g, '_').toLowerCase().slice(0, 30)}`,
+        label: r.task_text,
+        emoji: r.task_type === 'anchor' ? '🧺' : '🔄',
+        task_type: r.task_type,
+        instructions: r.instructions || undefined,
+      }))
+    }
+  } catch { /* zone_task_library may not exist or have no laundry rows */ }
+  return LAUNDRY_TASKS_FALLBACK
+}
 
 const DINNER_TASK_PTS = 4
 const DINNER_BONUS_PTS = 10
@@ -92,6 +113,9 @@ export async function GET(request: NextRequest) {
     const isDinnerDay = dinnerManagers.includes(kid)
     const isLaundryDay = laundryAssigned.includes(kid)
 
+    // Fetch laundry tasks from zone_task_library (falls back to hardcoded)
+    const laundryTasks = isLaundryDay ? await getLaundryTasks() : []
+
     // Only fetch completions if kid has a duty today
     let dinnerCompletions: Record<string, boolean> = {}
     let laundryCompletions: Record<string, boolean> = {}
@@ -125,7 +149,7 @@ export async function GET(request: NextRequest) {
     const laundryResponse = {
       isMyDay: isLaundryDay,
       todaysAssigned: laundryNames,
-      tasks: isLaundryDay ? LAUNDRY_TASKS.map(t => ({ ...t, completed: !!laundryCompletions[t.key] })) : [],
+      tasks: isLaundryDay ? laundryTasks.map(t => ({ ...t, completed: !!laundryCompletions[t.key] })) : [],
     }
 
     return NextResponse.json({ date: today, dinnerManager: dinnerResponse, laundry: laundryResponse })

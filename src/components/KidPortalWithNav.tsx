@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-  Calendar, CheckSquare, Clock, Star, MapPin, Users, 
+import {
+  Calendar, CheckSquare, Clock, Star, MapPin, Users,
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
-  User, Heart
+  User, Heart, Thermometer
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -85,6 +85,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [familyEvents, setFamilyEvents] = useState<any[]>([])
   const [countdownEvents, setCountdownEvents] = useState<any[]>([])
   const [lolaStatus, setLolaStatus] = useState<{ status: string; note: string | null }>({ status: 'available', note: null })
+  const [sickConfirmOpen, setSickConfirmOpen] = useState(false)
+  const [sickSubmitted, setSickSubmitted] = useState(false)
+  const [sickSubmitting, setSickSubmitting] = useState(false)
 
   // Load kid dashboard from API
   useEffect(() => {
@@ -136,6 +139,47 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     const interval = setInterval(update, 60000)
     return () => clearInterval(interval)
   }, [])
+
+  // Check if sick day already submitted today (sessionStorage)
+  useEffect(() => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    const key = `sick-day-${(profile?.first_name || '').toLowerCase()}-${today}`
+    if (sessionStorage.getItem(key)) setSickSubmitted(true)
+  }, [profile?.first_name])
+
+  const handleSickDay = async () => {
+    if (sickSubmitted || sickSubmitting) return
+    setSickSubmitting(true)
+    const childKey = (profile?.first_name || '').toLowerCase()
+    const childDisplay = profile?.first_name || childKey
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    try {
+      await Promise.all([
+        fetch('/api/kids/checklist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'flag_sick_day', kid: childKey, date: today }),
+        }),
+        fetch('/api/kids/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'send_message',
+            kid: childKey,
+            message: `${childDisplay} said they're not feeling well today — sick day flagged and deductions paused.`,
+            auto: true,
+          }),
+        }),
+      ])
+      setSickSubmitted(true)
+      sessionStorage.setItem(`sick-day-${childKey}-${today}`, '1')
+    } catch (err) {
+      console.error('Sick day error:', err)
+    } finally {
+      setSickSubmitting(false)
+      setSickConfirmOpen(false)
+    }
+  }
 
   const toggleDashboardItem = async (eventId: string, summary: string, startTime: string) => {
     // Optimistic update
@@ -322,6 +366,43 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         {/* Mom's Availability */}
         <MomAvailabilityBadge status={lolaStatus.status} note={lolaStatus.note} />
 
+        {/* Sick Day Button */}
+        <div className="relative">
+          {sickSubmitted ? (
+            <div className="flex items-center gap-2 text-gray-400 text-sm bg-gray-50 rounded-lg px-4 py-2 border">
+              <Thermometer className="w-4 h-4" />
+              <span>Mom has been notified</span>
+            </div>
+          ) : sickConfirmOpen ? (
+            <div className="bg-white rounded-lg border shadow-sm p-4">
+              <p className="text-sm font-medium text-gray-800 mb-3">Tell Mom you&apos;re sick today?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSickDay}
+                  disabled={sickSubmitting}
+                  className="bg-rose-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-600 disabled:opacity-50"
+                >
+                  {sickSubmitting ? 'Sending...' : 'Yes, tell Mom'}
+                </button>
+                <button
+                  onClick={() => setSickConfirmOpen(false)}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200"
+                >
+                  Never mind
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setSickConfirmOpen(true)}
+              className="flex items-center gap-2 text-sm text-gray-500 bg-white rounded-lg px-4 py-2 border hover:bg-gray-50 transition-colors"
+            >
+              <Thermometer className="w-4 h-4" />
+              <span>I&apos;m not feeling well</span>
+            </button>
+          )}
+        </div>
+
         {/* Zone Banner */}
         {kidZone && zoneBannerColor && (
           <div className={`bg-gradient-to-r ${zoneBannerColor} text-white px-6 py-3 rounded-lg flex items-center gap-3`}>
@@ -445,7 +526,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           )}
         </div>
 
-        {/* My Points */}
+        {/* My Points — large balance card above schedule */}
+        <KidPointsCard childName={profile.first_name || ''} />
+
         {/* Tonight's Dinner */}
         <TonightsDinnerCard />
 
@@ -460,8 +543,6 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
         {/* Dinner Manager & Laundry */}
         <DutyCard childName={profile.first_name || ''} />
-
-        <KidPointsCard childName={profile.first_name || ''} />
 
         {/* Communication Cards */}
         <KidCommunicationCards childName={profile.first_name || ''} />

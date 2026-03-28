@@ -41,6 +41,7 @@ export default function KidPointsCard({ childName }: { childName: string }) {
   const [goalName, setGoalName] = useState('')
   const [goalTarget, setGoalTarget] = useState('')
   const [loaded, setLoaded] = useState(false)
+  const [weekEarned, setWeekEarned] = useState(0)
 
   const childKey = childName.toLowerCase()
 
@@ -54,7 +55,18 @@ export default function KidPointsCard({ childName }: { childName: string }) {
       setSettings(balData.settings || settings)
       setKidGoals(goalData.kidGoals || [])
       setFamilyGoals(goalData.familyGoals || [])
-      setHistory(histData.history || [])
+      const hist = histData.history || []
+      setHistory(hist)
+      // Calculate this week's earnings
+      const now = new Date()
+      const dayOfWeek = now.getDay()
+      const monday = new Date(now)
+      monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7))
+      monday.setHours(0, 0, 0, 0)
+      const earned = hist
+        .filter((e: LogEntry) => e.transaction_type === 'earned' && new Date(e.logged_date) >= monday)
+        .reduce((sum: number, e: LogEntry) => sum + e.points, 0)
+      setWeekEarned(earned)
       setLoaded(true)
     }).catch(() => setLoaded(true))
   }, [childKey])
@@ -97,6 +109,7 @@ export default function KidPointsCard({ childName }: { childName: string }) {
               <span className="text-3xl font-bold">{fmtLarge(balance.current_points)}</span>
               {settings.mode === 'points' && <span className="text-amber-100 text-sm">points</span>}
             </div>
+            <p className="text-amber-100 text-xs">This week: +{fmt(weekEarned)}</p>
             <p className="text-amber-100 text-xs">Total earned all time: {fmt(balance.total_earned_all_time)}</p>
             {balance.last_payout_date && (
               <p className="text-amber-100 text-xs">Last payout: {new Date(balance.last_payout_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>

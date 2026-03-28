@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircle2, Circle } from 'lucide-react'
+import { CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react'
 
-interface Task { key: string; label: string; emoji: string; completed: boolean }
+interface Task { key: string; label: string; emoji: string; completed: boolean; instructions?: string; task_type?: string }
 interface DutyData {
   isMyDay: boolean
   todaysManagers?: string[]
@@ -75,6 +75,7 @@ function SingleDutyCard({ title, emoji, subtitle, data, duty, nameField, bonusTe
   title: string; emoji: string; subtitle: string; data: DutyData; duty: string; nameField: string; bonusText?: string
   onToggle: (key: string, completed: boolean) => void
 }) {
+  const [expandedTask, setExpandedTask] = useState<string | null>(null)
   const names = (data as any)[nameField] as string[] || []
   const isParentOnly = names.length > 0 && names.every(n => ['Levi', 'Lola'].includes(n))
 
@@ -101,9 +102,49 @@ function SingleDutyCard({ title, emoji, subtitle, data, duty, nameField, bonusTe
   }
 
   // Your day — full card
+  // Separate anchor (required) tasks from rotating tasks
+  const anchorTasks = data.tasks.filter(t => t.task_type === 'anchor')
+  const rotatingTasks = data.tasks.filter(t => t.task_type === 'rotating')
+  const unsortedTasks = data.tasks.filter(t => !t.task_type)
+  // If tasks have types, show them grouped; otherwise show flat list
+  const hasTypes = anchorTasks.length > 0 || rotatingTasks.length > 0
+
   const done = data.tasks.filter(t => t.completed).length
   const total = data.tasks.length
   const allDone = done === total && total > 0
+
+  const renderTask = (t: Task) => (
+    <div key={t.key}>
+      <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
+        <button onClick={() => onToggle(t.key, t.completed)} className="flex-shrink-0">
+          {t.completed ? (
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+          ) : (
+            <Circle className="w-5 h-5 text-gray-300" />
+          )}
+        </button>
+        <span className="text-base">{t.emoji}</span>
+        <span className={`text-sm flex-1 ${t.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>{t.label}</span>
+        {t.instructions && (
+          <button
+            onClick={() => setExpandedTask(expandedTask === t.key ? null : t.key)}
+            className="flex-shrink-0 p-1 hover:bg-gray-100 rounded"
+          >
+            {expandedTask === t.key ? (
+              <ChevronUp className="w-4 h-4 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            )}
+          </button>
+        )}
+      </div>
+      {expandedTask === t.key && t.instructions && (
+        <div className="px-12 pb-3 text-xs text-gray-600 bg-gray-50 whitespace-pre-line">
+          {t.instructions}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
@@ -120,23 +161,30 @@ function SingleDutyCard({ title, emoji, subtitle, data, duty, nameField, bonusTe
 
       {allDone ? (
         <div className="p-5 text-center">
-          <p className="text-2xl">{emoji}✨</p>
+          <p className="text-2xl">{emoji}</p>
           <p className="text-sm font-medium text-green-700 mt-1">All done!</p>
+        </div>
+      ) : hasTypes ? (
+        <div>
+          {anchorTasks.length > 0 && (
+            <>
+              <div className="px-4 py-2 bg-amber-50 border-b text-xs font-semibold text-amber-800 uppercase tracking-wide">Required Steps</div>
+              <div className="divide-y">{anchorTasks.map(renderTask)}</div>
+            </>
+          )}
+          {rotatingTasks.length > 0 && (
+            <>
+              <div className="px-4 py-2 bg-sky-50 border-b text-xs font-semibold text-sky-800 uppercase tracking-wide">Rotating Tasks</div>
+              <div className="divide-y">{rotatingTasks.map(renderTask)}</div>
+            </>
+          )}
+          {unsortedTasks.length > 0 && (
+            <div className="divide-y">{unsortedTasks.map(renderTask)}</div>
+          )}
         </div>
       ) : (
         <div className="divide-y">
-          {data.tasks.map(t => (
-            <button key={t.key} onClick={() => onToggle(t.key, t.completed)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50">
-              {t.completed ? (
-                <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
-              ) : (
-                <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />
-              )}
-              <span className="text-base">{t.emoji}</span>
-              <span className={`text-sm flex-1 ${t.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>{t.label}</span>
-            </button>
-          ))}
+          {data.tasks.map(renderTask)}
         </div>
       )}
     </div>
