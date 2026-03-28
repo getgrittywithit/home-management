@@ -6,7 +6,7 @@ import {
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
-  User, Heart, Thermometer
+  User, Heart, Thermometer, X
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -88,6 +88,107 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [sickConfirmOpen, setSickConfirmOpen] = useState(false)
   const [sickSubmitted, setSickSubmitted] = useState(false)
   const [sickSubmitting, setSickSubmitting] = useState(false)
+
+  // Dinner Manager state
+  const [mealPickerOpen, setMealPickerOpen] = useState(false)
+  const [availableMeals, setAvailableMeals] = useState<{ id: number; name: string; description: string }[]>([])
+  const [myMealRequest, setMyMealRequest] = useState<{ id: number; meal_name: string; status: string } | null>(null)
+  const [mealRequestLoaded, setMealRequestLoaded] = useState(false)
+  const [mealSubmitting, setMealSubmitting] = useState(false)
+
+  // Dinner rotation config
+  const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: string; emoji: string; label: string }>> = {
+    week1: {
+      monday: { kid: 'kaylee', theme: 'monday-week1', emoji: '🍝', label: 'TBD' },
+      tuesday: { kid: 'zoey', theme: 'asian', emoji: '🥡', label: 'Asian Night' },
+      wednesday: { kid: 'wyatt', theme: 'bar-night', emoji: '🥗', label: 'Bar Night' },
+      thursday: { kid: 'amos', theme: 'mexican', emoji: '🌮', label: 'Mexican Night' },
+      friday: { kid: 'ellie', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian Night' },
+      saturday: { kid: 'parents', theme: 'grill', emoji: '🔥', label: 'Grill Night' },
+      sunday: { kid: 'parents', theme: 'roast-comfort', emoji: '🏡', label: 'Roast/Comfort Sunday' },
+    },
+    week2: {
+      monday: { kid: 'kaylee', theme: 'soup-comfort', emoji: '🍲', label: 'Soup/Comfort Night' },
+      tuesday: { kid: 'zoey', theme: 'asian', emoji: '🥡', label: 'Asian Night' },
+      wednesday: { kid: 'wyatt', theme: 'easy-lazy', emoji: '🥪', label: 'Easy/Lazy Night' },
+      thursday: { kid: 'amos', theme: 'mexican', emoji: '🌮', label: 'Mexican Night' },
+      friday: { kid: 'ellie', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian Night' },
+      saturday: { kid: 'parents', theme: 'experiment', emoji: '🔬', label: 'Experiment/Big Cook' },
+      sunday: { kid: 'parents', theme: 'brunch', emoji: '🍳', label: 'Brunch Sunday' },
+    }
+  }
+
+  // Calculate current week and today's dinner assignment
+  const getDinnerAssignment = () => {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+    const EPOCH = new Date('2026-03-30T00:00:00')
+    const weeks = Math.floor((now.getTime() - EPOCH.getTime()) / (7 * 24 * 60 * 60 * 1000))
+    const currentWeek = weeks % 2 === 0 ? 1 : 2
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayName = days[now.getDay()]
+    const weekKey = `week${currentWeek}`
+    return DINNER_ROTATION[weekKey]?.[dayName] || null
+  }
+
+  const getSeason = () => {
+    const month = new Date().getMonth() + 1
+    return (month >= 3 && month <= 8) ? 'spring-summer' : 'fall-winter'
+  }
+
+  const todaysDinner = getDinnerAssignment()
+  const childKey = (profile?.first_name || '').toLowerCase()
+  const isMyDinnerDay = todaysDinner && todaysDinner.kid !== 'parents' && (
+    todaysDinner.kid === childKey ||
+    (todaysDinner.kid === 'ellie' && childKey === 'hannah') // Friday: Ellie & Hannah
+  )
+  const todayStr = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })).toLocaleDateString('en-CA')
+
+  // Fetch kid's meal request status for today
+  useEffect(() => {
+    if (isMyDinnerDay && childKey) {
+      fetch(`/api/parent/meal-requests?action=my_request&kid=${childKey}&date=${todayStr}`)
+        .then(r => r.json())
+        .then(data => {
+          setMyMealRequest(data.request || null)
+          setMealRequestLoaded(true)
+        })
+        .catch(() => setMealRequestLoaded(true))
+    } else {
+      setMealRequestLoaded(true)
+    }
+  }, [isMyDinnerDay, childKey, todayStr])
+
+  // Fetch available meals when picker opens
+  useEffect(() => {
+    if (mealPickerOpen && todaysDinner) {
+      fetch(`/api/parent/meal-requests?action=available_meals&theme=${todaysDinner.theme}&season=${getSeason()}`)
+        .then(r => r.json())
+        .then(data => setAvailableMeals(data.meals || []))
+        .catch(() => setAvailableMeals([]))
+    }
+  }, [mealPickerOpen, todaysDinner?.theme])
+
+  const handleMealRequest = async (mealId: number) => {
+    if (mealSubmitting) return
+    setMealSubmitting(true)
+    try {
+      const res = await fetch('/api/parent/meal-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request_meal', kid_name: childKey, meal_id: mealId, date: todayStr }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        const meal = availableMeals.find(m => m.id === mealId)
+        setMyMealRequest({ id: data.request_id, meal_name: meal?.name || '', status: 'pending' })
+        setMealPickerOpen(false)
+      }
+    } catch (err) {
+      console.error('Meal request error:', err)
+    } finally {
+      setMealSubmitting(false)
+    }
+  }
 
   // Load kid dashboard from API
   useEffect(() => {
@@ -531,6 +632,94 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
         {/* Tonight's Dinner */}
         <TonightsDinnerCard />
+
+        {/* Dinner Manager Card — only on kid's assigned day */}
+        {isMyDinnerDay && todaysDinner && mealRequestLoaded && (
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200 shadow-sm p-4">
+            {myMealRequest?.status === 'approved' ? (
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Tonight&apos;s dinner: {myMealRequest.meal_name}</p>
+                  <p className="text-xs text-green-600 mt-0.5">Approved by Mom</p>
+                </div>
+              </div>
+            ) : myMealRequest?.status === 'pending' ? (
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">⏳</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Your pick is waiting for approval</p>
+                  <p className="text-xs text-amber-600 mt-0.5">{myMealRequest.meal_name} — {todaysDinner.label} {todaysDinner.emoji}</p>
+                </div>
+              </div>
+            ) : myMealRequest?.status === 'swapped' ? (
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔄</span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Tonight&apos;s dinner: {myMealRequest.meal_name}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">Mom swapped to a different meal</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">🍽️</span>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">You&apos;re Dinner Manager Tonight!</p>
+                    <p className="text-xs text-gray-600">Theme: {todaysDinner.label} {todaysDinner.emoji}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setMealPickerOpen(true)}
+                  className="w-full bg-orange-500 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-orange-600 transition-colors"
+                >
+                  Pick Your Meal
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Meal Picker Modal */}
+        {mealPickerOpen && todaysDinner && (
+          <>
+            <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setMealPickerOpen(false)} />
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl max-h-[80vh] overflow-y-auto animate-slideUp">
+              <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between rounded-t-2xl">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">What&apos;s for dinner?</h3>
+                  <p className="text-sm text-gray-500">{todaysDinner.label} {todaysDinner.emoji}</p>
+                </div>
+                <button onClick={() => setMealPickerOpen(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              <div className="p-4 space-y-3">
+                {availableMeals.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <Utensils className="w-8 h-8 mx-auto mb-2" />
+                    <p className="text-sm">No meals available for this theme yet</p>
+                  </div>
+                ) : (
+                  availableMeals.map(meal => (
+                    <div key={meal.id} className="bg-gray-50 rounded-lg p-4 border hover:border-orange-300 transition-colors">
+                      <p className="font-medium text-gray-900">{meal.name}</p>
+                      {meal.description && <p className="text-xs text-gray-500 mt-1">{meal.description}</p>}
+                      <button
+                        onClick={() => handleMealRequest(meal.id)}
+                        disabled={mealSubmitting}
+                        className="mt-2 bg-orange-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                      >
+                        {mealSubmitting ? 'Requesting...' : 'Request This Meal'}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="h-8" /> {/* bottom safe area */}
+            </div>
+          </>
+        )}
 
         {/* Family Events */}
         <FamilyEventsStrip events={familyEvents} countdowns={countdownEvents} />

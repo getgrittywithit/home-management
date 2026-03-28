@@ -3,8 +3,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Bell, MessageCircle, AlertTriangle, Heart, CheckCircle,
-  Calendar, Dog, GraduationCap, X, ChevronRight, Zap
+  Calendar, Dog, GraduationCap, X, ChevronRight, Zap, ChefHat, ChevronDown
 } from 'lucide-react'
+
+interface MealRequest {
+  id: number
+  kid_name: string
+  assigned_date: string
+  meal_name: string
+  theme?: string
+}
 
 interface FlagData {
   messages: { from_kid: string; count: number }[]
@@ -18,6 +26,7 @@ interface FlagData {
   checklist_status: { completed: number; total: number }
   points_today: number
   total_unread: number
+  meal_requests: MealRequest[]
 }
 
 interface FlagItem {
@@ -37,6 +46,10 @@ interface Props {
 export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
   const [data, setData] = useState<FlagData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [swapOpenId, setSwapOpenId] = useState<number | null>(null)
+  const [swapMeals, setSwapMeals] = useState<{ id: number; name: string }[]>([])
+  const [swapLoading, setSwapLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState<number | null>(null)
 
   const fetchFlags = useCallback(async () => {
     setLoading(true)
@@ -54,6 +67,58 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
   useEffect(() => {
     if (open) fetchFlags()
   }, [open, fetchFlags])
+
+  const getSeason = () => {
+    const month = new Date().getMonth() + 1
+    return (month >= 3 && month <= 8) ? 'spring-summer' : 'fall-winter'
+  }
+
+  const handleApproveMeal = async (requestId: number) => {
+    setActionLoading(requestId)
+    try {
+      await fetch('/api/parent/meal-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', requestId }),
+      })
+      fetchFlags()
+    } catch (err) {
+      console.error('Approve error:', err)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleOpenSwap = async (requestId: number, theme: string) => {
+    setSwapOpenId(requestId)
+    setSwapLoading(true)
+    try {
+      const res = await fetch(`/api/parent/meal-requests?action=available_meals&theme=${theme}&season=${getSeason()}`)
+      const data = await res.json()
+      setSwapMeals(data.meals || [])
+    } catch {
+      setSwapMeals([])
+    } finally {
+      setSwapLoading(false)
+    }
+  }
+
+  const handleSwapMeal = async (requestId: number, newMealId: number) => {
+    setActionLoading(requestId)
+    try {
+      await fetch('/api/parent/meal-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'swap', requestId, newMealId }),
+      })
+      setSwapOpenId(null)
+      fetchFlags()
+    } catch (err) {
+      console.error('Swap error:', err)
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   // Build sections from data
   const needsAttention: FlagItem[] = []
@@ -98,6 +163,8 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
         })
       })
     }
+
+    // Meal requests are rendered separately with action buttons (not as FlagItems)
 
     // -- Overdue / Incomplete --
     if (data.missed_chores.length > 0) {
@@ -251,7 +318,9 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           ) : (
             <div className="p-4 space-y-5">
               {sections.map(section => {
-                if (section.items.length === 0 && section.title !== "Today's Status") return null
+                const mealCount = section.title === 'Needs Attention Now' ? (data.meal_requests?.length || 0) : 0
+                const totalCount = section.items.length + mealCount
+                if (totalCount === 0 && section.title !== "Today's Status") return null
                 return (
                   <div key={section.title}>
                     {/* Section header */}
@@ -260,7 +329,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
                         {section.title}
                       </h3>
                       <span className={`text-xs font-medium ${section.color}`}>
-                        {section.items.length}
+                        {totalCount}
                       </span>
                     </div>
 
@@ -296,12 +365,86 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
                         })}
                       </div>
                     )}
+
+                    {/* Meal request action cards in Needs Attention section */}
+                    {section.title === 'Needs Attention Now' && data.meal_requests?.length > 0 && (
+                      <div className="space-y-2 mt-2">
+                        {data.meal_requests.map(mr => {
+                          const dateObj = new Date(mr.assigned_date + 'T12:00:00')
+                          const dateLabel = dateObj.toLocaleDateString('en-US', {
+                            weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago'
+                          })
+                          const kidDisplay = mr.kid_name.charAt(0).toUpperCase() + mr.kid_name.slice(1)
+                          const isActioning = actionLoading === mr.id
+
+                          return (
+                            <div key={mr.id} className="p-3 rounded-lg bg-orange-50 border border-orange-200">
+                              <div className="flex items-start gap-3">
+                                <ChefHat className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {kidDisplay} requested {mr.meal_name}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    For {dateLabel}
+                                  </p>
+                                  <div className="flex gap-2 mt-2">
+                                    <button
+                                      onClick={() => handleApproveMeal(mr.id)}
+                                      disabled={isActioning}
+                                      className="bg-green-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50"
+                                    >
+                                      {isActioning ? '...' : 'Approve'}
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenSwap(mr.id, mr.theme || '')}
+                                      disabled={isActioning}
+                                      className="bg-blue-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                      Swap <ChevronDown className="w-3 h-3" />
+                                    </button>
+                                  </div>
+
+                                  {/* Swap dropdown */}
+                                  {swapOpenId === mr.id && (
+                                    <div className="mt-2 bg-white border rounded-lg shadow-sm p-2 space-y-1">
+                                      {swapLoading ? (
+                                        <p className="text-xs text-gray-400 p-2">Loading alternatives...</p>
+                                      ) : swapMeals.length === 0 ? (
+                                        <p className="text-xs text-gray-400 p-2">No alternatives available</p>
+                                      ) : (
+                                        swapMeals.map(meal => (
+                                          <button
+                                            key={meal.id}
+                                            onClick={() => handleSwapMeal(mr.id, meal.id)}
+                                            disabled={isActioning}
+                                            className="w-full text-left text-sm px-3 py-2 rounded hover:bg-blue-50 transition-colors disabled:opacity-50"
+                                          >
+                                            {meal.name}
+                                          </button>
+                                        ))
+                                      )}
+                                      <button
+                                        onClick={() => setSwapOpenId(null)}
+                                        className="w-full text-xs text-gray-400 py-1 hover:text-gray-600"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )
               })}
 
               {/* All clear message */}
-              {needsAttention.length === 0 && overdueIncomplete.length === 0 && comingUp.length === 0 && (
+              {needsAttention.length === 0 && overdueIncomplete.length === 0 && comingUp.length === 0 && (data.meal_requests?.length || 0) === 0 && (
                 <div className="text-center py-6">
                   <CheckCircle className="w-10 h-10 text-green-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-gray-700">All clear!</p>

@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
       const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
 
-      const [messages, breaks, sickDays, missedChores, petCare, upcomingMeetings, zoneStatus, checklistStatus, pointsToday] = await Promise.all([
+      const [messages, breaks, sickDays, missedChores, petCare, upcomingMeetings, zoneStatus, checklistStatus, pointsToday, mealRequests] = await Promise.all([
         // Unread messages
         db.query(`SELECT from_kid, COUNT(*)::int as count FROM family_messages WHERE read_at IS NULL GROUP BY from_kid`).catch(() => []),
 
@@ -110,11 +110,21 @@ export async function GET(request: NextRequest) {
            WHERE transaction_type = 'earned' AND created_at::date = $1`,
           [today]
         ).catch(() => [{ total: 0 }]),
+
+        // Pending meal requests
+        db.query(
+          `SELECT mr.id, mr.kid_name, mr.assigned_date, ml.name as meal_name, ml.theme
+           FROM meal_requests mr
+           JOIN meal_library ml ON mr.meal_id = ml.id
+           WHERE mr.status = 'pending'
+           ORDER BY mr.assigned_date`
+        ).catch(() => []),
       ])
 
       const totalUnread = (messages as { count: number }[]).reduce((sum: number, r) => sum + r.count, 0)
         + (breaks as unknown[]).length
         + (sickDays as unknown[]).length
+        + (mealRequests as unknown[]).length
 
       return NextResponse.json({
         messages,
@@ -126,6 +136,7 @@ export async function GET(request: NextRequest) {
         calendar_events: [],
         zone_status: zoneStatus,
         checklist_status: checklistStatus,
+        meal_requests: mealRequests,
         points_today: (pointsToday as { total: number }[])[0]?.total || 0,
         total_unread: totalUnread,
       })
@@ -134,14 +145,16 @@ export async function GET(request: NextRequest) {
     // Quick badge count only (for navbar)
     if (action === 'get_badge_count') {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      const [msgCount, breakCount, sickCount] = await Promise.all([
+      const [msgCount, breakCount, sickCount, mealCount] = await Promise.all([
         db.query(`SELECT COUNT(*)::int as count FROM family_messages WHERE read_at IS NULL`).catch(() => [{ count: 0 }]),
         db.query(`SELECT COUNT(*)::int as count FROM kid_mood_checkins WHERE checkin_type = 'break_request' AND checkin_date = $1`, [today]).catch(() => [{ count: 0 }]),
         db.query(`SELECT COUNT(*)::int as count FROM kid_sick_days WHERE sick_date = $1`, [today]).catch(() => [{ count: 0 }]),
+        db.query(`SELECT COUNT(*)::int as count FROM meal_requests WHERE status = 'pending'`).catch(() => [{ count: 0 }]),
       ])
       const total = ((msgCount as { count: number }[])[0]?.count || 0)
         + ((breakCount as { count: number }[])[0]?.count || 0)
         + ((sickCount as { count: number }[])[0]?.count || 0)
+        + ((mealCount as { count: number }[])[0]?.count || 0)
       return NextResponse.json({ count: total })
     }
 
