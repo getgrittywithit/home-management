@@ -8,6 +8,28 @@ const KID_DISPLAY: Record<string, string> = {
 }
 const BELLE_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'kaylee']
 
+// ── Hardcoded Belle assignment logic (mirrors API, zero DB calls) ──
+const ZOEY_WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
+const ZOEY_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
+const ZOEY_ANCHOR_MS = new Date('2026-03-28T00:00:00').getTime()
+const ZOEY_MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
+
+function zoeyGetTodayAssignee(): { name: string; isWeekend: boolean } {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+  const d = new Date(today + 'T12:00:00')
+  const dow = d.getDay() // 0=Sun, 6=Sat
+  if (dow >= 1 && dow <= 5) {
+    return { name: ZOEY_WEEKDAY_MAP[dow] || '', isWeekend: false }
+  }
+  // Weekend — find Saturday of this week
+  const sat = new Date(d)
+  if (dow === 0) sat.setDate(d.getDate() - 1) // Sunday → back to Saturday
+  // dow===6 means it IS Saturday already
+  const weeksSince = Math.floor((sat.getTime() - ZOEY_ANCHOR_MS) / ZOEY_MS_PER_WEEK)
+  const index = ((weeksSince % 5) + 5) % 5
+  return { name: ZOEY_WEEKEND_ROTATION[index] || '', isWeekend: true }
+}
+
 interface Task { key: string; label: string; emoji: string; time: string; completed: boolean }
 interface GroomTask { key: string; label: string; emoji: string; completed: boolean }
 interface IncomingSwap { id: string; requesting_kid: string; swap_type: string; swap_date: string; reason: string }
@@ -26,7 +48,7 @@ export default function BelleCareCard({ childName }: { childName: string }) {
   const childKey = childName.toLowerCase()
 
   useEffect(() => {
-    if (childKey === 'zoey') { setLoaded(true); return }
+    if (childKey === 'zoey') { setLoaded(true); return } // no API calls for Zoey
     Promise.all([
       fetch(`/api/kids/belle?action=get_my_assignment_info&kid=${childKey}`).then(r => r.json()),
       fetch(`/api/kids/belle?action=get_my_tasks_today&kid=${childKey}`).then(r => r.json()),
@@ -98,7 +120,33 @@ export default function BelleCareCard({ childName }: { childName: string }) {
   }
 
   if (!loaded) return null
-  if (childKey === 'zoey') return null
+
+  // ── Zoey: static info card — she has zero Belle tasks ──
+  if (childKey === 'zoey') {
+    const { name, isWeekend } = zoeyGetTodayAssignee()
+    const displayName = KID_DISPLAY[name] || name
+    return (
+      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+        <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b">
+          <h3 className="font-semibold text-amber-900 text-sm">🐾 Belle — Who's On Duty Today?</h3>
+        </div>
+        <div className="p-4 space-y-2">
+          {isWeekend ? (
+            <p className="text-sm text-gray-700">
+              It's the weekend — <span className="font-semibold text-amber-800">{displayName}</span> has Belle today. 🐾
+            </p>
+          ) : (
+            <p className="text-sm text-gray-700">
+              Today Belle is with <span className="font-semibold text-amber-800">{displayName}</span>. 🐾
+            </p>
+          )}
+          <p className="text-xs text-gray-500">
+            Need help with Belle? Find <span className="font-medium">{displayName}</span> or ask Mom.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (!info) return null
 

@@ -13,6 +13,7 @@ import AboutMeAdminTab from './AboutMeAdminTab'
 import BulkDocumentProcessor from './BulkDocumentProcessor'
 import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
+import FlagCenterPanel from './FlagCenterPanel'
 import FamilyConfigAdmin from './FamilyConfigAdmin'
 import ScheduleDisplay from './ScheduleDisplay'
 import KidsChecklistOverview from './KidsChecklistOverview'
@@ -36,7 +37,7 @@ import FamilyActivityFeed from './FamilyActivityFeed'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap
+  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -86,6 +87,8 @@ const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null v
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
   const [activeTab, setActiveTab] = useState('overview')
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
+  const [flagPanelOpen, setFlagPanelOpen] = useState(false)
+  const [flagBadgeCount, setFlagBadgeCount] = useState(0)
   const router = useRouter()
 
   // Fetch unread badge counts on load
@@ -102,6 +105,14 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       })
     })
   }, [activeTab]) // Re-fetch when switching tabs (clears badges after viewing)
+
+  // Fetch flag badge count for notification bell
+  useEffect(() => {
+    fetch('/api/parent/flags?action=get_badge_count')
+      .then(r => r.json())
+      .then(data => setFlagBadgeCount(data.count || 0))
+      .catch(() => {})
+  }, [activeTab])
 
   const renderFamilyTab = () => (
     <div className="space-y-6">
@@ -289,10 +300,18 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
               <Home className="w-6 h-6 text-blue-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <div className="font-bold text-lg">Family Ops</div>
               <div className="text-sm text-gray-600">Parent Dashboard</div>
             </div>
+            <button onClick={() => setFlagPanelOpen(true)} className="relative p-2 rounded-lg hover:bg-gray-100">
+              <Bell className="w-5 h-5 text-gray-600" />
+              {flagBadgeCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                  {flagBadgeCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -345,6 +364,9 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
 
       {/* AI Agent Widget */}
       <AIAgentWidget />
+
+      {/* Notification & Flag Center */}
+      <FlagCenterPanel open={flagPanelOpen} onClose={() => setFlagPanelOpen(false)} onNavigate={(tab) => { setActiveTab(tab); setFlagPanelOpen(false) }} />
     </div>
   )
 }
