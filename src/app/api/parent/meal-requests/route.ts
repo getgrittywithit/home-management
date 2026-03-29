@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     if (action === 'pending') {
       const rows = await db.query(
         `SELECT mr.id, mr.kid_name, mr.meal_id, mr.assigned_date, mr.status,
+                mr.selected_starch, mr.selected_veggie,
                 ml.name as meal_name, ml.theme, ml.sides,
                 mso.label as sub_option_label, mso.heat_level as sub_option_heat
          FROM meal_requests mr
@@ -32,7 +33,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'kid and date required' }, { status: 400 })
       }
       const rows = await db.query(
-        `SELECT mr.id, mr.status, ml.name as meal_name,
+        `SELECT mr.id, mr.status, mr.selected_starch, mr.selected_veggie,
+                ml.name as meal_name,
                 mso.label as sub_option_label, mso.heat_level as sub_option_heat
          FROM meal_requests mr
          JOIN meal_library ml ON mr.meal_id = ml.id
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'theme required' }, { status: 400 })
       }
       const rows = await db.query(
-        `SELECT ml.id, ml.name, ml.description, ml.sides,
+        `SELECT ml.id, ml.name, ml.description, ml.sides, ml.sides_starch_options, ml.sides_veggie_options,
                 (SELECT COUNT(*)::int FROM meal_sub_options mso WHERE mso.meal_id = ml.id) as sub_option_count
          FROM meal_library ml
          WHERE ml.theme = $1 AND (ml.season = $2 OR ml.season = 'year-round') AND ml.active = true
@@ -88,7 +90,7 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     if (action === 'request_meal') {
-      const { kid_name, meal_id, date, sub_option_id } = body
+      const { kid_name, meal_id, date, sub_option_id, selected_starch, selected_veggie } = body
       if (!kid_name || !meal_id || !date) {
         return NextResponse.json({ error: 'kid_name, meal_id, and date required' }, { status: 400 })
       }
@@ -103,10 +105,10 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await db.query(
-        `INSERT INTO meal_requests (kid_name, meal_id, assigned_date, status, sub_option_id, created_at)
-         VALUES ($1, $2, $3, 'pending', $4, NOW())
+        `INSERT INTO meal_requests (kid_name, meal_id, assigned_date, status, sub_option_id, selected_starch, selected_veggie, created_at)
+         VALUES ($1, $2, $3, 'pending', $4, $5, $6, NOW())
          RETURNING id`,
-        [kid_name, meal_id, date, sub_option_id || null]
+        [kid_name, meal_id, date, sub_option_id || null, selected_starch || null, selected_veggie || null]
       )
       return NextResponse.json({ success: true, request_id: result[0]?.id })
     }

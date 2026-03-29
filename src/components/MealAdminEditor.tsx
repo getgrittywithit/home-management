@@ -50,6 +50,8 @@ interface Meal {
   season: string
   description: string | null
   sides: string | null
+  sides_starch_options: string[] | null
+  sides_veggie_options: string[] | null
   notes: string | null
   active: boolean
   created_at: string
@@ -116,6 +118,10 @@ export default function MealAdminEditor() {
   const [subLoading, setSubLoading] = useState(false)
   const [newSubLabel, setNewSubLabel] = useState('')
   const [newSubCategory, setNewSubCategory] = useState('')
+
+  // Shuffle options
+  const [newStarchOption, setNewStarchOption] = useState('')
+  const [newVeggieOption, setNewVeggieOption] = useState('')
 
   // Bulk add
   const [showBulk, setShowBulk] = useState(false)
@@ -249,6 +255,8 @@ export default function MealAdminEditor() {
       season: 'both',
       description: null,
       sides: null,
+      sides_starch_options: null,
+      sides_veggie_options: null,
       notes: null,
       active: true,
       created_at: '',
@@ -282,6 +290,8 @@ export default function MealAdminEditor() {
       season: drawerMeal.season,
       description: drawerMeal.description || undefined,
       sides: drawerMeal.sides || undefined,
+      sides_starch_options: drawerMeal.sides_starch_options || undefined,
+      sides_veggie_options: drawerMeal.sides_veggie_options || undefined,
       notes: drawerMeal.notes || undefined,
       active: drawerMeal.active,
     }
@@ -701,6 +711,198 @@ export default function MealAdminEditor() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                   placeholder="e.g. rice, green beans, cornbread"
                 />
+              </div>
+
+              {/* Shuffle Options — Starch */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Starch Options</label>
+                {(drawerMeal.sides_starch_options && drawerMeal.sides_starch_options.length > 0) ? (
+                  <div className="space-y-1 mb-2">
+                    {drawerMeal.sides_starch_options.map((opt, idx) => (
+                      <div key={idx} className="flex items-center gap-2 px-2 py-1.5 rounded bg-white text-sm">
+                        <span className="text-base">🍚</span>
+                        <span className="flex-1">{opt}</span>
+                        <button
+                          onClick={() => {
+                            const updated = drawerMeal.sides_starch_options!.filter((_, i) => i !== idx)
+                            const newArr = updated.length > 0 ? updated : null
+                            setDrawerMeal({ ...drawerMeal, sides_starch_options: newArr })
+                            if (!drawerIsNew && drawerMeal.id) {
+                              fetch('/api/meals', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  action: 'upsert', id: drawerMeal.id, name: drawerMeal.name, theme: drawerMeal.theme, season: drawerMeal.season,
+                                  sides_starch_options: newArr,
+                                }),
+                              }).then(() => {
+                                setMeals(prev => prev.map(m => m.id === drawerMeal.id ? { ...m, sides_starch_options: newArr } : m))
+                                addToast('Starch option removed')
+                              }).catch(() => addToast('Something went wrong', 'error'))
+                            }
+                          }}
+                          className="p-0.5 text-gray-300 hover:text-red-400 transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mb-2">No starch options yet.</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newStarchOption}
+                    onChange={e => setNewStarchOption(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newStarchOption.trim()) {
+                        const updated = [...(drawerMeal.sides_starch_options || []), newStarchOption.trim()]
+                        setDrawerMeal({ ...drawerMeal, sides_starch_options: updated })
+                        setNewStarchOption('')
+                        if (!drawerIsNew && drawerMeal.id) {
+                          fetch('/api/meals', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: 'upsert', id: drawerMeal.id, name: drawerMeal.name, theme: drawerMeal.theme, season: drawerMeal.season,
+                              sides_starch_options: updated,
+                            }),
+                          }).then(() => {
+                            setMeals(prev => prev.map(m => m.id === drawerMeal.id ? { ...m, sides_starch_options: updated } : m))
+                            addToast('Starch option added')
+                          }).catch(() => addToast('Something went wrong', 'error'))
+                        }
+                      }
+                    }}
+                    className="flex-1 border rounded px-2.5 py-1.5 text-sm"
+                    placeholder="e.g. Steamed Rice"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!newStarchOption.trim()) return
+                      const updated = [...(drawerMeal.sides_starch_options || []), newStarchOption.trim()]
+                      setDrawerMeal({ ...drawerMeal, sides_starch_options: updated })
+                      setNewStarchOption('')
+                      if (!drawerIsNew && drawerMeal.id) {
+                        fetch('/api/meals', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'upsert', id: drawerMeal.id, name: drawerMeal.name, theme: drawerMeal.theme, season: drawerMeal.season,
+                            sides_starch_options: updated,
+                          }),
+                        }).then(() => {
+                          setMeals(prev => prev.map(m => m.id === drawerMeal.id ? { ...m, sides_starch_options: updated } : m))
+                          addToast('Starch option added')
+                        }).catch(() => addToast('Something went wrong', 'error'))
+                      }
+                    }}
+                    disabled={!newStarchOption.trim()}
+                    className="p-1.5 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700"
+                    title="Add"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Shuffle Options — Veggie */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Veggie Options</label>
+                {(drawerMeal.sides_veggie_options && drawerMeal.sides_veggie_options.length > 0) ? (
+                  <div className="space-y-1 mb-2">
+                    {drawerMeal.sides_veggie_options.map((opt, idx) => (
+                      <div key={idx} className="flex items-center gap-2 px-2 py-1.5 rounded bg-white text-sm">
+                        <span className="text-base">🥦</span>
+                        <span className="flex-1">{opt}</span>
+                        <button
+                          onClick={() => {
+                            const updated = drawerMeal.sides_veggie_options!.filter((_, i) => i !== idx)
+                            const newArr = updated.length > 0 ? updated : null
+                            setDrawerMeal({ ...drawerMeal, sides_veggie_options: newArr })
+                            if (!drawerIsNew && drawerMeal.id) {
+                              fetch('/api/meals', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  action: 'upsert', id: drawerMeal.id, name: drawerMeal.name, theme: drawerMeal.theme, season: drawerMeal.season,
+                                  sides_veggie_options: newArr,
+                                }),
+                              }).then(() => {
+                                setMeals(prev => prev.map(m => m.id === drawerMeal.id ? { ...m, sides_veggie_options: newArr } : m))
+                                addToast('Veggie option removed')
+                              }).catch(() => addToast('Something went wrong', 'error'))
+                            }
+                          }}
+                          className="p-0.5 text-gray-300 hover:text-red-400 transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mb-2">No veggie options yet.</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newVeggieOption}
+                    onChange={e => setNewVeggieOption(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newVeggieOption.trim()) {
+                        const updated = [...(drawerMeal.sides_veggie_options || []), newVeggieOption.trim()]
+                        setDrawerMeal({ ...drawerMeal, sides_veggie_options: updated })
+                        setNewVeggieOption('')
+                        if (!drawerIsNew && drawerMeal.id) {
+                          fetch('/api/meals', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: 'upsert', id: drawerMeal.id, name: drawerMeal.name, theme: drawerMeal.theme, season: drawerMeal.season,
+                              sides_veggie_options: updated,
+                            }),
+                          }).then(() => {
+                            setMeals(prev => prev.map(m => m.id === drawerMeal.id ? { ...m, sides_veggie_options: updated } : m))
+                            addToast('Veggie option added')
+                          }).catch(() => addToast('Something went wrong', 'error'))
+                        }
+                      }
+                    }}
+                    className="flex-1 border rounded px-2.5 py-1.5 text-sm"
+                    placeholder="e.g. Bag Salad"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!newVeggieOption.trim()) return
+                      const updated = [...(drawerMeal.sides_veggie_options || []), newVeggieOption.trim()]
+                      setDrawerMeal({ ...drawerMeal, sides_veggie_options: updated })
+                      setNewVeggieOption('')
+                      if (!drawerIsNew && drawerMeal.id) {
+                        fetch('/api/meals', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'upsert', id: drawerMeal.id, name: drawerMeal.name, theme: drawerMeal.theme, season: drawerMeal.season,
+                            sides_veggie_options: updated,
+                          }),
+                        }).then(() => {
+                          setMeals(prev => prev.map(m => m.id === drawerMeal.id ? { ...m, sides_veggie_options: updated } : m))
+                          addToast('Veggie option added')
+                        }).catch(() => addToast('Something went wrong', 'error'))
+                      }
+                    }}
+                    disabled={!newVeggieOption.trim()}
+                    className="p-1.5 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700"
+                    title="Add"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Description */}

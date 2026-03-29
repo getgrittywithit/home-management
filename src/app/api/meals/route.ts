@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       const theme = searchParams.get('theme')
       const includeInactive = searchParams.get('include_inactive') === 'true'
 
-      let q = 'SELECT id, name, theme, season, description, sides, notes, active, created_at FROM meal_library'
+      let q = 'SELECT id, name, theme, season, description, sides, sides_starch_options, sides_veggie_options, notes, active, created_at FROM meal_library'
       const params: any[] = []
       const where: string[] = []
 
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'upsert': {
-        const { id, name, theme, season, description, sides, notes, active } = body
+        const { id, name, theme, season, description, sides, sides_starch_options, sides_veggie_options, notes, active } = body
         if (!name || !theme || !season) {
           return NextResponse.json({ error: 'name, theme, and season required' }, { status: 400 })
         }
@@ -68,16 +68,19 @@ export async function POST(request: NextRequest) {
 
         if (id) {
           const rows = await db.query(
-            `UPDATE meal_library SET name=$1, theme=$2, season=$3, description=$4, sides=$5, notes=$6, active=COALESCE($7, active)
+            `UPDATE meal_library SET name=$1, theme=$2, season=$3, description=$4, sides=$5, notes=$6, active=COALESCE($7, active),
+             sides_starch_options=$9, sides_veggie_options=$10
              WHERE id=$8 RETURNING *`,
-            [name, theme, dbSeason, description || null, sides || null, notes || null, active ?? null, id]
+            [name, theme, dbSeason, description || null, sides || null, notes || null, active ?? null, id,
+             sides_starch_options || null, sides_veggie_options || null]
           )
           return NextResponse.json({ meal: rows[0] })
         } else {
           const rows = await db.query(
-            `INSERT INTO meal_library (name, theme, season, description, sides, notes, active)
-             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true)) RETURNING *`,
-            [name, theme, dbSeason, description || null, sides || null, notes || null, active ?? true]
+            `INSERT INTO meal_library (name, theme, season, description, sides, notes, active, sides_starch_options, sides_veggie_options)
+             VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), $8, $9) RETURNING *`,
+            [name, theme, dbSeason, description || null, sides || null, notes || null, active ?? true,
+             sides_starch_options || null, sides_veggie_options || null]
           )
           return NextResponse.json({ meal: rows[0] })
         }

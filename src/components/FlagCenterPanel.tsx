@@ -13,6 +13,8 @@ interface MealRequest {
   meal_name: string
   theme?: string
   sides?: string
+  selected_starch?: string
+  selected_veggie?: string
   sub_option_label?: string
   sub_option_heat?: string
 }
@@ -389,7 +391,9 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
                                     {kidDisplay} requested {mr.meal_name}{mr.sub_option_label ? ` — ${mr.sub_option_label} (${mr.sub_option_heat === 'hot' ? '🔥 Hot' : '😌 Mild'})` : ''}
                                   </p>
                                   <p className="text-xs text-gray-500 mt-0.5">
-                                    For {dateLabel}{mr.sides ? ` · Sides: ${mr.sides}` : ''}
+                                    For {dateLabel}{(mr.selected_starch || mr.selected_veggie)
+                                      ? ` · Sides: ${[mr.selected_starch, mr.selected_veggie].filter(Boolean).join(' + ')}`
+                                      : mr.sides ? ` · Sides: ${mr.sides}` : ''}
                                   </p>
                                   <div className="flex gap-2 mt-2">
                                     <button

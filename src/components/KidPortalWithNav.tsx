@@ -6,7 +6,7 @@ import {
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
-  User, Heart, Thermometer, X
+  User, Heart, Thermometer, X, Shuffle, Dices
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -91,14 +91,18 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
   // Dinner Manager state
   const [mealPickerOpen, setMealPickerOpen] = useState(false)
-  const [availableMeals, setAvailableMeals] = useState<{ id: number; name: string; description: string; sides: string | null; sub_option_count: number }[]>([])
-  const [myMealRequest, setMyMealRequest] = useState<{ id: number; meal_name: string; status: string; sub_option_label?: string; sub_option_heat?: string } | null>(null)
+  const [availableMeals, setAvailableMeals] = useState<{ id: number; name: string; description: string; sides: string | null; sides_starch_options: string[] | null; sides_veggie_options: string[] | null; sub_option_count: number }[]>([])
+  const [myMealRequest, setMyMealRequest] = useState<{ id: number; meal_name: string; status: string; sub_option_label?: string; sub_option_heat?: string; selected_starch?: string; selected_veggie?: string } | null>(null)
   const [mealRequestLoaded, setMealRequestLoaded] = useState(false)
   const [mealSubmitting, setMealSubmitting] = useState(false)
   const [marinadePickerMealId, setMarinadePickerMealId] = useState<number | null>(null)
   const [marinadeOptions, setMarinadeOptions] = useState<{ id: string; label: string; heat_level: string; category: string; is_favorite: boolean; display_type: string; sort_order: number }[]>([])
   const [marinadeLoading, setMarinadeLoading] = useState(false)
   const [subDisplayType, setSubDisplayType] = useState<'pick-one' | 'show-all'>('pick-one')
+  const [selectedStarch, setSelectedStarch] = useState<string | null>(null)
+  const [selectedVeggie, setSelectedVeggie] = useState<string | null>(null)
+  const [surpriseMealId, setSurpriseMealId] = useState<number | null>(null)
+  const [expandedMealId, setExpandedMealId] = useState<number | null>(null)
 
   // Dinner rotation config
   const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: string; emoji: string; label: string }>> = {
@@ -191,15 +195,17 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       const res = await fetch('/api/parent/meal-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'request_meal', kid_name: childKey, meal_id: mealId, date: todayStr, sub_option_id: subOptionId || null }),
+        body: JSON.stringify({ action: 'request_meal', kid_name: childKey, meal_id: mealId, date: todayStr, sub_option_id: subOptionId || null, selected_starch: selectedStarch || null, selected_veggie: selectedVeggie || null }),
       })
       const data = await res.json()
       if (data.success) {
         const meal = availableMeals.find(m => m.id === mealId)
         const subOpt = subOptionId ? marinadeOptions.find(o => o.id === subOptionId) : null
-        setMyMealRequest({ id: data.request_id, meal_name: meal?.name || '', status: 'pending', sub_option_label: subOpt?.label, sub_option_heat: subOpt?.heat_level })
+        setMyMealRequest({ id: data.request_id, meal_name: meal?.name || '', status: 'pending', sub_option_label: subOpt?.label, sub_option_heat: subOpt?.heat_level, selected_starch: selectedStarch || undefined, selected_veggie: selectedVeggie || undefined })
         setMealPickerOpen(false)
         setMarinadePickerMealId(null)
+        setExpandedMealId(null)
+        setSurpriseMealId(null)
       }
     } catch (err) {
       console.error('Meal request error:', err)
@@ -659,7 +665,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 <span className="text-2xl">✅</span>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Tonight&apos;s dinner: {myMealRequest.meal_name}{myMealRequest.sub_option_label ? ` — ${myMealRequest.sub_option_label}` : ''}</p>
-                  <p className="text-xs text-green-600 mt-0.5">Approved by Mom{myMealRequest.sub_option_heat ? ` · ${myMealRequest.sub_option_heat === 'hot' ? '🔥 Hot' : '😌 Mild'}` : ''}</p>
+                  <p className="text-xs text-green-600 mt-0.5">Approved by Mom{myMealRequest.sub_option_heat ? ` · ${myMealRequest.sub_option_heat === 'hot' ? '🔥 Hot' : '😌 Mild'}` : ''}{(myMealRequest.selected_starch || myMealRequest.selected_veggie) ? ` · ${[myMealRequest.selected_starch, myMealRequest.selected_veggie].filter(Boolean).join(' + ')}` : ''}</p>
                 </div>
               </div>
             ) : myMealRequest?.status === 'pending' ? (
@@ -667,7 +673,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 <span className="text-2xl">⏳</span>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Your pick is waiting for approval</p>
-                  <p className="text-xs text-amber-600 mt-0.5">{myMealRequest.meal_name}{myMealRequest.sub_option_label ? ` — ${myMealRequest.sub_option_label}` : ''} — {todaysDinner.label} {todaysDinner.emoji}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">{myMealRequest.meal_name}{myMealRequest.sub_option_label ? ` — ${myMealRequest.sub_option_label}` : ''}{(myMealRequest.selected_starch || myMealRequest.selected_veggie) ? ` · ${[myMealRequest.selected_starch, myMealRequest.selected_veggie].filter(Boolean).join(' + ')}` : ''} — {todaysDinner.label} {todaysDinner.emoji}</p>
                 </div>
               </div>
             ) : myMealRequest?.status === 'swapped' ? (
@@ -719,96 +725,194 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                     <p className="text-sm">No meals available for this theme yet</p>
                   </div>
                 ) : (
-                  availableMeals.map(meal => (
-                    <div key={meal.id} className="bg-gray-50 rounded-lg p-4 border hover:border-orange-300 transition-colors">
-                      <p className="font-medium text-gray-900">{meal.name}</p>
-                      {meal.description && <p className="text-xs text-gray-500 mt-1">{meal.description}</p>}
-                      {meal.sides && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          <span className="font-medium text-gray-600">Sides:</span> {meal.sides}
-                        </p>
-                      )}
+                  <>
+                    {/* Surprise Me button */}
+                    <button
+                      onClick={() => {
+                        const randomMeal = availableMeals[Math.floor(Math.random() * availableMeals.length)]
+                        if (randomMeal) {
+                          setSurpriseMealId(randomMeal.id)
+                          setExpandedMealId(randomMeal.id)
+                          if (randomMeal.sides_starch_options?.length) setSelectedStarch(randomMeal.sides_starch_options[Math.floor(Math.random() * randomMeal.sides_starch_options.length)])
+                          else setSelectedStarch(null)
+                          if (randomMeal.sides_veggie_options?.length) setSelectedVeggie(randomMeal.sides_veggie_options[Math.floor(Math.random() * randomMeal.sides_veggie_options.length)])
+                          else setSelectedVeggie(null)
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold text-sm hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm"
+                    >
+                      <Dices className="w-5 h-5" />
+                      Surprise Me!
+                    </button>
 
-                      {/* Sub-picker: pick-one (marinades) or show-all (bar toppings reference) */}
-                      {marinadePickerMealId === meal.id ? (
-                        <div className="mt-3 space-y-2">
-                          {marinadeLoading ? (
-                            <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
-                              <div className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-orange-500 rounded-full" />
-                              Loading...
-                            </div>
-                          ) : subDisplayType === 'show-all' ? (
-                            /* Bar toppings reference card */
-                            <div className="space-y-3">
-                              <p className="text-sm font-semibold text-gray-800">Here&apos;s what goes on the {meal.name} 🍽️</p>
-                              {(() => {
-                                const categories = Array.from(new Set(marinadeOptions.map(o => o.category)));
-                                return categories.map(cat => (
-                                  <div key={cat}>
-                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">{cat}</p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {marinadeOptions.filter(o => o.category === cat).map(opt => (
-                                        <span key={opt.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                                          opt.is_favorite ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-gray-100 text-gray-700'
-                                        }`}>
-                                          {opt.is_favorite && <span>⭐</span>}{opt.label}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ));
-                              })()}
-                              <button
-                                onClick={() => handleMealRequest(meal.id)}
-                                disabled={mealSubmitting}
-                                className="w-full mt-2 bg-orange-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
-                              >
-                                {mealSubmitting ? 'Requesting...' : `Request This Bar Night!`}
-                              </button>
-                            </div>
-                          ) : (
-                            /* Pick-one marinade grid */
-                            <div className="space-y-2">
-                              <p className="text-sm font-semibold text-gray-800">Pick your marinade 🍗</p>
-                              <div className="grid grid-cols-2 gap-2">
-                                {marinadeOptions.map(opt => (
+                    {availableMeals.map(meal => {
+                      const isExpanded = expandedMealId === meal.id
+                      const isSurprise = surpriseMealId === meal.id
+                      const hasStarchOptions = meal.sides_starch_options && meal.sides_starch_options.length > 0
+                      const hasVeggieOptions = meal.sides_veggie_options && meal.sides_veggie_options.length > 0
+                      const hasShuffle = hasStarchOptions || hasVeggieOptions
+
+                      return (
+                        <div
+                          key={meal.id}
+                          className={`bg-gray-50 rounded-lg p-4 border transition-colors ${isSurprise ? 'border-purple-400 ring-2 ring-purple-200' : 'hover:border-orange-300'}`}
+                        >
+                          <button
+                            className="w-full text-left"
+                            onClick={() => {
+                              if (isExpanded) {
+                                setExpandedMealId(null)
+                                setSurpriseMealId(null)
+                              } else {
+                                setExpandedMealId(meal.id)
+                                setSurpriseMealId(null)
+                                if (hasStarchOptions) setSelectedStarch(meal.sides_starch_options![0])
+                                else setSelectedStarch(null)
+                                if (hasVeggieOptions) setSelectedVeggie(meal.sides_veggie_options![0])
+                                else setSelectedVeggie(null)
+                              }
+                            }}
+                          >
+                            <p className="font-medium text-gray-900">{meal.name}</p>
+                            {meal.description && <p className="text-xs text-gray-500 mt-1">{meal.description}</p>}
+                            {meal.sides && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                <span className="font-medium text-gray-600">Sides:</span> {meal.sides}
+                              </p>
+                            )}
+                          </button>
+
+                          {/* Shuffle controls — shown when meal is expanded and has shuffle options */}
+                          {isExpanded && hasShuffle && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Sides</p>
+                              <div className="flex gap-2">
+                                {hasStarchOptions && (
                                   <button
-                                    key={opt.id}
-                                    onClick={() => handleMealRequest(meal.id, opt.id)}
-                                    disabled={mealSubmitting}
-                                    className={`text-left p-2.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
-                                      opt.heat_level === 'hot'
-                                        ? 'bg-red-50 border-red-200 hover:border-red-400'
-                                        : 'bg-green-50 border-green-200 hover:border-green-400'
-                                    }`}
+                                    onClick={() => {
+                                      const opts = meal.sides_starch_options!
+                                      const curIdx = opts.indexOf(selectedStarch || '')
+                                      setSelectedStarch(opts[(curIdx + 1) % opts.length])
+                                    }}
+                                    className="flex-1 flex items-center justify-between gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm font-medium text-amber-900 hover:bg-amber-100 transition-colors"
                                   >
-                                    <span className="font-medium">{opt.heat_level === 'hot' ? '🔥' : '😌'} {opt.label}</span>
-                                    <span className={`block text-xs mt-0.5 ${opt.heat_level === 'hot' ? 'text-red-500' : 'text-green-600'}`}>
-                                      {opt.heat_level === 'hot' ? 'Hot' : 'Mild'}
-                                    </span>
+                                    <span>🍚 {selectedStarch}</span>
+                                    <Shuffle className="w-4 h-4 text-amber-500" />
                                   </button>
-                                ))}
+                                )}
+                                {hasVeggieOptions && (
+                                  <button
+                                    onClick={() => {
+                                      const opts = meal.sides_veggie_options!
+                                      const curIdx = opts.indexOf(selectedVeggie || '')
+                                      setSelectedVeggie(opts[(curIdx + 1) % opts.length])
+                                    }}
+                                    className="flex-1 flex items-center justify-between gap-2 px-3 py-2.5 bg-green-50 border border-green-200 rounded-lg text-sm font-medium text-green-900 hover:bg-green-100 transition-colors"
+                                  >
+                                    <span>🥗 {selectedVeggie}</span>
+                                    <Shuffle className="w-4 h-4 text-green-500" />
+                                  </button>
+                                )}
                               </div>
+                              {hasStarchOptions && hasVeggieOptions && (
+                                <button
+                                  onClick={() => {
+                                    const sOpts = meal.sides_starch_options!
+                                    const vOpts = meal.sides_veggie_options!
+                                    setSelectedStarch(sOpts[Math.floor(Math.random() * sOpts.length)])
+                                    setSelectedVeggie(vOpts[Math.floor(Math.random() * vOpts.length)])
+                                  }}
+                                  className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
+                                >
+                                  <Shuffle className="w-3.5 h-3.5" />
+                                  Shuffle Both
+                                </button>
+                              )}
                             </div>
                           )}
-                          <button
-                            onClick={() => setMarinadePickerMealId(null)}
-                            className="text-xs text-gray-400 hover:text-gray-600"
-                          >
-                            Back to meals
-                          </button>
+
+                          {/* Sub-picker: pick-one (marinades) or show-all (bar toppings reference) */}
+                          {isExpanded && marinadePickerMealId === meal.id ? (
+                            <div className="mt-3 space-y-2">
+                              {marinadeLoading ? (
+                                <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                                  <div className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-orange-500 rounded-full" />
+                                  Loading...
+                                </div>
+                              ) : subDisplayType === 'show-all' ? (
+                                /* Bar toppings reference card */
+                                <div className="space-y-3">
+                                  <p className="text-sm font-semibold text-gray-800">Here&apos;s what goes on the {meal.name} 🍽️</p>
+                                  {(() => {
+                                    const categories = Array.from(new Set(marinadeOptions.map(o => o.category)));
+                                    return categories.map(cat => (
+                                      <div key={cat}>
+                                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">{cat}</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {marinadeOptions.filter(o => o.category === cat).map(opt => (
+                                            <span key={opt.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                              opt.is_favorite ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-gray-100 text-gray-700'
+                                            }`}>
+                                              {opt.is_favorite && <span>⭐</span>}{opt.label}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ));
+                                  })()}
+                                  <button
+                                    onClick={() => handleMealRequest(meal.id)}
+                                    disabled={mealSubmitting}
+                                    className="w-full mt-2 bg-orange-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                                  >
+                                    {mealSubmitting ? 'Requesting...' : `Request This Bar Night!`}
+                                  </button>
+                                </div>
+                              ) : (
+                                /* Pick-one marinade grid */
+                                <div className="space-y-2">
+                                  <p className="text-sm font-semibold text-gray-800">Pick your marinade 🍗</p>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {marinadeOptions.map(opt => (
+                                      <button
+                                        key={opt.id}
+                                        onClick={() => handleMealRequest(meal.id, opt.id)}
+                                        disabled={mealSubmitting}
+                                        className={`text-left p-2.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
+                                          opt.heat_level === 'hot'
+                                            ? 'bg-red-50 border-red-200 hover:border-red-400'
+                                            : 'bg-green-50 border-green-200 hover:border-green-400'
+                                        }`}
+                                      >
+                                        <span className="font-medium">{opt.heat_level === 'hot' ? '🔥' : '😌'} {opt.label}</span>
+                                        <span className={`block text-xs mt-0.5 ${opt.heat_level === 'hot' ? 'text-red-500' : 'text-green-600'}`}>
+                                          {opt.heat_level === 'hot' ? 'Hot' : 'Mild'}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => setMarinadePickerMealId(null)}
+                                className="text-xs text-gray-400 hover:text-gray-600"
+                              >
+                                Back to meals
+                              </button>
+                            </div>
+                          ) : isExpanded ? (
+                            <button
+                              onClick={() => meal.sub_option_count > 0 ? openMarinadePickerForMeal(meal.id) : handleMealRequest(meal.id)}
+                              disabled={mealSubmitting}
+                              className="mt-3 w-full bg-orange-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                            >
+                              {mealSubmitting ? 'Requesting...' : meal.sub_option_count > 0 ? 'Choose Marinade' : 'Request This Meal!'}
+                            </button>
+                          ) : null}
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => meal.sub_option_count > 0 ? openMarinadePickerForMeal(meal.id) : handleMealRequest(meal.id)}
-                          disabled={mealSubmitting}
-                          className="mt-2 bg-orange-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
-                        >
-                          {mealSubmitting ? 'Requesting...' : meal.sub_option_count > 0 ? 'See What\u2019s On It' : 'Request This Meal'}
-                        </button>
-                      )}
-                    </div>
-                  ))
+                      )
+                    })}
+                  </>
                 )}
               </div>
               <div className="h-8" /> {/* bottom safe area */}
