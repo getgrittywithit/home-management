@@ -21,6 +21,7 @@ import KidCommunicationCards from './KidCommunicationCards'
 import KidSchoolNotesCard from './KidSchoolNotesCard'
 import BreakButton from './BreakButton'
 import DailyCheckInCard from './DailyCheckInCard'
+import MealFeedbackCard from './MealFeedbackCard'
 import RegulationToolsCard from './RegulationToolsCard'
 import BelleCareCard from './BelleCareCard'
 import DutyCard from './DutyCard'
@@ -919,6 +920,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             </div>
           </>
         )}
+
+        {/* Meal Feedback — after dinner, rate the meal */}
+        <MealFeedbackCard childName={profile.first_name || ''} />
 
         {/* Family Events */}
         <FamilyEventsStrip events={familyEvents} countdowns={countdownEvents} />
