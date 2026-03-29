@@ -66,11 +66,13 @@ export async function GET(request: NextRequest) {
       const mealId = searchParams.get('meal_id')
       if (!mealId) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
       const rows = await db.query(
-        `SELECT id, label, heat_level, sort_order FROM meal_sub_options
+        `SELECT id, label, heat_level, category, is_favorite, display_type, sort_order
+         FROM meal_sub_options
          WHERE meal_id = $1 ORDER BY sort_order`,
         [mealId]
       )
-      return NextResponse.json({ options: rows })
+      const displayType = rows.length > 0 ? (rows[0].display_type || 'pick-one') : 'pick-one'
+      return NextResponse.json({ options: rows, display_type: displayType })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

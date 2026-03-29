@@ -96,8 +96,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [mealRequestLoaded, setMealRequestLoaded] = useState(false)
   const [mealSubmitting, setMealSubmitting] = useState(false)
   const [marinadePickerMealId, setMarinadePickerMealId] = useState<number | null>(null)
-  const [marinadeOptions, setMarinadeOptions] = useState<{ id: string; label: string; heat_level: string; sort_order: number }[]>([])
+  const [marinadeOptions, setMarinadeOptions] = useState<{ id: string; label: string; heat_level: string; category: string; is_favorite: boolean; display_type: string; sort_order: number }[]>([])
   const [marinadeLoading, setMarinadeLoading] = useState(false)
+  const [subDisplayType, setSubDisplayType] = useState<'pick-one' | 'show-all'>('pick-one')
 
   // Dinner rotation config
   const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: string; emoji: string; label: string }>> = {
@@ -178,7 +179,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       const res = await fetch(`/api/parent/meal-requests?action=get_sub_options&meal_id=${mealId}`)
       const data = await res.json()
       setMarinadeOptions(data.options || [])
-    } catch { setMarinadeOptions([]) }
+      setSubDisplayType(data.display_type || 'pick-one')
+    } catch { setMarinadeOptions([]); setSubDisplayType('pick-one') }
     finally { setMarinadeLoading(false) }
   }
 
@@ -727,34 +729,66 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                         </p>
                       )}
 
-                      {/* Marinade sub-picker for meals with sub-options (e.g. Oven Drumsticks) */}
+                      {/* Sub-picker: pick-one (marinades) or show-all (bar toppings reference) */}
                       {marinadePickerMealId === meal.id ? (
                         <div className="mt-3 space-y-2">
-                          <p className="text-sm font-semibold text-gray-800">Pick your marinade 🍗</p>
                           {marinadeLoading ? (
                             <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
                               <div className="animate-spin w-4 h-4 border-2 border-gray-300 border-t-orange-500 rounded-full" />
-                              Loading marinades...
+                              Loading...
+                            </div>
+                          ) : subDisplayType === 'show-all' ? (
+                            /* Bar toppings reference card */
+                            <div className="space-y-3">
+                              <p className="text-sm font-semibold text-gray-800">Here&apos;s what goes on the {meal.name} 🍽️</p>
+                              {(() => {
+                                const categories = Array.from(new Set(marinadeOptions.map(o => o.category)));
+                                return categories.map(cat => (
+                                  <div key={cat}>
+                                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">{cat}</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {marinadeOptions.filter(o => o.category === cat).map(opt => (
+                                        <span key={opt.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                          opt.is_favorite ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {opt.is_favorite && <span>⭐</span>}{opt.label}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ));
+                              })()}
+                              <button
+                                onClick={() => handleMealRequest(meal.id)}
+                                disabled={mealSubmitting}
+                                className="w-full mt-2 bg-orange-500 text-white text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                              >
+                                {mealSubmitting ? 'Requesting...' : `Request This Bar Night!`}
+                              </button>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-2 gap-2">
-                              {marinadeOptions.map(opt => (
-                                <button
-                                  key={opt.id}
-                                  onClick={() => handleMealRequest(meal.id, opt.id)}
-                                  disabled={mealSubmitting}
-                                  className={`text-left p-2.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
-                                    opt.heat_level === 'hot'
-                                      ? 'bg-red-50 border-red-200 hover:border-red-400'
-                                      : 'bg-green-50 border-green-200 hover:border-green-400'
-                                  }`}
-                                >
-                                  <span className="font-medium">{opt.heat_level === 'hot' ? '🔥' : '😌'} {opt.label}</span>
-                                  <span className={`block text-xs mt-0.5 ${opt.heat_level === 'hot' ? 'text-red-500' : 'text-green-600'}`}>
-                                    {opt.heat_level === 'hot' ? 'Hot' : 'Mild'}
-                                  </span>
-                                </button>
-                              ))}
+                            /* Pick-one marinade grid */
+                            <div className="space-y-2">
+                              <p className="text-sm font-semibold text-gray-800">Pick your marinade 🍗</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {marinadeOptions.map(opt => (
+                                  <button
+                                    key={opt.id}
+                                    onClick={() => handleMealRequest(meal.id, opt.id)}
+                                    disabled={mealSubmitting}
+                                    className={`text-left p-2.5 rounded-lg border text-sm transition-colors disabled:opacity-50 ${
+                                      opt.heat_level === 'hot'
+                                        ? 'bg-red-50 border-red-200 hover:border-red-400'
+                                        : 'bg-green-50 border-green-200 hover:border-green-400'
+                                    }`}
+                                  >
+                                    <span className="font-medium">{opt.heat_level === 'hot' ? '🔥' : '😌'} {opt.label}</span>
+                                    <span className={`block text-xs mt-0.5 ${opt.heat_level === 'hot' ? 'text-red-500' : 'text-green-600'}`}>
+                                      {opt.heat_level === 'hot' ? 'Hot' : 'Mild'}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           )}
                           <button
@@ -770,7 +804,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                           disabled={mealSubmitting}
                           className="mt-2 bg-orange-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
                         >
-                          {mealSubmitting ? 'Requesting...' : meal.sub_option_count > 0 ? 'Choose Marinade' : 'Request This Meal'}
+                          {mealSubmitting ? 'Requesting...' : meal.sub_option_count > 0 ? 'See What\u2019s On It' : 'Request This Meal'}
                         </button>
                       )}
                     </div>
