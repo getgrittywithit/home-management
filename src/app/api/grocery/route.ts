@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
           `SELECT
              COALESCE(SUM(total_amount) FILTER (WHERE LOWER(store) LIKE '%walmart%'), 0)::numeric as walmart_total,
              COALESCE(SUM(total_amount) FILTER (WHERE LOWER(store) LIKE '%h-e-b%' OR LOWER(store) LIKE '%heb%'), 0)::numeric as heb_total,
+             COALESCE(SUM(total_amount) FILTER (WHERE LOWER(store) LIKE '%amazon%'), 0)::numeric as amazon_total,
              COALESCE(SUM(total_amount), 0)::numeric as combined_total,
              COALESCE(SUM(snap_amount), 0)::numeric as snap_total,
              COALESCE(SUM(cash_amount), 0)::numeric as cash_total,
@@ -88,6 +89,7 @@ export async function GET(request: NextRequest) {
           current: {
             walmart_total: parseFloat(current.walmart_total) || 0,
             heb_total: parseFloat(current.heb_total) || 0,
+            amazon_total: parseFloat(current.amazon_total) || 0,
             combined_total: parseFloat(current.combined_total) || 0,
             snap_total: parseFloat(current.snap_total) || 0,
             cash_total: parseFloat(current.cash_total) || 0,
@@ -101,7 +103,7 @@ export async function GET(request: NextRequest) {
       } catch (err: any) {
         if (err?.message?.includes('does not exist') || err?.code === '42P01') {
           return NextResponse.json({
-            current: { walmart_total: 0, heb_total: 0, combined_total: 0, snap_total: 0, cash_total: 0, trip_count: 0 },
+            current: { walmart_total: 0, heb_total: 0, amazon_total: 0, combined_total: 0, snap_total: 0, cash_total: 0, trip_count: 0 },
             previous: { combined_total: 0, trip_count: 0 },
             this_week: 0, last_week: 0, budget: 1500,
           })
@@ -212,9 +214,11 @@ export async function GET(request: NextRequest) {
 
         const walmartItems: any[] = []
         const hebItems: any[] = []
+        const amazonItems: any[] = []
         const inStock: any[] = []
         let estimatedWalmart = 0
         let estimatedHeb = 0
+        let estimatedAmazon = 0
 
         for (const [key, ing] of Object.entries(ingredientMap)) {
           const pantryItem = pantryMap.get(key)
@@ -230,6 +234,9 @@ export async function GET(request: NextRequest) {
             if (store.includes('h-e-b') || store.includes('heb')) {
               hebItems.push(item)
               if (item.avg_price) estimatedHeb += item.avg_price
+            } else if (store.includes('amazon')) {
+              amazonItems.push(item)
+              if (item.avg_price) estimatedAmazon += item.avg_price
             } else {
               walmartItems.push(item)
               if (item.avg_price) estimatedWalmart += item.avg_price
@@ -240,16 +247,18 @@ export async function GET(request: NextRequest) {
         const byDept = (a: any, b: any) => (a.department || '').localeCompare(b.department || '')
         walmartItems.sort(byDept)
         hebItems.sort(byDept)
+        amazonItems.sort(byDept)
 
         return NextResponse.json({
-          walmart_items: walmartItems, heb_items: hebItems, in_stock: inStock,
+          walmart_items: walmartItems, heb_items: hebItems, amazon_items: amazonItems, in_stock: inStock,
           estimated_walmart: Math.round(estimatedWalmart * 100) / 100,
           estimated_heb: Math.round(estimatedHeb * 100) / 100,
+          estimated_amazon: Math.round(estimatedAmazon * 100) / 100,
           meal_count: mealRequests.length,
         })
       } catch (err: any) {
         if (err?.message?.includes('does not exist') || err?.code === '42P01') {
-          return NextResponse.json({ walmart_items: [], heb_items: [], in_stock: [], estimated_walmart: 0, estimated_heb: 0, meal_count: 0 })
+          return NextResponse.json({ walmart_items: [], heb_items: [], amazon_items: [], in_stock: [], estimated_walmart: 0, estimated_heb: 0, estimated_amazon: 0, meal_count: 0 })
         }
         throw err
       }
@@ -311,6 +320,7 @@ export async function GET(request: NextRequest) {
 
         const walmartByDept: Record<string, Array<{ name: string; quantity: number; unit: string }>> = {}
         const hebByDept: Record<string, Array<{ name: string; quantity: number; unit: string }>> = {}
+        const amazonByDept: Record<string, Array<{ name: string; quantity: number; unit: string }>> = {}
 
         for (const [key, ing] of Object.entries(ingredientMap)) {
           const pantryItem = pantryMap.get(key)
@@ -318,7 +328,14 @@ export async function GET(request: NextRequest) {
           if (isInStock) continue
 
           const store = (pantryItem?.preferred_store || ing.preferred_store || 'walmart').toLowerCase()
-          const target = (store.includes('h-e-b') || store.includes('heb')) ? hebByDept : walmartByDept
+          let target: Record<string, Array<{ name: string; quantity: number; unit: string }>>
+          if (store.includes('h-e-b') || store.includes('heb')) {
+            target = hebByDept
+          } else if (store.includes('amazon')) {
+            target = amazonByDept
+          } else {
+            target = walmartByDept
+          }
           const dept = ing.department || 'Other'
           if (!target[dept]) target[dept] = []
           target[dept].push({ name: ing.name, quantity: ing.quantity, unit: ing.unit })
@@ -351,6 +368,7 @@ export async function GET(request: NextRequest) {
 
         text += formatStoreSection('WALMART PICKUP', walmartByDept)
         text += formatStoreSection('H-E-B RUN', hebByDept)
+        text += formatStoreSection('AMAZON ORDER', amazonByDept)
 
         return NextResponse.json({
           text: text.trim(),
@@ -419,6 +437,7 @@ export async function GET(request: NextRequest) {
 
         const walmartLines: string[] = []
         const hebLines: string[] = []
+        const amazonLines: string[] = []
 
         for (const [key, ing] of Object.entries(ingredientMap)) {
           const pantryItem = pantryMap.get(key)
@@ -431,6 +450,8 @@ export async function GET(request: NextRequest) {
 
           if (store.includes('h-e-b') || store.includes('heb')) {
             hebLines.push(line)
+          } else if (store.includes('amazon')) {
+            amazonLines.push(line)
           } else {
             walmartLines.push(line)
           }
@@ -439,12 +460,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           walmart_text: walmartLines.join('\n'),
           heb_text: hebLines.join('\n'),
+          amazon_text: amazonLines.join('\n'),
           walmart_count: walmartLines.length,
           heb_count: hebLines.length,
+          amazon_count: amazonLines.length,
         })
       } catch (err: any) {
         if (err?.message?.includes('does not exist') || err?.code === '42P01') {
-          return NextResponse.json({ walmart_text: '', heb_text: '', walmart_count: 0, heb_count: 0 })
+          return NextResponse.json({ walmart_text: '', heb_text: '', amazon_text: '', walmart_count: 0, heb_count: 0, amazon_count: 0 })
         }
         throw err
       }

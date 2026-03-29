@@ -20,9 +20,11 @@ interface ListItem {
 interface WeeklyListData {
   walmart_items: ListItem[]
   heb_items: ListItem[]
+  amazon_items: ListItem[]
   in_stock: ListItem[]
   estimated_walmart: number
   estimated_heb: number
+  estimated_amazon: number
   meal_count: number
 }
 
@@ -104,7 +106,7 @@ export default function WeeklyListGenerator() {
     )
   }
 
-  const totalItems = (data?.walmart_items.length || 0) + (data?.heb_items.length || 0)
+  const totalItems = (data?.walmart_items.length || 0) + (data?.heb_items.length || 0) + (data?.amazon_items?.length || 0)
   const checkedCount = checkedItems.size
 
   const renderStoreSection = (
@@ -209,6 +211,7 @@ export default function WeeklyListGenerator() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {renderStoreSection(data.walmart_items, 'Walmart Pickup', 'text-blue-700', 'bg-blue-50', data.estimated_walmart)}
           {renderStoreSection(data.heb_items, 'H-E-B Run', 'text-red-700', 'bg-red-50', data.estimated_heb)}
+          {renderStoreSection(data.amazon_items || [], 'Amazon Order', 'text-amber-700', 'bg-amber-50', data.estimated_amazon || 0)}
         </div>
       )}
 

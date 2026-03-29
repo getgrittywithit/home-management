@@ -12,15 +12,17 @@ const SETTINGS_KEY = 'grocery_app_settings'
 interface AppSettings {
   anylist_email: string
   veryfi_api_key: string
+  amazon_list_name: string
+  amazon_list_url: string
 }
 
 function loadSettings(): AppSettings {
-  if (typeof window === 'undefined') return { anylist_email: '', veryfi_api_key: '' }
+  if (typeof window === 'undefined') return { anylist_email: '', veryfi_api_key: '', amazon_list_name: '', amazon_list_url: '' }
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) return { anylist_email: '', veryfi_api_key: '', amazon_list_name: '', amazon_list_url: '', ...JSON.parse(raw) }
   } catch {}
-  return { anylist_email: '', veryfi_api_key: '' }
+  return { anylist_email: '', veryfi_api_key: '', amazon_list_name: '', amazon_list_url: '' }
 }
 
 function saveSettings(settings: AppSettings) {
@@ -32,7 +34,7 @@ export function getGrocerySettings(): AppSettings {
 }
 
 export default function GrocerySettings({ onClose }: GrocerySettingsProps) {
-  const [settings, setSettings] = useState<AppSettings>({ anylist_email: '', veryfi_api_key: '' })
+  const [settings, setSettings] = useState<AppSettings>({ anylist_email: '', veryfi_api_key: '', amazon_list_name: '', amazon_list_url: '' })
   const [savedField, setSavedField] = useState<string | null>(null)
 
   useEffect(() => {
@@ -127,6 +129,50 @@ export default function GrocerySettings({ onClose }: GrocerySettingsProps) {
           <p className="text-xs text-gray-500 flex items-start gap-1.5">
             <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-400" />
             Sign up at veryfi.com for receipt scanning
+          </p>
+        </div>
+
+        {/* Amazon Prime */}
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 text-amber-500" />
+            Amazon Prime
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={settings.amazon_list_name}
+              onChange={e => setSettings({ ...settings, amazon_list_name: e.target.value })}
+              className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 outline-none"
+              placeholder="List name (e.g., Household Supplies)"
+            />
+            <button
+              onClick={() => handleSave('amazon_list_name')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
+            >
+              {savedField === 'amazon_list_name' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              {savedField === 'amazon_list_name' ? 'Saved' : 'Save'}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={settings.amazon_list_url}
+              onChange={e => setSettings({ ...settings, amazon_list_url: e.target.value })}
+              className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-300 focus:border-amber-400 outline-none"
+              placeholder="Amazon list URL"
+            />
+            <button
+              onClick={() => handleSave('amazon_list_url')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
+            >
+              {savedField === 'amazon_list_url' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              {savedField === 'amazon_list_url' ? 'Saved' : 'Save'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 flex items-start gap-1.5">
+            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-400" />
+            Create a list in Amazon &rarr; Your Lists &rarr; Create a List, then paste the URL here
           </p>
         </div>
 

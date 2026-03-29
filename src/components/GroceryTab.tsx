@@ -4,11 +4,14 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Package, Plus, Edit3, Trash2, ChevronDown, ChevronRight,
   ShoppingCart, FileText, Upload, AlertTriangle, Store, X,
-  BarChart3, ListChecks, Settings
+  BarChart3, ListChecks, Settings, LayoutGrid, ChefHat, Pill, BookOpen
 } from 'lucide-react'
 import SpendingDashboard from './SpendingDashboard'
 import WeeklyListGenerator from './WeeklyListGenerator'
 import GrocerySettings from './GrocerySettings'
+import ParLevelBoard from './ParLevelBoard'
+import InventoryBoards from './InventoryBoards'
+import ScratchRecipeManager from './ScratchRecipeManager'
 
 // ── Types ──
 
@@ -78,7 +81,7 @@ const FILTER_PILLS = ['All', 'Low Stock', 'Meat', 'Frozen', 'Pantry', 'Produce',
 // ── Component ──
 
 export default function GroceryTab() {
-  const [subTab, setSubTab] = useState<'pantry' | 'history' | 'import' | 'analytics' | 'weekly-list'>('pantry')
+  const [subTab, setSubTab] = useState<'pantry' | 'history' | 'import' | 'analytics' | 'weekly-list' | 'par-levels' | 'baking-spices' | 'medicine' | 'scratch-recipes'>('pantry')
   const [showSettings, setShowSettings] = useState(false)
 
   // Pantry state
@@ -281,6 +284,10 @@ export default function GroceryTab() {
             { id: 'import' as const, label: 'Import', icon: Upload },
             { id: 'analytics' as const, label: 'Spending', icon: BarChart3 },
             { id: 'weekly-list' as const, label: 'Weekly List', icon: ListChecks },
+            { id: 'par-levels' as const, label: 'Par Levels', icon: LayoutGrid },
+            { id: 'baking-spices' as const, label: 'Baking & Spices', icon: ChefHat },
+            { id: 'medicine' as const, label: 'Medicine Cabinet', icon: Pill },
+            { id: 'scratch-recipes' as const, label: 'Scratch Recipes', icon: BookOpen },
           ].map(tab => (
             <button
               key={tab.id}
@@ -744,6 +751,18 @@ export default function GroceryTab() {
 
       {/* ── Weekly Shopping List ── */}
       {subTab === 'weekly-list' && <WeeklyListGenerator />}
+
+      {/* ── Par Levels ── */}
+      {subTab === 'par-levels' && <ParLevelBoard />}
+
+      {/* ── Baking & Spices ── */}
+      {subTab === 'baking-spices' && <InventoryBoards />}
+
+      {/* ── Medicine Cabinet ── */}
+      {subTab === 'medicine' && <InventoryBoards section="medicine" />}
+
+      {/* ── Scratch Recipes ── */}
+      {subTab === 'scratch-recipes' && <ScratchRecipeManager />}
     </div>
   )
 }
