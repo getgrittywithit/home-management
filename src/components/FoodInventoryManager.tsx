@@ -4,8 +4,10 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Refrigerator, Package, ChefHat, Plus, Edit3, Trash2, Calendar,
   CheckCircle, Clock, AlertTriangle, Upload, Bot, Save, Eye,
-  Home, Car, Snowflake, Coffee, ChevronLeft, ChevronRight, Check, X
+  Home, Car, Snowflake, Coffee, ChevronLeft, ChevronRight, Check, X,
+  Wrench
 } from 'lucide-react'
+import MealAdminEditor from './MealAdminEditor'
 import { aiAgent } from '@/services/aiAgent'
 import {
   getFoodInventory, addFoodItem, updateFoodItem, deleteFoodItem,
@@ -517,6 +519,9 @@ function MealPlanWeekView() {
   // Rotation state
   const [rotationRequests, setRotationRequests] = useState<RotationRequest[]>([])
 
+  // Admin mode
+  const [adminMode, setAdminMode] = useState(false)
+
   const weekDates = getWeekDates(weekStart)
   const weekEnd = weekDates[6]
   const rotationWeek = getRotationWeek(weekStart)
@@ -682,6 +687,21 @@ function MealPlanWeekView() {
 
   return (
     <div className="space-y-4">
+      {/* ── Admin Mode Toggle ── */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setAdminMode(!adminMode)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            adminMode
+              ? 'bg-amber-100 text-amber-800 border border-amber-300'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+          }`}
+        >
+          <Wrench className="w-4 h-4" />
+          {adminMode ? 'Exit Admin' : 'Edit Meals'}
+        </button>
+      </div>
+
       {/* ── Dinner Rotation Section ── */}
       <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
@@ -757,6 +777,9 @@ function MealPlanWeekView() {
           })}
         </div>
       </div>
+
+      {/* ── Admin Mode Editor ── */}
+      {adminMode && <MealAdminEditor />}
 
       {/* Week navigation */}
       <div className="flex items-center justify-between">
