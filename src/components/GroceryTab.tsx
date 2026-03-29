@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Package, Plus, Edit3, Trash2, ChevronDown, ChevronRight,
   ShoppingCart, FileText, Upload, AlertTriangle, Store, X,
-  BarChart3, ListChecks
+  BarChart3, ListChecks, Settings
 } from 'lucide-react'
 import SpendingDashboard from './SpendingDashboard'
 import WeeklyListGenerator from './WeeklyListGenerator'
+import GrocerySettings from './GrocerySettings'
 
 // ── Types ──
 
@@ -78,6 +79,7 @@ const FILTER_PILLS = ['All', 'Low Stock', 'Meat', 'Frozen', 'Pantry', 'Produce',
 
 export default function GroceryTab() {
   const [subTab, setSubTab] = useState<'pantry' | 'history' | 'import' | 'analytics' | 'weekly-list'>('pantry')
+  const [showSettings, setShowSettings] = useState(false)
 
   // Pantry state
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
@@ -271,28 +273,44 @@ export default function GroceryTab() {
   return (
     <div className="space-y-4">
       {/* Sub-tab pills */}
-      <div className="flex gap-2">
-        {[
-          { id: 'pantry' as const, label: 'Pantry Stock', icon: Package },
-          { id: 'history' as const, label: 'Purchase History', icon: FileText },
-          { id: 'import' as const, label: 'Import', icon: Upload },
-          { id: 'analytics' as const, label: 'Spending', icon: BarChart3 },
-          { id: 'weekly-list' as const, label: 'Weekly List', icon: ListChecks },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setSubTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              subTab === tab.id
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex gap-2 items-center">
+        <div className="flex gap-2 flex-1 overflow-x-auto">
+          {[
+            { id: 'pantry' as const, label: 'Pantry Stock', icon: Package },
+            { id: 'history' as const, label: 'Purchase History', icon: FileText },
+            { id: 'import' as const, label: 'Import', icon: Upload },
+            { id: 'analytics' as const, label: 'Spending', icon: BarChart3 },
+            { id: 'weekly-list' as const, label: 'Weekly List', icon: ListChecks },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setSubTab(tab.id)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+                subTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+            showSettings ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-500'
+          }`}
+          title="Grocery Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <GrocerySettings onClose={() => setShowSettings(false)} />
+      )}
 
       {/* ── Pantry Stock ── */}
       {subTab === 'pantry' && (

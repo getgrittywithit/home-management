@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import {
   ShoppingCart, CheckCircle2, Circle, ChevronDown, ChevronUp,
-  RefreshCw, Share2, ListChecks, Package
+  RefreshCw, Share2, ListChecks, Package, Copy, Send, X, Check, Settings
 } from 'lucide-react'
+import { getGrocerySettings } from './GrocerySettings'
 
 interface ListItem {
   name: string
@@ -57,6 +58,13 @@ export default function WeeklyListGenerator() {
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const [showInStock, setShowInStock] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [appleNotesModal, setAppleNotesModal] = useState(false)
+  const [anylistModal, setAnylistModal] = useState(false)
+  const [appleNotesText, setAppleNotesText] = useState('')
+  const [anylistData, setAnylistData] = useState<{ walmart_text: string; heb_text: string; walmart_count: number; heb_count: number } | null>(null)
+  const [exportLoading, setExportLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [anylistTab, setAnylistTab] = useState<'walmart' | 'heb'>('walmart')
 
   useEffect(() => {
     fetchList()
@@ -236,20 +244,186 @@ export default function WeeklyListGenerator() {
       {/* Action buttons */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => showToast('Coming soon — Apple Notes export')}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+          onClick={async () => {
+            setExportLoading(true)
+            try {
+              const res = await fetch(`/api/grocery?action=export_apple_notes&weekStart=${weekStart}`)
+              const json = await res.json()
+              setAppleNotesText(json.text || 'No items to export.')
+              setAppleNotesModal(true)
+            } catch {
+              showToast('Failed to generate Apple Notes export')
+            }
+            setExportLoading(false)
+          }}
+          disabled={exportLoading}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium disabled:opacity-50"
         >
           <Share2 className="w-4 h-4" />
           Send to Apple Notes
         </button>
         <button
-          onClick={() => showToast('Coming soon — AnyList export')}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+          onClick={async () => {
+            const settings = getGrocerySettings()
+            if (!settings.anylist_email) {
+              showToast('Set up AnyList email in Settings first')
+              return
+            }
+            setExportLoading(true)
+            try {
+              const res = await fetch(`/api/grocery?action=export_anylist&weekStart=${weekStart}`)
+              const json = await res.json()
+              setAnylistData(json)
+              setAnylistTab(json.walmart_count > 0 ? 'walmart' : 'heb')
+              setAnylistModal(true)
+            } catch {
+              showToast('Failed to generate AnyList export')
+            }
+            setExportLoading(false)
+          }}
+          disabled={exportLoading}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium disabled:opacity-50"
         >
-          <Share2 className="w-4 h-4" />
+          <Send className="w-4 h-4" />
           Send to AnyList
         </button>
       </div>
+
+      {/* Apple Notes Modal */}
+      {appleNotesModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-green-600" />
+                Apple Notes Export
+              </h3>
+              <button onClick={() => { setAppleNotesModal(false); setCopied(false) }} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 rounded-lg p-3 border">
+                {appleNotesText}
+              </pre>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(appleNotesText)
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  } catch {
+                    showToast('Failed to copy — try selecting the text manually')
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                {copied ? 'Copied to Clipboard!' : 'Copy to Clipboard'}
+              </button>
+              <button
+                onClick={() => { setAppleNotesModal(false); setCopied(false) }}
+                className="px-4 py-2.5 text-gray-600 text-sm font-medium hover:text-gray-800"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AnyList Modal */}
+      {anylistModal && anylistData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                <Send className="w-4 h-4 text-blue-600" />
+                Send to AnyList
+              </h3>
+              <button onClick={() => { setAnylistModal(false); setCopied(false) }} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 space-y-3">
+              <p className="text-xs text-gray-500">
+                AnyList email: <span className="font-medium text-gray-700">{getGrocerySettings().anylist_email}</span>
+              </p>
+              {/* Store tabs */}
+              <div className="flex gap-2">
+                {anylistData.walmart_count > 0 && (
+                  <button
+                    onClick={() => setAnylistTab('walmart')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      anylistTab === 'walmart' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Walmart ({anylistData.walmart_count})
+                  </button>
+                )}
+                {anylistData.heb_count > 0 && (
+                  <button
+                    onClick={() => setAnylistTab('heb')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      anylistTab === 'heb' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    H-E-B ({anylistData.heb_count})
+                  </button>
+                )}
+              </div>
+              <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-gray-50 rounded-lg p-3 border">
+                {anylistTab === 'walmart' ? anylistData.walmart_text : anylistData.heb_text}
+              </pre>
+              {(anylistTab === 'walmart' ? anylistData.walmart_text : anylistData.heb_text) === '' && (
+                <p className="text-xs text-gray-400 text-center py-2">No items for this store</p>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t flex items-center gap-3">
+              <button
+                onClick={async () => {
+                  const text = anylistTab === 'walmart' ? anylistData.walmart_text : anylistData.heb_text
+                  const listName = anylistTab === 'walmart' ? 'Walmart Pickup' : 'H-E-B Run'
+                  try {
+                    const res = await fetch('/api/grocery', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        action: 'send_anylist_email',
+                        email: getGrocerySettings().anylist_email,
+                        list_name: listName,
+                        items_text: text,
+                      }),
+                    })
+                    const json = await res.json()
+                    if (json.success) {
+                      // Copy the email text since SMTP is not yet configured
+                      await navigator.clipboard.writeText(json.text)
+                      setCopied(true)
+                      showToast('Email text copied — paste into your email app to send to AnyList')
+                      setTimeout(() => setCopied(false), 2000)
+                    }
+                  } catch {
+                    showToast('Failed to send — try copying manually')
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                {copied ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                {copied ? 'Copied Email Text!' : 'Send to AnyList'}
+              </button>
+              <button
+                onClick={() => { setAnylistModal(false); setCopied(false) }}
+                className="px-4 py-2.5 text-gray-600 text-sm font-medium hover:text-gray-800"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Empty state */}
       {data && totalItems === 0 && (

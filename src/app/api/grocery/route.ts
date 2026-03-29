@@ -255,6 +255,201 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── S5: Apple Notes Export ──
+    if (action === 'export_apple_notes') {
+      const weekStart = searchParams.get('weekStart')
+      if (!weekStart) return NextResponse.json({ error: 'weekStart required' }, { status: 400 })
+
+      const startDate = new Date(weekStart + 'T00:00:00')
+      const endDate = new Date(startDate)
+      endDate.setDate(endDate.getDate() + 6)
+      const weekEnd = endDate.toISOString().split('T')[0]
+
+      try {
+        // Reuse generate_weekly_list logic
+        const mealRequests = await db.query(
+          `SELECT DISTINCT mr.meal_description, ml.id as meal_id
+           FROM meal_requests mr
+           LEFT JOIN meal_library ml ON LOWER(ml.name) = LOWER(mr.meal_description)
+           WHERE mr.request_date >= $1 AND mr.request_date <= $2 AND mr.status = 'approved'`,
+          [weekStart, weekEnd]
+        )
+
+        const ingredientMap: Record<string, { name: string; quantity: number; unit: string; department: string; preferred_store: string }> = {}
+        for (const meal of mealRequests) {
+          if (!meal.meal_id) continue
+          const ingredients = await db.query(
+            `SELECT name, quantity, unit, department, preferred_store FROM meal_ingredients WHERE meal_id = $1`,
+            [meal.meal_id]
+          )
+          for (const ing of ingredients) {
+            const key = (ing.name || '').toLowerCase().trim()
+            if (!key) continue
+            if (ingredientMap[key]) {
+              ingredientMap[key].quantity += parseFloat(ing.quantity) || 0
+            } else {
+              ingredientMap[key] = {
+                name: ing.name,
+                quantity: parseFloat(ing.quantity) || 1,
+                unit: ing.unit || 'item',
+                department: ing.department || 'Other',
+                preferred_store: (ing.preferred_store || 'walmart').toLowerCase(),
+              }
+            }
+          }
+        }
+
+        let pantryItems: any[] = []
+        try {
+          pantryItems = await db.query(`SELECT name, canonical_name, quantity, low_stock_threshold, average_price, preferred_store FROM pantry_stock WHERE active = true`)
+        } catch {}
+
+        const pantryMap = new Map<string, any>()
+        for (const p of pantryItems) {
+          pantryMap.set((p.canonical_name || p.name || '').toLowerCase(), p)
+        }
+
+        const walmartByDept: Record<string, Array<{ name: string; quantity: number; unit: string }>> = {}
+        const hebByDept: Record<string, Array<{ name: string; quantity: number; unit: string }>> = {}
+
+        for (const [key, ing] of Object.entries(ingredientMap)) {
+          const pantryItem = pantryMap.get(key)
+          const isInStock = pantryItem && pantryItem.quantity > (pantryItem.low_stock_threshold || 0)
+          if (isInStock) continue
+
+          const store = (pantryItem?.preferred_store || ing.preferred_store || 'walmart').toLowerCase()
+          const target = (store.includes('h-e-b') || store.includes('heb')) ? hebByDept : walmartByDept
+          const dept = ing.department || 'Other'
+          if (!target[dept]) target[dept] = []
+          target[dept].push({ name: ing.name, quantity: ing.quantity, unit: ing.unit })
+        }
+
+        // Format the date range
+        const startFmt = startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+        const endFmt = endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        const now = new Date()
+        const updatedFmt = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+
+        let text = `\ud83d\uded2 Moses Family \u2014 Weekly Meal List\n`
+        text += `Week of ${startFmt}\u2013${endDate.getDate()}, ${endDate.getFullYear()}\n`
+        text += `Updated: ${updatedFmt}\n`
+
+        const formatStoreSection = (label: string, byDept: Record<string, Array<{ name: string; quantity: number; unit: string }>>) => {
+          const depts = Object.keys(byDept).sort()
+          if (depts.length === 0) return ''
+          let section = `\n\u2500\u2500 ${label} \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n`
+          for (const dept of depts) {
+            section += `${dept.toUpperCase()}\n`
+            for (const item of byDept[dept]) {
+              const qty = item.quantity % 1 === 0 ? item.quantity.toString() : item.quantity.toFixed(1)
+              section += `\u2610 ${item.name} \u2014 ${qty} ${item.unit}\n`
+            }
+            section += '\n'
+          }
+          return section
+        }
+
+        text += formatStoreSection('WALMART PICKUP', walmartByDept)
+        text += formatStoreSection('H-E-B RUN', hebByDept)
+
+        return NextResponse.json({
+          text: text.trim(),
+          title: '\ud83d\uded2 Moses Family \u2014 Weekly Meal List',
+        })
+      } catch (err: any) {
+        if (err?.message?.includes('does not exist') || err?.code === '42P01') {
+          return NextResponse.json({ text: 'No items to export.', title: '\ud83d\uded2 Moses Family \u2014 Weekly Meal List' })
+        }
+        throw err
+      }
+    }
+
+    // ── S5: AnyList Export ──
+    if (action === 'export_anylist') {
+      const weekStart = searchParams.get('weekStart')
+      if (!weekStart) return NextResponse.json({ error: 'weekStart required' }, { status: 400 })
+
+      const startDate = new Date(weekStart + 'T00:00:00')
+      const endDate = new Date(startDate)
+      endDate.setDate(endDate.getDate() + 6)
+      const weekEnd = endDate.toISOString().split('T')[0]
+
+      try {
+        const mealRequests = await db.query(
+          `SELECT DISTINCT mr.meal_description, ml.id as meal_id
+           FROM meal_requests mr
+           LEFT JOIN meal_library ml ON LOWER(ml.name) = LOWER(mr.meal_description)
+           WHERE mr.request_date >= $1 AND mr.request_date <= $2 AND mr.status = 'approved'`,
+          [weekStart, weekEnd]
+        )
+
+        const ingredientMap: Record<string, { name: string; quantity: number; unit: string; department: string; preferred_store: string }> = {}
+        for (const meal of mealRequests) {
+          if (!meal.meal_id) continue
+          const ingredients = await db.query(
+            `SELECT name, quantity, unit, department, preferred_store FROM meal_ingredients WHERE meal_id = $1`,
+            [meal.meal_id]
+          )
+          for (const ing of ingredients) {
+            const key = (ing.name || '').toLowerCase().trim()
+            if (!key) continue
+            if (ingredientMap[key]) {
+              ingredientMap[key].quantity += parseFloat(ing.quantity) || 0
+            } else {
+              ingredientMap[key] = {
+                name: ing.name,
+                quantity: parseFloat(ing.quantity) || 1,
+                unit: ing.unit || 'item',
+                department: ing.department || 'Other',
+                preferred_store: (ing.preferred_store || 'walmart').toLowerCase(),
+              }
+            }
+          }
+        }
+
+        let pantryItems: any[] = []
+        try {
+          pantryItems = await db.query(`SELECT name, canonical_name, quantity, low_stock_threshold, preferred_store FROM pantry_stock WHERE active = true`)
+        } catch {}
+
+        const pantryMap = new Map<string, any>()
+        for (const p of pantryItems) {
+          pantryMap.set((p.canonical_name || p.name || '').toLowerCase(), p)
+        }
+
+        const walmartLines: string[] = []
+        const hebLines: string[] = []
+
+        for (const [key, ing] of Object.entries(ingredientMap)) {
+          const pantryItem = pantryMap.get(key)
+          const isInStock = pantryItem && pantryItem.quantity > (pantryItem.low_stock_threshold || 0)
+          if (isInStock) continue
+
+          const store = (pantryItem?.preferred_store || ing.preferred_store || 'walmart').toLowerCase()
+          const qty = ing.quantity % 1 === 0 ? ing.quantity.toString() : ing.quantity.toFixed(1)
+          const line = `${qty} ${ing.unit} ${ing.name}`
+
+          if (store.includes('h-e-b') || store.includes('heb')) {
+            hebLines.push(line)
+          } else {
+            walmartLines.push(line)
+          }
+        }
+
+        return NextResponse.json({
+          walmart_text: walmartLines.join('\n'),
+          heb_text: hebLines.join('\n'),
+          walmart_count: walmartLines.length,
+          heb_count: hebLines.length,
+        })
+      } catch (err: any) {
+        if (err?.message?.includes('does not exist') || err?.code === '42P01') {
+          return NextResponse.json({ walmart_text: '', heb_text: '', walmart_count: 0, heb_count: 0 })
+        }
+        throw err
+      }
+    }
+
     // ── S8: Recipe Suggestions ──
     if (action === 'suggestions') {
       try {
@@ -416,6 +611,19 @@ export async function POST(request: NextRequest) {
           [name.trim(), canonical_name || name.toLowerCase().trim(), quantity || 0, unit || null, department || 'Other', preferred_store || 'either', low_stock_threshold || null]
         )
         return NextResponse.json({ item: rows[0] })
+      }
+
+      case 'send_anylist_email': {
+        const { email, list_name, items_text } = body
+        if (!email || !items_text) {
+          return NextResponse.json({ error: 'email and items_text required' }, { status: 400 })
+        }
+        // Email sending requires SMTP setup — for now return the formatted text
+        return NextResponse.json({
+          success: true,
+          text: `To: ${email}\nSubject: ${list_name || 'Grocery List'}\n\n${items_text}`,
+          note: 'Email sending requires SMTP configuration. Copy the text above and email it manually, or set up nodemailer with SMTP credentials.',
+        })
       }
 
       case 'dismiss_insight': {
