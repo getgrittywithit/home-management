@@ -68,6 +68,42 @@ interface SubOption {
   sort_order: number
 }
 
+interface Ingredient {
+  id: string
+  meal_id: string
+  name: string
+  quantity: number | null
+  unit: string | null
+  department: string
+  preferred_store: string
+  notes: string | null
+}
+
+const DEPARTMENTS = ['Meat', 'Frozen', 'Pantry', 'Produce', 'Dairy', 'Bakery', 'Other'] as const
+const STORE_OPTIONS = ['either', 'walmart', 'heb'] as const
+
+const DEPT_COLORS: Record<string, string> = {
+  Meat: 'bg-red-100 text-red-700',
+  Frozen: 'bg-cyan-100 text-cyan-700',
+  Pantry: 'bg-amber-100 text-amber-700',
+  Produce: 'bg-green-100 text-green-700',
+  Dairy: 'bg-blue-100 text-blue-700',
+  Bakery: 'bg-yellow-100 text-yellow-700',
+  Other: 'bg-gray-100 text-gray-700',
+}
+
+const STORE_COLORS: Record<string, string> = {
+  either: 'bg-gray-100 text-gray-600',
+  walmart: 'bg-blue-100 text-blue-700',
+  heb: 'bg-red-100 text-red-700',
+}
+
+const STORE_LABELS: Record<string, string> = {
+  either: 'Either',
+  walmart: 'Walmart',
+  heb: 'H-E-B',
+}
+
 // ── Toast System ──
 
 interface Toast {
@@ -118,6 +154,12 @@ export default function MealAdminEditor() {
   const [subLoading, setSubLoading] = useState(false)
   const [newSubLabel, setNewSubLabel] = useState('')
   const [newSubCategory, setNewSubCategory] = useState('')
+
+  // Ingredients
+  const [ingredients, setIngredients] = useState<Ingredient[]>([])
+  const [ingredientsLoading, setIngredientsLoading] = useState(false)
+  const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null)
+  const [newIngredient, setNewIngredient] = useState({ name: '', quantity: '', unit: '', department: 'Other', preferred_store: 'either' })
 
   // Shuffle options
   const [newStarchOption, setNewStarchOption] = useState('')
@@ -171,6 +213,106 @@ export default function MealAdminEditor() {
       .catch(() => setSubOptions([]))
       .finally(() => setSubLoading(false))
   }, [drawerMeal?.id, drawerIsNew])
+
+  // Fetch ingredients when drawer opens
+  useEffect(() => {
+    if (!drawerMeal?.id || drawerIsNew) {
+      setIngredients([])
+      return
+    }
+    setIngredientsLoading(true)
+    fetch(`/api/meals?action=get_ingredients&meal_id=${drawerMeal.id}`)
+      .then(res => res.json())
+      .then(data => setIngredients(data.ingredients || []))
+      .catch(() => setIngredients([]))
+      .finally(() => setIngredientsLoading(false))
+  }, [drawerMeal?.id, drawerIsNew])
+
+  // ── Ingredient helpers ──
+
+  const addIngredient = async () => {
+    if (!newIngredient.name.trim() || !drawerMeal?.id) return
+    const tempId = 'temp-' + Date.now()
+    const temp: Ingredient = {
+      id: tempId,
+      meal_id: drawerMeal.id,
+      name: newIngredient.name.trim(),
+      quantity: newIngredient.quantity ? parseFloat(newIngredient.quantity) : null,
+      unit: newIngredient.unit || null,
+      department: newIngredient.department,
+      preferred_store: newIngredient.preferred_store,
+      notes: null,
+    }
+    setIngredients(prev => [...prev, temp])
+    setNewIngredient({ name: '', quantity: '', unit: '', department: 'Other', preferred_store: 'either' })
+
+    try {
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_ingredient',
+          meal_id: drawerMeal.id,
+          name: temp.name,
+          quantity: temp.quantity,
+          unit: temp.unit,
+          department: temp.department,
+          preferred_store: temp.preferred_store,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setIngredients(prev => prev.map(i => i.id === tempId ? data.ingredient : i))
+      addToast('Ingredient added')
+    } catch {
+      setIngredients(prev => prev.filter(i => i.id !== tempId))
+      addToast('Failed to add ingredient', 'error')
+    }
+  }
+
+  const updateIngredient = async (ing: Ingredient, updates: Partial<Ingredient>) => {
+    const updated = { ...ing, ...updates }
+    setIngredients(prev => prev.map(i => i.id === ing.id ? updated : i))
+    setEditingIngredientId(null)
+
+    try {
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_ingredient',
+          id: ing.id,
+          name: updated.name,
+          quantity: updated.quantity,
+          unit: updated.unit,
+          department: updated.department,
+          preferred_store: updated.preferred_store,
+          notes: updated.notes,
+        }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setIngredients(prev => prev.map(i => i.id === ing.id ? ing : i))
+      addToast('Failed to update ingredient', 'error')
+    }
+  }
+
+  const deleteIngredient = async (id: string) => {
+    const prev = ingredients
+    setIngredients(p => p.filter(i => i.id !== id))
+    try {
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_ingredient', id }),
+      })
+      if (!res.ok) throw new Error()
+      addToast('Ingredient removed')
+    } catch {
+      setIngredients(prev)
+      addToast('Failed to remove ingredient', 'error')
+    }
+  }
 
   // ── Group meals by theme ──
 
@@ -1174,6 +1316,146 @@ export default function MealAdminEditor() {
                     >
                       <Plus className="w-4 h-4" />
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Ingredients Section (existing meals only) ── */}
+              {!drawerIsNew && drawerMeal.id && (
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">Ingredients</h3>
+
+                  {ingredientsLoading ? (
+                    <div className="text-xs text-gray-400 py-2">Loading...</div>
+                  ) : ingredients.length === 0 ? (
+                    <p className="text-xs text-gray-400 mb-3">No ingredients yet.</p>
+                  ) : (
+                    <div className="space-y-1.5 mb-3">
+                      {ingredients.map(ing => (
+                        <div key={ing.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-white text-sm group">
+                          {editingIngredientId === ing.id ? (
+                            <>
+                              <input
+                                type="text"
+                                defaultValue={ing.name}
+                                onBlur={e => updateIngredient(ing, { name: e.target.value.trim() || ing.name })}
+                                className="flex-1 border rounded px-1.5 py-0.5 text-xs"
+                                autoFocus
+                              />
+                              <input
+                                type="text"
+                                defaultValue={ing.quantity?.toString() || ''}
+                                onBlur={e => updateIngredient(ing, { quantity: parseFloat(e.target.value) || null })}
+                                className="w-12 border rounded px-1.5 py-0.5 text-xs"
+                                placeholder="qty"
+                              />
+                              <input
+                                type="text"
+                                defaultValue={ing.unit || ''}
+                                onBlur={e => updateIngredient(ing, { unit: e.target.value.trim() || null })}
+                                className="w-12 border rounded px-1.5 py-0.5 text-xs"
+                                placeholder="unit"
+                              />
+                              <select
+                                defaultValue={ing.department}
+                                onChange={e => updateIngredient(ing, { department: e.target.value })}
+                                className="border rounded px-1 py-0.5 text-[10px]"
+                              >
+                                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                              </select>
+                              <select
+                                defaultValue={ing.preferred_store}
+                                onChange={e => updateIngredient(ing, { preferred_store: e.target.value })}
+                                className="border rounded px-1 py-0.5 text-[10px]"
+                              >
+                                {STORE_OPTIONS.map(s => <option key={s} value={s}>{STORE_LABELS[s]}</option>)}
+                              </select>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex-1 text-xs font-medium text-gray-900 truncate">{ing.name}</span>
+                              {(ing.quantity || ing.unit) && (
+                                <span className="text-[10px] text-gray-500">
+                                  {ing.quantity || ''}{ing.unit ? ` ${ing.unit}` : ''}
+                                </span>
+                              )}
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${DEPT_COLORS[ing.department] || DEPT_COLORS.Other}`}>
+                                {ing.department}
+                              </span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STORE_COLORS[ing.preferred_store] || STORE_COLORS.either}`}>
+                                {STORE_LABELS[ing.preferred_store] || 'Either'}
+                              </span>
+                              <button
+                                onClick={() => setEditingIngredientId(ing.id)}
+                                className="p-0.5 text-gray-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Edit"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => deleteIngredient(ing.id)}
+                                className="p-0.5 text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add ingredient inline */}
+                  <div className="space-y-2 bg-gray-50 rounded-lg p-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newIngredient.name}
+                        onChange={e => setNewIngredient({ ...newIngredient, name: e.target.value })}
+                        onKeyDown={e => { if (e.key === 'Enter') addIngredient() }}
+                        className="flex-1 border rounded px-2 py-1.5 text-xs"
+                        placeholder="Ingredient name..."
+                      />
+                      <input
+                        type="text"
+                        value={newIngredient.quantity}
+                        onChange={e => setNewIngredient({ ...newIngredient, quantity: e.target.value })}
+                        className="w-14 border rounded px-2 py-1.5 text-xs"
+                        placeholder="qty"
+                      />
+                      <input
+                        type="text"
+                        value={newIngredient.unit}
+                        onChange={e => setNewIngredient({ ...newIngredient, unit: e.target.value })}
+                        className="w-14 border rounded px-2 py-1.5 text-xs"
+                        placeholder="unit"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={newIngredient.department}
+                        onChange={e => setNewIngredient({ ...newIngredient, department: e.target.value })}
+                        className="flex-1 border rounded px-2 py-1.5 text-xs"
+                      >
+                        {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      <select
+                        value={newIngredient.preferred_store}
+                        onChange={e => setNewIngredient({ ...newIngredient, preferred_store: e.target.value })}
+                        className="flex-1 border rounded px-2 py-1.5 text-xs"
+                      >
+                        {STORE_OPTIONS.map(s => <option key={s} value={s}>{STORE_LABELS[s]}</option>)}
+                      </select>
+                      <button
+                        onClick={addIngredient}
+                        disabled={!newIngredient.name.trim()}
+                        className="p-1.5 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700"
+                        title="Add ingredient"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

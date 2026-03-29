@@ -5,9 +5,12 @@ import {
   Refrigerator, Package, ChefHat, Plus, Edit3, Trash2, Calendar,
   CheckCircle, Clock, AlertTriangle, Upload, Bot, Save, Eye,
   Home, Car, Snowflake, Coffee, ChevronLeft, ChevronRight, Check, X,
-  Wrench
+  Wrench, ShoppingCart
 } from 'lucide-react'
 import MealAdminEditor from './MealAdminEditor'
+import GroceryTab from './GroceryTab'
+import RecipeSuggestions from './RecipeSuggestions'
+import MealFeedbackAnalytics from './MealFeedbackAnalytics'
 import { aiAgent } from '@/services/aiAgent'
 import {
   getFoodInventory, addFoodItem, updateFoodItem, deleteFoodItem,
@@ -37,7 +40,7 @@ export default function FoodInventoryManager() {
   const [inventory, setInventory] = useState<FoodItem[]>([])
   const [selectedLocation, setSelectedLocation] = useState<FoodLocation | 'all'>('all')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input' | 'shopping'>('inventory')
+  const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input' | 'shopping' | 'grocery'>('inventory')
   const [bulkInput, setBulkInput] = useState('')
   const [apiKeySet] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -202,6 +205,7 @@ export default function FoodInventoryManager() {
             { id: 'inventory', name: 'Inventory', icon: Package },
             { id: 'meal-plan', name: 'Meal Plan', icon: ChefHat },
             { id: 'shopping', name: 'Shopping List', icon: Car },
+            { id: 'grocery', name: 'Grocery', icon: ShoppingCart },
             { id: 'bulk-input', name: 'Bulk Input', icon: Upload }
           ].map(tab => (
             <button
@@ -425,9 +429,16 @@ Example:
           {/* Shopping List Tab */}
           {activeTab === 'shopping' && <ShoppingListView />}
 
+          {/* Grocery Tab */}
+          {activeTab === 'grocery' && <GroceryTab />}
+
           {/* Meal Plan Tab */}
           {activeTab === 'meal-plan' && (
-            <MealPlanWeekView />
+            <div className="space-y-8">
+              <RecipeSuggestions />
+              <MealPlanWeekView />
+              <MealFeedbackAnalytics />
+            </div>
           )}
         </div>
       </div>

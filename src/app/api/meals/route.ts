@@ -46,6 +46,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ options: rows })
     }
 
+    if (action === 'get_ingredients') {
+      const mealId = searchParams.get('meal_id')
+      if (!mealId) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
+      const rows = await db.query(
+        `SELECT * FROM meal_ingredients WHERE meal_id = $1 ORDER BY department, name`,
+        [mealId]
+      )
+      return NextResponse.json({ ingredients: rows })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Meals GET error:', error)
@@ -156,6 +166,36 @@ export async function POST(request: NextRequest) {
         if (!id || active === undefined) return NextResponse.json({ error: 'id and active required' }, { status: 400 })
         await db.query('UPDATE meal_sub_options SET active = $1 WHERE id = $2', [active, id])
         return NextResponse.json({ id, active })
+      }
+
+      case 'add_ingredient': {
+        const { meal_id, name, quantity, unit, department, preferred_store, notes } = body
+        if (!meal_id || !name) return NextResponse.json({ error: 'meal_id and name required' }, { status: 400 })
+        const rows = await db.query(
+          `INSERT INTO meal_ingredients (meal_id, name, quantity, unit, department, preferred_store, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [meal_id, name.trim(), quantity || null, unit || null, department || 'Other', preferred_store || 'either', notes || null]
+        )
+        return NextResponse.json({ ingredient: rows[0] })
+      }
+
+      case 'update_ingredient': {
+        const { id, name, quantity, unit, department, preferred_store, notes } = body
+        if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+        const rows = await db.query(
+          `UPDATE meal_ingredients SET name=COALESCE($1,name), quantity=$2, unit=$3, department=COALESCE($4,department),
+           preferred_store=COALESCE($5,preferred_store), notes=$6, updated_at=NOW()
+           WHERE id=$7 RETURNING *`,
+          [name?.trim() || null, quantity || null, unit || null, department || null, preferred_store || null, notes || null, id]
+        )
+        return NextResponse.json({ ingredient: rows[0] })
+      }
+
+      case 'delete_ingredient': {
+        const { id } = body
+        if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+        await db.query('DELETE FROM meal_ingredients WHERE id = $1', [id])
+        return NextResponse.json({ success: true })
       }
 
       default:
