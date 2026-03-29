@@ -5,8 +5,8 @@ import { GraduationCap, Calendar, Check, Plus, ChevronDown, ChevronUp, Trash2, A
 import SchoolContactCards from './SchoolContactCards'
 import SchoolDocuments from './SchoolDocuments'
 
-const PUBLIC_SCHOOL = ['zoey', 'kaylee']
-const KID_DISPLAY: Record<string, string> = { zoey: 'Zoey', kaylee: 'Kaylee' }
+const ALL_KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+const KID_DISPLAY: Record<string, string> = { amos: 'Amos', zoey: 'Zoey', kaylee: 'Kaylee', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah' }
 const PLAN_COLORS: Record<string, string> = { '504': 'border-purple-300 bg-purple-50', 'IEP': 'border-blue-300 bg-blue-50', 'Speech': 'border-teal-300 bg-teal-50' }
 
 export default function SpecialEdTab() {
@@ -102,7 +102,7 @@ export default function SpecialEdTab() {
     <div className="space-y-4">
       {/* Kid selector — public school only */}
       <div className="flex gap-1">
-        {PUBLIC_SCHOOL.map(k => (
+        {ALL_KIDS.map(k => (
           <button key={k} onClick={() => loadData(k)}
             className={`px-3 py-1 rounded-full text-xs font-medium ${selectedKid === k ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-gray-100 text-gray-600'}`}>
             {KID_DISPLAY[k]}

@@ -37,14 +37,13 @@ const DINNER_TASKS = [
 ]
 
 const LAUNDRY_TASKS_FALLBACK = [
-  { key: 'collect_guest_bath', label: 'Collect from guest bathroom', emoji: '🧺' },
-  { key: 'collect_kids_bath', label: 'Collect from kids bathroom', emoji: '🧺' },
-  { key: 'collect_master_bath', label: 'Collect from master bathroom', emoji: '🧺' },
-  { key: 'collect_kitchen', label: 'Collect from kitchen', emoji: '🧺' },
-  { key: 'collect_school_living', label: 'Collect from school / living room', emoji: '🧺' },
-  { key: 'collect_amos_room', label: "Collect from front of Amos's room", emoji: '🧺' },
-  { key: 'collect_girls_room', label: "Collect from girls' room", emoji: '🧺' },
-  { key: 'machines_running', label: 'Keep machines running (switch/fold loads)', emoji: '🔄' },
+  { key: 'collect_clothes', label: 'Collect your dirty clothes from your room AND the kids bathroom', emoji: '🧺' },
+  { key: 'check_pockets', label: 'Check pockets BEFORE loading — this is serious', emoji: '🧺' },
+  { key: 'load_washer', label: 'Load the washer — know what can and can\'t go together', emoji: '🧺' },
+  { key: 'add_detergent', label: 'Add detergent and softener — then start the washer', emoji: '🧺' },
+  { key: 'move_dryer', label: 'Move laundry to the dryer the SAME day — do not leave it wet', emoji: '🔄' },
+  { key: 'fold_putaway', label: 'Fold and put away everything — same day', emoji: '🔄' },
+  { key: 'household_towels', label: 'Collect and wash household towels — your Sunday extra', emoji: '🧺' },
 ]
 
 async function getLaundryTasks(): Promise<{ key: string; label: string; emoji: string; task_type?: string; instructions?: string }[]> {

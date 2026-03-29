@@ -42,7 +42,9 @@ export function getCurrentZoneWeek(today: Date = new Date()): number {
  * Get the zone assigned to a specific kid for the current week.
  */
 export function getKidZone(kidName: string, today: Date = new Date()): ZoneName | null {
-  const rotation = KID_ROTATIONS[kidName]
+  // Case-insensitive lookup: match 'ellie', 'Ellie', 'ELLIE' etc.
+  const normalized = kidName.charAt(0).toUpperCase() + kidName.slice(1).toLowerCase()
+  const rotation = KID_ROTATIONS[normalized]
   if (!rotation) return null
   const weekIndex = getCurrentZoneWeek(today) - 1 // 0-based
   return rotation[weekIndex]

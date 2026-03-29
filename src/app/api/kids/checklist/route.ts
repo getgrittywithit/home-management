@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
     // All kids completion overview for the current week
     if (action === 'get_all_completion') {
       const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+      const today = now.toLocaleDateString('en-CA')
       const dow = now.getDay()
       const monday = new Date(now)
       monday.setDate(now.getDate() - ((dow + 6) % 7))
@@ -42,21 +43,49 @@ export async function GET(request: NextRequest) {
       const sunday = new Date(monday)
       sunday.setDate(monday.getDate() + 6)
       const weekEnd = sunday.toLocaleDateString('en-CA')
+      const isWeekday = dow >= 1 && dow <= 5
+      const belleHelper = getBelleHelper(now)
 
       try {
+        // Get DB completion rows for the week
         const rows = await db.query(
           `SELECT child_name, event_id, completed FROM kid_daily_checklist WHERE event_date >= $1 AND event_date <= $2`,
           [weekStart, weekEnd]
         )
+
+        // Compute expected task counts per kid for TODAY (dynamic generation)
+        const getExpectedTaskCount = (kid: string): { required: number; dailyCare: number } => {
+          let req = 0
+          const zone = getKidZone(kid.charAt(0).toUpperCase() + kid.slice(1))
+          if (zone) req += 2 // morning + afternoon zone chores
+          if (DISHES.breakfast.includes(kid)) req++
+          if (DISHES.lunch.includes(kid)) req++
+          if (DISHES.dinner.includes(kid)) req++
+          if ((DINNER_MANAGER[dow] || []).includes(kid)) req++
+          if (belleHelper === kid) req += 2 // AM + PM belle care
+          if (kid === 'zoey') req++ // Hades
+          if (kid === 'amos') req++ // Spike
+          if (kid === 'kaylee' || kid === 'wyatt') req++ // Spike helper
+          if (kid === 'ellie' || kid === 'hannah') req++ // Midnight
+          req++ // Evening tidy (always)
+          if (HOMESCHOOL_KIDS.includes(kid) && isWeekday) req++ // School room clean
+          return { required: req, dailyCare: 2 } // Morning + Bedtime routines
+        }
+
         const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(kid => {
           const kidRows = (rows as any[]).filter((r: any) => r.child_name === kid)
+          const todayRows = kidRows.filter((r: any) => {
+            // Only count today's rows for the completion denominator
+            return true // all rows in the week range count for done
+          })
           const req = kidRows.filter((r: any) => !r.event_id.startsWith('hygiene-') && !r.event_id.startsWith('earn-'))
           const care = kidRows.filter((r: any) => r.event_id.startsWith('hygiene-'))
           const earn = kidRows.filter((r: any) => r.event_id.startsWith('earn-'))
+          const expected = getExpectedTaskCount(kid)
           return {
             name: kid,
-            required: { done: req.filter((r: any) => r.completed).length, total: req.length },
-            dailyCare: { done: care.filter((r: any) => r.completed).length, total: care.length },
+            required: { done: req.filter((r: any) => r.completed).length, total: Math.max(req.length, expected.required) },
+            dailyCare: { done: care.filter((r: any) => r.completed).length, total: Math.max(care.length, expected.dailyCare) },
             earnMoney: { done: earn.filter((r: any) => r.completed).length, total: earn.length },
           }
         })
