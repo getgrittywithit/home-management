@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Flame, BookOpen, Lightbulb, Image, Plus, Trash2, Star, Check, ChevronDown, ChevronUp, X } from 'lucide-react'
+import PortfolioAlbums from './PortfolioAlbums'
 
 interface Book { id: number; book_title: string; author: string | null; status: string; rating: number | null; notes: string | null; date_completed: string | null }
 interface WishItem { id: number; topic: string; notes: string | null; completed: boolean }
@@ -358,31 +359,8 @@ export default function LearningPortfolioTab({ childName }: { childName: string 
         )}
       </div>
 
-      {/* Section 5: Lesson Log Photos */}
-      {lessonLogs.length > 0 && (
-        <div className="bg-white rounded-lg border shadow-sm p-5">
-          <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4"><Image className="w-5 h-5 text-emerald-500" /> Lesson Photos</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {lessonLogs.map(log => (
-              <div key={log.id} className="border rounded-lg overflow-hidden">
-                <img
-                  src={log.photo_url!}
-                  alt={log.notes || 'Lesson photo'}
-                  className="w-full h-32 object-cover"
-                />
-                <div className="p-2">
-                  <div className="flex items-center gap-1 mb-1">
-                    {log.subject_emoji && <span className="text-sm">{log.subject_emoji}</span>}
-                    <span className="text-xs font-medium text-gray-700">{log.subject_name}</span>
-                  </div>
-                  {log.notes && <p className="text-xs text-gray-500 line-clamp-2">{log.notes}</p>}
-                  <p className="text-[10px] text-gray-400 mt-1">{new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Section 5: Portfolio Albums + Lesson Photos */}
+      <PortfolioAlbums childName={childName} lessonLogs={lessonLogs} />
     </div>
   )
 }

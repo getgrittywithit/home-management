@@ -28,6 +28,7 @@ import DutyCard from './DutyCard'
 import SchoolMakeupCard from './SchoolMakeupCard'
 import TonightsDinnerCard from './TonightsDinnerCard'
 import LearningPortfolioTab from './LearningPortfolioTab'
+import OpportunitiesTab from './OpportunitiesTab'
 import GoalsTab from './GoalsTab'
 import AchievementsTab from './AchievementsTab'
 import KidRequestsTab from './KidRequestsTab'
@@ -45,7 +46,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'health' | 'achievements' | 'goals' | 'requests'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests'
 
 interface NavTab {
   id: TabId
@@ -64,6 +65,7 @@ const navTabs: NavTab[] = [
   { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
   { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
   { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
+  { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
   { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' }
 ]
 
@@ -1037,11 +1039,48 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         <div className="bg-white p-6 rounded-lg border">
           <h2 className="text-lg font-bold mb-4">Quick Links</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[
-              { name: 'IXL', url: 'https://www.ixl.com', icon: '📐', desc: 'Math & ELA Practice' },
-              { name: 'Khan Academy', url: 'https://www.khanacademy.org', icon: '🎓', desc: 'Video Lessons' },
-              { name: 'Google Classroom', url: 'https://classroom.google.com', icon: '📚', desc: 'Assignments' },
-            ].map(link => (
+            {(() => {
+              const base = [
+                { name: 'IXL', url: 'https://www.ixl.com', icon: '📐', desc: 'Math & ELA Practice' },
+                { name: 'Khan Academy', url: 'https://www.khanacademy.org', icon: '🎓', desc: 'Video Lessons' },
+                { name: 'Google Classroom', url: 'https://classroom.google.com', icon: '📚', desc: 'Assignments' },
+              ]
+              const k = childKey
+              if (k === 'zoey') {
+                return [
+                  ...base,
+                  { name: 'Skillshare', url: 'https://www.skillshare.com', icon: '🎨', desc: 'Art & Creative Classes' },
+                  { name: 'CrashCourse Art', url: 'https://www.youtube.com/playlist?list=PL8dPuuaLjXtOPRKzVLY0jJY-uHOH9KVU6', icon: '🖼️', desc: 'Art History Videos' },
+                  { name: 'NASA Kids', url: 'https://www.nasa.gov/stem', icon: '🚀', desc: 'Space & STEM' },
+                  { name: 'NHM', url: 'https://www.nhm.ac.uk', icon: '🏛️', desc: 'Natural History Museum' },
+                  { name: 'Scholastic Art Awards', url: 'https://www.artandwriting.org', icon: '🏆', desc: 'Art Competitions' },
+                  { name: 'Code.org', url: 'https://code.org', icon: '💻', desc: 'Learn to Code' },
+                  { name: 'CrashCourse', url: 'https://www.youtube.com/@CrashCourse', icon: '📺', desc: 'Video Lessons' },
+                ]
+              }
+              if (k === 'kaylee') {
+                return [
+                  ...base,
+                  { name: 'Code.org', url: 'https://code.org', icon: '💻', desc: 'Learn to Code' },
+                  { name: 'CrashCourse', url: 'https://www.youtube.com/@CrashCourse', icon: '📺', desc: 'Video Lessons' },
+                ]
+              }
+              if (k === 'amos') {
+                return [
+                  ...base,
+                  { name: 'Code.org', url: 'https://code.org', icon: '💻', desc: 'Learn to Code' },
+                  { name: 'CrashCourse', url: 'https://www.youtube.com/@CrashCourse', icon: '📺', desc: 'Video Lessons' },
+                ]
+              }
+              if (k === 'ellie' || k === 'hannah') {
+                return [
+                  ...base,
+                  { name: 'Code.org', url: 'https://code.org', icon: '💻', desc: 'Learn to Code' },
+                  { name: 'CrashCourse', url: 'https://www.youtube.com/@CrashCourse', icon: '📺', desc: 'Video Lessons' },
+                ]
+              }
+              return base
+            })().map(link => (
               <a
                 key={link.name}
                 href={link.url}
@@ -1235,6 +1274,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
               { name: 'Skyward Portal', url: 'https://skyward-student.bisd.net', icon: '📊', desc: 'Grades & Attendance' },
               { name: 'Google Classroom', url: 'https://classroom.google.com', icon: '📚', desc: 'Assignments' },
               { name: 'BISD Website', url: 'https://www.bisd.net', icon: '🏫', desc: 'District Info' },
+              { name: 'Code.org', url: 'https://code.org', icon: '💻', desc: 'Learn to Code' },
+              { name: 'CrashCourse', url: 'https://www.youtube.com/@CrashCourse', icon: '📺', desc: 'Video Lessons' },
             ].map(link => (
               <a
                 key={link.name}
@@ -1308,6 +1349,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return <AchievementsTab childName={profile.first_name || profile.name} />
       case 'goals':
         return <GoalsTab childName={profile.first_name || profile.name} />
+      case 'opportunities':
+        return <OpportunitiesTab childName={profile.first_name || profile.name} />
       case 'requests':
         return <KidRequestsTab childName={profile.first_name || profile.name} />
       default:

@@ -228,9 +228,18 @@ export async function GET(request: NextRequest) {
     case 'get_books': {
       const studentNames = searchParams.get('student_names')
       const status = searchParams.get('status')
+      const readType = searchParams.get('read_type')
+      const schoolYear = searchParams.get('school_year')
 
       try {
-        let sql = `SELECT * FROM hs_books WHERE 1=1`
+        let sql = `SELECT id, title, author, book_type, student_names, subject_tag, status,
+                          current_page, total_pages, rating, notes, completed_date,
+                          COALESCE(series_name, '') AS series_name,
+                          COALESCE(series_number, 0) AS series_number,
+                          COALESCE(read_type, 'independent') AS read_type,
+                          COALESCE(school_year, '') AS school_year,
+                          created_at, updated_at
+                   FROM hs_books WHERE 1=1`
         const params: any[] = []
 
         if (studentNames) {
@@ -244,7 +253,17 @@ export async function GET(request: NextRequest) {
           params.push(status)
         }
 
-        sql += ` ORDER BY created_at DESC`
+        if (readType) {
+          sql += ` AND read_type = $${params.length + 1}`
+          params.push(readType)
+        }
+
+        if (schoolYear) {
+          sql += ` AND school_year = $${params.length + 1}`
+          params.push(schoolYear)
+        }
+
+        sql += ` ORDER BY CASE WHEN series_name IS NOT NULL AND series_name != '' THEN series_name ELSE title END, series_number, created_at DESC`
 
         const books = await db.query(sql, params)
         return NextResponse.json({ books })
@@ -632,13 +651,23 @@ export async function POST(request: NextRequest) {
     // add_book
     // ------------------------------------------------------------------
     case 'add_book': {
-      const { title, author, book_type, student_names: bookStudents, subject_tag } = data
+      const { title, author, book_type, student_names: bookStudents, subject_tag, series_name, series_number, read_type, school_year } = data
       if (!title) return NextResponse.json({ error: 'title required' }, { status: 400 })
+
+      // Auto-stamp school_year from current date if not provided
+      // School year runs Aug-Jul: if month >= 8, year is "YYYY-(YYYY+1)", else "(YYYY-1)-YYYY"
+      let resolvedSchoolYear = school_year || null
+      if (!resolvedSchoolYear) {
+        const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+        const yr = now.getFullYear()
+        const mo = now.getMonth() + 1
+        resolvedSchoolYear = mo >= 8 ? `${yr}-${yr + 1}` : `${yr - 1}-${yr}`
+      }
 
       try {
         const result = await db.query(
-          `INSERT INTO hs_books (title, author, book_type, student_names, subject_tag, status)
-           VALUES ($1, $2, $3, $4::text[], $5, 'in_progress')
+          `INSERT INTO hs_books (title, author, book_type, student_names, subject_tag, status, series_name, series_number, read_type, school_year)
+           VALUES ($1, $2, $3, $4::text[], $5, 'in_progress', $6, $7, $8, $9)
            RETURNING *`,
           [
             title,
@@ -646,6 +675,10 @@ export async function POST(request: NextRequest) {
             book_type || 'read_aloud',
             bookStudents || null,
             subject_tag || null,
+            series_name || null,
+            series_number || null,
+            read_type || 'independent',
+            resolvedSchoolYear,
           ]
         )
 
