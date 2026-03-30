@@ -47,10 +47,11 @@ import HabitsTab from './HabitsTab'
 import HabitsDashboardCard from './HabitsDashboardCard'
 import FinanceTab from './FinanceTab'
 import FinanceDashboardCard from './FinanceDashboardCard'
+import DigiPetParentPanel from './DigiPetParentPanel'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell, Flame, Trophy
+  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell, Flame, Trophy, Sparkles
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -73,6 +74,7 @@ const tabs: Tab[] = [
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
   { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600' },
+  { id: 'digi-pet', name: 'Digi-Pet & Stars', icon: Sparkles, color: 'bg-pink-500' },
   { id: 'health-hub', name: 'Health Hub', icon: Heart, color: 'bg-rose-600' },
   { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
@@ -293,6 +295,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <NeedsBoardTab />
       case 'belle-care':
         return <PetsTab />
+      case 'digi-pet':
+        return <DigiPetParentPanel />
       case 'health-hub':
         return (
           <>

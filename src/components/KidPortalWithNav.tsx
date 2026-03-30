@@ -6,7 +6,7 @@ import {
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
-  User, Heart, Thermometer, X, Shuffle, Dices
+  User, Heart, Thermometer, X, Shuffle, Dices, Sparkles
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -35,6 +35,8 @@ import KidRequestsTab from './KidRequestsTab'
 import KidCalendarTab from './KidCalendarTab'
 import FamilyEventsStrip from './FamilyEventsStrip'
 import MomAvailabilityBadge from './MomAvailabilityBadge'
+import DigiPetTab from './DigiPetTab'
+import DigiPetWidget from './DigiPetWidget'
 
 interface KidPortalProps {
   kidData: {
@@ -46,7 +48,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet'
 
 interface NavTab {
   id: TabId
@@ -66,7 +68,8 @@ const navTabs: NavTab[] = [
   { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
   { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
   { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
-  { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' }
+  { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' },
+  { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' }
 ]
 
 export default function KidPortalWithNav({ kidData }: KidPortalProps) {
@@ -929,6 +932,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         {/* Family Events */}
         <FamilyEventsStrip events={familyEvents} countdowns={countdownEvents} />
 
+        {/* Digi-Pet Widget */}
+        <DigiPetWidget childName={profile.first_name || ''} onNavigate={() => setActiveTab('digi-pet')} />
+
         {/* Belle Care */}
         <BelleCareCard childName={profile.first_name || ''} />
 
@@ -1353,6 +1359,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return <OpportunitiesTab childName={profile.first_name || profile.name} />
       case 'requests':
         return <KidRequestsTab childName={profile.first_name || profile.name} />
+      case 'digi-pet':
+        return <DigiPetTab childName={profile.first_name || profile.name} />
       default:
         return renderDashboard()
     }
