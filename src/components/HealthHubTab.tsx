@@ -840,27 +840,56 @@ function DentalSection() {
 // ============================================================================
 
 function VitalsSection() {
-  const [readings, setReadings] = useState<VitalReading[]>([])
+  const [memberData, setMemberData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedMember, setSelectedMember] = useState<string | null>(null)
+  const [memberVitals, setMemberVitals] = useState<any[]>([])
+  const [memberLoading, setMemberLoading] = useState(false)
   const [showLogForm, setShowLogForm] = useState(false)
+  const [logMember, setLogMember] = useState('')
   const [form, setForm] = useState({ systolic: '', diastolic: '', heart_rate: '' })
 
-  useEffect(() => {
-    fetch('/api/health-hub?action=get_vitals&member=Lola')
-      .then(r => r.json())
-      .then(data => setReadings(data.readings || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+  const fetchSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/health-hub?action=get_family_vitals_summary')
+      const data = await res.json()
+      setMemberData(data.members || [])
+    } catch { /* empty */ }
+    setLoading(false)
   }, [])
 
+  useEffect(() => { fetchSummary() }, [fetchSummary])
+
+  const selectMember = async (name: string) => {
+    if (selectedMember === name) {
+      setSelectedMember(null)
+      return
+    }
+    setSelectedMember(name)
+    setMemberLoading(true)
+    try {
+      const res = await fetch(`/api/health-hub?action=get_member_vitals&member_name=${name}&limit=30`)
+      const data = await res.json()
+      setMemberVitals(data.logs || [])
+    } catch { /* empty */ }
+    setMemberLoading(false)
+  }
+
+  const openLogForm = (memberName: string) => {
+    setLogMember(memberName)
+    setForm({ systolic: '', diastolic: '', heart_rate: '' })
+    setShowLogForm(true)
+  }
+
   const logVitals = async () => {
+    if (!logMember) return
     try {
       await fetch('/api/health-hub', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'log_vitals',
-          member: 'Lola',
+          member: logMember,
           systolic: Number(form.systolic) || undefined,
           diastolic: Number(form.diastolic) || undefined,
           heart_rate: Number(form.heart_rate) || undefined,
@@ -869,87 +898,218 @@ function VitalsSection() {
       setShowLogForm(false)
       setForm({ systolic: '', diastolic: '', heart_rate: '' })
       // Refresh
-      const res = await fetch('/api/health-hub?action=get_vitals&member=Lola')
-      const data = await res.json()
-      setReadings(data.readings || [])
+      fetchSummary()
+      if (selectedMember === logMember) {
+        const res = await fetch(`/api/health-hub?action=get_member_vitals&member_name=${logMember}&limit=30`)
+        const data = await res.json()
+        setMemberVitals(data.logs || [])
+      }
     } catch { /* empty */ }
   }
 
-  // Check overdue — if last reading > 7 days ago
-  const lastReading = readings[0]
-  const isOverdue = !lastReading || (Date.now() - new Date(lastReading.created_at).getTime()) > 7 * 86400000
+  const bpColor = (sys?: number, dia?: number) => {
+    if (!sys || !dia) return 'text-gray-500'
+    if (sys >= 140 || dia >= 90) return 'text-red-600'
+    if (sys >= 120) return 'text-amber-600'
+    return 'text-green-600'
+  }
+
+  const bpBgColor = (sys?: number, dia?: number) => {
+    if (!sys || !dia) return ''
+    if (sys >= 140 || dia >= 90) return 'bg-red-50'
+    if (sys >= 120) return 'bg-amber-50'
+    return 'bg-green-50'
+  }
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
 
-  return (
-    <div className="space-y-4">
-      {/* Overdue nudge */}
-      {isOverdue && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Vitals check overdue</p>
-            <p className="text-xs text-amber-600">
-              {lastReading
-                ? `Last recorded ${new Date(lastReading.created_at).toLocaleDateString()}. Time for a new reading!`
-                : 'No vitals recorded yet. Tap below to log your first reading.'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Lola's BP/HR Card */}
-      <div className="bg-white border rounded-lg p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <MemberAvatar name="Lola" size="md" />
-            <div>
-              <h4 className="font-bold text-gray-800">Lola&apos;s Vitals</h4>
-              <p className="text-xs text-gray-500">Blood Pressure &amp; Heart Rate</p>
-            </div>
-          </div>
-          <button onClick={() => setShowLogForm(true)}
+  // Selected member detail view
+  if (selectedMember) {
+    const member = memberData.find(m => m.name === selectedMember)
+    return (
+      <div className="space-y-4">
+        {/* Back + filter chips */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setSelectedMember(null)}
+            className="text-sm text-blue-600 hover:underline">&larr; All Members</button>
+          <div className="flex-1" />
+          <button onClick={() => openLogForm(selectedMember)}
             className="bg-red-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-600 flex items-center gap-1.5">
             <Heart className="w-4 h-4" /> Log Vitals
           </button>
         </div>
 
-        {readings.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No readings recorded yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 text-xs font-medium text-gray-500">Date</th>
-                  <th className="text-left py-2 text-xs font-medium text-gray-500">BP (sys/dia)</th>
-                  <th className="text-left py-2 text-xs font-medium text-gray-500">Heart Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {readings.slice(0, 10).map(r => (
-                  <tr key={r.id} className="border-b border-gray-50">
-                    <td className="py-2 text-gray-600">{new Date(r.created_at).toLocaleDateString()}</td>
-                    <td className="py-2 font-medium">
-                      {r.systolic && r.diastolic ? (
-                        <span className={r.systolic > 140 || r.diastolic > 90 ? 'text-red-600' : r.systolic > 130 ? 'text-amber-600' : 'text-green-600'}>
-                          {r.systolic}/{r.diastolic}
-                        </span>
-                      ) : '---'}
-                    </td>
-                    <td className="py-2 font-medium">
-                      {r.heart_rate ? (
-                        <span className={r.heart_rate > 100 ? 'text-red-600' : 'text-green-600'}>
-                          {r.heart_rate} bpm
-                        </span>
-                      ) : '---'}
-                    </td>
+        <div className="bg-white border rounded-lg p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <MemberAvatar name={selectedMember} size="lg" />
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{selectedMember}&apos;s Vitals</h3>
+              {member?.overdue_types?.length > 0 && (
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                  Overdue: {member.overdue_types.join(', ')}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {memberLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+          ) : memberVitals.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">No vitals recorded for {selectedMember}.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 text-xs font-medium text-gray-500">Date</th>
+                    <th className="text-left py-2 text-xs font-medium text-gray-500">Type</th>
+                    <th className="text-left py-2 text-xs font-medium text-gray-500">Value</th>
+                    <th className="text-left py-2 text-xs font-medium text-gray-500">Notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {memberVitals.map((v, i) => {
+                    const isBP = v.log_type === 'blood_pressure'
+                    const displayValue = isBP && v.value_systolic && v.value_diastolic
+                      ? `${v.value_systolic}/${v.value_diastolic} mmHg`
+                      : v.value_numeric
+                        ? `${v.value_numeric} ${v.value_unit || ''}`
+                        : v.value_text || '---'
+                    const colorClass = isBP ? bpColor(v.value_systolic, v.value_diastolic) : 'text-gray-800'
+                    const rowBg = isBP ? bpBgColor(v.value_systolic, v.value_diastolic) : ''
+                    return (
+                      <tr key={v.id || i} className={`border-b border-gray-50 ${rowBg}`}>
+                        <td className="py-2 text-gray-600">{new Date(v.logged_at).toLocaleDateString()}</td>
+                        <td className="py-2 text-gray-600 capitalize">{(v.log_type || '').replace(/_/g, ' ')}</td>
+                        <td className={`py-2 font-medium ${colorClass}`}>{displayValue}</td>
+                        <td className="py-2 text-gray-500 text-xs max-w-[200px] truncate">{v.notes || ''}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Log Vitals Modal */}
+        {showLogForm && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowLogForm(false)}>
+            <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold">Log Vitals for {logMember}</h4>
+                <button onClick={() => setShowLogForm(false)}><X className="w-5 h-5 text-gray-400" /></button>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-1">Systolic</label>
+                    <input type="number" value={form.systolic} onChange={e => setForm(f => ({ ...f, systolic: e.target.value }))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="120" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-1">Diastolic</label>
+                    <input type="number" value={form.diastolic} onChange={e => setForm(f => ({ ...f, diastolic: e.target.value }))}
+                      className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="80" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Heart Rate (bpm)</label>
+                  <input type="number" value={form.heart_rate} onChange={e => setForm(f => ({ ...f, heart_rate: e.target.value }))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="72" />
+                </div>
+                <button onClick={logVitals}
+                  className="w-full bg-red-500 text-white py-2.5 rounded-lg hover:bg-red-600 font-medium">
+                  Save Reading
+                </button>
+              </div>
+            </div>
           </div>
         )}
+      </div>
+    )
+  }
+
+  // All members grid view
+  return (
+    <div className="space-y-4">
+      {/* Person filter chips */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          className="text-xs px-3 py-1.5 rounded-full font-medium bg-red-500 text-white"
+        >
+          All
+        </button>
+        {FAMILY_MEMBERS.map(m => (
+          <button
+            key={m.name}
+            onClick={() => selectMember(m.name)}
+            className="text-xs px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+          >
+            {m.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Member cards grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {memberData.map(member => {
+          const hasReadings = member.recent_vitals && member.recent_vitals.length > 0
+          const hasOverdue = member.overdue_types && member.overdue_types.length > 0
+          return (
+            <div key={member.name} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <MemberAvatar name={member.name} size="md" onClick={() => selectMember(member.name)} />
+                  <div>
+                    <h4 className="font-bold text-gray-800">{member.name}</h4>
+                    {hasOverdue && (
+                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1 w-fit mt-0.5">
+                        <AlertTriangle className="w-3 h-3" /> Overdue
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => openLogForm(member.name)}
+                  className="bg-red-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-red-600 flex items-center gap-1">
+                  <Heart className="w-3 h-3" /> Log Vitals
+                </button>
+              </div>
+
+              {!hasReadings ? (
+                <p className="text-sm text-gray-400 italic text-center py-3">No vitals recorded</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {member.recent_vitals.slice(0, 3).map((v: any, i: number) => {
+                    const isBP = v.log_type === 'blood_pressure'
+                    const displayValue = isBP && v.value_systolic && v.value_diastolic
+                      ? `${v.value_systolic}/${v.value_diastolic}`
+                      : v.value_numeric
+                        ? `${v.value_numeric} ${v.value_unit || ''}`
+                        : v.value_text || '---'
+                    const colorClass = isBP ? bpColor(v.value_systolic, v.value_diastolic) : 'text-gray-700'
+                    return (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500 text-xs capitalize">{(v.log_type || '').replace(/_/g, ' ')}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${colorClass}`}>{displayValue}</span>
+                          <span className="text-xs text-gray-400">{new Date(v.logged_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <button
+                onClick={() => selectMember(member.name)}
+                className="mt-3 w-full text-center text-xs text-blue-600 hover:text-blue-700 font-medium py-1"
+              >
+                View Full History &rarr;
+              </button>
+            </div>
+          )
+        })}
       </div>
 
       {/* Log Vitals Modal */}
@@ -957,7 +1117,7 @@ function VitalsSection() {
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowLogForm(false)}>
           <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h4 className="font-bold">Log Vitals</h4>
+              <h4 className="font-bold">Log Vitals for {logMember}</h4>
               <button onClick={() => setShowLogForm(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="space-y-3">

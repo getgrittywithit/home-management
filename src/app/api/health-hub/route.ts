@@ -289,6 +289,122 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Family vitals summary: last 5 readings per member ──
+    case 'get_family_vitals_summary': {
+      const MEMBERS = ['Lola', 'Levi', 'Amos', 'Zoey', 'Kaylee', 'Ellie', 'Wyatt', 'Hannah']
+      const VITAL_TYPES = ['blood_pressure', 'heart_rate', 'o2_sat', 'temperature', 'weight', 'height']
+
+      try {
+        const allLogs = await db.query(
+          `SELECT member_name, log_type, value_numeric, value_text,
+                  value_systolic, value_diastolic, value_unit, logged_at, notes
+           FROM health_logs
+           WHERE log_type = ANY($1)
+           ORDER BY logged_at DESC`,
+          [VITAL_TYPES]
+        )
+
+        // Group by member, limit 5 per member
+        const byMember: Record<string, any[]> = {}
+        for (const m of MEMBERS) byMember[m] = []
+        for (const log of allLogs) {
+          const name = log.member_name
+          if (byMember[name] && byMember[name].length < 5) {
+            byMember[name].push(log)
+          }
+        }
+
+        // Check for overdue vitals schedules
+        let overdue: any[] = []
+        try {
+          overdue = await db.query(
+            `SELECT member_name, vital_type, frequency_days, last_logged_at
+             FROM health_vitals_schedule
+             WHERE active = true
+               AND last_logged_at + (frequency_days || ' days')::INTERVAL < NOW()`
+          )
+        } catch (e) { /* table may not exist */ }
+
+        const overdueByMember: Record<string, string[]> = {}
+        for (const o of overdue) {
+          if (!overdueByMember[o.member_name]) overdueByMember[o.member_name] = []
+          overdueByMember[o.member_name].push(o.vital_type)
+        }
+
+        const members = MEMBERS.map(name => ({
+          name,
+          recent_vitals: byMember[name],
+          overdue_types: overdueByMember[name] || [],
+        }))
+
+        return NextResponse.json({ members })
+      } catch (error) {
+        console.error('get_family_vitals_summary error:', error)
+        return NextResponse.json({ error: 'Failed to fetch family vitals summary' }, { status: 500 })
+      }
+    }
+
+    // ── Single member vitals with optional filters ──
+    case 'get_member_vitals': {
+      const memberName = searchParams.get('member_name')
+      if (!memberName) return NextResponse.json({ error: 'Missing member_name' }, { status: 400 })
+
+      const logTypes = searchParams.get('log_types') // comma-separated: bp,hr,o2_sat
+      const startDate = searchParams.get('start_date')
+      const endDate = searchParams.get('end_date')
+      const limit = parseInt(searchParams.get('limit') || '50', 10)
+
+      const TYPE_MAP: Record<string, string> = {
+        bp: 'blood_pressure', hr: 'heart_rate', o2: 'o2_sat',
+        temp: 'temperature', weight: 'weight', height: 'height',
+      }
+
+      try {
+        const conditions: string[] = ['member_name = $1']
+        const params: any[] = [memberName]
+        let idx = 2
+
+        // Filter to vital types
+        const vitalTypes = ['blood_pressure', 'heart_rate', 'o2_sat', 'temperature', 'weight', 'height']
+        if (logTypes) {
+          const mapped = logTypes.split(',').map(t => TYPE_MAP[t.trim()] || t.trim()).filter(Boolean)
+          if (mapped.length) {
+            conditions.push(`log_type = ANY($${idx++})`)
+            params.push(mapped)
+          }
+        } else {
+          conditions.push(`log_type = ANY($${idx++})`)
+          params.push(vitalTypes)
+        }
+
+        if (startDate) {
+          conditions.push(`logged_at >= $${idx++}::DATE`)
+          params.push(startDate)
+        }
+        if (endDate) {
+          conditions.push(`logged_at < ($${idx++}::DATE + INTERVAL '1 day')`)
+          params.push(endDate)
+        }
+
+        params.push(limit)
+        const where = conditions.join(' AND ')
+
+        const logs = await db.query(
+          `SELECT id, member_name, log_type, value_numeric, value_text,
+                  value_systolic, value_diastolic, value_unit, logged_at, notes
+           FROM health_logs
+           WHERE ${where}
+           ORDER BY logged_at DESC
+           LIMIT $${idx}`,
+          params
+        )
+        return NextResponse.json({ logs })
+      } catch (error) {
+        console.error('get_member_vitals error:', error)
+        return NextResponse.json({ error: 'Failed to fetch member vitals' }, { status: 500 })
+      }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }

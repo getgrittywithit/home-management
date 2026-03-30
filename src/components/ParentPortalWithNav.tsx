@@ -44,6 +44,8 @@ import RewardsTab from './RewardsTab'
 import RewardsDashboardCard from './RewardsDashboardCard'
 import HabitsTab from './HabitsTab'
 import HabitsDashboardCard from './HabitsDashboardCard'
+import FinanceTab from './FinanceTab'
+import FinanceDashboardCard from './FinanceDashboardCard'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -82,6 +84,7 @@ const tabs: Tab[] = [
   { id: 'kids-health', name: 'Kids Health', icon: Heart, color: 'bg-teal-500' },
   { id: 'todos', name: 'Todos', icon: CheckSquare, color: 'bg-indigo-500' },
   { id: 'moe-money', name: 'Moe-Money', icon: DollarSign, color: 'bg-green-600' },
+  { id: 'finance', name: 'Finance', icon: DollarSign, color: 'bg-green-500' },
   { id: 'print', name: 'Print Center', icon: Printer, color: 'bg-slate-600' },
   { id: 'bulk-docs', name: 'Bulk Documents', icon: Upload, color: 'bg-amber-500' },
   { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500' },
@@ -237,6 +240,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <CalendarDashboardCard onNavigate={() => setActiveTab('calendar')} />
             <RewardsDashboardCard onNavigate={() => setActiveTab('rewards')} />
             <HabitsDashboardCard onNavigate={() => setActiveTab('habits')} />
+            <FinanceDashboardCard onNavigate={() => setActiveTab('finance')} />
             <SchoolHealthCard />
             <Dashboard initialData={initialData} />
             <QuickHealthLog />
@@ -296,6 +300,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <ParentPortfolioPanel />
       case 'moe-money':
         return <MoeMoneyTab />
+      case 'finance':
+        return <FinanceTab />
       case 'print':
         return <PrintTab />
       case 'bulk-docs':
