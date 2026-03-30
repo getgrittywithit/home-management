@@ -31,6 +31,8 @@ import WeeklySummaryTab from './WeeklySummaryTab'
 import TeacherDashboard from './TeacherDashboard'
 import HouseholdConfigTab from './HouseholdConfigTab'
 import PetsTab from './PetsTab'
+import HealthHubTab from './HealthHubTab'
+import QuickHealthLog from './QuickHealthLog'
 import SchoolHealthCard from './SchoolHealthCard'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
@@ -57,6 +59,7 @@ const tabs: Tab[] = [
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
   { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600' },
+  { id: 'health-hub', name: 'Health Hub', icon: Heart, color: 'bg-rose-600' },
   { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'teacher', name: 'Teacher', icon: GraduationCap, color: 'bg-emerald-600' },
@@ -221,6 +224,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <MoodOverview />
             <SchoolHealthCard />
             <Dashboard initialData={initialData} />
+            <QuickHealthLog />
           </div>
         )
       case 'weekly-summary':
@@ -260,6 +264,13 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <NeedsBoardTab />
       case 'belle-care':
         return <PetsTab />
+      case 'health-hub':
+        return (
+          <>
+            <HealthHubTab />
+            <QuickHealthLog />
+          </>
+        )
       case 'portfolio':
         return <ParentPortfolioPanel />
       case 'moe-money':
