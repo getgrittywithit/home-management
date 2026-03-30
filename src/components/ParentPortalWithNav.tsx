@@ -42,6 +42,7 @@ import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
 import RewardsTab from './RewardsTab'
 import RewardsDashboardCard from './RewardsDashboardCard'
+import OpportunitiesParentPanel from './OpportunitiesParentPanel'
 import HabitsTab from './HabitsTab'
 import HabitsDashboardCard from './HabitsDashboardCard'
 import FinanceTab from './FinanceTab'
@@ -49,7 +50,7 @@ import FinanceDashboardCard from './FinanceDashboardCard'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell, Flame
+  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell, Flame, Trophy
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -67,6 +68,7 @@ const tabs: Tab[] = [
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
   { id: 'points-earning', name: 'Points & Earning', icon: Star, color: 'bg-amber-500' },
   { id: 'rewards', name: 'Rewards', icon: Star, color: 'bg-amber-400' },
+  { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-orange-500' },
   { id: 'habits', name: 'Habits', icon: Flame, color: 'bg-orange-500' },
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
   { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
@@ -281,6 +283,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <PointsEarningTab />
       case 'rewards':
         return <RewardsTab />
+      case 'opportunities':
+        return <OpportunitiesParentPanel />
       case 'habits':
         return <HabitsTab />
       case 'messages':
