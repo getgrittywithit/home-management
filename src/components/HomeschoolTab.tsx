@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   BookOpen, Clock, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp,
-  Play, User, Library, Layers, Calendar, Edit3, Save, Plus, X
+  Play, User, Library, Layers, Calendar, Edit3, Save, Plus, X, Sparkles
 } from 'lucide-react'
 import FocusTimer from './FocusTimer'
+import VocabWordsTab from './VocabWordsTab'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -372,7 +373,7 @@ function UnitsView({ units }: { units: UnitStudy[] }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-type SubTab = 'today' | 'students' | 'books' | 'units'
+type SubTab = 'today' | 'students' | 'books' | 'units' | 'vocab'
 
 export default function HomeschoolTab() {
   const [data, setData] = useState<HomeschoolData | null>(null)
@@ -455,6 +456,7 @@ export default function HomeschoolTab() {
     { id: 'students', label: 'Students', icon: User },
     { id: 'books',    label: 'Books',    icon: Library },
     { id: 'units',    label: 'Units',    icon: Layers },
+    { id: 'vocab',    label: 'Vocab',    icon: Sparkles },
   ]
 
   return (
@@ -589,6 +591,10 @@ export default function HomeschoolTab() {
 
       {subTab === 'units' && (
         <UnitsView units={units} />
+      )}
+
+      {subTab === 'vocab' && (
+        <VocabWordsTab />
       )}
     </div>
   )

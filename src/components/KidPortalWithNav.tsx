@@ -152,6 +152,12 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   }>({ currentBook: null, currentUnit: null, justFinished: null, comingUp: null, wordOfWeek: null })
   const [learningLoaded, setLearningLoaded] = useState(false)
 
+  // Word of the Day from vocab system
+  const [wordOfTheDay, setWordOfTheDay] = useState<{
+    word: string; part_of_speech: string | null; definition: string;
+    simple_hint: string | null; source_book: string | null
+  } | null>(null)
+
   // Dinner Manager state
   const [mealPickerOpen, setMealPickerOpen] = useState(false)
   const [availableMeals, setAvailableMeals] = useState<{ id: number; name: string; description: string; sides: string | null; sides_starch_options: string[] | null; sides_veggie_options: string[] | null; sub_option_count: number }[]>([])
@@ -329,6 +335,14 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           setLearningLoaded(true)
         })
         .catch(() => setLearningLoaded(true))
+
+      // Fetch Word of the Day from vocab system
+      fetch('/api/vocab?action=get_word_of_the_day')
+        .then(r => r.json())
+        .then(data => {
+          if (data.word) setWordOfTheDay(data.word)
+        })
+        .catch(() => {})
     }
   }, [profile?.first_name])
 
@@ -1397,14 +1411,30 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 </div>
               )}
 
-              {/* Word of the Week */}
-              {learningData.wordOfWeek && (
+              {/* Word of the Day */}
+              {(wordOfTheDay || learningData.wordOfWeek) && (
                 <div className="p-3 bg-amber-50 rounded-lg">
                   <div className="flex items-start gap-2">
                     <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Word of the Week</p>
-                      <p className="text-sm font-bold text-amber-900 mt-0.5">{learningData.wordOfWeek}</p>
+                      <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Word of the Day</p>
+                      {wordOfTheDay ? (
+                        <>
+                          <p className="text-sm font-bold text-amber-900 mt-0.5">{wordOfTheDay.word}</p>
+                          {wordOfTheDay.part_of_speech && (
+                            <p className="text-xs text-amber-600 italic">{wordOfTheDay.part_of_speech}</p>
+                          )}
+                          <p className="text-xs text-amber-800 mt-1">{wordOfTheDay.definition}</p>
+                          {wordOfTheDay.simple_hint && (
+                            <p className="text-xs text-amber-600 mt-0.5">Hint: {wordOfTheDay.simple_hint}</p>
+                          )}
+                          {wordOfTheDay.source_book && (
+                            <p className="text-xs text-amber-500 mt-0.5">From: {wordOfTheDay.source_book}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-sm font-bold text-amber-900 mt-0.5">{learningData.wordOfWeek}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1412,7 +1442,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
 
               {/* Empty state */}
               {!learningData.currentBook && !currentlyReading && !learningData.currentUnit &&
-               !learningData.justFinished && !learningData.comingUp && !learningData.wordOfWeek && (
+               !learningData.justFinished && !learningData.comingUp && !learningData.wordOfWeek && !wordOfTheDay && (
                 <div className="text-center py-4">
                   <p className="text-sm text-gray-500">Your learning journey is being set up!</p>
                 </div>
