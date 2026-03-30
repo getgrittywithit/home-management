@@ -38,6 +38,8 @@ import QuickHealthLog from './QuickHealthLog'
 import SchoolHealthCard from './SchoolHealthCard'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
+import RewardsTab from './RewardsTab'
+import RewardsDashboardCard from './RewardsDashboardCard'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -58,6 +60,7 @@ const tabs: Tab[] = [
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500' },
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
   { id: 'points-earning', name: 'Points & Earning', icon: Star, color: 'bg-amber-500' },
+  { id: 'rewards', name: 'Rewards', icon: Star, color: 'bg-amber-400' },
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
   { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600' },
@@ -226,6 +229,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <AvailabilityWidget />
             <MoodOverview />
             <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
+            <RewardsDashboardCard onNavigate={() => setActiveTab('rewards')} />
             <SchoolHealthCard />
             <Dashboard initialData={initialData} />
             <QuickHealthLog />
@@ -264,6 +268,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <TodoTab />
       case 'points-earning':
         return <PointsEarningTab />
+      case 'rewards':
+        return <RewardsTab />
       case 'messages':
         return <MessagesTab />
       case 'needs-board':
