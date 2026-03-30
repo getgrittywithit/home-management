@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
       const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
 
-      const [messages, breaks, sickDays, missedChores, petCare, upcomingMeetings, zoneStatus, checklistStatus, pointsToday, mealRequests] = await Promise.all([
+      const [messages, breaks, sickDays, missedChores, petCare, upcomingMeetings, zoneStatus, checklistStatus, pointsToday, mealRequests, upcomingMeetings30d, expiringExemptions, expiringDocuments] = await Promise.all([
         // Unread messages
         db.query(`SELECT from_kid, COUNT(*)::int as count FROM family_messages WHERE read_at IS NULL GROUP BY from_kid`).catch(() => []),
 
@@ -119,6 +119,30 @@ export async function GET(request: NextRequest) {
            WHERE mr.status = 'pending'
            ORDER BY mr.assigned_date`
         ).catch(() => []),
+
+        // Upcoming ARD/504 meetings within 30 days
+        db.query(
+          `SELECT sp.kid_name, sp.plan_type, sp.plan_label, sp.next_meeting_date
+           FROM student_plans sp
+           WHERE sp.status = 'active' AND sp.next_meeting_date IS NOT NULL
+           AND sp.next_meeting_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'`
+        ).catch(() => []),
+
+        // Vaccine exemptions expiring within 60 days
+        db.query(
+          `SELECT kid_name, display_name, vaccine_exemption_expiry
+           FROM student_profiles
+           WHERE vaccine_exemption = true AND vaccine_exemption_expiry IS NOT NULL
+           AND vaccine_exemption_expiry BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '60 days'`
+        ).catch(() => []),
+
+        // Documents expiring within 30 days
+        db.query(
+          `SELECT kid_name, doc_type, doc_label, expiration_date
+           FROM student_documents
+           WHERE expiration_date IS NOT NULL
+           AND expiration_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'`
+        ).catch(() => []),
       ])
 
       const totalUnread = (messages as { count: number }[]).reduce((sum: number, r) => sum + r.count, 0)
@@ -133,6 +157,9 @@ export async function GET(request: NextRequest) {
         missed_chores: missedChores,
         pet_care: petCare,
         upcoming_meetings: upcomingMeetings,
+        upcoming_meetings_30d: upcomingMeetings30d,
+        expiring_exemptions: expiringExemptions,
+        expiring_documents: expiringDocuments,
         calendar_events: [],
         zone_status: zoneStatus,
         checklist_status: checklistStatus,

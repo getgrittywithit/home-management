@@ -31,6 +31,7 @@ import WeeklySummaryTab from './WeeklySummaryTab'
 import TeacherDashboard from './TeacherDashboard'
 import HouseholdConfigTab from './HouseholdConfigTab'
 import PetsTab from './PetsTab'
+import SchoolHealthCard from './SchoolHealthCard'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
 import { getAllFamilyData } from '@/lib/familyConfig'
@@ -218,6 +219,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           <div className="space-y-6">
             <AvailabilityWidget />
             <MoodOverview />
+            <SchoolHealthCard />
             <Dashboard initialData={initialData} />
           </div>
         )

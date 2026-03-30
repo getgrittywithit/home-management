@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Bell, MessageCircle, AlertTriangle, Heart, CheckCircle,
-  Calendar, Dog, GraduationCap, X, ChevronRight, Zap, ChefHat, ChevronDown
+  Calendar, Dog, GraduationCap, X, ChevronRight, Zap, ChefHat, ChevronDown, FileText
 } from 'lucide-react'
 
 interface MealRequest {
@@ -26,6 +26,9 @@ interface FlagData {
   missed_chores: { child_name: string; event_id: string }[]
   pet_care: { pet: string; issue: string; severity: string }[]
   upcoming_meetings: { kid_name: string; next_meeting_date: string; next_meeting_time: string; plan_type: string }[]
+  upcoming_meetings_30d: { kid_name: string; plan_type: string; plan_label?: string; next_meeting_date: string }[]
+  expiring_exemptions: { kid_name: string; display_name?: string; vaccine_exemption_expiry: string }[]
+  expiring_documents: { kid_name: string; doc_type: string; doc_label?: string; expiration_date: string }[]
   calendar_events: unknown[]
   zone_status: { completed: number; total: number }
   checklist_status: { completed: number; total: number }
@@ -211,6 +214,65 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-emerald-600',
           title: `${m.kid_name} — ${m.plan_type} meeting`,
           description: `${dateStr}${m.next_meeting_time ? ' at ' + m.next_meeting_time : ''}`,
+          navigateTo: 'teacher',
+        })
+      })
+    }
+
+    // Upcoming ARD/504 meetings (30-day window, from student_plans)
+    if (data.upcoming_meetings_30d?.length > 0) {
+      data.upcoming_meetings_30d.forEach(m => {
+        // Avoid duplicate if already shown in the 7-day meetings above
+        const alreadyShown = data.upcoming_meetings.some(
+          um => um.kid_name === m.kid_name && um.next_meeting_date === m.next_meeting_date
+        )
+        if (alreadyShown) return
+
+        const meetDate = new Date(m.next_meeting_date + 'T12:00:00')
+        const now = new Date()
+        now.setHours(0, 0, 0, 0)
+        const daysUntil = Math.ceil((meetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        const dateStr = meetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const kidDisplay = m.kid_name.charAt(0).toUpperCase() + m.kid_name.slice(1)
+        comingUp.push({
+          icon: GraduationCap,
+          iconColor: 'text-purple-500',
+          title: `${kidDisplay} ${m.plan_type?.toUpperCase() || 'ARD'} meeting in ${daysUntil} days — ${dateStr}`,
+          description: m.plan_label || `${m.plan_type?.toUpperCase()} plan meeting`,
+          navigateTo: 'teacher',
+        })
+      })
+    }
+
+    // Vaccine exemptions expiring
+    if (data.expiring_exemptions?.length > 0) {
+      data.expiring_exemptions.forEach(ex => {
+        const expDate = new Date(ex.vaccine_exemption_expiry + 'T12:00:00')
+        const now = new Date()
+        now.setHours(0, 0, 0, 0)
+        const daysUntil = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        const kidDisplay = (ex.display_name || ex.kid_name).charAt(0).toUpperCase() + (ex.display_name || ex.kid_name).slice(1)
+        comingUp.push({
+          icon: AlertTriangle,
+          iconColor: 'text-red-500',
+          title: `${kidDisplay} vaccine exemption expires in ${daysUntil} days`,
+          description: expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          navigateTo: 'teacher',
+        })
+      })
+    }
+
+    // Documents expiring
+    if (data.expiring_documents?.length > 0) {
+      data.expiring_documents.forEach(doc => {
+        const expDate = new Date(doc.expiration_date + 'T12:00:00')
+        const kidDisplay = doc.kid_name.charAt(0).toUpperCase() + doc.kid_name.slice(1)
+        const docLabel = doc.doc_label || doc.doc_type || 'document'
+        comingUp.push({
+          icon: FileText,
+          iconColor: 'text-teal-500',
+          title: `${kidDisplay} ${docLabel} expires ${expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+          description: `Document expiration`,
           navigateTo: 'teacher',
         })
       })
