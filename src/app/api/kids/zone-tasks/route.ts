@@ -93,6 +93,11 @@ export async function GET(request: NextRequest) {
       const dayOfWeek = todayDate.getDay()
       const isBathDay = bathSchedule ? (bathSchedule.bath_days || []).includes(dayOfWeek) : false
 
+      // Weekday/weekend frequency filtering
+      const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+      const isFirstSatOfMonth = dayOfWeek === 6 && todayDate.getDate() <= 7
+
       // For shared zones (Midnight), use a shared key for rotation tracking
       const isSharedZone = zoneDef.assigned_to && zoneDef.assigned_to.length > 1
       const rotationKid = isSharedZone ? `${zoneKey}_shared` : kid
@@ -110,6 +115,12 @@ export async function GET(request: NextRequest) {
 
       // Filter by kid_filter and conditional flags
       anchorTasks = filterTasksForKid(anchorTasks, kid, routineFlags, isBathDay, bathSchedule)
+      // Filter by frequency on weekdays
+      if (isWeekday) {
+        anchorTasks = anchorTasks.filter((t: any) => !t.frequency || t.frequency === 'always')
+      } else if (isWeekend && !isFirstSatOfMonth) {
+        anchorTasks = anchorTasks.filter((t: any) => !t.frequency || t.frequency === 'always' || t.frequency === 'weekly')
+      }
 
       // ── Pull rotating tasks — ordered by longest-since-done ──
       let rotatingTasks: any[] = []
@@ -127,49 +138,59 @@ export async function GET(request: NextRequest) {
           [zoneKey, rotationKid]
         )
         rotatingTasks = filterTasksForKid(allRotating, kid, routineFlags, isBathDay, bathSchedule)
+        // Filter by frequency: skip weekly/monthly frequency tasks on weekdays
+        if (isWeekday) {
+          rotatingTasks = rotatingTasks.filter((t: any) => !t.frequency || t.frequency === 'always')
+        } else if (isWeekend && !isFirstSatOfMonth) {
+          rotatingTasks = rotatingTasks.filter((t: any) => !t.frequency || t.frequency === 'always' || t.frequency === 'weekly')
+        }
         rotatingTasks = rotatingTasks.slice(0, zoneDef.rotating_count || 4)
       } catch { rotatingTasks = [] }
 
-      // ── Pull weekly tasks due today ──
+      // ── Pull weekly tasks — only on weekends (Sat/Sun) ──
       let weeklyTasks: any[] = []
-      try {
-        const allWeekly = await db.query(
-          `SELECT t.*,
-            (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
-             WHERE r.task_id = t.id AND r.kid_name = $2 AND r.completed = TRUE) as last_completed
-           FROM zone_task_library t
-           WHERE t.zone_key = $1 AND t.task_type = 'weekly' AND t.active = TRUE AND t.deleted_at IS NULL
-           ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
-          [zoneKey, rotationKid]
-        )
-        const filtered = filterTasksForKid(allWeekly, kid, routineFlags, isBathDay, bathSchedule)
-        // Only show weekly tasks not completed in last 5 days
-        weeklyTasks = filtered.filter((t: any) => {
-          if (!t.last_completed) return true
-          const daysSince = Math.floor((new Date(dateParam).getTime() - new Date(t.last_completed).getTime()) / 86400000)
-          return daysSince >= 5
-        }).slice(0, 2) // max 2 weekly tasks per session
-      } catch { weeklyTasks = [] }
+      if (isWeekend) {
+        try {
+          const allWeekly = await db.query(
+            `SELECT t.*,
+              (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
+               WHERE r.task_id = t.id AND r.kid_name = $2 AND r.completed = TRUE) as last_completed
+             FROM zone_task_library t
+             WHERE t.zone_key = $1 AND t.task_type = 'weekly' AND t.active = TRUE AND t.deleted_at IS NULL
+             ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
+            [zoneKey, rotationKid]
+          )
+          const filtered = filterTasksForKid(allWeekly, kid, routineFlags, isBathDay, bathSchedule)
+          // Only show weekly tasks not completed in last 5 days
+          weeklyTasks = filtered.filter((t: any) => {
+            if (!t.last_completed) return true
+            const daysSince = Math.floor((new Date(dateParam).getTime() - new Date(t.last_completed).getTime()) / 86400000)
+            return daysSince >= 5
+          }).slice(0, 2) // max 2 weekly tasks per session
+        } catch { weeklyTasks = [] }
+      }
 
-      // ── Pull monthly tasks due ──
+      // ── Pull monthly tasks — only on first Saturday of the month ──
       let monthlyTasks: any[] = []
-      try {
-        const allMonthly = await db.query(
-          `SELECT t.*,
-            (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
-             WHERE r.task_id = t.id AND r.kid_name = $2 AND r.completed = TRUE) as last_completed
-           FROM zone_task_library t
-           WHERE t.zone_key = $1 AND t.task_type = 'monthly' AND t.active = TRUE AND t.deleted_at IS NULL
-           ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
-          [zoneKey, rotationKid]
-        )
-        const filtered = filterTasksForKid(allMonthly, kid, routineFlags, isBathDay, bathSchedule)
-        monthlyTasks = filtered.filter((t: any) => {
-          if (!t.last_completed) return true
-          const daysSince = Math.floor((new Date(dateParam).getTime() - new Date(t.last_completed).getTime()) / 86400000)
-          return daysSince >= 25
-        }).slice(0, 1) // max 1 monthly task per session
-      } catch { monthlyTasks = [] }
+      if (isFirstSatOfMonth) {
+        try {
+          const allMonthly = await db.query(
+            `SELECT t.*,
+              (SELECT MAX(r.assigned_date) FROM zone_task_rotation r
+               WHERE r.task_id = t.id AND r.kid_name = $2 AND r.completed = TRUE) as last_completed
+             FROM zone_task_library t
+             WHERE t.zone_key = $1 AND t.task_type = 'monthly' AND t.active = TRUE AND t.deleted_at IS NULL
+             ORDER BY last_completed ASC NULLS FIRST, t.health_priority DESC, t.id`,
+            [zoneKey, rotationKid]
+          )
+          const filtered = filterTasksForKid(allMonthly, kid, routineFlags, isBathDay, bathSchedule)
+          monthlyTasks = filtered.filter((t: any) => {
+            if (!t.last_completed) return true
+            const daysSince = Math.floor((new Date(dateParam).getTime() - new Date(t.last_completed).getTime()) / 86400000)
+            return daysSince >= 25
+          }).slice(0, 1) // max 1 monthly task per session
+        } catch { monthlyTasks = [] }
+      }
 
       // Combine all tasks
       const allTasks = [...anchorTasks, ...rotatingTasks, ...weeklyTasks, ...monthlyTasks]

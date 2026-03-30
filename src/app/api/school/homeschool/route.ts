@@ -55,6 +55,101 @@ export async function GET(request: NextRequest) {
     const currentlyReading: Record<string, string> = {}
     readingRows.forEach((r: any) => { currentlyReading[r.kid_name] = r.currently_reading })
 
+    // Check for get_learning_data action (Fix F)
+    const action = searchParams.get('action')
+    const kidName = searchParams.get('kid')
+
+    if (action === 'get_learning_data' && kidName) {
+      const kidLower = kidName.toLowerCase()
+      const kidCapitalized = kidName.charAt(0).toUpperCase() + kidName.slice(1).toLowerCase()
+
+      // Current book (in_progress)
+      let currentBook = null
+      try {
+        const books = await db.query(
+          `SELECT title, author FROM hs_books
+           WHERE status = 'in_progress' AND (
+             student_names::text ILIKE $1 OR student_names::text ILIKE $2
+           )
+           ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+          [`%${kidLower}%`, `%${kidCapitalized}%`]
+        )
+        if (books.length > 0) currentBook = { title: books[0].title, author: books[0].author }
+      } catch { /* table may not exist */ }
+
+      // Current unit (active)
+      let currentUnit = null
+      try {
+        const units = await db.query(
+          `SELECT title, subject_tags FROM hs_units
+           WHERE status = 'active' AND (
+             student_names::text ILIKE $1 OR student_names::text ILIKE $2
+           )
+           ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+          [`%${kidLower}%`, `%${kidCapitalized}%`]
+        )
+        if (units.length > 0) currentUnit = { subject: units[0].subject_tags?.[0] || 'General', unit_name: units[0].title }
+      } catch { /* table may not exist */ }
+
+      // Just finished (most recent completed book or unit)
+      let justFinished = null
+      try {
+        const finBooks = await db.query(
+          `SELECT title, 'book' as type, updated_at FROM hs_books
+           WHERE status = 'completed' AND (
+             student_names::text ILIKE $1 OR student_names::text ILIKE $2
+           )
+           ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+          [`%${kidLower}%`, `%${kidCapitalized}%`]
+        )
+        const finUnits = await db.query(
+          `SELECT title, 'unit' as type, updated_at FROM hs_units
+           WHERE status = 'completed' AND (
+             student_names::text ILIKE $1 OR student_names::text ILIKE $2
+           )
+           ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+          [`%${kidLower}%`, `%${kidCapitalized}%`]
+        )
+        const candidates = [...finBooks, ...finUnits].sort((a, b) =>
+          new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+        )
+        if (candidates.length > 0) {
+          const c = candidates[0]
+          justFinished = c.type === 'book'
+            ? { title: c.title, type: 'book' as const }
+            : { unit_name: c.title, type: 'unit' as const }
+        }
+      } catch { /* table may not exist */ }
+
+      // Coming up (next scheduled/planned unit)
+      let comingUp = null
+      try {
+        const upcoming = await db.query(
+          `SELECT title, subject_tags FROM hs_units
+           WHERE status = 'planned' AND (
+             student_names::text ILIKE $1 OR student_names::text ILIKE $2
+           )
+           ORDER BY start_date ASC NULLS LAST LIMIT 1`,
+          [`%${kidLower}%`, `%${kidCapitalized}%`]
+        )
+        if (upcoming.length > 0) comingUp = { subject: upcoming[0].subject_tags?.[0] || 'General', unit_name: upcoming[0].title }
+      } catch { /* table may not exist */ }
+
+      // Word of the week (from homeschool_settings notes or a dedicated field)
+      let wordOfWeek = null
+      try {
+        const wordRows = await db.query(
+          `SELECT word_of_week FROM homeschool_settings WHERE kid_name = $1 AND word_of_week IS NOT NULL LIMIT 1`,
+          [kidCapitalized]
+        )
+        if (wordRows.length > 0 && wordRows[0].word_of_week) wordOfWeek = wordRows[0].word_of_week
+      } catch { /* column may not exist */ }
+
+      return NextResponse.json({
+        currentBook, currentUnit, justFinished, comingUp, wordOfWeek
+      })
+    }
+
     return NextResponse.json({
       date,
       schedule: DAILY_SCHEDULE,

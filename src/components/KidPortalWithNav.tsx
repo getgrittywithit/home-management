@@ -6,7 +6,8 @@ import {
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
-  User, Heart, Thermometer, X, Shuffle, Dices, Sparkles
+  User, Heart, Thermometer, X, Shuffle, Dices, Sparkles,
+  ChevronDown, ChevronUp, Loader2
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -129,6 +130,27 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [sickConfirmOpen, setSickConfirmOpen] = useState(false)
   const [sickSubmitted, setSickSubmitted] = useState(false)
   const [sickSubmitting, setSickSubmitting] = useState(false)
+
+  // Dinner Helper card state
+  const [dinnerHelperChecked, setDinnerHelperChecked] = useState<Record<string, boolean>>({})
+  const [dinnerHelperExpanded, setDinnerHelperExpanded] = useState(false)
+  const [dinnerHelperDone, setDinnerHelperDone] = useState(false)
+
+  // School block expansion state (Fix E)
+  const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null)
+  const [completedBlocks, setCompletedBlocks] = useState<Record<string, boolean>>({})
+  // Auto-expand current block on first render
+  const [autoExpandedCurrent, setAutoExpandedCurrent] = useState(false)
+
+  // My Learning Right Now state (Fix F)
+  const [learningData, setLearningData] = useState<{
+    currentBook: { title: string; author?: string } | null
+    currentUnit: { subject: string; unit_name: string } | null
+    justFinished: { title?: string; unit_name?: string; type: 'book' | 'unit' } | null
+    comingUp: { subject?: string; unit_name?: string } | null
+    wordOfWeek: string | null
+  }>({ currentBook: null, currentUnit: null, justFinished: null, comingUp: null, wordOfWeek: null })
+  const [learningLoaded, setLearningLoaded] = useState(false)
 
   // Dinner Manager state
   const [mealPickerOpen, setMealPickerOpen] = useState(false)
@@ -279,7 +301,7 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
       .catch(() => {})
   }, [profile?.first_name])
 
-  // Load currently reading for homeschool kids
+  // Load currently reading and learning data for homeschool kids
   useEffect(() => {
     const kidName = profile?.first_name || ''
     const isHS = SCHOOL_TYPE[kidName.toLowerCase()] === 'homeschool'
@@ -292,6 +314,21 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           }
         })
         .catch(() => {})
+
+      // Fetch learning data for "My Learning Right Now" (Fix F)
+      fetch(`/api/school/homeschool?action=get_learning_data&kid=${kidName}`)
+        .then(r => r.json())
+        .then(data => {
+          setLearningData({
+            currentBook: data.currentBook || null,
+            currentUnit: data.currentUnit || null,
+            justFinished: data.justFinished || null,
+            comingUp: data.comingUp || null,
+            wordOfWeek: data.wordOfWeek || null,
+          })
+          setLearningLoaded(true)
+        })
+        .catch(() => setLearningLoaded(true))
     }
   }, [profile?.first_name])
 
@@ -964,6 +1001,83 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           </>
         )}
 
+        {/* Dinner Helper / Manager Task Card — age-appropriate tasks for dinner night */}
+        {isMyDinnerDay && todaysDinner && !dinnerHelperDone && (() => {
+          const KID_AGES: Record<string, number> = { hannah: 8, wyatt: 10, ellie: 12, kaylee: 13, zoey: 15, amos: 17 }
+          const age = KID_AGES[childKey] || 10
+          const title = age <= 10 ? 'Dinner Helper' : age <= 13 ? 'Junior Dinner Manager' : 'Dinner Manager'
+          const helperTasks = age <= 10
+            ? ['Set the table (plates, forks, napkins)', 'Fill water cups for everyone', 'Help carry dishes to the table', 'Clear your plate when done', 'Wipe the table after dinner']
+            : age <= 13
+            ? ['Set the table (plates, forks, knives, napkins, cups)', 'Fill water cups for the family', 'Help prep ingredients if Mom asks', 'Serve the food to the table', 'Clear all plates and wipe the table', 'Put leftovers in containers']
+            : ['Set the full table (plates, utensils, napkins, drinks)', 'Help Mom with dinner prep or cook independently', 'Serve the food and make sure everyone has what they need', 'Clear and scrape all plates', 'Wipe down the table and counters', 'Load the dishwasher or hand-wash pots', 'Put away leftovers and wipe stove']
+          const howTo = age <= 10
+            ? 'Set one place for each person: plate in the middle, fork on the left, napkin under the fork. Fill cups about 3/4 full with water. When dinner is ready, help carry one dish at a time using both hands. After dinner, take your plate to the sink, scrape food into the trash, and come back to wipe the table with a damp cloth.'
+            : age <= 13
+            ? 'Start by checking with Mom on what needs to be prepped. Set the table with a full place setting for each person. When food is ready, bring serving dishes to the table. After everyone eats, stack plates and carry them to the sink. Wipe down the table and put any leftovers in containers with lids in the fridge.'
+            : 'Check the meal plan and start prepping 30-45 minutes before dinnertime. Set a full table. If cooking independently, follow the recipe and set a timer. After dinner, clear everything, scrape and load the dishwasher, hand-wash anything that doesn\'t go in, wipe the stove and counters, and put leftovers away labeled with the date.'
+
+          const allChecked = helperTasks.every((_, i) => dinnerHelperChecked[`dinner-${i}`])
+
+          return (
+            <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-amber-400 to-orange-400 p-4">
+                <div className="flex items-center gap-3">
+                  <Utensils className="w-6 h-6 text-white" />
+                  <div>
+                    <h3 className="font-bold text-white">{title}</h3>
+                    <p className="text-sm text-amber-100">{todaysDinner.label} {todaysDinner.emoji}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 space-y-3">
+                {helperTasks.map((task, i) => {
+                  const key = `dinner-${i}`
+                  const checked = dinnerHelperChecked[key] || false
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setDinnerHelperChecked(prev => ({ ...prev, [key]: !prev[key] }))}
+                      className="w-full flex items-center gap-3 text-left"
+                    >
+                      {checked ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                      )}
+                      <span className={`text-sm ${checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>{task}</span>
+                    </button>
+                  )
+                })}
+
+                {/* How to do this */}
+                <button
+                  onClick={() => setDinnerHelperExpanded(!dinnerHelperExpanded)}
+                  className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 mt-2"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>{dinnerHelperExpanded ? 'Hide instructions' : 'How to do this'}</span>
+                </button>
+                {dinnerHelperExpanded && (
+                  <div className="bg-amber-50 rounded-lg p-3 text-sm text-amber-900 leading-relaxed">
+                    {howTo}
+                  </div>
+                )}
+
+                {/* Done button */}
+                {allChecked && (
+                  <button
+                    onClick={() => setDinnerHelperDone(true)}
+                    className="w-full bg-green-500 text-white font-semibold py-2.5 rounded-lg hover:bg-green-600 transition-colors mt-2"
+                  >
+                    Done!
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Meal Feedback — after dinner, rate the meal */}
         <MealFeedbackCard childName={profile.first_name || ''} />
 
@@ -1033,32 +1147,98 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                 const isCurrent = currentMinutes >= startMins && currentMinutes < endMins
                 const isPast = endMins <= currentMinutes
                 const colors = getCategoryColor(event.category)
+                const isExpanded = expandedBlockId === event.id
+                const isBlockComplete = completedBlocks[event.id] || event.completed
+
+                // Auto-expand current block on first render
+                if (isCurrent && !autoExpandedCurrent) {
+                  setTimeout(() => { setExpandedBlockId(event.id); setAutoExpandedCurrent(true) }, 0)
+                }
+
+                // Materials per subject keyword
+                const summaryLower = (event.summary || '').toLowerCase()
+                const getMaterials = (): string[] => {
+                  if (summaryLower.includes('math')) return ['Workbook', 'Pencil', 'Ruler', 'Scratch paper']
+                  if (summaryLower.includes('reading') || summaryLower.includes('read aloud')) return ['Current book', 'Reading log']
+                  if (summaryLower.includes('writing') || summaryLower.includes('language arts')) return ['Writing notebook', 'Pencil']
+                  if (summaryLower.includes('science')) return ['Science notebook', 'Pencil', 'Current book/printout']
+                  if (summaryLower.includes('social studies') || summaryLower.includes('history')) return ['Notebook', 'Pencil', 'Textbook or printout']
+                  if (summaryLower.includes('art')) return ['Sketchbook', 'Art supplies']
+                  if (summaryLower.includes('music')) return ['Instrument (if applicable)', 'Headphones']
+                  if (summaryLower.includes('typing') || summaryLower.includes('computer')) return ['Chromebook/laptop', 'Headphones']
+                  return ['Notebook', 'Pencil']
+                }
 
                 return (
-                  <div
-                    key={event.id}
-                    className={`flex items-center gap-3 px-4 py-3 ${
-                      isCurrent ? `bg-teal-50 border-l-4 border-l-teal-500` : ''
-                    } ${isPast ? 'opacity-50' : ''}`}
-                  >
-                    <div className="w-20 flex-shrink-0 text-right">
-                      <span className={`text-sm font-medium ${isCurrent ? 'text-teal-700' : 'text-gray-500'}`}>
-                        {formatEventTime(event.startTime)}
+                  <div key={event.id}>
+                    <button
+                      onClick={() => setExpandedBlockId(isExpanded ? null : event.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                        isCurrent ? 'bg-teal-50 border-l-4 border-l-teal-500' : ''
+                      } ${isPast && !isBlockComplete ? 'opacity-50' : ''} ${isBlockComplete ? 'bg-green-50/40' : ''} hover:bg-gray-50`}
+                    >
+                      <div className="w-20 flex-shrink-0 text-right">
+                        <span className={`text-sm font-medium ${isCurrent ? 'text-teal-700' : 'text-gray-500'}`}>
+                          {formatEventTime(event.startTime)}
+                        </span>
+                      </div>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+                        {event.category}
                       </span>
-                    </div>
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
-                      {event.category}
-                    </span>
-                    <span className={`text-sm ${
-                      event.completed ? 'line-through text-gray-400' :
-                      isCurrent ? 'font-semibold text-gray-900' : 'text-gray-800'
-                    }`}>
-                      {event.summary}
-                    </span>
-                    {isCurrent && (
-                      <span className="ml-auto text-xs bg-teal-500 text-white px-2 py-0.5 rounded-full font-medium animate-pulse">
-                        NOW
+                      <span className={`text-sm flex-1 ${
+                        isBlockComplete ? 'line-through text-gray-400' :
+                        isCurrent ? 'font-semibold text-gray-900' : 'text-gray-800'
+                      }`}>
+                        {event.summary}
                       </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {isBlockComplete && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                        {isCurrent && !isBlockComplete && (
+                          <span className="text-xs bg-teal-500 text-white px-2 py-0.5 rounded-full font-medium animate-pulse">
+                            NOW
+                          </span>
+                        )}
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className={`px-4 pb-4 ${isCurrent ? 'bg-teal-50 border-l-4 border-l-teal-500' : 'bg-gray-50'}`}>
+                        <div className="ml-20 pl-3 space-y-3">
+                          {/* Materials needed */}
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Materials needed</p>
+                            <div className="flex flex-wrap gap-2">
+                              {getMaterials().map(m => (
+                                <span key={m} className="inline-flex items-center px-2.5 py-1 bg-white border rounded-full text-xs text-gray-700">
+                                  {m}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Mark Complete button */}
+                          {!isBlockComplete ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setCompletedBlocks(prev => ({ ...prev, [event.id]: true }))
+                                toggleDashboardItem(event.id, event.summary, event.startTime)
+                              }}
+                              className="bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-teal-600 transition-colors"
+                            >
+                              Mark Complete
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-2 text-sm text-green-600">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Completed</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )
@@ -1143,15 +1323,102 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           </div>
         </div>
 
-        {/* What We're Learning */}
+        {/* My Learning Right Now */}
         <div className="bg-white p-6 rounded-lg border">
-          <h2 className="text-lg font-bold mb-4">What We're Learning</h2>
-          <div className="space-y-3 text-sm text-gray-700">
-            <div className="p-3 bg-teal-50 rounded-lg">
-              <span className="font-medium text-teal-800">📖 Currently Reading:</span> {currentlyReading || 'Not set'}
+          <h2 className="text-lg font-bold mb-4">My Learning Right Now</h2>
+          {!learningLoaded ? (
+            <div className="flex items-center justify-center py-4 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              <span className="text-sm">Loading...</span>
             </div>
-            <p className="text-xs text-gray-400 italic">More curriculum details can be added from the parent portal.</p>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Current Book */}
+              {(learningData.currentBook || currentlyReading) && (
+                <div className="p-3 bg-teal-50 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <BookOpen className="w-4 h-4 text-teal-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide">Currently Reading</p>
+                      <p className="text-sm font-medium text-teal-900 mt-0.5">
+                        {learningData.currentBook?.title || currentlyReading}
+                      </p>
+                      {learningData.currentBook?.author && (
+                        <p className="text-xs text-teal-700">by {learningData.currentBook.author}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* What We're Studying */}
+              {learningData.currentUnit && (
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Target className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">What We&apos;re Studying</p>
+                      <p className="text-sm font-medium text-purple-900 mt-0.5">{learningData.currentUnit.unit_name}</p>
+                      <p className="text-xs text-purple-700">{learningData.currentUnit.subject}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Just Finished */}
+              {learningData.justFinished && (
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Just Finished</p>
+                      <p className="text-sm font-medium text-green-900 mt-0.5">
+                        {learningData.justFinished.title || learningData.justFinished.unit_name}
+                      </p>
+                      <p className="text-xs text-green-700">{learningData.justFinished.type === 'book' ? 'Book' : 'Unit'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Coming Up */}
+              {learningData.comingUp && (
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Calendar className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">Coming Up</p>
+                      <p className="text-sm font-medium text-blue-900 mt-0.5">{learningData.comingUp.unit_name}</p>
+                      {learningData.comingUp.subject && (
+                        <p className="text-xs text-blue-700">{learningData.comingUp.subject}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Word of the Week */}
+              {learningData.wordOfWeek && (
+                <div className="p-3 bg-amber-50 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Word of the Week</p>
+                      <p className="text-sm font-bold text-amber-900 mt-0.5">{learningData.wordOfWeek}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!learningData.currentBook && !currentlyReading && !learningData.currentUnit &&
+               !learningData.justFinished && !learningData.comingUp && !learningData.wordOfWeek && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-500">Your learning journey is being set up!</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* School Notes */}
