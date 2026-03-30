@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 
 const STATUSES = [
   { value: 'available', label: 'Available', dot: 'bg-green-500', ring: 'ring-green-300 bg-green-50' },
-  { value: 'busy', label: 'Busy', dot: 'bg-yellow-500', ring: 'ring-yellow-300 bg-yellow-50' },
-  { value: 'out', label: 'Out', dot: 'bg-red-500', ring: 'ring-red-300 bg-red-50' },
+  { value: 'busy', label: 'Give Me 10 Min', dot: 'bg-amber-500', ring: 'ring-amber-300 bg-amber-50' },
+  { value: 'out', label: 'Busy', dot: 'bg-red-500', ring: 'ring-red-300 bg-red-50' },
 ]
 
 export default function AvailabilityWidget() {

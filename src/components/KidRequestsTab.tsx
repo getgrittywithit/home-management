@@ -7,6 +7,10 @@ interface Message {
   id: string; message: string; created_at: string; parent_reply: string | null; reply_at: string | null
 }
 
+interface PendingRedemption {
+  id: number; reward_name: string; coins_spent: number; status: string; created_at: string
+}
+
 const QUICK_REQUESTS = [
   { label: 'Snack Request', icon: Utensils, color: 'text-green-500', msg: '🍪 Snack request' },
   { label: 'Friend Over', icon: Users, color: 'text-blue-500', msg: '👋 Can a friend come over?' },
@@ -18,15 +22,20 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
   const [customMsg, setCustomMsg] = useState('')
   const [sentLabel, setSentLabel] = useState<string | null>(null)
   const [recent, setRecent] = useState<Message[]>([])
+  const [pendingRewards, setPendingRewards] = useState<PendingRedemption[]>([])
   const [loaded, setLoaded] = useState(false)
 
   const childKey = childName.toLowerCase()
 
   useEffect(() => {
-    fetch(`/api/kids/messages?action=get_messages&kid=${childKey}`)
-      .then(r => r.json())
-      .then(data => { setRecent((data.messages || []).slice(0, 3)); setLoaded(true) })
-      .catch(() => setLoaded(true))
+    Promise.all([
+      fetch(`/api/kids/messages?action=get_messages&kid=${childKey}`).then(r => r.json()),
+      fetch(`/api/rewards?action=get_redemptions&kid_name=${childKey}&status=pending`).then(r => r.json()).catch(() => ({ redemptions: [] })),
+    ]).then(([msgData, rewardData]) => {
+      setRecent((msgData.messages || []).slice(0, 3))
+      setPendingRewards(rewardData.redemptions || [])
+      setLoaded(true)
+    }).catch(() => setLoaded(true))
   }, [childKey])
 
   const sendRequest = async (message: string, label: string) => {
@@ -99,6 +108,25 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
         )}
       </div>
 
+      {/* Pending Reward Redemptions */}
+      {loaded && pendingRewards.length > 0 && (
+        <div className="bg-white p-4 rounded-lg border">
+          <h3 className="font-semibold mb-3">Waiting for Approval</h3>
+          <div className="space-y-2">
+            {pendingRewards.map(r => (
+              <div key={r.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
+                <div className="flex items-center gap-2">
+                  <Gamepad2 className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-medium text-gray-800">{r.reward_name}</span>
+                  <span className="text-xs text-gray-500">({r.coins_spent} coins)</span>
+                </div>
+                <span className="text-xs text-amber-600 font-medium flex items-center gap-1">waiting for Mom</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Recent Requests */}
       {loaded && recent.length > 0 && (
         <div className="bg-white p-4 rounded-lg border">
@@ -110,11 +138,13 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
                   <span className="text-gray-800">{msg.message}</span>
                   <span className="text-xs text-gray-400">{timeAgo(msg.created_at)}</span>
                 </div>
-                {msg.parent_reply && (
+                {msg.parent_reply ? (
                   <div className="mt-1 p-2 bg-green-50 rounded-lg border border-green-100">
                     <p className="text-xs font-medium text-green-600">Mom said:</p>
                     <p className="text-sm text-green-800">{msg.parent_reply}</p>
                   </div>
+                ) : (
+                  <p className="text-xs text-amber-500 mt-0.5">Waiting for Mom...</p>
                 )}
               </div>
             ))}

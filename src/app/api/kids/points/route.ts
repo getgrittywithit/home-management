@@ -34,12 +34,37 @@ export async function GET(request: NextRequest) {
 
       case 'get_goals': {
         if (!child) return NextResponse.json({ error: 'child required' }, { status: 400 })
-        const kidGoals = await db.query(
-          `SELECT id, goal_name, target_points, current_points, completed
-           FROM kid_savings_goals WHERE kid_name = $1 AND completed = FALSE
-           ORDER BY created_at DESC`,
-          [child]
-        )
+        // Try Phase R savings_goals table first, fall back to kid_savings_goals
+        let kidGoals: any[] = []
+        try {
+          kidGoals = await db.query(
+            `SELECT id, goal_name, target_amount as target_points, current_amount as current_points, is_achieved as completed
+             FROM savings_goals WHERE kid_name = $1 AND is_achieved = FALSE
+             ORDER BY is_primary DESC, created_at DESC`,
+            [child]
+          )
+        } catch {
+          try {
+            kidGoals = await db.query(
+              `SELECT id, goal_name, target_points, current_points, completed
+               FROM kid_savings_goals WHERE kid_name = $1 AND completed = FALSE
+               ORDER BY created_at DESC`,
+              [child]
+            )
+          } catch { kidGoals = [] }
+        }
+        // If Phase R table returned no rows, try old table as fallback
+        if (kidGoals.length === 0) {
+          try {
+            const oldGoals = await db.query(
+              `SELECT id, goal_name, target_points, current_points, completed
+               FROM kid_savings_goals WHERE kid_name = $1 AND completed = FALSE
+               ORDER BY created_at DESC`,
+              [child]
+            )
+            if (oldGoals.length > 0) kidGoals = oldGoals
+          } catch {}
+        }
         const familyGoals = await db.query(
           `SELECT id, goal_name, target_points, current_points, completed
            FROM family_goals WHERE completed = FALSE

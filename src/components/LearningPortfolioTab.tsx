@@ -6,6 +6,7 @@ import { Flame, BookOpen, Lightbulb, Image, Plus, Trash2, Star, Check, ChevronDo
 interface Book { id: number; book_title: string; author: string | null; status: string; rating: number | null; notes: string | null; date_completed: string | null }
 interface WishItem { id: number; topic: string; notes: string | null; completed: boolean }
 interface WorkEntry { id: number; title: string; description: string | null; subject: string | null; work_date: string }
+interface LessonLog { id: number; subject_name: string; subject_emoji: string | null; notes: string | null; photo_url: string | null; log_date: string }
 
 const SUBJECT_COLORS: Record<string, string> = {
   Math: 'bg-blue-100 text-blue-700', Writing: 'bg-purple-100 text-purple-700',
@@ -21,6 +22,7 @@ export default function LearningPortfolioTab({ childName }: { childName: string 
   const [last30Days, setLast30Days] = useState<string[]>([])
   const [wishlist, setWishlist] = useState<WishItem[]>([])
   const [work, setWork] = useState<WorkEntry[]>([])
+  const [lessonLogs, setLessonLogs] = useState<LessonLog[]>([])
   const [currentFocus, setCurrentFocus] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -41,20 +43,24 @@ export default function LearningPortfolioTab({ childName }: { childName: string 
   const childKey = childName.toLowerCase()
 
   useEffect(() => {
-    fetch(`/api/kids/portfolio?action=get_portfolio&kid=${childKey}`)
-      .then(r => r.json())
-      .then(data => {
-        setReading(data.reading || [])
-        setStreak(data.readingStreak || 0)
-        setReadThisMonth(data.readThisMonth || 0)
-        setLoggedToday(data.loggedToday || false)
-        setLast30Days(data.last30Days || [])
-        setWishlist(data.wishlist || [])
-        setWork(data.work || [])
-        setCurrentFocus(data.currentFocus || null)
-        setLoaded(true)
-      })
-      .catch(() => setLoaded(true))
+    Promise.all([
+      fetch(`/api/kids/portfolio?action=get_portfolio&kid=${childKey}`).then(r => r.json()),
+      // Fetch lesson logs with photos for homeschool portfolio
+      fetch(`/api/homeschool?action=get_lesson_logs&student_name=${childKey}&limit=20`).then(r => r.json()).catch(() => ({ logs: [] })),
+    ]).then(([data, hsData]) => {
+      setReading(data.reading || [])
+      setStreak(data.readingStreak || 0)
+      setReadThisMonth(data.readThisMonth || 0)
+      setLoggedToday(data.loggedToday || false)
+      setLast30Days(data.last30Days || [])
+      setWishlist(data.wishlist || [])
+      setWork(data.work || [])
+      setCurrentFocus(data.currentFocus || null)
+      // Filter lesson logs that have photos
+      const logs = (hsData.logs || []).filter((l: LessonLog) => l.photo_url)
+      setLessonLogs(logs)
+      setLoaded(true)
+    }).catch(() => setLoaded(true))
   }, [childKey])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
@@ -351,6 +357,32 @@ export default function LearningPortfolioTab({ childName }: { childName: string 
           </div>
         )}
       </div>
+
+      {/* Section 5: Lesson Log Photos */}
+      {lessonLogs.length > 0 && (
+        <div className="bg-white rounded-lg border shadow-sm p-5">
+          <h2 className="font-bold text-gray-900 flex items-center gap-2 mb-4"><Image className="w-5 h-5 text-emerald-500" /> Lesson Photos</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {lessonLogs.map(log => (
+              <div key={log.id} className="border rounded-lg overflow-hidden">
+                <img
+                  src={log.photo_url!}
+                  alt={log.notes || 'Lesson photo'}
+                  className="w-full h-32 object-cover"
+                />
+                <div className="p-2">
+                  <div className="flex items-center gap-1 mb-1">
+                    {log.subject_emoji && <span className="text-sm">{log.subject_emoji}</span>}
+                    <span className="text-xs font-medium text-gray-700">{log.subject_name}</span>
+                  </div>
+                  {log.notes && <p className="text-xs text-gray-500 line-clamp-2">{log.notes}</p>}
+                  <p className="text-[10px] text-gray-400 mt-1">{new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

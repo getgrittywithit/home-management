@@ -68,7 +68,9 @@ export async function GET(request: NextRequest) {
         db.query(`SELECT COALESCE(longest_streak, 0) as longest FROM kid_chore_streaks WHERE kid_name = $1`, [kid]).catch(() => [{ longest: 0 }]),
         db.query(`SELECT total_earned_all_time FROM kid_points_balance WHERE kid_name = $1`, [kid]).catch(() => [{ total_earned_all_time: 0 }]),
         db.query(`SELECT COUNT(*)::int as c FROM kid_achievements WHERE kid_name = $1`, [kid]).catch(() => [{ c: 0 }]),
-        db.query(`SELECT COUNT(*)::int as c FROM kid_savings_goals WHERE kid_name = $1 AND completed = TRUE`, [kid]).catch(() => [{ c: 0 }]),
+        db.query(`SELECT COUNT(*)::int as c FROM savings_goals WHERE kid_name = $1 AND is_achieved = TRUE`, [kid]).catch(() =>
+          db.query(`SELECT COUNT(*)::int as c FROM kid_savings_goals WHERE kid_name = $1 AND completed = TRUE`, [kid]).catch(() => [{ c: 0 }])
+        ),
       ])
       return NextResponse.json({
         year,

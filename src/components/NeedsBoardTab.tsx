@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { ShoppingCart, Check, CheckCircle2, ClipboardList } from 'lucide-react'
+import { ShoppingCart, Check, CheckCircle2, ClipboardList, AlertTriangle, Gift, Camera, MessageSquare } from 'lucide-react'
 
 const KID_DISPLAY: Record<string, string> = {
   amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', zoey: 'Zoey', kaylee: 'Kaylee'
@@ -49,16 +49,37 @@ export default function NeedsBoardTab() {
   const [loaded, setLoaded] = useState(false)
   const markedReadRef = useRef(false)
 
+  // Additional data sources
+  const [sickAlerts, setSickAlerts] = useState<{ kid_name: string; sick_date: string }[]>([])
+  const [pendingRewards, setPendingRewards] = useState<{ id: number; kid_name: string; reward_name: string; coins_spent: number; created_at: string }[]>([])
+  const [pendingSubmissions, setPendingSubmissions] = useState<{ id: number; kid_name: string; task_name: string; submitted_at: string }[]>([])
+  const [unreadMessages, setUnreadMessages] = useState<{ from_kid: string; count: number }[]>([])
+
   useEffect(() => { loadData() }, [])
 
   const loadData = () => {
     Promise.all([
       fetch('/api/kids/school-notes?action=get_shopping_list').then(r => r.json()),
       fetch('/api/kids/school-notes?action=get_all_notes').then(r => r.json()),
-    ]).then(([shopData, allData]) => {
+      fetch('/api/parent/flags?action=get_all_flags').then(r => r.json()).catch(() => ({})),
+    ]).then(([shopData, allData, flagsData]) => {
       setShoppingList(shopData.items || [])
       setAllNotes(allData.notes || [])
       setUnreadCount(allData.unreadCount || 0)
+
+      // Wire additional sources from flags endpoint
+      setSickAlerts(flagsData.sick_days || [])
+      setUnreadMessages(flagsData.messages || [])
+
+      // Fetch pending rewards and submissions separately
+      Promise.all([
+        fetch('/api/rewards?action=get_pending_redemptions').then(r => r.json()).catch(() => ({ redemptions: [] })),
+        fetch('/api/rewards?action=get_pending_submissions').then(r => r.json()).catch(() => ({ submissions: [] })),
+      ]).then(([rewardData, subData]) => {
+        setPendingRewards(rewardData.redemptions || [])
+        setPendingSubmissions(subData.submissions || [])
+      }).catch(() => {})
+
       setLoaded(true)
 
       // Auto-mark unread as read on first load
@@ -124,6 +145,76 @@ export default function NeedsBoardTab() {
         <h1 className="text-2xl font-bold">Needs Board</h1>
         <p className="text-teal-100">School notes, ideas, and supply requests from all kids</p>
       </div>
+
+      {/* ─── Needs Attention Now ─── */}
+      {(sickAlerts.length > 0 || pendingRewards.length > 0 || pendingSubmissions.length > 0 || unreadMessages.length > 0) && (
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-4 border-b flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-rose-500" />
+            <h2 className="font-bold text-gray-900">Needs Attention Now</h2>
+            <span className="bg-rose-100 text-rose-700 text-xs px-2 py-0.5 rounded-full">
+              {sickAlerts.length + pendingRewards.length + pendingSubmissions.length + unreadMessages.reduce((s, m) => s + m.count, 0)}
+            </span>
+          </div>
+          <div className="divide-y">
+            {/* Sick day alerts */}
+            {sickAlerts.map((s, i) => (
+              <div key={`sick-${i}`} className="flex items-center gap-3 px-4 py-3 bg-rose-50/40">
+                <span className="w-2.5 h-2.5 bg-rose-500 rounded-full flex-shrink-0" />
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[s.kid_name] || 'bg-gray-100 text-gray-700'}`}>
+                  {(KID_DISPLAY[s.kid_name] || s.kid_name).charAt(0)}
+                </span>
+                <span className="text-sm text-gray-800 flex-1">
+                  <span className="font-medium">{KID_DISPLAY[s.kid_name] || s.kid_name}</span> is not feeling well today
+                </span>
+                <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">Sick Day</span>
+              </div>
+            ))}
+
+            {/* Pending reward redemptions */}
+            {pendingRewards.map(r => (
+              <div key={`reward-${r.id}`} className="flex items-center gap-3 px-4 py-3 bg-amber-50/40">
+                <Gift className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[r.kid_name] || 'bg-gray-100 text-gray-700'}`}>
+                  {(KID_DISPLAY[r.kid_name] || r.kid_name).charAt(0)}
+                </span>
+                <span className="text-sm text-gray-800 flex-1">
+                  <span className="font-medium">{KID_DISPLAY[r.kid_name] || r.kid_name}</span> redeemed: {r.reward_name} ({r.coins_spent} coins)
+                </span>
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pending</span>
+              </div>
+            ))}
+
+            {/* Pending zone photo submissions */}
+            {pendingSubmissions.map(s => (
+              <div key={`sub-${s.id}`} className="flex items-center gap-3 px-4 py-3 bg-blue-50/40">
+                <Camera className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[s.kid_name] || 'bg-gray-100 text-gray-700'}`}>
+                  {(KID_DISPLAY[s.kid_name] || s.kid_name).charAt(0)}
+                </span>
+                <span className="text-sm text-gray-800 flex-1">
+                  <span className="font-medium">{KID_DISPLAY[s.kid_name] || s.kid_name}</span> submitted: {s.task_name}
+                </span>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Review</span>
+              </div>
+            ))}
+
+            {/* Unread kid messages */}
+            {unreadMessages.map((m, i) => (
+              <div key={`msg-${i}`} className="flex items-center gap-3 px-4 py-3">
+                <MessageSquare className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${KID_COLORS[m.from_kid] || 'bg-gray-100 text-gray-700'}`}>
+                  {(KID_DISPLAY[m.from_kid] || m.from_kid).charAt(0)}
+                </span>
+                <span className="text-sm text-gray-800 flex-1">
+                  <span className="font-medium">{KID_DISPLAY[m.from_kid] || m.from_kid}</span> sent {m.count} unread message{m.count > 1 ? 's' : ''}
+                </span>
+                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Unread</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ─── Shopping List ─── */}
       <div className="bg-white rounded-lg border shadow-sm">

@@ -460,6 +460,16 @@ export async function POST(request: NextRequest) {
            ON CONFLICT (kid_name, sick_date) DO NOTHING`,
           [kid.toLowerCase(), sickDate]
         )
+
+        // Also log to health timeline
+        try {
+          await db.query(
+            `INSERT INTO health_logs (member_name, log_type, value_text, notes, logged_at)
+             VALUES ($1, 'note', $2, 'Auto-logged from kid portal sick day button', NOW())`,
+            [kid.toLowerCase(), `${kid} reported not feeling well (kid portal)`]
+          )
+        } catch {}
+
         return NextResponse.json({ success: true })
       }
 
