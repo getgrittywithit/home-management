@@ -292,10 +292,88 @@ export async function GET(request: NextRequest) {
     })
 
     // ── Tier 2: Daily Care ──
-    const dailyCare = [
+    const dailyCare: any[] = [
       { id: `hygiene-morning-${today}`, title: 'Morning Routine', description: 'Brush teeth, get dressed, make bed', category: 'hygiene', time: '7:00 AM' },
       { id: `hygiene-bedtime-${today}`, title: 'Bedtime Routine', description: 'Brush teeth, pajamas, wind down', category: 'hygiene', time: '8:30 PM' },
     ]
+
+    // ── Medications ──
+    // Known medications for kids with active prescriptions
+    const MEDICATION_MAP: Record<string, { am?: string; pm?: string }> = {
+      amos: { am: 'Focalin (morning dose)', pm: 'Clonidine (evening dose)' },
+      wyatt: { am: 'Focalin (morning dose)', pm: 'Clonidine (evening dose)' },
+    }
+    const kidMeds = MEDICATION_MAP[child]
+    if (kidMeds) {
+      if (kidMeds.am) {
+        required.push({
+          id: `med-am-${today}`, title: `💊 ${kidMeds.am}`,
+          description: 'Take with breakfast', category: 'hygiene', time: '7:30 AM',
+        })
+      }
+      if (kidMeds.pm) {
+        required.push({
+          id: `med-pm-${today}`, title: `💊 ${kidMeds.pm}`,
+          description: 'Take before bed', category: 'hygiene', time: '8:00 PM',
+        })
+      }
+    }
+    // Hannah: skincare routine from health conditions
+    if (child === 'hannah') {
+      dailyCare.push(
+        { id: `skincare-am-${today}`, title: '🧴 Morning Skincare Routine', description: 'Wash face, apply moisturizer, sunscreen', category: 'hygiene', time: '7:15 AM' },
+        { id: `skincare-pm-${today}`, title: '🧴 Evening Skincare Routine', description: 'Wash face, apply treatment, moisturizer', category: 'hygiene', time: '8:15 PM' },
+      )
+    }
+
+    // Also try to pull active meds from DB (student_profiles.active_meds)
+    try {
+      const dbMeds = await db.query(
+        `SELECT active_meds FROM student_profiles WHERE LOWER(first_name) = $1 AND active_meds IS NOT NULL AND active_meds != '{}'`,
+        [child]
+      )
+      if (dbMeds.length > 0 && dbMeds[0].active_meds) {
+        const meds = dbMeds[0].active_meds
+        if (Array.isArray(meds)) {
+          meds.forEach((med: any, idx: number) => {
+            const medName = typeof med === 'string' ? med : med.name || med.medication
+            const medTime = typeof med === 'object' && med.time_of_day ? med.time_of_day : null
+            // Skip if we already added it from the static map
+            const alreadyAdded = required.some(r => r.id.startsWith('med-') && r.title.toLowerCase().includes(medName?.toLowerCase?.() || ''))
+            if (medName && !alreadyAdded) {
+              required.push({
+                id: `med-db-${idx}-${today}`, title: `💊 ${medName}`,
+                description: medTime === 'pm' ? 'Take before bed' : 'Take as prescribed',
+                category: 'hygiene',
+                time: medTime === 'pm' ? '8:00 PM' : '7:30 AM',
+              })
+            }
+          })
+        }
+      }
+    } catch { /* student_profiles.active_meds column may not exist */ }
+
+    // Also pull daily care items from student_health_conditions
+    try {
+      const careItems = await db.query(
+        `SELECT item_name, instructions, time_of_day, category FROM student_health_conditions
+         WHERE LOWER(kid_name) = $1 AND is_active = TRUE`,
+        [child]
+      )
+      careItems.forEach((item: any, idx: number) => {
+        const alreadyAdded = dailyCare.some(d => d.title.toLowerCase().includes(item.item_name?.toLowerCase?.() || ''))
+        if (item.item_name && !alreadyAdded) {
+          const timeOfDay = item.time_of_day || 'morning'
+          dailyCare.push({
+            id: `health-care-${idx}-${today}`,
+            title: `${item.category === 'skincare' ? '🧴' : '💊'} ${item.item_name}`,
+            description: item.instructions || '',
+            category: 'hygiene',
+            time: timeOfDay === 'evening' || timeOfDay === 'pm' ? '8:15 PM' : '7:15 AM',
+          })
+        }
+      })
+    } catch { /* student_health_conditions table may not exist */ }
 
     // ── Tier 3: Earn Money ──
     const earnMoney = await db.query(
@@ -417,6 +495,17 @@ export async function POST(request: NextRequest) {
               [kidName, pts]
             )
           }
+        }
+
+        // Log medication dose to health_logs when checking a med item
+        if (eventId.startsWith('med-') && newCompleted) {
+          try {
+            await db.query(
+              `INSERT INTO health_logs (member_name, log_type, value_text, notes, logged_at)
+               VALUES ($1, 'dose_log', $2, 'Auto-logged from daily checklist', NOW())`,
+              [kidName, eventSummary || eventId]
+            )
+          } catch { /* health_logs table may not exist */ }
         }
 
         return NextResponse.json({ success: true, completed: newCompleted })

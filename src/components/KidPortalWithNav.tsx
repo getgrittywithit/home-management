@@ -72,6 +72,41 @@ const navTabs: NavTab[] = [
   { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' }
 ]
 
+function FamilyAnnouncementBanner() {
+  const [announcement, setAnnouncement] = useState<{ message: string; created_at: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/kids/messages?action=get_announcements')
+      .then(r => r.json())
+      .then(data => {
+        const announcements = data.announcements || []
+        if (announcements.length > 0) {
+          setAnnouncement(announcements[0])
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  if (!announcement) return null
+
+  const dateStr = new Date(announcement.created_at).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', timeZone: 'America/Chicago'
+  })
+
+  return (
+    <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-4">
+      <div className="flex items-start gap-3">
+        <span className="text-xl flex-shrink-0">📣</span>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-amber-900">Message from Mom</p>
+          <p className="text-sm text-amber-800 mt-1">{announcement.message}</p>
+          <p className="text-xs text-amber-600 mt-1">{dateStr}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -493,6 +528,9 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             </div>
           </div>
         </div>
+
+        {/* Family Announcement Banner */}
+        <FamilyAnnouncementBanner />
 
         {/* Mom's Availability */}
         <MomAvailabilityBadge status={lolaStatus.status} note={lolaStatus.note} />

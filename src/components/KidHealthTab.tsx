@@ -896,9 +896,10 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
 // ============================================================================
 
 function CareCheckRow({ item, checked, onToggle }: { item: CareItem; checked: boolean; onToggle: () => void }) {
-  const endDateLabel = item.end_date
-    ? `Until ${new Date(item.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-    : null
+  const parsedEnd = item.end_date ? new Date(item.end_date + 'T12:00:00') : null
+  const endDateLabel = parsedEnd && !isNaN(parsedEnd.getTime())
+    ? `Until ${parsedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : (item.end_date ? 'Ongoing' : null)
   return (
     <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg ${checked ? 'bg-gray-50/50' : 'bg-purple-50/40'}`}>
       <button onClick={onToggle} className="flex-shrink-0">

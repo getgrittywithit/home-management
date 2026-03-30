@@ -105,6 +105,43 @@ const familyData = getAllFamilyData()
 const familyChildren = familyData.children.filter(Boolean) // Remove any null values
 const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null values
 
+function SickAlertBanner() {
+  const [alerts, setAlerts] = useState<{ kid_name: string; reason?: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/parent/flags?action=get_all_flags')
+      .then(r => r.json())
+      .then(data => {
+        const sick = data.sick_days || []
+        const breaks = data.break_requests || []
+        setAlerts([
+          ...sick.map((s: any) => ({ kid_name: s.kid_name, reason: 'not feeling well' })),
+          ...breaks.map((b: any) => ({ kid_name: b.kid_name, reason: 'needs a break' })),
+        ])
+      })
+      .catch(() => {})
+  }, [])
+
+  if (alerts.length === 0) return null
+
+  const names = alerts.map(a => {
+    const cap = a.kid_name.charAt(0).toUpperCase() + a.kid_name.slice(1)
+    return `${cap} (${a.reason})`
+  })
+
+  return (
+    <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-4 flex items-start gap-3">
+      <span className="text-xl flex-shrink-0">🤒</span>
+      <div>
+        <p className="font-semibold text-amber-900">
+          {alerts.length} kid{alerts.length > 1 ? 's' : ''} need{alerts.length === 1 ? 's' : ''} attention
+        </p>
+        <p className="text-sm text-amber-800 mt-0.5">{names.join(', ')}</p>
+      </div>
+    </div>
+  )
+}
+
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
   const [activeTab, setActiveTab] = useState('overview')
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
@@ -238,6 +275,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'overview':
         return (
           <div className="space-y-6">
+            <SickAlertBanner />
             <AvailabilityWidget />
             <MoodOverview />
             <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
