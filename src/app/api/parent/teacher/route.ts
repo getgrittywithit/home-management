@@ -339,6 +339,18 @@ export async function POST(request: NextRequest) {
         await db.query(`UPDATE kid_special_ed_plans SET meeting_confirmed = TRUE, updated_at = NOW() WHERE id = $1`, [plan_id])
         return NextResponse.json({ success: true })
       }
+      case 'create_special_ed_plan': {
+        const { kid, plan_type, status: planStatus, start_date, review_date, next_meeting_date, next_meeting_time, next_meeting_location, notes: planCreateNotes, accommodations: planAccom, goals: planGoals } = body
+        if (!kid || !plan_type) return NextResponse.json({ error: 'kid, plan_type required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO kid_special_ed_plans (kid_name, plan_type, status, start_date, review_date, next_meeting_date, next_meeting_time, next_meeting_location, notes, accommodations, goals)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [kid.toLowerCase(), plan_type, planStatus || 'active', start_date || null, review_date || null,
+           next_meeting_date || null, next_meeting_time || null, next_meeting_location || null,
+           planCreateNotes || null, JSON.stringify(planAccom || []), JSON.stringify(planGoals || [])]
+        )
+        return NextResponse.json({ success: true })
+      }
       case 'log_special_ed_meeting': {
         const { kid, plan_id, meeting_date, meeting_time, meeting_type, location, attendees, outcome, notes: meetNotes } = body
         if (!kid || !meeting_date) return NextResponse.json({ error: 'kid, meeting_date required' }, { status: 400 })
