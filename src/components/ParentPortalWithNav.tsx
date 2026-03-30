@@ -29,6 +29,8 @@ import ParentPortfolioPanel from './ParentPortfolioPanel'
 import AvailabilityWidget from './AvailabilityWidget'
 import WeeklySummaryTab from './WeeklySummaryTab'
 import TeacherDashboard from './TeacherDashboard'
+import HomeschoolTab from './HomeschoolTab'
+import HomeschoolDashboardCard from './HomeschoolDashboardCard'
 import HouseholdConfigTab from './HouseholdConfigTab'
 import PetsTab from './PetsTab'
 import HealthHubTab from './HealthHubTab'
@@ -63,6 +65,7 @@ const tabs: Tab[] = [
   { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
   { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
   { id: 'teacher', name: 'Teacher', icon: GraduationCap, color: 'bg-emerald-600' },
+  { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500' },
   { id: 'household-config', name: 'Zone Tasks', icon: ClipboardList, color: 'bg-teal-600' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
@@ -222,6 +225,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           <div className="space-y-6">
             <AvailabilityWidget />
             <MoodOverview />
+            <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
             <SchoolHealthCard />
             <Dashboard initialData={initialData} />
             <QuickHealthLog />
@@ -233,6 +237,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <ChoresTab familyMembers={familyMembers} />
       case 'teacher':
         return <TeacherDashboard />
+      case 'homeschool':
+        return <HomeschoolTab />
       case 'household-config':
         return <HouseholdConfigTab />
       case 'kids-checklist':
