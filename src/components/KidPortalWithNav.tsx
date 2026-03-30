@@ -38,6 +38,8 @@ import FamilyEventsStrip from './FamilyEventsStrip'
 import MomAvailabilityBadge from './MomAvailabilityBadge'
 import DigiPetTab from './DigiPetTab'
 import DigiPetWidget from './DigiPetWidget'
+import KidOnboarding from './KidOnboarding'
+import AboutMeKidTab from './AboutMeKidTab'
 
 interface KidPortalProps {
   kidData: {
@@ -49,7 +51,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet'
 
 interface NavTab {
   id: TabId
@@ -64,7 +66,8 @@ const navTabs: NavTab[] = [
   { id: 'checklist', name: 'Daily Checklist', icon: CheckSquare, color: 'bg-green-500' },
   { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
   { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
-  { id: 'about', name: 'About Me', icon: User, color: 'bg-teal-500' },
+  { id: 'about', name: 'About Me (Admin)', icon: User, color: 'bg-teal-500' },
+  { id: 'about-me', name: 'My Profile', icon: User, color: 'bg-cyan-500' },
   { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
   { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
   { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
@@ -141,6 +144,12 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
   const [completedBlocks, setCompletedBlocks] = useState<Record<string, boolean>>({})
   // Auto-expand current block on first render
   const [autoExpandedCurrent, setAutoExpandedCurrent] = useState(false)
+
+  // Star award popup for digi-pet
+  const [starPopup, setStarPopup] = useState<{ amount: number; key: number } | null>(null)
+
+  // Onboarding state
+  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null)
 
   // My Learning Right Now state (Fix F)
   const [learningData, setLearningData] = useState<{
@@ -356,6 +365,18 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     const interval = setInterval(update, 60000)
     return () => clearInterval(interval)
   }, [])
+
+  // Check onboarding status
+  useEffect(() => {
+    if (profile?.first_name) {
+      fetch(`/api/kid-profile?action=get_profile&kid_name=${(profile.first_name || '').toLowerCase()}`)
+        .then(r => r.json())
+        .then(data => {
+          setOnboardingComplete(data.profile?.onboarding_complete ?? true)
+        })
+        .catch(() => setOnboardingComplete(true))
+    }
+  }, [profile?.first_name])
 
   // Check if sick day already submitted today (sessionStorage)
   useEffect(() => {
@@ -1236,10 +1257,30 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
                           {/* Mark Complete button */}
                           {!isBlockComplete ? (
                             <button
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation()
                                 setCompletedBlocks(prev => ({ ...prev, [event.id]: true }))
                                 toggleDashboardItem(event.id, event.summary, event.startTime)
+                                // Award digi-pet stars for school block completion
+                                try {
+                                  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+                                  const res = await fetch('/api/digi-pet', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      action: 'award_task_stars',
+                                      kid_name: childKey,
+                                      task_type: 'lesson',
+                                      source_ref: `school-${event.id}-${today}`,
+                                    }),
+                                  })
+                                  const result = await res.json()
+                                  if (result?.amount && !result.already_awarded) {
+                                    const total = (result.amount || 0) + (result.bonus_stars || 0)
+                                    setStarPopup({ amount: total, key: Date.now() })
+                                    setTimeout(() => setStarPopup(null), 2200)
+                                  }
+                                } catch { /* ignore star errors */ }
                               }}
                               className="bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-teal-600 transition-colors"
                             >
@@ -1675,6 +1716,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return <LearningPortfolioTab childName={profile.first_name || profile.name} />
       case 'about':
         return <AboutMeTab childAge={profile.age || 10} childId={profile.id} childName={profile.first_name || profile.name} />
+      case 'about-me':
+        return <AboutMeKidTab childName={profile.first_name || profile.name} />
       case 'health':
         return (
           <div className="space-y-6">
@@ -1701,8 +1744,38 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     }
   }
 
+  // Show onboarding if not complete
+  if (onboardingComplete === false) {
+    return (
+      <KidOnboarding
+        kidName={profile.first_name || 'Kid'}
+        onComplete={() => setOnboardingComplete(true)}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      {/* Star award popup */}
+      {starPopup && (
+        <div className="fixed top-20 right-6 z-50 pointer-events-none">
+          <div
+            className="bg-amber-100 border border-amber-300 text-amber-800 font-bold px-4 py-2 rounded-full shadow-lg text-sm"
+            style={{ animation: 'starFloat 2s ease-out forwards' }}
+          >
+            +{starPopup.amount} stars earned
+          </div>
+          <style>{`
+            @keyframes starFloat {
+              0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+              15% { opacity: 1; transform: translateY(0) scale(1); }
+              70% { opacity: 1; transform: translateY(-20px) scale(1); }
+              100% { opacity: 0; transform: translateY(-40px) scale(0.9); }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Left Navigation */}
       <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
         {/* Profile Section */}

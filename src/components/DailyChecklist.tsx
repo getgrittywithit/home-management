@@ -8,6 +8,38 @@ import {
 import ZoneDetailCard from './ZoneDetailCard'
 import MorningCheckinCard from './MorningCheckinCard'
 
+// Map checklist categories/ids to digi-pet star task_types
+function getStarTaskType(item: { id: string; category: string }): string | null {
+  if (item.id.startsWith('med-am-')) return 'med_am'
+  if (item.id.startsWith('med-pm-')) return 'med_pm'
+  if (item.category === 'zone') return 'zone_chore'
+  if (item.category === 'dishes') return 'daily_chore'
+  if (item.category === 'belle') return 'belle_care'
+  if (item.category === 'school_clean') return 'lesson'
+  return null
+}
+
+// Award digi-pet stars after a task completion
+async function awardTaskStars(kidName: string, item: { id: string; category: string }) {
+  const taskType = getStarTaskType(item)
+  if (!taskType) return null
+  try {
+    const res = await fetch('/api/digi-pet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'award_task_stars',
+        kid_name: kidName.toLowerCase(),
+        task_type: taskType,
+        source_ref: `checklist-${item.id}-${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })}`,
+      }),
+    })
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 interface ChecklistItem {
   id: string
   title: string
@@ -112,6 +144,7 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
   const [showCelebration, setShowCelebration] = useState(false)
   const [prevAllDone, setPrevAllDone] = useState(false)
+  const [starPopup, setStarPopup] = useState<{ amount: number; key: number } | null>(null)
 
   const childKey = childName.toLowerCase()
 
@@ -161,12 +194,22 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
       setStats(s => ({ ...s, earnMoneyDone: updated.filter(t => t.completed).length }))
     }
 
+    const newCompleted = !item.completed
     try {
       await fetch('/api/kids/checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'toggle', child: childKey, eventId: item.id, eventSummary: item.title })
       })
+      // Award digi-pet stars on task completion
+      if (newCompleted) {
+        const result = await awardTaskStars(childKey, item)
+        if (result && result.amount && !result.already_awarded) {
+          const total = (result.amount || 0) + (result.bonus_stars || 0)
+          setStarPopup({ amount: total, key: Date.now() })
+          setTimeout(() => setStarPopup(null), 2200)
+        }
+      }
     } catch (err) {
       console.error('Toggle error:', err)
     }
@@ -197,6 +240,9 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
 
   return (
     <div className="space-y-6 relative">
+      {/* Star award popup */}
+      {starPopup && <StarPopup amount={starPopup.amount} key={starPopup.key} />}
+
       {/* Celebration burst overlay */}
       {showCelebration && <CelebrationBurst />}
 
@@ -415,6 +461,30 @@ function ChecklistRow({ item, onToggle, showPoints }: { item: ChecklistItem; onT
           +{item.points} pts
         </span>
       )}
+    </div>
+  )
+}
+
+// ── Star award popup animation ──
+function StarPopup({ amount }: { amount: number }) {
+  return (
+    <div className="fixed top-20 right-6 z-50 pointer-events-none">
+      <div
+        className="bg-amber-100 border border-amber-300 text-amber-800 font-bold px-4 py-2 rounded-full shadow-lg text-sm"
+        style={{
+          animation: 'starFloat 2s ease-out forwards',
+        }}
+      >
+        +{amount} stars earned
+      </div>
+      <style>{`
+        @keyframes starFloat {
+          0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+          15% { opacity: 1; transform: translateY(0) scale(1); }
+          70% { opacity: 1; transform: translateY(-20px) scale(1); }
+          100% { opacity: 0; transform: translateY(-40px) scale(0.9); }
+        }
+      `}</style>
     </div>
   )
 }

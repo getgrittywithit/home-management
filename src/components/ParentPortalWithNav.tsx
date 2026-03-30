@@ -48,6 +48,9 @@ import HabitsDashboardCard from './HabitsDashboardCard'
 import FinanceTab from './FinanceTab'
 import FinanceDashboardCard from './FinanceDashboardCard'
 import DigiPetParentPanel from './DigiPetParentPanel'
+import NeedsAttentionPanel from './NeedsAttentionPanel'
+import NotificationBell from './NotificationBell'
+import KidSnapshotCards from './KidSnapshotCards'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -275,6 +278,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'overview':
         return (
           <div className="space-y-6">
+            <NeedsAttentionPanel onNavigate={(tab) => setActiveTab(tab)} />
             <SickAlertBanner />
             <AvailabilityWidget />
             <MoodOverview />
@@ -284,6 +288,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <HabitsDashboardCard onNavigate={() => setActiveTab('habits')} />
             <FinanceDashboardCard onNavigate={() => setActiveTab('finance')} />
             <SchoolHealthCard />
+            <KidSnapshotCards />
             <Dashboard initialData={initialData} />
             <QuickHealthLog />
           </div>
@@ -377,14 +382,17 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
               <div className="font-bold text-lg">Family Ops</div>
               <div className="text-sm text-gray-600">Parent Dashboard</div>
             </div>
-            <button onClick={() => setFlagPanelOpen(true)} className="relative p-2 rounded-lg hover:bg-gray-100">
-              <Bell className="w-5 h-5 text-gray-600" />
-              {flagBadgeCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-                  {flagBadgeCount}
-                </span>
-              )}
-            </button>
+            <div className="flex items-center gap-1">
+              <NotificationBell onNavigate={(tab) => setActiveTab(tab)} />
+              <button onClick={() => setFlagPanelOpen(true)} className="relative p-2 rounded-lg hover:bg-gray-100">
+                <Bell className="w-5 h-5 text-gray-600" />
+                {flagBadgeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                    {flagBadgeCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
