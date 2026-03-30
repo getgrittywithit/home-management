@@ -38,9 +38,9 @@ export async function GET(request: NextRequest) {
         let kidGoals: any[] = []
         try {
           kidGoals = await db.query(
-            `SELECT id, goal_name, target_amount as target_points, current_amount as current_points, is_achieved as completed
+            `SELECT id, name as goal_name, target_coins as target_points, coins_saved as current_points, is_achieved as completed
              FROM savings_goals WHERE kid_name = $1 AND is_achieved = FALSE
-             ORDER BY is_primary DESC, created_at DESC`,
+             ORDER BY created_at DESC`,
             [child]
           )
         } catch {

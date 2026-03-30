@@ -190,12 +190,12 @@ async function missingData() {
       sp.kid_name,
       sp.id as plan_id,
       sp.plan_type,
-      (SELECT COUNT(*)::int FROM student_documents WHERE kid_name = sp.kid_name AND plan_id = sp.id) as doc_count,
-      sp.review_date,
+      (SELECT COUNT(*)::int FROM student_documents WHERE kid_name = sp.kid_name) as doc_count,
+      sp.annual_review_date as review_date,
       sp.goals,
       (SELECT COUNT(*)::int FROM student_service_providers WHERE kid_name = sp.kid_name AND status = 'active') as provider_count
     FROM student_plans sp
-    WHERE sp.status = 'active'
+    WHERE sp.plan_status = 'active'
   `)
 
   const nudges: { kid_name: string; type: string; message: string }[] = []

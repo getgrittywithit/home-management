@@ -10,13 +10,16 @@ export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Direct PostgreSQL connection for server-side operations
 // Use connection pooling with limited connections
+// Use Supabase transaction mode pooler (port 6543) for better concurrency
+// Session mode (port 5432) has a hard limit of ~3 connections and crashes under load
+const defaultUrl = 'postgresql://postgres.vhqgzgqklwrjmglaezmh:71jd4xNjFaBufBAA@aws-0-us-east-2.pooler.supabase.com:6543/postgres'
 const poolConfig = {
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres.vhqgzgqklwrjmglaezmh:71jd4xNjFaBufBAA@aws-0-us-east-2.pooler.supabase.com:5432/postgres',
+  connectionString: (process.env.DATABASE_URL || defaultUrl).replace(':5432/', ':6543/'),
   ssl: {
     rejectUnauthorized: false
   },
-  max: 3, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+  max: 5, // Transaction mode pooler supports more concurrent clients
+  idleTimeoutMillis: 20000, // Close idle clients after 20 seconds
   connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection cannot be established
 }
 
