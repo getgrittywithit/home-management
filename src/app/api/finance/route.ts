@@ -425,12 +425,12 @@ export async function POST(request: NextRequest) {
       // ------------------------------------------------------------------
       case 'create_category': {
         try {
-          const { name, type, color, budget_amount, icon } = body
-          if (!name || !type) return NextResponse.json({ error: 'name and type required' }, { status: 400 })
+          const { name, type: categoryType, color, budget_amount, icon } = body
+          if (!name || !categoryType) return NextResponse.json({ error: 'name and type required' }, { status: 400 })
           const rows = await db.query(
-            `INSERT INTO budget_categories (name, type, color, budget_amount, icon, active)
+            `INSERT INTO budget_categories (name, category_type, color, budget_amount, icon, active)
              VALUES ($1, $2, $3, $4, $5, true) RETURNING *`,
-            [name, type, color || '#6B7280', budget_amount || 0, icon || null]
+            [name, categoryType, color || '#6B7280', budget_amount || 0, icon || null]
           )
           return NextResponse.json({ category: rows[0] })
         } catch (error: any) {

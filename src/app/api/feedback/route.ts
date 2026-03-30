@@ -15,10 +15,10 @@ export async function GET(request: NextRequest) {
         // Find an approved meal for today that this kid hasn't rated yet
         const today = new Date().toISOString().split('T')[0]
         const rows = await db.query(
-          `SELECT mr.id as meal_request_id, mr.meal_description as meal_name, ml.id as meal_id, mr.request_date
+          `SELECT mr.id as meal_request_id, ml.name as meal_name, ml.id as meal_id, mr.assigned_date as request_date
            FROM meal_requests mr
-           LEFT JOIN meal_library ml ON LOWER(ml.name) = LOWER(mr.meal_description)
-           WHERE mr.request_date = $1
+           LEFT JOIN meal_library ml ON ml.id = mr.meal_id
+           WHERE mr.assigned_date = $1
              AND mr.status = 'approved'
              AND mr.id NOT IN (
                SELECT mf.meal_request_id FROM meal_feedback mf WHERE mf.kid_name = $2

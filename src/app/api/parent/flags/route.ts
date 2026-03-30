@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
         db.query(`SELECT from_kid, COUNT(*)::int as count FROM family_messages WHERE read_at IS NULL GROUP BY from_kid`).catch(() => []),
 
         // Break requests
-        db.query(`SELECT kid_name, created_at FROM kid_mood_checkins WHERE checkin_type = 'break_request' AND checkin_date = $1`, [today]).catch(() => []),
+        db.query(`SELECT kid_name, flagged_at as created_at FROM kid_break_flags WHERE acknowledged = FALSE AND flagged_at::date = $1`, [today]).catch(() => []),
 
         // Sick day self-reports today
         db.query(`SELECT kid_name, sick_date FROM kid_sick_days WHERE sick_date = $1`, [today]).catch(() => []),
@@ -174,7 +174,7 @@ export async function GET(request: NextRequest) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
       const [msgCount, breakCount, sickCount, mealCount] = await Promise.all([
         db.query(`SELECT COUNT(*)::int as count FROM family_messages WHERE read_at IS NULL`).catch(() => [{ count: 0 }]),
-        db.query(`SELECT COUNT(*)::int as count FROM kid_mood_checkins WHERE checkin_type = 'break_request' AND checkin_date = $1`, [today]).catch(() => [{ count: 0 }]),
+        db.query(`SELECT COUNT(*)::int as count FROM kid_break_flags WHERE acknowledged = FALSE AND flagged_at::date = $1`, [today]).catch(() => [{ count: 0 }]),
         db.query(`SELECT COUNT(*)::int as count FROM kid_sick_days WHERE sick_date = $1`, [today]).catch(() => [{ count: 0 }]),
         db.query(`SELECT COUNT(*)::int as count FROM meal_requests WHERE status = 'pending'`).catch(() => [{ count: 0 }]),
       ])

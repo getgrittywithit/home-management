@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
           const overdue = await db.query(
             `SELECT id, member_name, vital_type, frequency_days, last_logged_at
              FROM health_vitals_schedule
-             WHERE active = true
+             WHERE is_active = true
                AND last_logged_at + (frequency_days || ' days')::INTERVAL < NOW()`
           )
           const today = new Date().toISOString().split('T')[0]

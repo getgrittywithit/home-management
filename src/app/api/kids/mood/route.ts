@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
         if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
         const rows = await db.query(
           `SELECT mood_score, one_win, one_hard_thing, what_helped
-           FROM kid_mood_log WHERE kid_name = $1 AND log_date = $2`,
+           FROM kid_mood_log WHERE child_name = $1 AND log_date = $2`,
           [kid, today]
         )
         return NextResponse.json({ mood: rows[0] || null })
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         const days = parseInt(searchParams.get('days') || '30')
         const rows = await db.query(
           `SELECT log_date, mood_score, one_win, one_hard_thing, what_helped
-           FROM kid_mood_log WHERE kid_name = $1
+           FROM kid_mood_log WHERE child_name = $1
            AND log_date >= CURRENT_DATE - $2 * INTERVAL '1 day'
            ORDER BY log_date DESC`,
           [kid, days]
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
       case 'get_all_today_moods': {
         const rows = await db.query(
-          `SELECT kid_name, mood_score FROM kid_mood_log WHERE log_date = $1`,
+          `SELECT child_name as kid_name, mood_score FROM kid_mood_log WHERE log_date = $1`,
           [today]
         )
         const moods: Record<string, number> = {}
@@ -71,9 +71,9 @@ export async function POST(request: NextRequest) {
         if (!kid_name || !mood_score) return NextResponse.json({ error: 'kid_name and mood_score required' }, { status: 400 })
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
         await db.query(
-          `INSERT INTO kid_mood_log (kid_name, log_date, mood_score, one_win, one_hard_thing, what_helped)
+          `INSERT INTO kid_mood_log (child_name, log_date, mood_score, one_win, one_hard_thing, what_helped)
            VALUES ($1, $2, $3, $4, $5, $6)
-           ON CONFLICT (kid_name, log_date)
+           ON CONFLICT (child_name, log_date)
            DO UPDATE SET mood_score = $3, one_win = $4, one_hard_thing = $5, what_helped = $6, created_at = NOW()`,
           [kid_name.toLowerCase(), today, mood_score, one_win || null, one_hard_thing || null, what_helped || null]
         )
