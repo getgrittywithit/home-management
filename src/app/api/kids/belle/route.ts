@@ -9,9 +9,9 @@ const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah
 // Reverse lookup: kid -> their fixed weekday number
 const KID_WEEKDAY: Record<string, number> = { kaylee: 1, amos: 2, hannah: 3, wyatt: 4, ellie: 5 }
 
-// Weekend rotation — 5-week cycle, anchored March 28, 2026 (Week 1 = Kaylee)
-const WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
-const WEEKEND_ANCHOR_MS = new Date('2026-03-28T00:00:00').getTime()
+// Weekend rotation — 5-week cycle, anchored March 28, 2026 (Week 1 = Hannah)
+const WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
+const WEEKEND_ANCHOR_MS = new Date(2026, 2, 28).getTime()
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 
 const EXTRA_TASK: Record<number, { task: string; label: string; emoji: string } | null> = {

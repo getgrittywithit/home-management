@@ -542,19 +542,14 @@ const BELLE_WEEKDAY_HELPERS: Record<number, string> = {
   1: 'Kaylee', 2: 'Amos', 3: 'Hannah', 4: 'Wyatt', 5: 'Ellie',
 }
 
-// 5-week weekend rotation anchored: Mar 21-22, 2026 = Ellie
-// Order: Hannah → Wyatt → Amos → Kaylee → Ellie → repeat
+// 5-week weekend rotation: Hannah → Wyatt → Amos → Kaylee → Ellie → repeat
 const BELLE_WEEKEND_ROTATION = ['Hannah', 'Wyatt', 'Amos', 'Kaylee', 'Ellie']
-const BELLE_WEEKEND_ANCHOR = new Date(2026, 2, 15) // Sunday of anchor week (Mar 15). Mar 21-22 is week index 0 mapped to Ellie (index 4 in rotation)
-// Ellie is at index 4. Anchor week (containing Mar 21-22) = week 0 from Mar 15.
-// week 0 → index 4 (Ellie), so offset = 4
-const BELLE_WEEKEND_OFFSET = 4
+const BELLE_WEEKEND_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1 (Hannah)
+const BELLE_WEEKEND_OFFSET = 0
 
 function getBelleWeekendHelper(date: Date): string {
-  // Always use the Saturday of the weekend to determine rotation
-  // (Sunday belongs to the same weekend as the preceding Saturday)
   const sat = new Date(date)
-  if (sat.getDay() === 0) sat.setDate(sat.getDate() - 1) // Sunday → use Saturday
+  if (sat.getDay() === 0) sat.setDate(sat.getDate() - 1) // Sunday → use preceding Saturday
   const msPerWeek = 7 * 24 * 60 * 60 * 1000
   const weeksSince = Math.floor((sat.getTime() - BELLE_WEEKEND_ANCHOR.getTime()) / msPerWeek)
   const idx = (((weeksSince + BELLE_WEEKEND_OFFSET) % 5) + 5) % 5
@@ -574,12 +569,13 @@ function isBelleGroomingWeekend(date: Date): boolean {
 
 function getBelleWeekDates(today: Date): Date[] {
   const dayOfWeek = today.getDay()
-  const sunday = new Date(today)
-  sunday.setDate(today.getDate() - dayOfWeek)
-  sunday.setHours(0, 0, 0, 0)
+  // Monday = day 1, so shift: Mon=0, Tue=1, ..., Sun=6
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - ((dayOfWeek + 6) % 7)) // Back to Monday
+  monday.setHours(0, 0, 0, 0)
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(sunday)
-    d.setDate(sunday.getDate() + i)
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
     return d
   })
 }

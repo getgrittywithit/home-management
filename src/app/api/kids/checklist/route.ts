@@ -5,15 +5,17 @@ import { getKidZone } from '@/lib/zoneRotation'
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
 const BELLE_WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
-const BELLE_ANCHOR = new Date(2026, 2, 15)
+const BELLE_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1
 
 function getBelleHelper(date: Date): string {
   const day = date.getDay()
   if (day >= 1 && day <= 5) return BELLE_WEEKDAY[day]
+  // Weekend — always use Saturday
   const sat = new Date(date)
-  if (sat.getDay() === 0) sat.setDate(sat.getDate() - 1)
+  if (sat.getDay() === 0) sat.setDate(sat.getDate() - 1) // Sunday → preceding Saturday
   const weeks = Math.floor((sat.getTime() - BELLE_ANCHOR.getTime()) / (7 * 24 * 60 * 60 * 1000))
-  return BELLE_WEEKEND_ROTATION[(((weeks + 4) % 5) + 5) % 5]
+  const idx = (((weeks % 5) + 5) % 5) // No offset — anchor IS week 1 = index 0
+  return BELLE_WEEKEND_ROTATION[idx]
 }
 
 // Dishes assignments (fixed daily)
