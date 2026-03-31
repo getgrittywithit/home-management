@@ -26,6 +26,8 @@ const STAR_AMOUNTS: Record<string, number> = {
   med_am: 5, med_pm: 5, zone_chore: 8, daily_chore: 5, lesson: 10,
   belle_care: 6, opp_applying: 15, opp_submitted: 25, reading_log: 8,
   streak_3: 10, streak_7: 25, parent_bonus: 0,
+  enrichment_complete: 1, typing_session: 2, typing_pb: 5,
+  typing_race_win: 3, typing_accuracy: 3, financial_level_up: 10,
 }
 
 const PET_TYPES: Record<string, string> = {

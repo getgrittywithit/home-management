@@ -343,6 +343,267 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ------------------------------------------------------------------
+    // get_enrichment_options — 3 filtered activities for a kid + subject
+    // ------------------------------------------------------------------
+    case 'get_enrichment_options': {
+      const kidName = searchParams.get('kid_name')
+      const subject = searchParams.get('subject')
+      if (!kidName || !subject) {
+        return NextResponse.json({ error: 'kid_name and subject required' }, { status: 400 })
+      }
+
+      try {
+        // Kid accessibility flags and grade
+        const KID_FLAGS: Record<string, string[]> = {
+          amos: ['dyslexia','dyscalculia','speech_delay','apd','color_vision','adhd','autism'],
+          ellie: ['speech_delay','suspected_adhd'],
+          wyatt: ['speech_delay','adhd','color_vision'],
+          hannah: ['speech_delay','stutter'],
+          kaylee: ['speech_delay','autism','suspected_dyslexia'],
+          zoey: [],
+        }
+        const KID_GRADES: Record<string, number> = {
+          amos: 10, ellie: 6, wyatt: 4, hannah: 3, kaylee: 7, zoey: 9,
+        }
+        const kid = kidName.toLowerCase()
+        const flags = KID_FLAGS[kid] || []
+        const grade = KID_GRADES[kid] || 5
+
+        // Map kid flags to activity conflict types
+        const conflictMap: Record<string, string[]> = {
+          color_vision: ['color_heavy'],
+          dyslexia: ['reading_heavy'],
+          suspected_dyslexia: ['reading_heavy'],
+          dyscalculia: ['math_heavy'],
+          speech_delay: ['verbal_required'],
+          stutter: ['verbal_required','timed_pressure'],
+          apd: ['verbal_required'],
+          adhd: ['timed_pressure'],
+          autism: ['complex_rules','loud_chaotic'],
+        }
+        const blockedConflicts = new Set<string>()
+        for (const f of flags) {
+          for (const c of (conflictMap[f] || [])) blockedConflicts.add(c)
+        }
+
+        // Get recently shown activities (last 5 days)
+        const recentIds = await db.query(
+          `SELECT DISTINCT activity_id FROM kid_enrichment_log
+           WHERE kid_name = $1 AND date >= CURRENT_DATE - INTERVAL '5 days'`,
+          [kid]
+        )
+        const recentIdSet = new Set(recentIds.map((r: any) => r.activity_id))
+
+        // Fetch all matching activities for the subject
+        const activities = await db.query(
+          `SELECT * FROM enrichment_activities
+           WHERE subject = $1 AND active = TRUE
+             AND grade_min <= $2 AND grade_max >= $2
+           ORDER BY RANDOM()`,
+          [subject, grade]
+        )
+
+        // Filter out conflicts and recently shown
+        const filtered = activities.filter((a: any) => {
+          if (recentIdSet.has(a.id)) return false
+          const conflicts = a.accessibility_conflicts || []
+          for (const c of conflicts) {
+            if (blockedConflicts.has(c)) return false
+          }
+          return true
+        }).slice(0, 3)
+
+        return NextResponse.json({ activities: filtered, kid_name: kid, subject })
+      } catch (error) {
+        console.error('get_enrichment_options error:', error)
+        return NextResponse.json({ error: 'Failed to load enrichment options' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_enrichment_summary — parent view of picks/completions per kid
+    // ------------------------------------------------------------------
+    case 'get_enrichment_summary': {
+      const kidName = searchParams.get('kid_name')
+      const days = parseInt(searchParams.get('days') || '7', 10)
+
+      try {
+        let sql = `SELECT l.kid_name, l.date, l.picked, l.completed, l.stars_earned,
+                          a.title, a.subject, a.duration_min
+                   FROM kid_enrichment_log l
+                   JOIN enrichment_activities a ON l.activity_id = a.id
+                   WHERE l.date >= CURRENT_DATE - $1 * INTERVAL '1 day'`
+        const params: any[] = [days]
+
+        if (kidName) {
+          sql += ` AND l.kid_name = $2`
+          params.push(kidName.toLowerCase())
+        }
+        sql += ` ORDER BY l.date DESC, l.shown_at DESC`
+
+        const logs = await db.query(sql, params)
+
+        // Build summary per kid
+        const summary: Record<string, any> = {}
+        for (const log of logs) {
+          if (!summary[log.kid_name]) {
+            summary[log.kid_name] = { total_shown: 0, total_picked: 0, total_completed: 0, by_subject: {}, entries: [] }
+          }
+          const s = summary[log.kid_name]
+          s.total_shown++
+          if (log.picked) s.total_picked++
+          if (log.completed) s.total_completed++
+          if (!s.by_subject[log.subject]) s.by_subject[log.subject] = 0
+          if (log.completed) s.by_subject[log.subject]++
+          s.entries.push(log)
+        }
+
+        return NextResponse.json({ summary, days })
+      } catch (error) {
+        console.error('get_enrichment_summary error:', error)
+        return NextResponse.json({ error: 'Failed to load enrichment summary' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_financial_level — current level + progress for a kid
+    // ------------------------------------------------------------------
+    case 'get_financial_level': {
+      const kidName = searchParams.get('kid_name')
+      if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+
+      try {
+        const rows = await db.query(
+          `SELECT * FROM financial_literacy_progress WHERE kid_name = $1`,
+          [kidName.toLowerCase()]
+        )
+        if (!rows[0]) return NextResponse.json({ progress: null })
+
+        // Also get activities for the current level
+        const activities = await db.query(
+          `SELECT * FROM enrichment_activities
+           WHERE subject = 'financial_literacy' AND financial_level = $1 AND active = TRUE
+           ORDER BY title`,
+          [rows[0].current_level]
+        )
+
+        return NextResponse.json({ progress: rows[0], activities })
+      } catch (error) {
+        console.error('get_financial_level error:', error)
+        return NextResponse.json({ error: 'Failed to load financial level' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_subject_pool — all activities for a subject + optional level
+    // ------------------------------------------------------------------
+    case 'get_subject_pool': {
+      const subject = searchParams.get('subject')
+      const level = searchParams.get('level')
+      if (!subject) return NextResponse.json({ error: 'subject required' }, { status: 400 })
+
+      try {
+        let sql = `SELECT * FROM enrichment_activities WHERE subject = $1 AND active = TRUE`
+        const params: any[] = [subject]
+        if (level) {
+          sql += ` AND financial_level = $2`
+          params.push(parseInt(level, 10))
+        }
+        sql += ` ORDER BY financial_level NULLS FIRST, title`
+        const activities = await db.query(sql, params)
+        return NextResponse.json({ activities })
+      } catch (error) {
+        console.error('get_subject_pool error:', error)
+        return NextResponse.json({ error: 'Failed to load subject pool' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_typing_personal_best — best WPM for a kid
+    // ------------------------------------------------------------------
+    case 'get_typing_personal_best': {
+      const kidName = searchParams.get('kid_name')
+      if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+
+      try {
+        const rows = await db.query(
+          `SELECT MAX(wpm) AS best_wpm, MAX(accuracy_pct) AS best_accuracy,
+                  COUNT(*)::int AS total_sessions
+           FROM typing_sessions WHERE kid_name = $1`,
+          [kidName.toLowerCase()]
+        )
+        return NextResponse.json({ stats: rows[0] || { best_wpm: 0, best_accuracy: 0, total_sessions: 0 } })
+      } catch (error) {
+        console.error('get_typing_personal_best error:', error)
+        return NextResponse.json({ error: 'Failed to load typing stats' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_typing_history — recent sessions for a kid
+    // ------------------------------------------------------------------
+    case 'get_typing_history': {
+      const kidName = searchParams.get('kid_name')
+      const limit = parseInt(searchParams.get('limit') || '10', 10)
+      if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+
+      try {
+        const sessions = await db.query(
+          `SELECT * FROM typing_sessions
+           WHERE kid_name = $1
+           ORDER BY session_date DESC, id DESC
+           LIMIT $2`,
+          [kidName.toLowerCase(), limit]
+        )
+        return NextResponse.json({ sessions })
+      } catch (error) {
+        console.error('get_typing_history error:', error)
+        return NextResponse.json({ error: 'Failed to load typing history' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_typing_leaderboard — all kids' personal bests
+    // ------------------------------------------------------------------
+    case 'get_typing_leaderboard': {
+      try {
+        const board = await db.query(
+          `SELECT kid_name, MAX(wpm) AS best_wpm, MAX(accuracy_pct) AS best_accuracy,
+                  COUNT(*)::int AS total_sessions
+           FROM typing_sessions
+           GROUP BY kid_name
+           ORDER BY best_wpm DESC`
+        )
+        return NextResponse.json({ leaderboard: board })
+      } catch (error) {
+        console.error('get_typing_leaderboard error:', error)
+        return NextResponse.json({ error: 'Failed to load leaderboard' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_typing_passages — get passages for a grade band
+    // ------------------------------------------------------------------
+    case 'get_typing_passages': {
+      const gradeBand = searchParams.get('grade_band')
+
+      try {
+        let sql = `SELECT * FROM typing_passages WHERE active = TRUE`
+        const params: any[] = []
+        if (gradeBand) {
+          sql += ` AND grade_band = $1`
+          params.push(gradeBand)
+        }
+        sql += ` ORDER BY RANDOM() LIMIT 5`
+        const passages = await db.query(sql, params)
+        return NextResponse.json({ passages })
+      } catch (error) {
+        console.error('get_typing_passages error:', error)
+        return NextResponse.json({ error: 'Failed to load passages' }, { status: 500 })
+      }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }
@@ -743,6 +1004,186 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('update_student_settings error:', error)
         return NextResponse.json({ error: 'Failed to update student settings' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // log_enrichment_pick — kid picked an enrichment activity
+    // ------------------------------------------------------------------
+    case 'log_enrichment_pick': {
+      const { kid_name, activity_id } = data
+      if (!kid_name || !activity_id) {
+        return NextResponse.json({ error: 'kid_name and activity_id required' }, { status: 400 })
+      }
+
+      try {
+        const result = await db.query(
+          `INSERT INTO kid_enrichment_log (kid_name, activity_id, picked, date)
+           VALUES ($1, $2, TRUE, CURRENT_DATE)
+           RETURNING *`,
+          [kid_name.toLowerCase(), activity_id]
+        )
+        return NextResponse.json({ log: result[0] }, { status: 201 })
+      } catch (error) {
+        console.error('log_enrichment_pick error:', error)
+        return NextResponse.json({ error: 'Failed to log enrichment pick' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // log_enrichment_complete — kid completed an enrichment activity
+    // ------------------------------------------------------------------
+    case 'log_enrichment_complete': {
+      const { kid_name, activity_id } = data
+      if (!kid_name || !activity_id) {
+        return NextResponse.json({ error: 'kid_name and activity_id required' }, { status: 400 })
+      }
+
+      try {
+        // Update existing log entry or create new one
+        const existing = await db.query(
+          `SELECT id FROM kid_enrichment_log
+           WHERE kid_name = $1 AND activity_id = $2 AND date = CURRENT_DATE AND picked = TRUE
+           LIMIT 1`,
+          [kid_name.toLowerCase(), activity_id]
+        )
+
+        let result
+        if (existing[0]) {
+          result = await db.query(
+            `UPDATE kid_enrichment_log SET completed = TRUE, stars_earned = 1
+             WHERE id = $1 RETURNING *`,
+            [existing[0].id]
+          )
+        } else {
+          result = await db.query(
+            `INSERT INTO kid_enrichment_log (kid_name, activity_id, picked, completed, stars_earned, date)
+             VALUES ($1, $2, TRUE, TRUE, 1, CURRENT_DATE)
+             RETURNING *`,
+            [kid_name.toLowerCase(), activity_id]
+          )
+        }
+        return NextResponse.json({ log: result[0] })
+      } catch (error) {
+        console.error('log_enrichment_complete error:', error)
+        return NextResponse.json({ error: 'Failed to log enrichment completion' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // log_enrichment_shown — record that options were shown (not picked)
+    // ------------------------------------------------------------------
+    case 'log_enrichment_shown': {
+      const { kid_name, activity_ids } = data
+      if (!kid_name || !activity_ids || !activity_ids.length) {
+        return NextResponse.json({ error: 'kid_name and activity_ids required' }, { status: 400 })
+      }
+
+      try {
+        for (const aid of activity_ids) {
+          await db.query(
+            `INSERT INTO kid_enrichment_log (kid_name, activity_id, picked, date)
+             VALUES ($1, $2, FALSE, CURRENT_DATE)`,
+            [kid_name.toLowerCase(), aid]
+          )
+        }
+        return NextResponse.json({ ok: true })
+      } catch (error) {
+        console.error('log_enrichment_shown error:', error)
+        return NextResponse.json({ error: 'Failed to log shown activities' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // advance_financial_level — parent advances a kid's level
+    // ------------------------------------------------------------------
+    case 'advance_financial_level': {
+      const { kid_name } = data
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+
+      try {
+        const kid = kid_name.toLowerCase()
+        const current = await db.query(
+          `SELECT * FROM financial_literacy_progress WHERE kid_name = $1`,
+          [kid]
+        )
+        if (!current[0]) {
+          return NextResponse.json({ error: 'Kid not found in financial literacy' }, { status: 404 })
+        }
+
+        const lvl = current[0].current_level
+        if (lvl >= 6) {
+          return NextResponse.json({ error: 'Already at max level' }, { status: 400 })
+        }
+
+        // Mark current level complete and advance
+        const levelCol = `level_${lvl}_complete`
+        const result = await db.query(
+          `UPDATE financial_literacy_progress
+           SET ${levelCol} = TRUE,
+               current_level = current_level + 1,
+               updated_at = NOW()
+           WHERE kid_name = $1
+           RETURNING *`,
+          [kid]
+        )
+
+        return NextResponse.json({ progress: result[0] })
+      } catch (error) {
+        console.error('advance_financial_level error:', error)
+        return NextResponse.json({ error: 'Failed to advance financial level' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // save_typing_session — record a completed typing session
+    // ------------------------------------------------------------------
+    case 'save_typing_session': {
+      const { kid_name, wpm, accuracy_pct, passage_id, dyslexia_mode, race_mode, race_participants, race_position } = data
+      if (!kid_name || wpm === undefined || accuracy_pct === undefined) {
+        return NextResponse.json({ error: 'kid_name, wpm, and accuracy_pct required' }, { status: 400 })
+      }
+
+      try {
+        const kid = kid_name.toLowerCase()
+
+        // Check if this is a personal best
+        const pbRows = await db.query(
+          `SELECT MAX(wpm) AS best_wpm FROM typing_sessions WHERE kid_name = $1`,
+          [kid]
+        )
+        const previousBest = pbRows[0]?.best_wpm || 0
+        const isPersonalBest = wpm > previousBest
+
+        // Calculate stars
+        let starsEarned = 2 // base for completing a session
+        if (isPersonalBest) starsEarned += 5
+        if (race_mode && race_position === 1) starsEarned += 3
+        if (accuracy_pct >= 95) starsEarned += 3
+
+        const result = await db.query(
+          `INSERT INTO typing_sessions
+             (kid_name, wpm, accuracy_pct, passage_id, dyslexia_mode,
+              race_mode, race_participants, race_position, personal_best, stars_earned)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING *`,
+          [
+            kid, wpm, accuracy_pct, passage_id || null,
+            dyslexia_mode || false, race_mode || false,
+            race_participants || null, race_position || null,
+            isPersonalBest, starsEarned,
+          ]
+        )
+
+        return NextResponse.json({
+          session: result[0],
+          is_personal_best: isPersonalBest,
+          previous_best: previousBest,
+          stars_earned: starsEarned,
+        }, { status: 201 })
+      } catch (error) {
+        console.error('save_typing_session error:', error)
+        return NextResponse.json({ error: 'Failed to save typing session' }, { status: 500 })
       }
     }
 

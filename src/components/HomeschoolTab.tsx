@@ -7,6 +7,9 @@ import {
 } from 'lucide-react'
 import FocusTimer from './FocusTimer'
 import VocabWordsTab from './VocabWordsTab'
+import ParentEnrichmentSummary from './ParentEnrichmentSummary'
+import FinancialLiteracyPanel from './FinancialLiteracyPanel'
+import { ParentLibraryAdmin } from './HomeLibrary'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -373,7 +376,7 @@ function UnitsView({ units }: { units: UnitStudy[] }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-type SubTab = 'today' | 'students' | 'books' | 'units' | 'vocab'
+type SubTab = 'today' | 'students' | 'books' | 'units' | 'vocab' | 'enrichment' | 'library'
 
 export default function HomeschoolTab() {
   const [data, setData] = useState<HomeschoolData | null>(null)
@@ -457,6 +460,8 @@ export default function HomeschoolTab() {
     { id: 'books',    label: 'Books',    icon: Library },
     { id: 'units',    label: 'Units',    icon: Layers },
     { id: 'vocab',    label: 'Vocab',    icon: Sparkles },
+    { id: 'enrichment', label: 'Enrichment', icon: Play },
+    { id: 'library',  label: 'Library',  icon: Library },
   ]
 
   return (
@@ -595,6 +600,25 @@ export default function HomeschoolTab() {
 
       {subTab === 'vocab' && (
         <VocabWordsTab />
+      )}
+
+      {subTab === 'enrichment' && (
+        <div className="space-y-6">
+          <ParentEnrichmentSummary />
+          <div className="grid gap-4 md:grid-cols-2">
+            {students.map(student => (
+              <FinancialLiteracyPanel
+                key={student.id}
+                kidName={student.name}
+                isParent={true}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {subTab === 'library' && (
+        <ParentLibraryAdmin />
       )}
     </div>
   )

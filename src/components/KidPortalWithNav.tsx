@@ -7,7 +7,7 @@ import {
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
   User, Heart, Thermometer, X, Shuffle, Dices, Sparkles,
-  ChevronDown, ChevronUp, Loader2
+  ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -43,6 +43,10 @@ import AboutMeKidTab from './AboutMeKidTab'
 import StarBalanceHeader from './StarBalanceHeader'
 import StarWalletCard from './StarWalletCard'
 import StarRewardsTab from './StarRewardsTab'
+import TypingRace from './TypingRace'
+import FinancialLiteracyPanel from './FinancialLiteracyPanel'
+import EnrichmentCard from './EnrichmentCard'
+import { KidLibraryView } from './HomeLibrary'
 
 interface KidPortalProps {
   kidData: {
@@ -54,7 +58,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy'
 
 interface NavTab {
   id: TabId
@@ -76,6 +80,9 @@ const navTabs: NavTab[] = [
   { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
   { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
   { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' },
+  { id: 'library', name: 'Our Library', icon: Library, color: 'bg-emerald-500' },
+  { id: 'typing-race', name: 'Typing Race', icon: Keyboard, color: 'bg-violet-500' },
+  { id: 'financial-literacy', name: 'Money Skills', icon: DollarSign, color: 'bg-teal-500' },
   { id: 'rewards-store', name: 'Rewards Store', icon: Star, color: 'bg-amber-500' },
   { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' }
 ]
@@ -1748,6 +1755,12 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return <OpportunitiesTab childName={profile.first_name || profile.name} />
       case 'requests':
         return <KidRequestsTab childName={profile.first_name || profile.name} />
+      case 'library':
+        return <KidLibraryView kidName={profile.first_name || profile.name} />
+      case 'typing-race':
+        return <TypingRace kidName={profile.first_name || profile.name} />
+      case 'financial-literacy':
+        return <FinancialLiteracyPanel kidName={profile.first_name || profile.name} />
       case 'rewards-store':
         return <StarRewardsTab childName={profile.first_name || profile.name} />
       case 'digi-pet':
