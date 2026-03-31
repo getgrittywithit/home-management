@@ -41,6 +41,7 @@ import SchoolHealthCard from './SchoolHealthCard'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
 import RewardsTab from './RewardsTab'
+import ParentRewardsManager from './ParentRewardsManager'
 import RewardsDashboardCard from './RewardsDashboardCard'
 import OpportunitiesParentPanel from './OpportunitiesParentPanel'
 import HabitsTab from './HabitsTab'
@@ -70,8 +71,8 @@ const tabs: Tab[] = [
   { id: 'weekly-summary', name: 'Weekly Summary', icon: BarChart2, color: 'bg-violet-500' },
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500' },
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
-  { id: 'points-earning', name: 'Points & Earning', icon: Star, color: 'bg-amber-500' },
-  { id: 'rewards', name: 'Rewards', icon: Star, color: 'bg-amber-400' },
+  { id: 'points-earning', name: 'Stars & Earning', icon: Star, color: 'bg-amber-500' },
+  { id: 'rewards', name: 'Stars & Rewards', icon: Star, color: 'bg-amber-400' },
   { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-orange-500' },
   { id: 'habits', name: 'Habits', icon: Flame, color: 'bg-orange-500' },
   { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
@@ -327,7 +328,15 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'points-earning':
         return <PointsEarningTab />
       case 'rewards':
-        return <RewardsTab />
+        return (
+          <div className="space-y-6">
+            <ParentRewardsManager />
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-bold text-gray-700 mb-4">Legacy Rewards System</h3>
+              <RewardsTab />
+            </div>
+          </div>
+        )
       case 'opportunities':
         return <OpportunitiesParentPanel />
       case 'habits':

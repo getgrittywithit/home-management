@@ -40,6 +40,9 @@ import DigiPetTab from './DigiPetTab'
 import DigiPetWidget from './DigiPetWidget'
 import KidOnboarding from './KidOnboarding'
 import AboutMeKidTab from './AboutMeKidTab'
+import StarBalanceHeader from './StarBalanceHeader'
+import StarWalletCard from './StarWalletCard'
+import StarRewardsTab from './StarRewardsTab'
 
 interface KidPortalProps {
   kidData: {
@@ -51,7 +54,7 @@ interface KidPortalProps {
   }
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet'
+type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store'
 
 interface NavTab {
   id: TabId
@@ -73,6 +76,7 @@ const navTabs: NavTab[] = [
   { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
   { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
   { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' },
+  { id: 'rewards-store', name: 'Rewards Store', icon: Star, color: 'bg-amber-500' },
   { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' }
 ]
 
@@ -1122,6 +1126,13 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         {/* Digi-Pet Widget */}
         <DigiPetWidget childName={profile.first_name || ''} onNavigate={() => setActiveTab('digi-pet')} />
 
+        {/* Star Wallet Card */}
+        <StarWalletCard
+          childName={profile.first_name || ''}
+          onNavigateRewards={() => setActiveTab('rewards-store')}
+          onNavigatePet={() => setActiveTab('digi-pet')}
+        />
+
         {/* Belle Care */}
         <BelleCareCard childName={profile.first_name || ''} />
 
@@ -1737,6 +1748,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
         return <OpportunitiesTab childName={profile.first_name || profile.name} />
       case 'requests':
         return <KidRequestsTab childName={profile.first_name || profile.name} />
+      case 'rewards-store':
+        return <StarRewardsTab childName={profile.first_name || profile.name} />
       case 'digi-pet':
         return <DigiPetTab childName={profile.first_name || profile.name} />
       default:
@@ -1784,9 +1797,10 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl">
               {profile.emoji || '👦'}
             </div>
-            <div>
+            <div className="flex-1">
               <div className="font-semibold">{profile.first_name}</div>
             </div>
+            <StarBalanceHeader childName={profile.first_name || ''} />
           </div>
         </div>
 

@@ -73,7 +73,7 @@ export default function KidPointsCard({ childName }: { childName: string }) {
 
   const fmt = (pts: number) => {
     if (settings.mode === 'dollars') return `$${(pts * settings.conversion_rate).toFixed(2)}`
-    return `${pts} pts`
+    return `${pts} stars`
   }
 
   const fmtLarge = (pts: number) => {
@@ -107,7 +107,7 @@ export default function KidPointsCard({ childName }: { childName: string }) {
             <div className="flex items-center gap-2 mb-1">
               <Star className="w-6 h-6" />
               <span className="text-3xl font-bold">{fmtLarge(balance.current_points)}</span>
-              {settings.mode === 'points' && <span className="text-amber-100 text-sm">points</span>}
+              {settings.mode === 'points' && <span className="text-amber-100 text-sm">stars</span>}
             </div>
             <p className="text-amber-100 text-xs">This week: +{fmt(weekEarned)}</p>
             <p className="text-amber-100 text-xs">Total earned all time: {fmt(balance.total_earned_all_time)}</p>
@@ -153,7 +153,7 @@ export default function KidPointsCard({ childName }: { childName: string }) {
                 <input type="text" value={goalName} onChange={e => setGoalName(e.target.value)}
                   placeholder="Goal name" className="flex-1 border rounded px-2 py-1 text-sm" />
                 <input type="number" value={goalTarget} onChange={e => setGoalTarget(e.target.value)}
-                  placeholder="Points" className="w-20 border rounded px-2 py-1 text-sm" />
+                  placeholder="Stars" className="w-20 border rounded px-2 py-1 text-sm" />
               </div>
               <div className="flex gap-2">
                 <button onClick={addGoal} className="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600">Save</button>
