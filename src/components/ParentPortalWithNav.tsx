@@ -332,7 +332,20 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
 
     switch (resolvedTab) {
       case 'overview':
-        return <OverviewDashboard onNavigate={(tab) => setActiveTab(tab)} />
+        return (
+          <div className="space-y-6 p-6 max-w-6xl mx-auto">
+            <NeedsAttentionPanel onNavigate={(tab) => setActiveTab(tab)} />
+            <SickAlertBanner />
+            <AvailabilityWidget />
+            <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
+            <CalendarDashboardCard onNavigate={() => setActiveTab('calendar')} />
+            <RewardsDashboardCard onNavigate={() => setActiveTab('stars-rewards')} />
+            <HabitsDashboardCard onNavigate={() => setActiveTab('habits')} />
+            <FinanceDashboardCard onNavigate={() => setActiveTab('finance')} />
+            <KidSnapshotCards />
+            <Dashboard initialData={initialData} />
+          </div>
+        )
       case 'messages-alerts':
         return <MessagesAndAlertsTab onNavigate={(tab) => setActiveTab(tab)} />
       case 'kids-checklist':
