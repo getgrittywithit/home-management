@@ -3,13 +3,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   BookOpen, Clock, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp,
-  Play, User, Library, Layers, Calendar, Edit3, Save, Plus, X, Sparkles
+  Play, User, Library, Layers, Calendar, Edit3, Save, Plus, X, Sparkles,
+  GraduationCap, Trophy, FolderOpen
 } from 'lucide-react'
 import FocusTimer from './FocusTimer'
 import VocabWordsTab from './VocabWordsTab'
 import ParentEnrichmentSummary from './ParentEnrichmentSummary'
 import FinancialLiteracyPanel from './FinancialLiteracyPanel'
 import { ParentLibraryAdmin } from './HomeLibrary'
+import ParentPortfolioPanel from './ParentPortfolioPanel'
+import TeacherDashboard from './TeacherDashboard'
+import OpportunitiesParentPanel from './OpportunitiesParentPanel'
 import ParentTaskManager from './ParentTaskManager'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -682,7 +686,7 @@ function UnitsView({ units: initialUnits }: { units: UnitStudy[] }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-type SubTab = 'today' | 'students' | 'books' | 'units' | 'vocab' | 'enrichment' | 'library' | 'tasks'
+type SubTab = 'today' | 'students' | 'books' | 'units' | 'vocab' | 'enrichment' | 'library' | 'tasks' | 'portfolio' | 'teacher' | 'opportunities'
 
 export default function HomeschoolTab() {
   const [data, setData] = useState<HomeschoolData | null>(null)
@@ -785,6 +789,9 @@ export default function HomeschoolTab() {
     { id: 'tasks',     label: 'Tasks',      icon: CheckCircle2 },
     { id: 'enrichment', label: 'Enrichment', icon: Play },
     { id: 'library',  label: 'Library',  icon: Library },
+    { id: 'portfolio', label: 'Portfolio', icon: FolderOpen },
+    { id: 'teacher',  label: 'Teacher',   icon: GraduationCap },
+    { id: 'opportunities', label: 'Opportunities', icon: Trophy },
   ]
 
   return (
@@ -947,6 +954,18 @@ export default function HomeschoolTab() {
 
       {subTab === 'library' && (
         <ParentLibraryAdmin />
+      )}
+
+      {subTab === 'portfolio' && (
+        <ParentPortfolioPanel />
+      )}
+
+      {subTab === 'teacher' && (
+        <TeacherDashboard />
+      )}
+
+      {subTab === 'opportunities' && (
+        <OpportunitiesParentPanel />
       )}
     </div>
   )

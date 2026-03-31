@@ -53,6 +53,12 @@ import PortalSettingsPanel from './PortalSettingsPanel'
 import NeedsAttentionPanel from './NeedsAttentionPanel'
 import NotificationBell from './NotificationBell'
 import KidSnapshotCards from './KidSnapshotCards'
+import HealthMergedTab from './HealthMergedTab'
+import FinanceMergedTab from './FinanceMergedTab'
+import StarsAndRewardsTab from './StarsAndRewardsTab'
+import MessagesAndAlertsTab from './MessagesAndAlertsTab'
+import SettingsExpandedTab from './SettingsExpandedTab'
+import OverviewDashboard from './OverviewDashboard'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -65,41 +71,55 @@ interface Tab {
   name: string
   icon: React.ComponentType<{ className?: string }>
   color: string
+  section?: string
 }
 
 const tabs: Tab[] = [
-  { id: 'overview', name: 'Overview', icon: Home, color: 'bg-blue-500' },
-  { id: 'weekly-summary', name: 'Weekly Summary', icon: BarChart2, color: 'bg-violet-500' },
-  { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500' },
-  { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600' },
-  { id: 'points-earning', name: 'Stars & Earning', icon: Star, color: 'bg-amber-500' },
-  { id: 'rewards', name: 'Stars & Rewards', icon: Star, color: 'bg-amber-400' },
-  { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-orange-500' },
-  { id: 'habits', name: 'Habits', icon: Flame, color: 'bg-orange-500' },
-  { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-pink-500' },
-  { id: 'needs-board', name: 'Needs Board', icon: ShoppingCart, color: 'bg-teal-600' },
-  { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600' },
-  { id: 'digi-pet', name: 'Digi-Pet & Stars', icon: Sparkles, color: 'bg-pink-500' },
-  { id: 'health-hub', name: 'Health Hub', icon: Heart, color: 'bg-rose-600' },
-  { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
-  { id: 'weekly-checklist', name: 'Weekly Planning', icon: CalendarCheck, color: 'bg-cyan-500' },
-  { id: 'teacher', name: 'Teacher', icon: GraduationCap, color: 'bg-emerald-600' },
-  { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500' },
-  { id: 'household-config', name: 'Zone Tasks', icon: ClipboardList, color: 'bg-teal-600' },
-  { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
-  { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500' },
-  { id: 'contacts', name: 'Contacts', icon: Phone, color: 'bg-teal-500' },
-  { id: 'parents-health', name: 'Parents Health', icon: Heart, color: 'bg-red-500' },
-  { id: 'kids-health', name: 'Kids Health', icon: Heart, color: 'bg-teal-500' },
-  { id: 'todos', name: 'Todos', icon: CheckSquare, color: 'bg-indigo-500' },
-  { id: 'moe-money', name: 'Moe-Money', icon: DollarSign, color: 'bg-green-600' },
-  { id: 'finance', name: 'Finance', icon: DollarSign, color: 'bg-green-500' },
-  { id: 'print', name: 'Print Center', icon: Printer, color: 'bg-slate-600' },
-  { id: 'bulk-docs', name: 'Bulk Documents', icon: Upload, color: 'bg-amber-500' },
-  { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500' },
-  { id: 'aboutme', name: 'About Me Admin', icon: User, color: 'bg-rose-500' },
-  { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gray-500' },
+  // DAILY
+  { id: 'overview', name: 'Overview', icon: Home, color: 'bg-blue-500', section: 'DAILY' },
+  { id: 'messages-alerts', name: 'Messages & Alerts', icon: MessageCircle, color: 'bg-pink-500', section: 'DAILY' },
+  { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600', section: 'DAILY' },
+  // SCHOOL
+  { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500', section: 'SCHOOL' },
+  { id: 'school', name: 'School', icon: GraduationCap, color: 'bg-orange-500', section: 'SCHOOL' },
+  // HOME
+  { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500', section: 'HOME' },
+  { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600', section: 'HOME' },
+  { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500', section: 'HOME' },
+  // REWARDS & GROWTH
+  { id: 'stars-rewards', name: 'Stars & Rewards', icon: Star, color: 'bg-amber-500', section: 'REWARDS' },
+  { id: 'habits', name: 'Habits', icon: Flame, color: 'bg-orange-500', section: 'REWARDS' },
+  // HEALTH
+  { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-600', section: 'HEALTH' },
+  // PLANNING & ADMIN
+  { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500', section: 'PLANNING' },
+  { id: 'finance', name: 'Finance', icon: DollarSign, color: 'bg-green-500', section: 'PLANNING' },
+  { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gray-500', section: 'PLANNING' },
 ]
+
+// Map legacy tab IDs to new locations (for backwards compatibility)
+const LEGACY_TAB_MAP: Record<string, string> = {
+  'weekly-summary': 'overview',
+  'points-earning': 'stars-rewards',
+  rewards: 'stars-rewards',
+  'digi-pet': 'stars-rewards',
+  'needs-board': 'messages-alerts',
+  messages: 'messages-alerts',
+  'household-config': 'chores',
+  'parents-health': 'health',
+  'kids-health': 'health',
+  'health-hub': 'health',
+  portfolio: 'homeschool',
+  teacher: 'homeschool',
+  opportunities: 'homeschool',
+  'weekly-checklist': 'overview',
+  todos: 'settings',
+  'moe-money': 'finance',
+  print: 'settings',
+  'bulk-docs': 'settings',
+  aboutme: 'settings',
+  contacts: 'settings',
+}
 
 interface ParentPortalWithNavProps {
   initialData?: DashboardData
@@ -162,10 +182,12 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       fetch('/api/kids/school-notes?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
       fetch('/api/kids/mood?action=get_break_flags').then(r => r.json()).catch(() => ({ flags: [] })),
     ]).then(([msgData, notesData, breakData]) => {
+      const msgCount = (msgData.count || 0) + (notesData.count || 0)
       setBadgeCounts({
         messages: msgData.count || 0,
         'needs-board': notesData.count || 0,
-        'kids-health': (breakData.flags || []).length,
+        'messages-alerts': msgCount,
+        health: (breakData.flags || []).length,
       })
     })
   }, [activeTab]) // Re-fetch when switching tabs (clears badges after viewing)
@@ -305,103 +327,43 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   )
 
   const renderActiveTab = () => {
-    switch (activeTab) {
+    // Handle legacy tab IDs — redirect to new consolidated location
+    const resolvedTab = LEGACY_TAB_MAP[activeTab] || activeTab
+
+    switch (resolvedTab) {
       case 'overview':
-        return (
-          <div className="space-y-6">
-            <NeedsAttentionPanel onNavigate={(tab) => setActiveTab(tab)} />
-            <SickAlertBanner />
-            <AvailabilityWidget />
-            <MoodOverview />
-            <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
-            <CalendarDashboardCard onNavigate={() => setActiveTab('calendar')} />
-            <RewardsDashboardCard onNavigate={() => setActiveTab('rewards')} />
-            <HabitsDashboardCard onNavigate={() => setActiveTab('habits')} />
-            <FinanceDashboardCard onNavigate={() => setActiveTab('finance')} />
-            <SchoolHealthCard />
-            <KidSnapshotCards />
-            <Dashboard initialData={initialData} />
-            <QuickHealthLog />
-          </div>
-        )
-      case 'weekly-summary':
-        return <WeeklySummaryTab />
-      case 'chores':
-        return <ChoresTab familyMembers={familyMembers} />
-      case 'teacher':
-        return <TeacherDashboard />
-      case 'homeschool':
-        return <HomeschoolTab />
-      case 'household-config':
-        return <HouseholdConfigTab />
+        return <OverviewDashboard onNavigate={(tab) => setActiveTab(tab)} />
+      case 'messages-alerts':
+        return <MessagesAndAlertsTab onNavigate={(tab) => setActiveTab(tab)} />
       case 'kids-checklist':
         return <KidsChecklistOverview />
-      case 'weekly-checklist':
-        return <WeeklyChecklistTab />
-      case 'family':
-        return renderFamilyTab()
+      case 'homeschool':
+        return <HomeschoolTab />
       case 'school':
         return <SchoolTabWithSchedules children={familyChildren.map(child => ({
           ...child,
           school: child.school.name
         }))} />
-      case 'calendar':
-        return renderCalendarTab()
-      case 'contacts':
-        return <ContactsTab />
-      case 'parents-health':
-        return <HealthTab memberGroup="parents" />
-      case 'kids-health':
-        return <HealthTab memberGroup="kids" />
-      case 'todos':
-        return <TodoTab />
-      case 'points-earning':
-        return <PointsEarningTab />
-      case 'rewards':
-        return (
-          <div className="space-y-6">
-            <ParentRewardsManager />
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-bold text-gray-700 mb-4">Legacy Rewards System</h3>
-              <RewardsTab />
-            </div>
-          </div>
-        )
-      case 'opportunities':
-        return <OpportunitiesParentPanel />
-      case 'habits':
-        return <HabitsTab />
-      case 'messages':
-        return <MessagesTab />
-      case 'needs-board':
-        return <NeedsBoardTab />
+      case 'chores':
+        return <ChoresTab familyMembers={familyMembers} />
       case 'belle-care':
         return <PetsTab />
-      case 'digi-pet':
-        return <DigiPetParentPanel />
-      case 'health-hub':
-        return (
-          <>
-            <HealthHubTab />
-            <QuickHealthLog />
-          </>
-        )
-      case 'portfolio':
-        return <ParentPortfolioPanel />
-      case 'moe-money':
-        return <MoeMoneyTab />
-      case 'finance':
-        return <FinanceTab />
-      case 'print':
-        return <PrintTab />
-      case 'bulk-docs':
-        return <BulkDocumentProcessor />
       case 'food-inventory':
         return <FoodInventoryManager />
-      case 'aboutme':
-        return <AboutMeAdminTab />
+      case 'stars-rewards':
+        return <StarsAndRewardsTab />
+      case 'habits':
+        return <HabitsTab />
+      case 'health':
+        return <HealthMergedTab />
+      case 'calendar':
+        return renderCalendarTab()
+      case 'finance':
+        return <FinanceMergedTab />
       case 'settings':
-        return renderSettingsTab()
+        return <SettingsExpandedTab />
+      case 'family':
+        return renderFamilyTab()
       default:
         return <Dashboard initialData={initialData} />
     }
@@ -436,31 +398,39 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         </div>
 
         {/* Navigation Tabs */}
-        <nav className="flex-1 p-4 space-y-2">
-          {tabs.map(tab => {
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          {tabs.map((tab, index) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
-            
+            const showSection = tab.section && (index === 0 || tabs[index - 1]?.section !== tab.section)
+            const badgeCount = badgeCounts[tab.id] || (tab.id === 'messages-alerts' ? (badgeCounts['messages'] || 0) + (badgeCounts['needs-board'] || 0) : 0)
+
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors
-                  ${isActive 
-                    ? `${tab.color} text-white shadow-md` 
-                    : 'text-gray-700 hover:bg-gray-100'
-                  }
-                `}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium flex-1">{tab.name}</span>
-                {!isActive && (badgeCounts[tab.id] || 0) > 0 && (
-                  <span className="bg-teal-500 text-white text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full px-1.5">
-                    {badgeCounts[tab.id]}
-                  </span>
+              <div key={tab.id}>
+                {showSection && (
+                  <div className={`text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 ${index > 0 ? 'pt-3 mt-1 border-t border-gray-100' : 'pt-1'} pb-1`}>
+                    {tab.section}
+                  </div>
                 )}
-              </button>
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors text-sm
+                    ${isActive
+                      ? `${tab.color} text-white shadow-md`
+                      : 'text-gray-700 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  <Icon className="w-4.5 h-4.5" />
+                  <span className="font-medium flex-1">{tab.name}</span>
+                  {!isActive && badgeCount > 0 && (
+                    <span className="bg-red-500 text-white text-xs min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
+                      {badgeCount}
+                    </span>
+                  )}
+                </button>
+              </div>
             )
           })}
         </nav>
