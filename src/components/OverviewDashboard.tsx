@@ -44,7 +44,7 @@ function NeedsAttentionBar({ onNavigate }: { onNavigate: (tab: string) => void }
       try {
         const [flagsRes, mealsRes, msgsRes] = await Promise.all([
           fetch('/api/parent/flags?action=get_all_flags').then(r => r.json()).catch(() => ({})),
-          fetch('/api/parent/meal-requests?status=pending').then(r => r.json()).catch(() => ({ requests: [] })),
+          fetch('/api/parent/meal-requests?action=pending').then(r => r.json()).catch(() => ({ requests: [] })),
           fetch('/api/kids/messages?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
         ])
 

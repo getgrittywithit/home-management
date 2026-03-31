@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
         // 504/IEP meetings within 7 days
         db.query(
           `SELECT kid_name, next_meeting_date, next_meeting_time, plan_type
-           FROM special_ed_plans
+           FROM kid_special_ed_plans
            WHERE next_meeting_date IS NOT NULL
            AND next_meeting_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'`
         ).catch(() => []),
