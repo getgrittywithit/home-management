@@ -344,6 +344,103 @@ export async function GET(request: NextRequest) {
     }
 
     // ------------------------------------------------------------------
+    // get_todays_tasks — checkable daily tasks for a kid
+    // ------------------------------------------------------------------
+    case 'get_todays_tasks': {
+      const kidName = searchParams.get('kid_name')
+      if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+
+      try {
+        const days = ['sun','mon','tue','wed','thu','fri','sat']
+        const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+        const dayOfWeek = days[now.getDay()]
+
+        const tasks = await db.query(`
+          SELECT t.*,
+                 CASE WHEN c.id IS NOT NULL THEN true ELSE false END AS completed
+          FROM homeschool_tasks t
+          LEFT JOIN homeschool_task_completions c
+            ON c.task_id = t.id AND c.kid_name = t.kid_name AND c.task_date = CURRENT_DATE
+          WHERE t.kid_name = $1
+            AND t.active = true
+            AND (t.is_recurring = false OR $2 = ANY(t.recurrence_days))
+          ORDER BY t.subject, t.sort_order
+        `, [kidName, dayOfWeek])
+
+        // Group by subject
+        const bySubject: Record<string, any[]> = {}
+        for (const task of tasks) {
+          if (!bySubject[task.subject]) bySubject[task.subject] = []
+          bySubject[task.subject].push(task)
+        }
+
+        const totalTasks = tasks.length
+        const completedTasks = tasks.filter((t: any) => t.completed).length
+        const totalMinutes = tasks.reduce((sum: number, t: any) => sum + (t.completed ? t.duration_min : 0), 0)
+
+        return NextResponse.json({
+          tasks,
+          by_subject: bySubject,
+          total_tasks: totalTasks,
+          completed_tasks: completedTasks,
+          total_focus_mins: totalMinutes,
+        })
+      } catch (error) {
+        console.error('get_todays_tasks error:', error)
+        return NextResponse.json({ error: 'Failed to load tasks' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_task_progress — all kids' task progress for today (parent view)
+    // ------------------------------------------------------------------
+    case 'get_task_progress': {
+      try {
+        const days = ['sun','mon','tue','wed','thu','fri','sat']
+        const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+        const dayOfWeek = days[now.getDay()]
+
+        const progress = await db.query(`
+          SELECT t.kid_name,
+                 COUNT(t.id)::int AS total_tasks,
+                 COUNT(c.id)::int AS completed_tasks,
+                 COALESCE(SUM(CASE WHEN c.id IS NOT NULL THEN t.duration_min ELSE 0 END), 0)::int AS focus_mins
+          FROM homeschool_tasks t
+          LEFT JOIN homeschool_task_completions c
+            ON c.task_id = t.id AND c.kid_name = t.kid_name AND c.task_date = CURRENT_DATE
+          WHERE t.active = true
+            AND (t.is_recurring = false OR $1 = ANY(t.recurrence_days))
+          GROUP BY t.kid_name
+          ORDER BY t.kid_name
+        `, [dayOfWeek])
+
+        return NextResponse.json({ progress })
+      } catch (error) {
+        console.error('get_task_progress error:', error)
+        return NextResponse.json({ error: 'Failed to load task progress' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_kid_tasks — all tasks for a kid (parent management view)
+    // ------------------------------------------------------------------
+    case 'get_kid_tasks': {
+      const kidName = searchParams.get('kid_name')
+      if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+
+      try {
+        const tasks = await db.query(
+          `SELECT * FROM homeschool_tasks WHERE kid_name = $1 ORDER BY subject, sort_order`,
+          [kidName]
+        )
+        return NextResponse.json({ tasks })
+      } catch (error) {
+        console.error('get_kid_tasks error:', error)
+        return NextResponse.json({ error: 'Failed to load tasks' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
     // get_enrichment_options — 3 filtered activities for a kid + subject
     // ------------------------------------------------------------------
     case 'get_enrichment_options': {
@@ -1184,6 +1281,131 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('save_typing_session error:', error)
         return NextResponse.json({ error: 'Failed to save typing session' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // toggle_task — check/uncheck a homeschool task, award stars
+    // ------------------------------------------------------------------
+    case 'toggle_task': {
+      const { task_id, kid_name } = data
+      if (!task_id || !kid_name) {
+        return NextResponse.json({ error: 'task_id and kid_name required' }, { status: 400 })
+      }
+
+      try {
+        const kid = kid_name.toLowerCase()
+
+        // Check if already completed today
+        const existing = await db.query(
+          `SELECT id FROM homeschool_task_completions
+           WHERE task_id = $1 AND kid_name = $2 AND task_date = CURRENT_DATE`,
+          [task_id, kid]
+        )
+
+        if (existing[0]) {
+          // Un-complete (no shame — silent removal)
+          await db.query(`DELETE FROM homeschool_task_completions WHERE id = $1`, [existing[0].id])
+          return NextResponse.json({ completed: false, stars_earned: 0 })
+        } else {
+          // Complete — get star value and award
+          const taskRows = await db.query(
+            `SELECT stars_value FROM homeschool_tasks WHERE id = $1`,
+            [task_id]
+          )
+          const starsValue = taskRows[0]?.stars_value || 1
+
+          await db.query(
+            `INSERT INTO homeschool_task_completions (task_id, kid_name, task_date, stars_earned)
+             VALUES ($1, $2, CURRENT_DATE, $3)`,
+            [task_id, kid, starsValue]
+          )
+
+          return NextResponse.json({ completed: true, stars_earned: starsValue })
+        }
+      } catch (error) {
+        console.error('toggle_task error:', error)
+        return NextResponse.json({ error: 'Failed to toggle task' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // create_task — parent adds a new task for a kid
+    // ------------------------------------------------------------------
+    case 'create_task': {
+      const { kid_name, subject, task_label, task_description, duration_min, stars_value, sort_order, recurrence_days } = data
+      if (!kid_name || !subject || !task_label) {
+        return NextResponse.json({ error: 'kid_name, subject, and task_label required' }, { status: 400 })
+      }
+
+      try {
+        const result = await db.query(
+          `INSERT INTO homeschool_tasks (kid_name, subject, task_label, task_description, duration_min, stars_value, sort_order, recurrence_days)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING *`,
+          [
+            kid_name, subject, task_label, task_description || null,
+            duration_min || 15, stars_value || 1, sort_order || 0,
+            recurrence_days || ['mon','tue','wed','thu','fri'],
+          ]
+        )
+        return NextResponse.json({ task: result[0] }, { status: 201 })
+      } catch (error) {
+        console.error('create_task error:', error)
+        return NextResponse.json({ error: 'Failed to create task' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // update_task — parent edits a task
+    // ------------------------------------------------------------------
+    case 'update_task': {
+      const { task_id, ...updates } = data
+      if (!task_id) return NextResponse.json({ error: 'task_id required' }, { status: 400 })
+
+      const allowedFields = ['subject', 'task_label', 'task_description', 'duration_min', 'stars_value', 'sort_order', 'recurrence_days', 'active', 'is_recurring']
+      const setClauses: string[] = []
+      const params: any[] = [task_id]
+
+      for (const [key, value] of Object.entries(updates)) {
+        if (allowedFields.includes(key)) {
+          params.push(value)
+          setClauses.push(`${key} = $${params.length}`)
+        }
+      }
+
+      if (setClauses.length === 0) {
+        return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
+      }
+
+      try {
+        const result = await db.query(
+          `UPDATE homeschool_tasks SET ${setClauses.join(', ')} WHERE id = $1 RETURNING *`,
+          params
+        )
+        if (!result[0]) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+        return NextResponse.json({ task: result[0] })
+      } catch (error) {
+        console.error('update_task error:', error)
+        return NextResponse.json({ error: 'Failed to update task' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // delete_task — parent deletes a task
+    // ------------------------------------------------------------------
+    case 'delete_task': {
+      const { task_id } = data
+      if (!task_id) return NextResponse.json({ error: 'task_id required' }, { status: 400 })
+
+      try {
+        // Delete completions first, then task
+        await db.query(`DELETE FROM homeschool_task_completions WHERE task_id = $1`, [task_id])
+        await db.query(`DELETE FROM homeschool_tasks WHERE id = $1`, [task_id])
+        return NextResponse.json({ ok: true })
+      } catch (error) {
+        console.error('delete_task error:', error)
+        return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 })
       }
     }
 

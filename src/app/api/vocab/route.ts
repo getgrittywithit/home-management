@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         const currentDay = rotation[0]?.current_day_number || 1
 
         const words = await db.query(
-          `SELECT w.*, b.title AS source_book
+          `SELECT w.*, b.title AS source_book, b.author AS source_author
            FROM family_vocab_words w
            LEFT JOIN vocab_books b ON w.book_id = b.id
            WHERE w.book_id = $1
@@ -56,17 +56,30 @@ export async function GET(request: NextRequest) {
       }
 
       // ----------------------------------------------------------------
-      // get_books — all non-archived vocab books
+      // get_books — vocab books (active or archived)
       // ----------------------------------------------------------------
       case 'get_books': {
+        const showArchived = searchParams.get('archived') === 'true'
         const books = await db.query(
           `SELECT b.*,
                   (SELECT COUNT(*) FROM family_vocab_words WHERE book_id = b.id) AS word_count
            FROM vocab_books b
-           WHERE b.is_archived = false OR b.is_archived IS NULL
+           WHERE ${showArchived ? 'b.is_archived = true' : 'b.is_archived = false OR b.is_archived IS NULL'}
            ORDER BY b.created_at DESC`
         )
         return NextResponse.json({ books })
+      }
+
+      // ----------------------------------------------------------------
+      // get_categories — distinct categories from vocab words
+      // ----------------------------------------------------------------
+      case 'get_categories': {
+        const cats = await db.query(
+          `SELECT DISTINCT category FROM family_vocab_words
+           WHERE category IS NOT NULL AND category != ''
+           ORDER BY category ASC`
+        )
+        return NextResponse.json({ categories: cats.map((c: any) => c.category) })
       }
 
       // ----------------------------------------------------------------
@@ -329,19 +342,31 @@ export async function POST(request: NextRequest) {
       }
 
       // ----------------------------------------------------------------
+      // unarchive_book
+      // ----------------------------------------------------------------
+      case 'unarchive_book': {
+        const { book_id } = body
+        if (!book_id) return NextResponse.json({ error: 'book_id required' }, { status: 400 })
+
+        await db.query(`UPDATE vocab_books SET is_archived = false WHERE id = $1`, [book_id])
+        return NextResponse.json({ success: true })
+      }
+
+      // ----------------------------------------------------------------
       // save_mixer_session
       // ----------------------------------------------------------------
       case 'save_mixer_session': {
-        const { name, source_book_ids, word_ids, word_count, output_type, source_mode } = body
+        const { name, source_book_ids, word_ids, locked_word_ids, word_count, output_type, source_mode } = body
 
         const rows = await db.query(
-          `INSERT INTO vocab_mixer_sessions (name, source_book_ids, word_ids, word_count, output_type, source_mode)
-           VALUES ($1, $2, $3, $4, $5, $6)
+          `INSERT INTO vocab_mixer_sessions (name, source_book_ids, word_ids, locked_word_ids, word_count, output_type, source_mode)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING *`,
           [
             name || 'Mixer Session',
             JSON.stringify(source_book_ids || []),
             JSON.stringify(word_ids || []),
+            locked_word_ids || null,
             word_count || 0,
             output_type || 'review',
             source_mode || 'manual'

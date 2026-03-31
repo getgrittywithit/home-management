@@ -19,6 +19,7 @@ interface VocabWord {
   category: string | null
   book_id: string | null
   source_book: string | null
+  source_author: string | null
   day_number: number
   is_active: boolean
   status?: 'done' | 'active' | 'upcoming'
@@ -323,6 +324,18 @@ function WordListTab() {
         </button>
       </div>
 
+      {/* Book title header (Fix 1A) */}
+      {words.length > 0 && words[0].source_book && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2 flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-indigo-500" />
+          <span className="font-semibold text-indigo-800">{words[0].source_book}</span>
+          {words[0].source_author && (
+            <span className="text-indigo-600">— {words[0].source_author}</span>
+          )}
+          <span className="text-indigo-400 text-sm ml-auto">{words.length} words</span>
+        </div>
+      )}
+
       {/* Word list */}
       <div className="bg-white rounded-lg border shadow-sm divide-y">
         {words.length === 0 && (
@@ -519,14 +532,22 @@ function AddWordModal({ bookId, books, onClose, onAdded }: {
 
 function BookLibraryTab() {
   const [books, setBooks] = useState<VocabBook[]>([])
+  const [archivedBooks, setArchivedBooks] = useState<VocabBook[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddBook, setShowAddBook] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [selectedBook, setSelectedBook] = useState<VocabBook | null>(null)
+  const [bookWords, setBookWords] = useState<VocabWord[]>([])
 
   const fetchBooks = useCallback(async () => {
     try {
-      const res = await fetch('/api/vocab?action=get_books')
-      const data = await res.json()
-      setBooks(data.books || [])
+      const [activeRes, archivedRes] = await Promise.all([
+        fetch('/api/vocab?action=get_books'),
+        fetch('/api/vocab?action=get_books&archived=true'),
+      ])
+      const [activeData, archivedData] = await Promise.all([activeRes.json(), archivedRes.json()])
+      setBooks(activeData.books || [])
+      setArchivedBooks(archivedData.books || [])
     } catch (e) { console.error(e) }
     setLoading(false)
   }, [])
@@ -540,45 +561,147 @@ function BookLibraryTab() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'archive_book', book_id: bookId })
     })
+    setSelectedBook(null)
     fetchBooks()
+  }
+
+  const handleUnarchive = async (bookId: string) => {
+    await fetch('/api/vocab', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unarchive_book', book_id: bookId })
+    })
+    fetchBooks()
+  }
+
+  const handleSelectBook = async (book: VocabBook) => {
+    setSelectedBook(book)
+    try {
+      const res = await fetch(`/api/vocab?action=get_all_words&book_id=${book.id}`)
+      const data = await res.json()
+      setBookWords(data.words || [])
+    } catch (e) { console.error(e) }
   }
 
   if (loading) {
     return <div className="flex items-center justify-center py-12 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading books...</div>
   }
 
+  // Book detail view
+  if (selectedBook) {
+    const colors = getBookColorClasses(selectedBook.cover_color)
+    // Group words by category
+    const byCategory: Record<string, VocabWord[]> = {}
+    for (const w of bookWords) {
+      const cat = w.category || 'Uncategorized'
+      if (!byCategory[cat]) byCategory[cat] = []
+      byCategory[cat].push(w)
+    }
+
+    return (
+      <div className="space-y-4">
+        <button onClick={() => setSelectedBook(null)} className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+          ← Back to library
+        </button>
+        <div className={`rounded-xl border-2 ${colors.border} ${colors.bg} p-5`}>
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className={`text-xl font-bold ${colors.text}`}>{selectedBook.title}</h3>
+              {selectedBook.author && <p className="text-gray-600">{selectedBook.author}</p>}
+              {selectedBook.grade_level && <p className="text-xs text-gray-500 mt-1">Grade Level: {selectedBook.grade_level}</p>}
+            </div>
+            <button onClick={() => handleArchive(selectedBook.id)} className="text-gray-400 hover:text-gray-600" title="Archive">
+              <Archive className="w-4 h-4" />
+            </button>
+          </div>
+          {selectedBook.notes && <p className="text-sm text-gray-500 mb-3">{selectedBook.notes}</p>}
+          <div className="font-medium text-sm text-gray-700">{bookWords.length} words total</div>
+          {/* Category breakdown */}
+          {Object.keys(byCategory).length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {Object.entries(byCategory).map(([cat, words]) => (
+                <span key={cat} className="text-xs px-2 py-0.5 bg-white/70 rounded text-gray-600">
+                  {cat}: {words.length}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Scrollable word list */}
+        <div className="bg-white rounded-lg border shadow-sm divide-y max-h-96 overflow-y-auto">
+          {bookWords.map(w => (
+            <div key={w.id} className="px-4 py-2 flex items-center gap-3 text-sm">
+              <span className="font-medium text-gray-900 w-32 shrink-0">{w.word}</span>
+              {w.part_of_speech && <span className="text-xs text-gray-400 italic w-16 shrink-0">({w.part_of_speech})</span>}
+              <span className="text-gray-600 flex-1 truncate">{w.definition}</span>
+              <span className="text-xs text-gray-400 shrink-0">Day {w.day_number}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const displayBooks = showArchived ? archivedBooks : books
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={() => setShowAddBook(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
-          <Plus className="w-4 h-4" /> Add Book
-        </button>
+      <div className="flex items-center justify-between">
+        {/* Active/Archived toggle */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setShowArchived(false)}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium ${!showArchived ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+          >
+            Active ({books.length})
+          </button>
+          <button
+            onClick={() => setShowArchived(true)}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium ${showArchived ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+          >
+            Archived ({archivedBooks.length})
+          </button>
+        </div>
+        {!showArchived && (
+          <button onClick={() => setShowAddBook(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+            <Plus className="w-4 h-4" /> Add Book
+          </button>
+        )}
       </div>
 
-      {books.length === 0 && (
-        <div className="bg-white rounded-lg border p-8 text-center text-gray-400 text-sm">No books yet. Add your first vocab book!</div>
+      {displayBooks.length === 0 && (
+        <div className="bg-white rounded-lg border p-8 text-center text-gray-400 text-sm">
+          {showArchived ? 'No archived books.' : 'No books yet. Add your first vocab book!'}
+        </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {books.map(book => {
+        {displayBooks.map(book => {
           const colors = getBookColorClasses(book.cover_color)
           return (
-            <div key={book.id} className={`rounded-xl border-2 ${colors.border} ${colors.bg} p-4 shadow-sm`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className={`font-bold ${colors.text}`}>{book.title}</h3>
-                  {book.author && <p className="text-sm text-gray-600">{book.author}</p>}
+            <div key={book.id}>
+              <button
+                onClick={() => handleSelectBook(book)}
+                className={`w-full text-left rounded-xl border-2 ${colors.border} ${colors.bg} p-4 shadow-sm hover:shadow-md hover:border-indigo-200 cursor-pointer transition`}
+              >
+                <h3 className={`font-bold ${colors.text}`}>{book.title}</h3>
+                {book.author && <p className="text-sm text-gray-600">{book.author}</p>}
+                <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
+                  <span className="font-medium">{book.word_count} words</span>
+                  {book.grade_level && <span>Grade: {book.grade_level}</span>}
                 </div>
-                <button onClick={() => handleArchive(book.id)} className="text-gray-400 hover:text-gray-600" title="Archive">
-                  <Archive className="w-4 h-4" />
+                {book.notes && <p className="mt-2 text-xs text-gray-500 truncate">{book.notes}</p>}
+              </button>
+              {showArchived && (
+                <button
+                  onClick={() => handleUnarchive(book.id)}
+                  className="mt-1 w-full text-xs text-indigo-600 hover:text-indigo-800 py-1"
+                >
+                  ↩ Restore from archive
                 </button>
-              </div>
-              <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
-                <span className="font-medium">{book.word_count} words</span>
-                {book.grade_level && <span>Grade: {book.grade_level}</span>}
-              </div>
-              {book.notes && <p className="mt-2 text-xs text-gray-500">{book.notes}</p>}
+              )}
             </div>
           )
         })}
@@ -671,16 +794,21 @@ function MixerTab() {
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([])
   const [wordCount, setWordCount] = useState(20)
   const [category, setCategory] = useState('all')
+  const [categories, setCategories] = useState<string[]>([])
   const [previewWords, setPreviewWords] = useState<VocabWord[]>([])
   const [lockedIds, setLockedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [shuffling, setShuffling] = useState(false)
 
   useEffect(() => {
-    fetch('/api/vocab?action=get_books')
-      .then(r => r.json())
-      .then(data => { setBooks(data.books || []); setLoading(false) })
-      .catch(() => setLoading(false))
+    Promise.all([
+      fetch('/api/vocab?action=get_books').then(r => r.json()),
+      fetch('/api/vocab?action=get_categories').then(r => r.json()),
+    ]).then(([bookData, catData]) => {
+      setBooks(bookData.books || [])
+      setCategories(catData.categories || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   const handleShuffle = async () => {
@@ -729,6 +857,7 @@ function MixerTab() {
         name: `Mixer ${new Date().toLocaleDateString()}`,
         source_book_ids: selectedBookIds,
         word_ids: previewWords.map(w => w.id),
+        locked_word_ids: Array.from(lockedIds),
         word_count: previewWords.length,
         output_type: 'review',
         source_mode: 'manual'
@@ -781,11 +910,9 @@ function MixerTab() {
             <select value={category} onChange={e => setCategory(e.target.value)}
               className="mt-1 block px-3 py-2 border rounded-lg text-sm bg-white">
               <option value="all">All Categories</option>
-              <option value="noun">Noun</option>
-              <option value="verb">Verb</option>
-              <option value="adjective">Adjective</option>
-              <option value="science">Science</option>
-              <option value="literature">Literature</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
             </select>
           </div>
           <button onClick={handleShuffle} disabled={shuffling}
@@ -799,7 +926,12 @@ function MixerTab() {
       {/* Preview List */}
       {previewWords.length > 0 && (
         <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-4 border-b flex items-center justify-between">
+          <div className="px-4 pt-3 pb-1">
+            <p className="text-xs text-gray-500 italic flex items-center gap-1">
+              <Lock className="w-3 h-3" /> Lock words to keep them during re-shuffle. Unlocked words will be swapped.
+            </p>
+          </div>
+          <div className="p-4 pt-2 border-b flex items-center justify-between">
             <h3 className="font-semibold text-gray-900">Mix Preview ({previewWords.length} words)</h3>
             <div className="flex gap-2">
               <button onClick={handleShuffle} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">

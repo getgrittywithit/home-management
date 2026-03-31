@@ -47,6 +47,7 @@ import TypingRace from './TypingRace'
 import FinancialLiteracyPanel from './FinancialLiteracyPanel'
 import EnrichmentCard from './EnrichmentCard'
 import { KidLibraryView } from './HomeLibrary'
+import HomeschoolTaskBlock from './HomeschoolTaskBlock'
 
 interface KidPortalProps {
   kidData: {
@@ -1185,10 +1186,19 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
           <p className="text-teal-100">{profile.grade || ''} · 2025-2026</p>
         </div>
 
-        {/* Today's School Blocks */}
+        {/* Today's Tasks — checkable daily tasks */}
+        <HomeschoolTaskBlock
+          kidName={profile.first_name || profile.name}
+          onStarEarned={(amount) => {
+            setStarPopup({ amount, key: Date.now() })
+            setTimeout(() => setStarPopup(null), 2200)
+          }}
+        />
+
+        {/* Today's School Blocks (Schedule) */}
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-4 border-b">
-            <h2 className="text-lg font-bold text-gray-900">Today's School Blocks</h2>
+            <h2 className="text-lg font-bold text-gray-900">Today&apos;s Schedule</h2>
           </div>
           {schoolBlocks.length === 0 ? (
             <div className="p-8 text-center text-gray-500">No school blocks today</div>
