@@ -122,8 +122,8 @@ export async function GET(request: NextRequest) {
 
         // Upcoming ARD/504 meetings within 30 days
         db.query(
-          `SELECT sp.kid_name, sp.plan_type, sp.plan_label, sp.next_meeting_date
-           FROM student_plans sp
+          `SELECT sp.kid_name, sp.plan_type, sp.next_meeting_date
+           FROM kid_special_ed_plans sp
            WHERE sp.status = 'active' AND sp.next_meeting_date IS NOT NULL
            AND sp.next_meeting_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'`
         ).catch(() => []),

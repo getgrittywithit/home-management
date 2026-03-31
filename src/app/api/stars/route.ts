@@ -71,13 +71,13 @@ export async function GET(req: NextRequest) {
       const held = Number(heldRows[0]?.held ?? 0)
 
       const lifetimeRows = await db.query(
-        `SELECT COALESCE(SUM(change_amount), 0) AS total FROM digi_pet_star_log WHERE kid_name = $1 AND change_amount > 0`,
+        `SELECT COALESCE(SUM(amount), 0) AS total FROM digi_pet_star_log WHERE kid_name = $1 AND amount > 0`,
         [kid]
       )
       const lifetime_earned = Number(lifetimeRows[0]?.total ?? 0)
 
       const todayRows = await db.query(
-        `SELECT COALESCE(SUM(change_amount), 0) AS total FROM digi_pet_star_log WHERE kid_name = $1 AND change_amount > 0 AND created_at::date = CURRENT_DATE`,
+        `SELECT COALESCE(SUM(amount), 0) AS total FROM digi_pet_star_log WHERE kid_name = $1 AND amount > 0 AND created_at::date = CURRENT_DATE`,
         [kid]
       )
       const today_earned = Number(todayRows[0]?.total ?? 0)
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
         `SELECT g.*, i.name AS item_name, i.star_cost AS item_cost
          FROM star_savings_goals g
          LEFT JOIN reward_store_items i ON g.linked_item_id = i.id
-         WHERE g.kid_name = $1 AND g.active = true
+         WHERE g.kid_name = $1
          ORDER BY g.created_at DESC`,
         [kid]
       )
@@ -268,8 +268,8 @@ export async function POST(req: NextRequest) {
       const itemRows = await db.query(`SELECT name FROM reward_store_items WHERE id = $1`, [redemption.item_id])
       const itemName = itemRows[0]?.name || 'Reward'
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, change_amount, reason, source) VALUES ($1, $2, $3, $4)`,
-        [redemption.kid_name, -redemption.stars_held, `Redeemed: ${itemName}`, 'reward_store']
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, $3, $4)`,
+        [redemption.kid_name, -redemption.stars_held, 'reward_store', `Redeemed: ${itemName}`]
       )
 
       // Update status
@@ -378,11 +378,11 @@ export async function POST(req: NextRequest) {
       if (!logRows[0]) return NextResponse.json({ error: 'Log entry not found' }, { status: 404 })
       const entry = logRows[0]
 
-      if (entry.change_amount >= 0) {
+      if (entry.amount >= 0) {
         return NextResponse.json({ error: 'Can only reverse deductions (negative entries)' }, { status: 400 })
       }
 
-      const reverseAmount = Math.abs(entry.change_amount)
+      const reverseAmount = Math.abs(entry.amount)
 
       // Add back to balance
       await db.query(
@@ -392,8 +392,8 @@ export async function POST(req: NextRequest) {
 
       // Insert correction entry
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, change_amount, reason, source) VALUES ($1, $2, $3, $4)`,
-        [entry.kid_name, reverseAmount, `Reversed: ${entry.reason}${note ? ' — ' + note : ''}`, 'reversal']
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, $3, $4)`,
+        [entry.kid_name, reverseAmount, 'reversal', `Reversed: ${entry.source}${note ? ' — ' + note : ''}`]
       )
 
       return NextResponse.json({ success: true, reversed_amount: reverseAmount })

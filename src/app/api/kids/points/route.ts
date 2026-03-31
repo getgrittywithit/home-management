@@ -65,11 +65,14 @@ export async function GET(request: NextRequest) {
             if (oldGoals.length > 0) kidGoals = oldGoals
           } catch {}
         }
-        const familyGoals = await db.query(
-          `SELECT id, goal_name, target_points, current_points, completed
-           FROM family_goals WHERE completed = FALSE
-           ORDER BY created_at DESC`
-        )
+        let familyGoals: any[] = []
+        try {
+          familyGoals = await db.query(
+            `SELECT id, goal_name, target_points, current_points, completed
+             FROM family_goals WHERE completed = FALSE
+             ORDER BY created_at DESC`
+          )
+        } catch { familyGoals = [] }
         return NextResponse.json({ kidGoals, familyGoals })
       }
 
@@ -108,11 +111,15 @@ export async function GET(request: NextRequest) {
       }
 
       case 'get_family_goals': {
-        const rows = await db.query(
-          `SELECT id, goal_name, target_points, current_points, completed, created_by
-           FROM family_goals ORDER BY completed ASC, created_at DESC`
-        )
-        return NextResponse.json({ familyGoals: rows })
+        try {
+          const rows = await db.query(
+            `SELECT id, goal_name, target_points, current_points, completed, created_by
+             FROM family_goals ORDER BY completed ASC, created_at DESC`
+          )
+          return NextResponse.json({ familyGoals: rows })
+        } catch {
+          return NextResponse.json({ familyGoals: [] })
+        }
       }
 
       case 'get_settings': {

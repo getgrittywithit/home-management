@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
       }
 
       const accessories = await db.query(
-        `SELECT * FROM digi_pet_accessories WHERE kid_name = $1 AND active = true`,
+        `SELECT * FROM digi_pet_accessories WHERE kid_name = $1 AND is_active = true`,
         [kid_name]
       )
 
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
     if (action === 'toggle_accessory') {
       const { kid_name, item_id, active } = body
       await db.query(
-        `UPDATE digi_pet_accessories SET active = $1 WHERE kid_name = $2 AND item_id = $3`,
+        `UPDATE digi_pet_accessories SET is_active = $1 WHERE kid_name = $2 AND item_id = $3`,
         [active, kid_name, item_id]
       )
       return NextResponse.json({ success: true })
