@@ -22,11 +22,18 @@ export default function KidLoginScreen({ onLogin, onParentLogin }: KidLoginScree
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [shaking, setShaking] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const [lockedMinutes, setLockedMinutes] = useState(0)
+  const [attemptsLeft, setAttemptsLeft] = useState(5)
 
   const handleKidSelect = (name: string) => {
     setSelectedKid(name)
     setPin('')
     setError('')
+    setLocked(false)
+    setLockedMinutes(0)
+    setAttemptsLeft(5)
   }
 
   const handlePinDigit = (digit: string) => {
@@ -43,6 +50,11 @@ export default function KidLoginScreen({ onLogin, onParentLogin }: KidLoginScree
     setError('')
   }
 
+  const triggerShake = () => {
+    setShaking(true)
+    setTimeout(() => setShaking(false), 500)
+  }
+
   const submitPin = async (pinValue: string) => {
     if (!selectedKid) return
     setLoading(true)
@@ -56,9 +68,21 @@ export default function KidLoginScreen({ onLogin, onParentLogin }: KidLoginScree
       const data = await res.json()
       if (res.ok && data.success) {
         onLogin(selectedKid)
-      } else {
-        setError(data.error || 'Wrong PIN')
+      } else if (data.locked) {
+        setLocked(true)
+        setLockedMinutes(data.remaining_minutes || 10)
+        setError('')
         setPin('')
+      } else if (res.status === 403) {
+        setError(data.error || 'Portal not enabled')
+        setPin('')
+      } else {
+        // Wrong PIN
+        const remaining = data.max_attempts ? data.max_attempts - (data.attempts || 0) : undefined
+        if (remaining !== undefined) setAttemptsLeft(remaining)
+        setError(`Wrong PIN \u2014 try again${remaining !== undefined ? ` (${remaining} attempt${remaining !== 1 ? 's' : ''} left)` : ''}`)
+        setPin('')
+        triggerShake()
       }
     } catch {
       setError('Could not connect')
@@ -70,8 +94,43 @@ export default function KidLoginScreen({ onLogin, onParentLogin }: KidLoginScree
   // PIN Entry Screen
   if (selectedKid) {
     const kid = KID_AVATARS.find(k => k.name === selectedKid)!
+
+    // Locked state
+    if (locked) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+          <button
+            onClick={() => setSelectedKid(null)}
+            className="absolute top-4 left-4 text-gray-400 hover:text-gray-600 flex items-center gap-1 text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+
+          <div className={`w-20 h-20 rounded-full ${kid.color} border-2 flex items-center justify-center text-4xl mb-4 opacity-50`}>
+            {kid.emoji}
+          </div>
+          <Lock className="w-10 h-10 text-red-400 mb-3" />
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Portal Locked</h2>
+          <p className="text-sm text-gray-500 text-center max-w-xs">
+            Too many wrong PINs &mdash; try again in {lockedMinutes} minute{lockedMinutes !== 1 ? 's' : ''}, or ask Mom to reset it.
+          </p>
+        </div>
+      )
+    }
+
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <style>{`
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-6px); }
+            80% { transform: translateX(6px); }
+          }
+          .animate-shake { animation: shake 0.4s ease-in-out; }
+        `}</style>
+
         <button
           onClick={() => setSelectedKid(null)}
           className="absolute top-4 left-4 text-gray-400 hover:text-gray-600 flex items-center gap-1 text-sm"
@@ -86,10 +145,10 @@ export default function KidLoginScreen({ onLogin, onParentLogin }: KidLoginScree
         <p className="text-sm text-gray-500 mb-8">Enter your 4-digit PIN</p>
 
         {/* PIN dots */}
-        <div className="flex gap-3 mb-6">
+        <div className={`flex gap-3 mb-6 ${shaking ? 'animate-shake' : ''}`}>
           {[0, 1, 2, 3].map(i => (
             <div key={i} className={`w-4 h-4 rounded-full transition-all ${
-              i < pin.length ? 'bg-gray-800 scale-110' : 'bg-gray-200'
+              i < pin.length ? (error ? 'bg-red-500' : 'bg-gray-800') + ' scale-110' : 'bg-gray-200'
             }`} />
           ))}
         </div>

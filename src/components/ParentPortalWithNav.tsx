@@ -49,13 +49,14 @@ import HabitsDashboardCard from './HabitsDashboardCard'
 import FinanceTab from './FinanceTab'
 import FinanceDashboardCard from './FinanceDashboardCard'
 import DigiPetParentPanel from './DigiPetParentPanel'
+import PortalSettingsPanel from './PortalSettingsPanel'
 import NeedsAttentionPanel from './NeedsAttentionPanel'
 import NotificationBell from './NotificationBell'
 import KidSnapshotCards from './KidSnapshotCards'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell, Flame, Trophy, Sparkles
+  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell, Flame, Trophy, Sparkles, Shield
 } from 'lucide-react'
 import { DashboardData } from '@/types'
 
@@ -151,6 +152,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
   const [flagPanelOpen, setFlagPanelOpen] = useState(false)
   const [flagBadgeCount, setFlagBadgeCount] = useState(0)
+  const [portalSettingsKid, setPortalSettingsKid] = useState<string | null>(null)
   const router = useRouter()
 
   // Fetch unread badge counts on load
@@ -270,6 +272,34 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           <span className="text-gray-400 text-sm">&rarr;</span>
         </button>
       </div>
+
+      {/* Portal Settings per kid */}
+      <div className="bg-white rounded-lg border shadow-sm p-5">
+        <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-4">
+          <Shield className="w-5 h-5 text-indigo-500" /> Kid Portal Settings
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">Manage PINs, lockouts, and portal access for each kid.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          {familyChildren.map(child => (
+            <button
+              key={child.name}
+              onClick={() => setPortalSettingsKid(portalSettingsKid === child.name ? null : child.name)}
+              className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors flex items-center gap-2 ${
+                portalSettingsKid === child.name
+                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              {child.name}
+            </button>
+          ))}
+        </div>
+        {portalSettingsKid && (
+          <PortalSettingsPanel kidName={portalSettingsKid} />
+        )}
+      </div>
+
       <FamilyConfigAdmin />
     </div>
   )

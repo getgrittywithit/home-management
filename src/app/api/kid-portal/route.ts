@@ -309,6 +309,64 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ------------------------------------------------------------------
+    // get_portal_settings — parent-facing portal settings for a kid
+    // ------------------------------------------------------------------
+    case 'get_portal_settings': {
+      const kid_name = searchParams.get('kid_name')
+      if (!kid_name) return NextResponse.json({ error: 'kid_name is required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `SELECT kid_portal_enabled, kid_pin, last_kid_login, login_attempts, locked_until, pin_reset_at
+           FROM profiles
+           WHERE LOWER(first_name) = LOWER($1) AND role = 'child'
+           LIMIT 1`,
+          [kid_name]
+        )
+        if (!rows.length) {
+          return NextResponse.json({ error: 'Kid not found' }, { status: 404 })
+        }
+        const p = rows[0]
+        const now = new Date()
+        const lockedUntil = p.locked_until ? new Date(p.locked_until) : null
+        const isLocked = lockedUntil ? lockedUntil > now : false
+
+        return NextResponse.json({
+          enabled: p.kid_portal_enabled ?? false,
+          has_pin: !!p.kid_pin,
+          last_login: p.last_kid_login || null,
+          login_attempts: p.login_attempts || 0,
+          is_locked: isLocked,
+          locked_until: isLocked ? p.locked_until : null,
+          pin_reset_at: p.pin_reset_at || null,
+        })
+      } catch (error: any) {
+        console.error('get_portal_settings error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // reveal_pin — parent-only, returns plaintext PIN
+    // ------------------------------------------------------------------
+    case 'reveal_pin': {
+      const kid_name = searchParams.get('kid_name')
+      if (!kid_name) return NextResponse.json({ error: 'kid_name is required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `SELECT kid_pin FROM profiles WHERE LOWER(first_name) = LOWER($1) AND role = 'child' LIMIT 1`,
+          [kid_name]
+        )
+        if (!rows.length) {
+          return NextResponse.json({ error: 'Kid not found' }, { status: 404 })
+        }
+        return NextResponse.json({ pin: rows[0].kid_pin || null })
+      } catch (error: any) {
+        console.error('reveal_pin error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }
@@ -341,7 +399,8 @@ export async function POST(request: NextRequest) {
       }
       try {
         const rows = await db.query(
-          `SELECT id, first_name, kid_pin, kid_portal_enabled FROM profiles
+          `SELECT id, first_name, kid_pin, kid_portal_enabled, login_attempts, locked_until
+           FROM profiles
            WHERE LOWER(first_name) = LOWER($1) AND role = 'child'
            LIMIT 1`,
           [kid_name]
@@ -350,20 +409,60 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Kid not found' }, { status: 404 })
         }
         const profile = rows[0]
+
+        // Check portal enabled
         if (!profile.kid_portal_enabled) {
-          return NextResponse.json({ error: 'Kid portal not enabled for this user' }, { status: 403 })
-        }
-        if (profile.kid_pin !== pin) {
-          return NextResponse.json({ error: 'Incorrect PIN' }, { status: 401 })
+          return NextResponse.json({ error: 'Portal not enabled' }, { status: 403 })
         }
 
-        // Update last login
-        try {
-          await db.query(
-            `UPDATE profiles SET last_kid_login = NOW() WHERE id = $1`,
-            [profile.id]
-          )
-        } catch (e) { console.error('kid_login update error:', e) }
+        // Check lockout
+        if (profile.locked_until) {
+          const lockedUntil = new Date(profile.locked_until)
+          const now = new Date()
+          if (lockedUntil > now) {
+            const remainingMs = lockedUntil.getTime() - now.getTime()
+            const remainingMins = Math.ceil(remainingMs / 60000)
+            return NextResponse.json({
+              error: 'Portal locked',
+              locked: true,
+              remaining_minutes: remainingMins,
+            }, { status: 423 })
+          }
+        }
+
+        // Check PIN
+        if (profile.kid_pin !== pin) {
+          const newAttempts = (profile.login_attempts || 0) + 1
+          if (newAttempts >= 5) {
+            // Lock for 10 minutes
+            await db.query(
+              `UPDATE profiles SET login_attempts = $2, locked_until = NOW() + INTERVAL '10 minutes' WHERE id = $1`,
+              [profile.id, newAttempts]
+            )
+            return NextResponse.json({
+              error: 'Too many wrong PINs. Portal locked for 10 minutes.',
+              locked: true,
+              remaining_minutes: 10,
+              attempts: newAttempts,
+            }, { status: 423 })
+          } else {
+            await db.query(
+              `UPDATE profiles SET login_attempts = $2 WHERE id = $1`,
+              [profile.id, newAttempts]
+            )
+            return NextResponse.json({
+              error: 'Incorrect PIN',
+              attempts: newAttempts,
+              max_attempts: 5,
+            }, { status: 401 })
+          }
+        }
+
+        // Correct PIN — reset attempts, update last login
+        await db.query(
+          `UPDATE profiles SET login_attempts = 0, locked_until = NULL, last_kid_login = NOW() WHERE id = $1`,
+          [profile.id]
+        )
 
         return NextResponse.json({
           success: true,
@@ -590,6 +689,112 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ student: rows[0] || null })
       } catch (error: any) {
         console.error('kid_name_mascot error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // set_pin — parent sets a kid's PIN
+    // ------------------------------------------------------------------
+    case 'set_pin': {
+      const { kid_name, pin: newPin } = body
+      if (!kid_name || !newPin) {
+        return NextResponse.json({ error: 'kid_name and pin are required' }, { status: 400 })
+      }
+      if (!/^\d{4}$/.test(newPin)) {
+        return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 })
+      }
+      try {
+        const rows = await db.query(
+          `UPDATE profiles SET kid_pin = $2, pin_reset_at = NOW()
+           WHERE LOWER(first_name) = LOWER($1) AND role = 'child'
+           RETURNING id`,
+          [kid_name, newPin]
+        )
+        if (!rows.length) {
+          return NextResponse.json({ error: 'Kid not found' }, { status: 404 })
+        }
+        return NextResponse.json({ success: true })
+      } catch (error: any) {
+        console.error('set_pin error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // reset_pin — parent resets PIN + clears lockout
+    // ------------------------------------------------------------------
+    case 'reset_pin': {
+      const { kid_name, new_pin } = body
+      if (!kid_name || !new_pin) {
+        return NextResponse.json({ error: 'kid_name and new_pin are required' }, { status: 400 })
+      }
+      if (!/^\d{4}$/.test(new_pin)) {
+        return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 })
+      }
+      try {
+        const rows = await db.query(
+          `UPDATE profiles SET kid_pin = $2, pin_reset_at = NOW(), login_attempts = 0, locked_until = NULL
+           WHERE LOWER(first_name) = LOWER($1) AND role = 'child'
+           RETURNING id`,
+          [kid_name, new_pin]
+        )
+        if (!rows.length) {
+          return NextResponse.json({ error: 'Kid not found' }, { status: 404 })
+        }
+        return NextResponse.json({ success: true })
+      } catch (error: any) {
+        console.error('reset_pin error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // unlock_portal — clear lockout for a kid
+    // ------------------------------------------------------------------
+    case 'unlock_portal': {
+      const { kid_name } = body
+      if (!kid_name) {
+        return NextResponse.json({ error: 'kid_name is required' }, { status: 400 })
+      }
+      try {
+        const rows = await db.query(
+          `UPDATE profiles SET login_attempts = 0, locked_until = NULL
+           WHERE LOWER(first_name) = LOWER($1) AND role = 'child'
+           RETURNING id`,
+          [kid_name]
+        )
+        if (!rows.length) {
+          return NextResponse.json({ error: 'Kid not found' }, { status: 404 })
+        }
+        return NextResponse.json({ success: true })
+      } catch (error: any) {
+        console.error('unlock_portal error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // toggle_portal — enable/disable kid portal
+    // ------------------------------------------------------------------
+    case 'toggle_portal': {
+      const { kid_name, enabled } = body
+      if (!kid_name || typeof enabled !== 'boolean') {
+        return NextResponse.json({ error: 'kid_name and enabled (boolean) are required' }, { status: 400 })
+      }
+      try {
+        const rows = await db.query(
+          `UPDATE profiles SET kid_portal_enabled = $2
+           WHERE LOWER(first_name) = LOWER($1) AND role = 'child'
+           RETURNING id`,
+          [kid_name, enabled]
+        )
+        if (!rows.length) {
+          return NextResponse.json({ error: 'Kid not found' }, { status: 404 })
+        }
+        return NextResponse.json({ success: true, enabled })
+      } catch (error: any) {
+        console.error('toggle_portal error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
     }
