@@ -101,7 +101,7 @@ export default function KidPage({ params }: { params: Promise<{ kidName: string 
           </a>
         </div>
       )}
-      <KidPortalWithNav kidData={kidData} />
+      <KidPortalWithNav kidData={kidData} previewMode={isPreview} />
     </div>
   )
 }

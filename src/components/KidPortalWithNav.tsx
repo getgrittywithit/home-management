@@ -57,6 +57,7 @@ interface KidPortalProps {
     weekEvents: any[]
     zones: any[]
   }
+  previewMode?: boolean
 }
 
 type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy'
@@ -123,7 +124,7 @@ function FamilyAnnouncementBanner() {
   )
 }
 
-export default function KidPortalWithNav({ kidData }: KidPortalProps) {
+export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
@@ -1780,8 +1781,8 @@ export default function KidPortalWithNav({ kidData }: KidPortalProps) {
     }
   }
 
-  // Show onboarding if not complete
-  if (onboardingComplete === false) {
+  // Show onboarding if not complete (skip in preview mode)
+  if (onboardingComplete === false && !previewMode) {
     return (
       <KidOnboarding
         kidName={profile.first_name || 'Kid'}

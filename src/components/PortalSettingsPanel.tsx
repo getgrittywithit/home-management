@@ -288,7 +288,8 @@ export default function PortalSettingsPanel({ kidName }: PortalSettingsPanelProp
         <div>
           <p className="text-sm text-gray-500 mb-2">Parent Preview</p>
           <a
-            href={`/kid/${encodeURIComponent(kidName.toLowerCase())}`}
+            href={`/kid/${encodeURIComponent(kidName.toLowerCase())}?preview=parent`}
+            target="_blank"
             className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors"
           >
             <ExternalLink className="w-4 h-4" /> View {displayName}&apos;s Portal
