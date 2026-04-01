@@ -57,45 +57,37 @@ export default function NeedsBoardTab() {
 
   useEffect(() => { loadData() }, [])
 
-  const loadData = () => {
-    Promise.all([
-      fetch('/api/kids/school-notes?action=get_shopping_list').then(r => r.json()),
-      fetch('/api/kids/school-notes?action=get_all_notes').then(r => r.json()),
-      fetch('/api/parent/flags?action=get_all_flags').then(r => r.json()).catch(() => ({})),
-    ]).then(([shopData, allData, flagsData]) => {
-      setShoppingList(shopData.items || [])
-      setAllNotes(allData.notes || [])
-      setUnreadCount(allData.unreadCount || 0)
+  const safeFetch = async (url: string, fallback: any) => {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 10000)
+      const r = await fetch(url, { signal: controller.signal })
+      clearTimeout(timer)
+      if (!r.ok) return fallback
+      return await r.json()
+    } catch { return fallback }
+  }
 
-      // Wire additional sources from flags endpoint
-      setSickAlerts(flagsData.sick_days || [])
-      setUnreadMessages(flagsData.messages || [])
+  const loadData = async () => {
+    const [shopData, allData, flagsData] = await Promise.all([
+      safeFetch('/api/kids/school-notes?action=get_shopping_list', { items: [] }),
+      safeFetch('/api/kids/school-notes?action=get_all_notes', { notes: [], unreadCount: 0 }),
+      safeFetch('/api/parent/flags?action=get_all_flags', {}),
+    ])
+    setShoppingList(shopData.items || [])
+    setAllNotes(allData.notes || [])
+    setUnreadCount(allData.unreadCount || 0)
+    setSickAlerts(flagsData.sick_days || [])
+    setUnreadMessages(flagsData.messages || [])
 
-      // Fetch pending rewards and submissions separately
-      Promise.all([
-        fetch('/api/rewards?action=get_pending_redemptions').then(r => r.json()).catch(() => ({ redemptions: [] })),
-        fetch('/api/rewards?action=get_pending_submissions').then(r => r.json()).catch(() => ({ submissions: [] })),
-      ]).then(([rewardData, subData]) => {
-        setPendingRewards(rewardData.redemptions || [])
-        setPendingSubmissions(subData.submissions || [])
-      }).catch(() => {})
+    const [rewardData, subData] = await Promise.all([
+      safeFetch('/api/rewards?action=get_pending_redemptions', { redemptions: [] }),
+      safeFetch('/api/rewards?action=get_pending_submissions', { submissions: [] }),
+    ])
+    setPendingRewards(rewardData.redemptions || [])
+    setPendingSubmissions(subData.submissions || [])
 
-      setLoaded(true)
-
-      // Auto-mark unread as read on first load
-      if (!markedReadRef.current) {
-        markedReadRef.current = true
-        const allItems = [...(shopData.items || []), ...(allData.notes || [])]
-        const unreadIds = Array.from(new Set(allItems.filter((n: Note) => !n.read_at && !n.resolved).map((n: Note) => n.id)))
-        if (unreadIds.length > 0) {
-          fetch('/api/kids/school-notes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'mark_read', ids: unreadIds })
-          })
-        }
-      }
-    }).catch(() => setLoaded(true))
+    setLoaded(true)
   }
 
   const resolve = async (id: string) => {

@@ -45,13 +45,19 @@ const SICK_REASONS = ['Headache', 'Stomach', 'Nausea', 'Fatigue', 'Fever', 'Anxi
 const SEVERITY_LEVELS = ['Mild', 'Moderate', "Couldn't get out of bed"]
 
 export default function PointsEarningTab() {
+  const ctx = useDashboardData()
+
+  // Derive display data directly from context — no useEffect copy
+  const balances: Balance[] = ctx.pointsBalances?.balances || []
+  const ctxSettings = ctx.pointsBalances?.settings
+  const settings: PointsSettings = ctxSettings?.mode
+    ? { mode: ctxSettings.mode, conversion_rate: Number(ctxSettings.conversion_rate) || 0.10 }
+    : { mode: 'points', conversion_rate: 0.10 }
+  const sickDayCounts: Record<string, number> = ctx.pointsBalances?.sickDayCounts || {}
+  const familyGoals: FamilyGoal[] = ctx.familyGoals?.familyGoals || []
+
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'family-goals' | 'sick-days' | 'settings'>('overview')
-  const [balances, setBalances] = useState<Balance[]>([])
-  const [settings, setSettings] = useState<PointsSettings>({ mode: 'points', conversion_rate: 0.10 })
-  const [sickDayCounts, setSickDayCounts] = useState<Record<string, number>>({})
-  const [familyGoals, setFamilyGoals] = useState<FamilyGoal[]>([])
   const [sickDays, setSickDays] = useState<SickDay[]>([])
-  const [loaded, setLoaded] = useState(false)
 
   // Modal states
   const [payoutKid, setPayoutKid] = useState<string | null>(null)
@@ -72,47 +78,19 @@ export default function PointsEarningTab() {
   const [sickDoctor, setSickDoctor] = useState(false)
   const [selectedSickKid, setSelectedSickKid] = useState('amos')
 
-  // Settings draft
-  const [draftMode, setDraftMode] = useState<'points' | 'dollars'>('points')
-  const [draftRate, setDraftRate] = useState('0.10')
+  // Settings draft — initialize from context-derived settings
+  const [draftMode, setDraftMode] = useState<'points' | 'dollars'>(settings.mode)
+  const [draftRate, setDraftRate] = useState(String(settings.conversion_rate))
 
-  const ctx = useDashboardData()
-
-  useEffect(() => {
-    if (!ctx.loaded) return
-    // Always use context data — never fall back to direct fetch on mount
-    setBalances(ctx.pointsBalances.balances || [])
-    const ctxSettings = ctx.pointsBalances.settings
-    if (ctxSettings?.mode) {
-      setSettings(ctxSettings)
-      setDraftMode(ctxSettings.mode)
-      setDraftRate(String(ctxSettings.conversion_rate || 0.10))
-    }
-    setSickDayCounts(ctx.pointsBalances.sickDayCounts || {})
-    setFamilyGoals(ctx.familyGoals.familyGoals || [])
-    setLoaded(true)
-  }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadData = () => {
-    Promise.all([
-      fetch('/api/kids/points?action=get_all_balances').then(r => r.ok ? r.json() : { balances: [] }).catch(() => ({ balances: [] })),
-      fetch('/api/kids/points?action=get_family_goals').then(r => r.ok ? r.json() : { familyGoals: [] }).catch(() => ({ familyGoals: [] })),
-    ]).then(([balData, goalData]) => {
-      setBalances(balData.balances || [])
-      setSettings(balData.settings || settings)
-      setSickDayCounts(balData.sickDayCounts || {})
-      setDraftMode(balData.settings?.mode || 'points')
-      setDraftRate(String(balData.settings?.conversion_rate || 0.10))
-      setFamilyGoals(goalData.familyGoals || [])
-      setLoaded(true)
-    }).catch(() => setLoaded(true))
-  }
+  // Refresh via context after mutations
+  const loadData = () => { ctx.refresh() }
 
   const loadSickDays = (kid: string) => {
     setSelectedSickKid(kid)
     fetch(`/api/kids/points?action=get_sick_days&child=${kid}`)
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : { sickDays: [] })
       .then(data => setSickDays(data.sickDays || []))
+      .catch(() => {})
   }
 
   useEffect(() => {
@@ -198,7 +176,7 @@ export default function PointsEarningTab() {
     loadData()
   }
 
-  if (!loaded) {
+  if (!ctx.loaded) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />

@@ -80,17 +80,26 @@ export default function KidOnboarding({ kidName, kidColor, onComplete }: KidOnbo
   }
 
   const finishOnboarding = async () => {
-    // Mark complete FIRST — this is the critical DB write
-    try {
-      await fetch('/api/kid-profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'mark_onboarding_complete', kid_name: kidKey }),
-      })
-    } catch (err) {
-      console.error('mark_onboarding_complete error:', err)
+    const payload = JSON.stringify({ action: 'mark_onboarding_complete', kid_name: kidKey })
+
+    // Try sendBeacon first (bypasses connection pool)
+    const sent = navigator.sendBeacon('/api/kid-profile', new Blob([payload], { type: 'application/json' }))
+
+    if (!sent) {
+      // Fallback: fetch with 5-second timeout
+      try {
+        const controller = new AbortController()
+        setTimeout(() => controller.abort(), 5000)
+        await fetch('/api/kid-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          signal: controller.signal,
+        })
+      } catch { /* proceed regardless */ }
     }
-    // Then save profile data (non-blocking)
+
+    // Non-blocking profile save
     saveProfile().catch(() => {})
     onComplete()
   }

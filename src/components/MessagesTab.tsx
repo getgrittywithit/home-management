@@ -51,30 +51,39 @@ export default function MessagesTab() {
 
   useEffect(() => { loadData() }, [])
 
-  const loadData = () => {
-    Promise.all([
-      fetch('/api/kids/messages?action=get_all_messages').then(r => r.json()),
-      fetch('/api/kids/messages?action=get_announcements').then(r => r.json()),
-    ]).then(([msgData, annData]) => {
-      const msgs: Message[] = msgData.messages || []
-      setMessages(msgs)
-      setUnreadCount(msgData.unreadCount || 0)
-      setAnnouncements(annData.announcements || [])
-      setLoaded(true)
+  const safeFetch = async (url: string, fallback: any) => {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 10000)
+      const r = await fetch(url, { signal: controller.signal })
+      clearTimeout(timer)
+      if (!r.ok) return fallback
+      return await r.json()
+    } catch { return fallback }
+  }
 
-      // Auto-mark unread as read on first load
-      if (!markedReadRef.current) {
-        markedReadRef.current = true
-        const unreadIds = msgs.filter(m => !m.read_at).map(m => m.id)
-        if (unreadIds.length > 0) {
-          fetch('/api/kids/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'mark_read', ids: unreadIds })
-          })
-        }
+  const loadData = async () => {
+    const [msgData, annData] = await Promise.all([
+      safeFetch('/api/kids/messages?action=get_all_messages', { messages: [], unreadCount: 0 }),
+      safeFetch('/api/kids/messages?action=get_announcements', { announcements: [] }),
+    ])
+    const msgs: Message[] = msgData.messages || []
+    setMessages(msgs)
+    setUnreadCount(msgData.unreadCount || 0)
+    setAnnouncements(annData.announcements || [])
+    setLoaded(true)
+
+    if (!markedReadRef.current) {
+      markedReadRef.current = true
+      const unreadIds = msgs.filter(m => !m.read_at).map(m => m.id)
+      if (unreadIds.length > 0) {
+        fetch('/api/kids/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'mark_read', ids: unreadIds })
+        }).catch(() => {})
       }
-    }).catch(() => setLoaded(true))
+    }
   }
 
   const markResolved = async (id: string) => {

@@ -86,39 +86,24 @@ function normalizeHabitKeys(raw: Record<string, any[]>): Record<string, any[]> {
 }
 
 export default function HabitsTab() {
-  const [habitsByMember, setHabitsByMember] = useState<Record<string, Habit[]>>({})
+  const ctx = useDashboardData()
+
+  // Derive directly from context — no useEffect copy
+  const rawHabits = ctx.habitsData?.habits_by_member || {}
+  const habitsByMember = Object.keys(rawHabits).length > 0 ? normalizeHabitKeys(rawHabits) : {}
+
   const [expandedMember, setExpandedMember] = useState<string | null>(null)
   const [detailHabit, setDetailHabit] = useState<HabitDetail | null>(null)
   const [detailHistory, setDetailHistory] = useState<HabitCompletion[]>([])
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editHabit, setEditHabit] = useState<Habit | null>(null)
-  const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  const ctx = useDashboardData()
-
-  // Initialize from context — always use context data, never fall back to direct fetch on mount
-  useEffect(() => {
-    if (!ctx.loaded) return
-    const raw = ctx.habitsData?.habits_by_member || {}
-    if (Object.keys(raw).length > 0) {
-      setHabitsByMember(normalizeHabitKeys(raw))
-    }
-    setLoading(false) // Always stop loading when context is ready
-  }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Refresh function — ONLY used after mutations (markComplete, addHabit, etc.)
+  // Refresh via context after mutations
   const fetchAllHabits = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/habits?action=get_all_habits_today&date=${getToday()}`)
-      if (!res.ok) return
-      const data = await res.json()
-      setHabitsByMember(normalizeHabitKeys(data.habits_by_member || {}))
-    } catch (err) {
-      console.error('Failed to refresh habits:', err)
-    }
-  }, [])
+    ctx.refresh()
+  }, [ctx.refresh])
 
   // ── Actions ──
   const markComplete = async (habit: Habit) => {
@@ -224,7 +209,7 @@ export default function HabitsTab() {
   }
 
   // ── Render ──
-  if (loading) {
+  if (!ctx.loaded) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
