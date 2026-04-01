@@ -52,6 +52,7 @@ import MyDayView from './MyDayView'
 import AiBuddyChat from './AiBuddyChat'
 import JourneyMap from './JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
+import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
 interface KidPortalProps {
   kidData: {
@@ -127,19 +128,8 @@ const navSections: NavSection[] = [
 const navTabs: NavTab[] = navSections.flatMap(s => s.tabs)
 
 function FamilyAnnouncementBanner() {
-  const [announcement, setAnnouncement] = useState<{ message: string; created_at: string } | null>(null)
-
-  useEffect(() => {
-    fetch('/api/kids/messages?action=get_announcements')
-      .then(r => r.json())
-      .then(data => {
-        const announcements = data.announcements || []
-        if (announcements.length > 0) {
-          setAnnouncement(announcements[0])
-        }
-      })
-      .catch(() => {})
-  }, [])
+  const ctx = useKidDashboardData()
+  const announcement = ctx.announcements.length > 0 ? ctx.announcements[0] : null
 
   if (!announcement) return null
 
@@ -162,6 +152,37 @@ function FamilyAnnouncementBanner() {
 }
 
 export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProps) {
+  const { profile } = kidData
+  const _childKey = (profile?.first_name || '').toLowerCase()
+  const _isHomeschool = SCHOOL_TYPE[_childKey] === 'homeschool'
+
+  // Compute dinner day for provider
+  const _now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+  const _EPOCH = new Date('2026-03-30T00:00:00')
+  const _weeks = Math.floor((_now.getTime() - _EPOCH.getTime()) / (7 * 24 * 60 * 60 * 1000))
+  const _currentWeek = _weeks % 2 === 0 ? 1 : 2
+  const _days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const _dayName = _days[_now.getDay()]
+  const _dinnerKids: Record<string, string> = {
+    monday: 'kaylee', tuesday: 'zoey', wednesday: 'wyatt', thursday: 'amos', friday: 'ellie',
+  }
+  const _isDinnerDay = _dinnerKids[_dayName] === _childKey || (_dinnerKids[_dayName] === 'ellie' && _childKey === 'hannah')
+  const _todayStr = _now.toLocaleDateString('en-CA')
+
+  return (
+    <KidDashboardDataProvider
+      kidName={profile?.first_name || ''}
+      isHomeschool={_isHomeschool}
+      isDinnerDay={_isDinnerDay}
+      todayStr={_todayStr}
+    >
+      <KidPortalInner kidData={kidData} previewMode={previewMode} />
+    </KidDashboardDataProvider>
+  )
+}
+
+function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
+  const kidCtx = useKidDashboardData()
   const [activeTab, setActiveTab] = useState<TabId>('my-day')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
@@ -1836,7 +1857,9 @@ export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProp
   }
 
   // Show onboarding if not complete (skip in preview mode)
-  if (onboardingComplete === false && !previewMode) {
+  // Check both local state AND context for onboarding status
+  const isOnboardingDone = onboardingComplete === true || kidCtx.onboardingComplete === true
+  if (!isOnboardingDone && onboardingComplete === false && !previewMode) {
     return (
       <KidOnboarding
         kidName={profile.first_name || 'Kid'}
