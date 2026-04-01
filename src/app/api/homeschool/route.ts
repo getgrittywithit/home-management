@@ -680,6 +680,20 @@ export async function GET(request: NextRequest) {
     }
 
     // ------------------------------------------------------------------
+    // get_task_instructions — all task step-by-step instructions
+    // ------------------------------------------------------------------
+    case 'get_task_instructions': {
+      try {
+        const instructions = await db.query(
+          `SELECT task_source, task_key, steps FROM task_instructions ORDER BY task_source, task_key`
+        )
+        return NextResponse.json({ instructions })
+      } catch {
+        return NextResponse.json({ instructions: [] })
+      }
+    }
+
+    // ------------------------------------------------------------------
     // get_typing_passages — get passages for a grade band
     // ------------------------------------------------------------------
     case 'get_typing_passages': {

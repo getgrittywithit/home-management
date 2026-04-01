@@ -48,6 +48,7 @@ import FinancialLiteracyPanel from './FinancialLiteracyPanel'
 import EnrichmentCard from './EnrichmentCard'
 import { KidLibraryView } from './HomeLibrary'
 import HomeschoolTaskBlock from './HomeschoolTaskBlock'
+import MyDayView from './MyDayView'
 
 interface KidPortalProps {
   kidData: {
@@ -60,7 +61,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy'
 
 interface NavTab {
   id: TabId
@@ -69,25 +70,58 @@ interface NavTab {
   color: string
 }
 
-const navTabs: NavTab[] = [
-  { id: 'dashboard', name: 'Home', icon: Home, color: 'bg-blue-500' },
-  { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-purple-500' },
-  { id: 'checklist', name: 'Daily Checklist', icon: CheckSquare, color: 'bg-green-500' },
-  { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
-  { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
-  { id: 'about', name: 'About Me (Admin)', icon: User, color: 'bg-teal-500' },
-  { id: 'about-me', name: 'My Profile', icon: User, color: 'bg-cyan-500' },
-  { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
-  { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
-  { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
-  { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
-  { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' },
-  { id: 'library', name: 'Our Library', icon: Library, color: 'bg-emerald-500' },
-  { id: 'typing-race', name: 'Typing Race', icon: Keyboard, color: 'bg-violet-500' },
-  { id: 'financial-literacy', name: 'Money Skills', icon: DollarSign, color: 'bg-teal-500' },
-  { id: 'rewards-store', name: 'Rewards Store', icon: Star, color: 'bg-amber-500' },
-  { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' }
+interface NavSection {
+  label: string
+  tabs: NavTab[]
+}
+
+const navSections: NavSection[] = [
+  {
+    label: '',
+    tabs: [
+      { id: 'my-day', name: 'My Day', icon: Home, color: 'bg-blue-500' },
+      { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-purple-500' },
+    ],
+  },
+  {
+    label: 'DO FIRST',
+    tabs: [
+      { id: 'checklist', name: 'Daily Checklist', icon: CheckSquare, color: 'bg-green-500' },
+      { id: 'school', name: 'School', icon: BookOpen, color: 'bg-orange-500' },
+    ],
+  },
+  {
+    label: 'MY STUFF',
+    tabs: [
+      { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' },
+      { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
+      { id: 'library', name: 'Our Library', icon: Library, color: 'bg-emerald-500' },
+    ],
+  },
+  {
+    label: 'FUN & GROWTH',
+    tabs: [
+      { id: 'rewards-store', name: 'Rewards Store', icon: Star, color: 'bg-amber-500' },
+      { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' },
+      { id: 'typing-race', name: 'Typing Race', icon: Keyboard, color: 'bg-violet-500' },
+      { id: 'financial-literacy', name: 'Money Skills', icon: DollarSign, color: 'bg-teal-500' },
+      { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
+      { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
+      { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
+    ],
+  },
+  {
+    label: 'ME',
+    tabs: [
+      { id: 'about-me', name: 'My Profile', icon: User, color: 'bg-cyan-500' },
+      { id: 'portfolio', name: 'Portfolio', icon: BookOpen, color: 'bg-indigo-500' },
+      { id: 'about', name: 'About Me (Admin)', icon: User, color: 'bg-teal-500' },
+    ],
+  },
 ]
+
+// Flat list for backwards compat
+const navTabs: NavTab[] = navSections.flatMap(s => s.tabs)
 
 function FamilyAnnouncementBanner() {
   const [announcement, setAnnouncement] = useState<{ message: string; created_at: string } | null>(null)
@@ -125,7 +159,7 @@ function FamilyAnnouncementBanner() {
 }
 
 export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('dashboard')
+  const [activeTab, setActiveTab] = useState<TabId>('my-day')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
   const [showModal, setShowModal] = useState(false)
@@ -1737,6 +1771,17 @@ export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProp
 
   const renderActiveTab = () => {
     switch (activeTab) {
+      case 'my-day':
+        return (
+          <MyDayView
+            kidName={profile.first_name || profile.name}
+            previewMode={previewMode}
+            onStarEarned={(amount) => {
+              setStarPopup({ amount, key: Date.now() })
+              setTimeout(() => setStarPopup(null), 2200)
+            }}
+          />
+        )
       case 'dashboard':
         return renderDashboard()
       case 'school':
@@ -1828,29 +1873,33 @@ export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProp
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex-1 p-4 space-y-2">
-          {navTabs.map(tab => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors
-                  ${isActive 
-                    ? `${tab.color} text-white shadow-md` 
-                    : 'text-gray-700 hover:bg-gray-100'
-                  }
-                `}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{tab.name}</span>
-              </button>
-            )
-          })}
+        {/* Navigation Tabs — sectioned */}
+        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+          {navSections.map((section, si) => (
+            <div key={si}>
+              {section.label && (
+                <div className={`text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 ${si > 0 ? 'pt-3 mt-1 border-t border-gray-100' : ''} pb-1`}>
+                  {section.label}
+                </div>
+              )}
+              {section.tabs.map(tab => {
+                const Icon = tab.icon
+                const isActive = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors text-sm ${
+                      isActive ? `${tab.color} text-white shadow-md` : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="w-4.5 h-4.5" />
+                    <span className="font-medium">{tab.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          ))}
         </nav>
       </div>
 
