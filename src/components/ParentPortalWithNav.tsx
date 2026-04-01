@@ -135,7 +135,7 @@ const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null v
 function SickAlertBanner() {
   const { flagsData, loaded } = useDashboardData()
   const sick = flagsData.sick_days || []
-  const breaks = flagsData.break_requests || []
+  const breaks = flagsData.breaks || flagsData.break_requests || []
   const alerts = [
     ...sick.map((s: any) => ({ kid_name: s.kid_name, reason: 'not feeling well' })),
     ...breaks.map((b: any) => ({ kid_name: b.kid_name, reason: 'needs a break' })),
@@ -161,6 +161,30 @@ function SickAlertBanner() {
   )
 }
 
+function BadgeCountSync({ setBadgeCounts, setFlagBadgeCount }: {
+  setBadgeCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>
+  setFlagBadgeCount: React.Dispatch<React.SetStateAction<number>>
+}) {
+  const { flagsData, loaded } = useDashboardData()
+
+  useEffect(() => {
+    if (!loaded) return
+    const data = flagsData || {}
+    const msgCount = (data.messages || []).reduce((sum: number, m: any) => sum + (m.count || 0), 0)
+    const breakCount = (data.breaks || data.break_requests || []).length
+    const sickCount = (data.sick_days || []).length
+    const mealCount = (data.meal_requests || []).length
+
+    setBadgeCounts({
+      'messages-alerts': msgCount,
+      health: breakCount,
+    })
+    setFlagBadgeCount(msgCount + breakCount + sickCount + mealCount)
+  }, [flagsData, loaded, setBadgeCounts, setFlagBadgeCount])
+
+  return null
+}
+
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
   const [activeTab, setActiveTab] = useState('overview')
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
@@ -169,30 +193,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   const [portalSettingsKid, setPortalSettingsKid] = useState<string | null>(null)
   const router = useRouter()
 
-  // Fetch unread badge counts ONCE on mount (not on every tab switch)
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/kids/messages?action=get_unread_count').then(r => r.ok ? r.json() : { count: 0 }).catch(() => ({ count: 0 })),
-      fetch('/api/kids/school-notes?action=get_unread_count').then(r => r.ok ? r.json() : { count: 0 }).catch(() => ({ count: 0 })),
-      fetch('/api/kids/mood?action=get_break_flags').then(r => r.ok ? r.json() : { flags: [] }).catch(() => ({ flags: [] })),
-    ]).then(([msgData, notesData, breakData]) => {
-      const msgCount = (msgData.count || 0) + (notesData.count || 0)
-      setBadgeCounts({
-        messages: msgData.count || 0,
-        'needs-board': notesData.count || 0,
-        'messages-alerts': msgCount,
-        health: (breakData.flags || []).length,
-      })
-    }).catch(() => {})
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Fetch flag badge count ONCE on mount
-  useEffect(() => {
-    fetch('/api/parent/flags?action=get_badge_count')
-      .then(r => r.ok ? r.json() : { count: 0 })
-      .then(data => setFlagBadgeCount(data.count || 0))
-      .catch(() => {})
-  }, [])
+  // Badge counts derived from DashboardDataContext — no independent API calls
 
   const renderFamilyTab = () => (
     <div className="space-y-6">
@@ -382,6 +383,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
 
   return (
     <DashboardDataProvider>
+    <BadgeCountSync setBadgeCounts={setBadgeCounts} setFlagBadgeCount={setFlagBadgeCount} />
     <div className="min-h-screen bg-gray-50 flex">
       {/* Left Navigation */}
       <div className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-visible">

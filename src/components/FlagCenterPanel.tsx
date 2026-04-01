@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 import {
   Bell, MessageCircle, AlertTriangle, Heart, CheckCircle,
   Calendar, Dog, GraduationCap, X, ChevronRight, Zap, ChefHat, ChevronDown, FileText
@@ -52,33 +53,14 @@ interface Props {
 }
 
 export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
-  const [data, setData] = useState<FlagData | null>(null)
-  const [loading, setLoading] = useState(false)
+  const ctx = useDashboardData()
+  const data = (ctx.loaded ? ctx.flagsData : null) as FlagData | null
+  const loading = !ctx.loaded
+
   const [swapOpenId, setSwapOpenId] = useState<number | null>(null)
   const [swapMeals, setSwapMeals] = useState<{ id: number; name: string }[]>([])
   const [swapLoading, setSwapLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
-
-  const fetchFlags = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/parent/flags?action=get_all_flags')
-      if (!res.ok) {
-        setData({} as any)
-      } else {
-        const json = await res.json()
-        setData(json || ({} as any))
-      }
-    } catch {
-      setData({} as any)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (open) fetchFlags()
-  }, [open, fetchFlags])
 
   const getSeason = () => {
     const month = new Date().getMonth() + 1
@@ -93,7 +75,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'approve', requestId }),
       })
-      fetchFlags()
+      ctx.refresh()
     } catch (err) {
       console.error('Approve error:', err)
     } finally {
@@ -124,7 +106,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
         body: JSON.stringify({ action: 'swap', requestId, newMealId }),
       })
       setSwapOpenId(null)
-      fetchFlags()
+      ctx.refresh()
     } catch (err) {
       console.error('Swap error:', err)
     } finally {
@@ -383,7 +365,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
             <div className="p-8 text-center text-gray-500">
               <p className="text-sm">No flags or alerts right now.</p>
               <button
-                onClick={fetchFlags}
+                onClick={() => ctx.refresh()}
                 className="mt-3 text-sm text-blue-600 hover:underline"
               >
                 Refresh

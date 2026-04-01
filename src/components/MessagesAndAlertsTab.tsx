@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Bell, MessageCircle, ShoppingCart, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { Bell, MessageCircle, ShoppingCart } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 import MessagesTab from './MessagesTab'
 import NeedsBoardTab from './NeedsBoardTab'
 import NeedsAttentionPanel from './NeedsAttentionPanel'
@@ -14,7 +15,10 @@ interface MessagesAndAlertsTabProps {
 
 export default function MessagesAndAlertsTab({ onNavigate }: MessagesAndAlertsTabProps) {
   const [subTab, setSubTab] = useState<SubTab>('alerts')
-  const msgCount = 0 // Badge count comes from parent layout, no independent fetch
+  const ctx = useDashboardData()
+  const msgCount = ctx.loaded
+    ? (ctx.flagsData?.messages || []).reduce((sum: number, m: any) => sum + (m.count || 0), 0)
+    : 0
 
   const tabs: { id: SubTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }[] = [
     { id: 'alerts', label: 'Alerts', icon: Bell },
