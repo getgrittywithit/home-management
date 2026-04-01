@@ -56,6 +56,7 @@ interface BonusTask {
   coin_reward: number
   due_date: string | null
   claimed_by: string | null
+  assigned_to: string[] | null
   created_at: string
 }
 
@@ -130,7 +131,7 @@ export default function RewardsTab() {
   const [editReward, setEditReward] = useState<CatalogReward | null>(null)
   const [rewardForm, setRewardForm] = useState({ name: '', emoji: '🎁', cost: '', type: 'family_reward' as TypeBadge })
   const [showBonusForm, setShowBonusForm] = useState(false)
-  const [bonusForm, setBonusForm] = useState({ title: '', description: '', coin_reward: '', due_date: '' })
+  const [bonusForm, setBonusForm] = useState({ title: '', description: '', coin_reward: '', due_date: '', assignment: 'all' as 'all' | 'specific', assigned_kids: [] as string[] })
   const [settingsDraft, setSettingsDraft] = useState<RewardSettings | null>(null)
 
   // ─── Data fetching ─────────────────────────────────────────────────
@@ -243,9 +244,23 @@ export default function RewardsTab() {
 
   async function handleSaveBonusTask() {
     if (!bonusForm.title || !bonusForm.coin_reward) return
-    await fetch('/api/rewards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create_bonus_task', ...bonusForm, coin_reward: parseInt(bonusForm.coin_reward) }) }).catch(() => {})
+    const assigned_to = bonusForm.assignment === 'specific' && bonusForm.assigned_kids.length > 0
+      ? bonusForm.assigned_kids
+      : null
+    await fetch('/api/rewards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create_bonus_task',
+        task_name: bonusForm.title,
+        description: bonusForm.description,
+        coin_reward: parseInt(bonusForm.coin_reward),
+        expires_at: bonusForm.due_date || null,
+        assigned_to,
+      }),
+    }).catch(() => {})
     setShowBonusForm(false)
-    setBonusForm({ title: '', description: '', coin_reward: '', due_date: '' })
+    setBonusForm({ title: '', description: '', coin_reward: '', due_date: '', assignment: 'all', assigned_kids: [] })
     loadData()
   }
 
@@ -417,7 +432,60 @@ export default function RewardsTab() {
                 <input type="date" value={bonusForm.due_date} onChange={e => setBonusForm(p => ({ ...p, due_date: e.target.value }))} className="w-full border rounded-lg px-3 py-2" />
               </div>
             </div>
-            <button onClick={handleSaveBonusTask} className="w-full bg-amber-500 text-white py-2 rounded-lg hover:bg-amber-600 font-medium">
+            {/* Kid assignment picker */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Who can see this?</label>
+              <div className="space-y-2 bg-gray-50 rounded-lg p-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={bonusForm.assignment === 'all'}
+                    onChange={() => setBonusForm(p => ({ ...p, assignment: 'all', assigned_kids: [] }))}
+                    className="text-amber-500"
+                  />
+                  <span className="text-sm">All Kids</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={bonusForm.assignment === 'specific'}
+                    onChange={() => setBonusForm(p => ({ ...p, assignment: 'specific' }))}
+                    className="text-amber-500"
+                  />
+                  <span className="text-sm">Specific Kids:</span>
+                </label>
+                {bonusForm.assignment === 'specific' && (
+                  <div className="flex flex-wrap gap-2 ml-6">
+                    {['Amos','Zoey','Kaylee','Ellie','Wyatt','Hannah'].map(kid => {
+                      const kidLower = kid.toLowerCase()
+                      const checked = bonusForm.assigned_kids.includes(kidLower)
+                      return (
+                        <label key={kid} className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setBonusForm(p => ({
+                              ...p,
+                              assigned_kids: checked
+                                ? p.assigned_kids.filter(k => k !== kidLower)
+                                : [...p.assigned_kids, kidLower],
+                            }))}
+                            className="rounded text-amber-500"
+                          />
+                          <span className="text-sm">{kid}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={handleSaveBonusTask}
+              disabled={bonusForm.assignment === 'specific' && bonusForm.assigned_kids.length === 0}
+              className="w-full bg-amber-500 text-white py-2 rounded-lg hover:bg-amber-600 font-medium disabled:opacity-50"
+            >
               Create Bonus Task
             </button>
           </div>
@@ -668,7 +736,7 @@ export default function RewardsTab() {
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-800">Bonus Tasks</h3>
           <button
-            onClick={() => { setBonusForm({ title: '', description: '', coin_reward: '', due_date: '' }); setShowBonusForm(true) }}
+            onClick={() => { setBonusForm({ title: '', description: '', coin_reward: '', due_date: '', assignment: 'all', assigned_kids: [] }); setShowBonusForm(true) }}
             className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium"
           >
             <Plus className="w-4 h-4" /> Create Task
@@ -696,6 +764,9 @@ export default function RewardsTab() {
                           <Clock className="w-3 h-3" /> Due {new Date(t.due_date).toLocaleDateString()}
                         </span>
                       )}
+                      <span className="text-gray-400">
+                        {t.assigned_to ? t.assigned_to.map((k: string) => k.charAt(0).toUpperCase() + k.slice(1)).join(', ') : 'All Kids'}
+                      </span>
                     </div>
                   </div>
                   <div>

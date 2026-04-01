@@ -190,13 +190,17 @@ export async function GET(request: NextRequest) {
     // ------------------------------------------------------------------
     case 'get_bonus_tasks': {
       const status = searchParams.get('status') || 'open'
+      const kidName = searchParams.get('kid_name')
       try {
-        const rows = await db.query(
-          `SELECT * FROM bonus_tasks
-           WHERE status = $1
-           ORDER BY created_at DESC`,
-          [status]
-        )
+        let sql = `SELECT * FROM bonus_tasks WHERE status = $1`
+        const params: any[] = [status]
+        // If kid_name provided, filter to tasks assigned to them (or assigned to all)
+        if (kidName) {
+          sql += ` AND (assigned_to IS NULL OR $2 = ANY(assigned_to))`
+          params.push(kidName.toLowerCase())
+        }
+        sql += ` ORDER BY created_at DESC`
+        const rows = await db.query(sql, params)
         return NextResponse.json({ bonus_tasks: rows })
       } catch (error: any) {
         console.error('get_bonus_tasks error:', error)
@@ -953,17 +957,17 @@ export async function POST(request: NextRequest) {
     // create_bonus_task
     // ------------------------------------------------------------------
     case 'create_bonus_task': {
-      const { task_name, description, coin_reward, emoji, expires_at, photo_required } = payload
+      const { task_name, description, coin_reward, emoji, expires_at, photo_required, assigned_to } = payload
       if (!task_name || !coin_reward) {
         return NextResponse.json({ error: 'task_name and coin_reward are required' }, { status: 400 })
       }
       try {
         const rows = await db.query(
           `INSERT INTO bonus_tasks
-             (task_name, description, coin_reward, emoji, expires_at, photo_required, status)
-           VALUES ($1, $2, $3, $4, $5, $6, 'open')
+             (task_name, description, coin_reward, emoji, expires_at, photo_required, status, assigned_to)
+           VALUES ($1, $2, $3, $4, $5, $6, 'open', $7)
            RETURNING *`,
-          [task_name, description, coin_reward, emoji, expires_at || null, photo_required ?? true]
+          [task_name, description, coin_reward, emoji, expires_at || null, photo_required ?? true, assigned_to || null]
         )
         return NextResponse.json({ bonus_task: rows[0] })
       } catch (error: any) {

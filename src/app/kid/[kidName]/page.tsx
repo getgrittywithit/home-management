@@ -1,14 +1,23 @@
 'use client'
 
 import { use, useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import KidPortalNew from '@/components/KidPortalNew'
-import { Lock } from 'lucide-react'
+import { Lock, Eye } from 'lucide-react'
 
 export default function KidPage({ params }: { params: Promise<{ kidName: string }> }) {
   const { kidName } = use(params)
+  const searchParams = useSearchParams()
+  const isPreview = searchParams.get('preview') === 'parent'
   const [status, setStatus] = useState<'loading' | 'enabled' | 'disabled' | 'not_found'>('loading')
 
   useEffect(() => {
+    // In preview mode, skip portal settings check
+    if (isPreview) {
+      setStatus('enabled')
+      return
+    }
+
     fetch(`/api/kid-portal?action=get_portal_settings&kid_name=${encodeURIComponent(kidName)}`)
       .then(r => r.json().then(data => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
@@ -20,8 +29,8 @@ export default function KidPage({ params }: { params: Promise<{ kidName: string 
           setStatus('disabled')
         }
       })
-      .catch(() => setStatus('enabled')) // On error, allow through
-  }, [kidName])
+      .catch(() => setStatus('enabled'))
+  }, [kidName, isPreview])
 
   if (status === 'loading') {
     return (
@@ -51,5 +60,19 @@ export default function KidPage({ params }: { params: Promise<{ kidName: string 
     )
   }
 
-  return <KidPortalNew kidName={kidName} />
+  return (
+    <div>
+      {/* Preview banner */}
+      {isPreview && (
+        <div className="bg-yellow-100 border-b border-yellow-300 px-4 py-2 text-center text-sm text-yellow-800 flex items-center justify-center gap-2 sticky top-0 z-50">
+          <Eye className="w-4 h-4" />
+          Previewing {kidName.charAt(0).toUpperCase() + kidName.slice(1)}&apos;s Portal — Read Only
+          <a href="/dashboard" className="ml-4 underline font-medium hover:text-yellow-900">
+            ← Back to Parent Portal
+          </a>
+        </div>
+      )}
+      <KidPortalNew kidName={kidName} />
+    </div>
+  )
 }

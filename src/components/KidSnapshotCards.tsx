@@ -141,6 +141,13 @@ export default function KidSnapshotCards({ onViewFull, onEdit }: KidSnapshotCard
 
               {/* Actions */}
               <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => window.open(`/kid/${snap.kid_name.toLowerCase()}?preview=parent`, '_blank')}
+                  className="flex items-center gap-1 text-xs bg-white/60 hover:bg-white px-2.5 py-1.5 rounded-lg text-gray-700"
+                  title={`Preview ${snap.kid_name}'s portal`}
+                >
+                  <Eye className="w-3 h-3" /> Preview Portal
+                </button>
                 {onViewFull && (
                   <button
                     onClick={() => onViewFull(snap.kid_name)}
