@@ -63,10 +63,14 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
     setLoading(true)
     try {
       const res = await fetch('/api/parent/flags?action=get_all_flags')
-      const json = await res.json()
-      setData(json)
+      if (!res.ok) {
+        setData({} as any)
+      } else {
+        const json = await res.json()
+        setData(json || ({} as any))
+      }
     } catch {
-      setData(null)
+      setData({} as any)
     } finally {
       setLoading(false)
     }

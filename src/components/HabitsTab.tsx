@@ -48,10 +48,12 @@ interface HabitDetail {
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const MEMBERS = ['Lola', 'Michael', 'Amos', 'Ellie', 'Wyatt', 'Hannah', 'Zoey', 'Kaylee']
+const MEMBERS = ['Lola', 'Levi', 'Amos', 'Ellie', 'Wyatt', 'Hannah', 'Zoey', 'Kaylee']
 const MEMBER_COLORS: Record<string, string> = {
-  Lola: 'bg-rose-500', Michael: 'bg-blue-600', Amos: 'bg-blue-500', Ellie: 'bg-purple-500',
-  Wyatt: 'bg-green-500', Hannah: 'bg-pink-500', Zoey: 'bg-amber-500', Kaylee: 'bg-teal-500'
+  Lola: 'bg-rose-500', Levi: 'bg-blue-600', Amos: 'bg-blue-500', Ellie: 'bg-purple-500',
+  Wyatt: 'bg-green-500', Hannah: 'bg-pink-500', Zoey: 'bg-amber-500', Kaylee: 'bg-teal-500',
+  lola: 'bg-rose-500', levi: 'bg-blue-600', amos: 'bg-blue-500', ellie: 'bg-purple-500',
+  wyatt: 'bg-green-500', hannah: 'bg-pink-500', zoey: 'bg-amber-500', kaylee: 'bg-teal-500',
 }
 
 const CATEGORIES = ['morning', 'health', 'school', 'evening', 'personal']
@@ -210,7 +212,10 @@ export default function HabitsTab() {
     )
   }
 
-  const membersWithHabits = MEMBERS.filter(m => habitsByMember[m]?.length)
+  // Match case-insensitively — DB may store 'amos' while MEMBERS has 'Amos'
+  const membersWithHabits = MEMBERS.filter(m =>
+    habitsByMember[m]?.length || habitsByMember[m.toLowerCase()]?.length
+  )
 
   return (
     <div className="space-y-6">
@@ -244,7 +249,7 @@ export default function HabitsTab() {
             </div>
           )}
           {membersWithHabits.map(member => {
-            const habits = habitsByMember[member]
+            const habits = habitsByMember[member] || habitsByMember[member.toLowerCase()] || []
             const { total, done, longestStreak, medUndone } = getMemberStats(habits)
             const isExpanded = expandedMember === member
 

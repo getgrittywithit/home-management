@@ -70,11 +70,12 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'send_message': {
-        const { kid, message } = body
-        if (!kid || !message?.trim()) return NextResponse.json({ error: 'kid and message required' }, { status: 400 })
+        const { kid, kid_name, message } = body
+        const senderName = kid || kid_name
+        if (!senderName || !message?.trim()) return NextResponse.json({ error: 'kid and message required' }, { status: 400 })
         await db.query(
           `INSERT INTO family_messages (from_kid, message) VALUES ($1, $2)`,
-          [kid.toLowerCase(), message.trim().substring(0, 300)]
+          [senderName.toLowerCase(), message.trim().substring(0, 300)]
         )
         return NextResponse.json({ success: true })
       }

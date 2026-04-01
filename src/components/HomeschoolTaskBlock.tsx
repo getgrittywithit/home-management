@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, Circle, Clock, Star, Sparkles } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
+import WorkbookLogModal from './WorkbookLogModal'
 
 interface Task {
   id: string
@@ -55,12 +56,21 @@ interface HomeschoolTaskBlockProps {
   onStarEarned?: (amount: number, source: string) => void
 }
 
+// Detect workbook tasks by label
+function isWorkbookTask(label: string): string | null {
+  const lower = label.toLowerCase()
+  if (lower.includes('summer bridge')) return label.replace(/ \(.*\)/, '').replace(/ —.*/, '').trim()
+  if (lower.includes('ixl')) return label.replace(/ —.*/, '').trim()
+  return null
+}
+
 export default function HomeschoolTaskBlock({ kidName, onStarEarned }: HomeschoolTaskBlockProps) {
   const [blocks, setBlocks] = useState<SubjectBlock[]>([])
   const [loading, setLoading] = useState(true)
   const [starPopups, setStarPopups] = useState<StarPopup[]>([])
   const [totalCompleted, setTotalCompleted] = useState(0)
   const [totalTasks, setTotalTasks] = useState(0)
+  const [workbookModal, setWorkbookModal] = useState<{ task: Task; workbookName: string } | null>(null)
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -109,6 +119,27 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
   }, [kidName])
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
+
+  const handleTaskClick = (task: Task) => {
+    if (task.completed) {
+      // Unchecking — always direct toggle
+      handleToggle(task)
+      return
+    }
+    // Check if this is a workbook task
+    const wbName = isWorkbookTask(task.task_label)
+    if (wbName) {
+      setWorkbookModal({ task, workbookName: wbName })
+      return
+    }
+    handleToggle(task)
+  }
+
+  const handleWorkbookComplete = (task: Task) => {
+    // Mark the daily task as complete after workbook logging
+    handleToggle(task)
+    setWorkbookModal(null)
+  }
 
   const handleToggle = async (task: Task) => {
     // Optimistic update
@@ -289,7 +320,7 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
                 {block.tasks.map(task => (
                   <button
                     key={task.id}
-                    onClick={() => handleToggle(task)}
+                    onClick={() => handleTaskClick(task)}
                     className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/50 transition-colors group"
                   >
                     <div style={task.completed ? { animation: 'checkPop 0.3s ease' } : {}}>
@@ -331,6 +362,16 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
           </div>
         )
       })}
+
+      {/* Workbook page logging modal */}
+      {workbookModal && (
+        <WorkbookLogModal
+          kidName={kidName}
+          workbookName={workbookModal.workbookName}
+          onClose={() => setWorkbookModal(null)}
+          onLogged={() => handleWorkbookComplete(workbookModal.task)}
+        />
+      )}
     </div>
   )
 }
