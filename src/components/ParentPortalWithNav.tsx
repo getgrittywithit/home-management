@@ -176,12 +176,12 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   const [portalSettingsKid, setPortalSettingsKid] = useState<string | null>(null)
   const router = useRouter()
 
-  // Fetch unread badge counts on load
+  // Fetch unread badge counts ONCE on mount (not on every tab switch)
   useEffect(() => {
     Promise.all([
-      fetch('/api/kids/messages?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
-      fetch('/api/kids/school-notes?action=get_unread_count').then(r => r.json()).catch(() => ({ count: 0 })),
-      fetch('/api/kids/mood?action=get_break_flags').then(r => r.json()).catch(() => ({ flags: [] })),
+      fetch('/api/kids/messages?action=get_unread_count').then(r => r.ok ? r.json() : { count: 0 }).catch(() => ({ count: 0 })),
+      fetch('/api/kids/school-notes?action=get_unread_count').then(r => r.ok ? r.json() : { count: 0 }).catch(() => ({ count: 0 })),
+      fetch('/api/kids/mood?action=get_break_flags').then(r => r.ok ? r.json() : { flags: [] }).catch(() => ({ flags: [] })),
     ]).then(([msgData, notesData, breakData]) => {
       const msgCount = (msgData.count || 0) + (notesData.count || 0)
       setBadgeCounts({
@@ -190,16 +190,16 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         'messages-alerts': msgCount,
         health: (breakData.flags || []).length,
       })
-    })
-  }, [activeTab]) // Re-fetch when switching tabs (clears badges after viewing)
+    }).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch flag badge count for notification bell
+  // Fetch flag badge count ONCE on mount
   useEffect(() => {
     fetch('/api/parent/flags?action=get_badge_count')
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : { count: 0 })
       .then(data => setFlagBadgeCount(data.count || 0))
       .catch(() => {})
-  }, [activeTab])
+  }, [])
 
   const renderFamilyTab = () => (
     <div className="space-y-6">

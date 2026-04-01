@@ -284,10 +284,9 @@ export async function GET(request: NextRequest) {
 
     // Aliases for frontend compatibility
     case 'balances': {
-      // Redirect to get_all_balances
       try {
         const rows = await db.query(
-          `SELECT kid_name, coin_balance, stars_balance FROM kid_rewards_profile ORDER BY kid_name`
+          `SELECT kid_name, stars_balance as coin_balance FROM digi_pets ORDER BY kid_name`
         )
         return NextResponse.json({ balances: rows })
       } catch { return NextResponse.json({ balances: [] }) }

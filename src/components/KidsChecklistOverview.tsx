@@ -67,6 +67,19 @@ export default function KidsChecklistOverview() {
     })
   }, [])
 
+  // Timeout: if data hasn't loaded in 8 seconds, show fallback
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!loaded) {
+        setKids(['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(name => ({
+          name, required: { done: 0, total: 0 }, dailyCare: { done: 0, total: 0 }, earnMoney: { done: 0, total: 0 },
+        })))
+        setLoaded(true)
+      }
+    }, 8000)
+    return () => clearTimeout(timeout)
+  }, [loaded])
+
   if (!loaded) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" /></div>
 
   const weekEnd = weekOf ? new Date(new Date(weekOf + 'T12:00:00').getTime() + 6 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''

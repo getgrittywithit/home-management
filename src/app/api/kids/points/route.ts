@@ -89,25 +89,28 @@ export async function GET(request: NextRequest) {
       }
 
       case 'get_all_balances': {
-        const rows = await db.query(
-          `SELECT kid_name, current_points, total_earned_all_time, last_payout_date
-           FROM kid_points_balance ORDER BY kid_name`
-        )
-        const settings = await db.query(`SELECT mode, conversion_rate FROM points_settings WHERE id = 1`)
-        // Get sick day counts for last 30 days
-        const sickCounts = await db.query(
-          `SELECT kid_name, COUNT(*)::int as count
-           FROM kid_sick_days
-           WHERE sick_date >= CURRENT_DATE - INTERVAL '30 days'
-           GROUP BY kid_name`
-        )
-        const sickMap: Record<string, number> = {}
-        sickCounts.forEach((r: any) => { sickMap[r.kid_name] = r.count })
-        return NextResponse.json({
-          balances: rows,
-          settings: settings[0] || { mode: 'points', conversion_rate: 0.10 },
-          sickDayCounts: sickMap,
-        })
+        try {
+          const rows = await db.query(
+            `SELECT kid_name, current_points, total_earned_all_time, last_payout_date
+             FROM kid_points_balance ORDER BY kid_name`
+          )
+          let settings = { mode: 'points', conversion_rate: 0.10 }
+          try {
+            const sRows = await db.query(`SELECT mode, conversion_rate FROM points_settings WHERE id = 1`)
+            if (sRows[0]) settings = sRows[0]
+          } catch {}
+          let sickMap: Record<string, number> = {}
+          try {
+            const sickCounts = await db.query(
+              `SELECT kid_name, COUNT(*)::int as count FROM kid_sick_days
+               WHERE sick_date >= CURRENT_DATE - INTERVAL '30 days' GROUP BY kid_name`
+            )
+            sickCounts.forEach((r: any) => { sickMap[r.kid_name] = r.count })
+          } catch {}
+          return NextResponse.json({ balances: rows, settings, sickDayCounts: sickMap })
+        } catch {
+          return NextResponse.json({ balances: [], settings: { mode: 'points', conversion_rate: 0.10 }, sickDayCounts: {} })
+        }
       }
 
       case 'get_family_goals': {

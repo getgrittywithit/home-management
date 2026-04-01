@@ -195,10 +195,19 @@ export async function POST(request: NextRequest) {
     if (action === 'mark_onboarding_complete') {
       const { kid_name } = body
       if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
-      await db.query(
-        `UPDATE kid_profiles SET onboarding_complete = true, onboarding_step = 'complete', onboarded_at = NOW() WHERE kid_name = $1`,
-        [kid_name]
-      )
+      try {
+        // Set onboarding_complete = true (the only field KidPortalWithNav checks)
+        await db.query(
+          `UPDATE kid_profiles SET onboarding_complete = true WHERE kid_name = $1`,
+          [kid_name.toLowerCase()]
+        )
+        // Try to set optional columns too (may not exist in all schemas)
+        try { await db.query(`UPDATE kid_profiles SET onboarded_at = NOW() WHERE kid_name = $1`, [kid_name.toLowerCase()]) } catch {}
+        try { await db.query(`UPDATE kid_profiles SET onboarding_step = 'complete' WHERE kid_name = $1`, [kid_name.toLowerCase()]) } catch {}
+      } catch (err) {
+        console.error('mark_onboarding_complete error:', err)
+        return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
+      }
       return NextResponse.json({ success: true })
     }
 
