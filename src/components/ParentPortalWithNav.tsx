@@ -59,6 +59,7 @@ import StarsAndRewardsTab from './StarsAndRewardsTab'
 import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
 import OverviewDashboard from './OverviewDashboard'
+import AiBuddyChat from './AiBuddyChat'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -471,6 +472,9 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
 
       {/* AI Agent Widget */}
       <AIAgentWidget />
+
+      {/* AI Family Assistant */}
+      <AiBuddyChat role="parent" displayName="Lola" />
 
       {/* Notification & Flag Center */}
       <FlagCenterPanel open={flagPanelOpen} onClose={() => setFlagPanelOpen(false)} onNavigate={(tab) => { setActiveTab(tab); setFlagPanelOpen(false) }} />

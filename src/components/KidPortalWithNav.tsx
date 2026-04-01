@@ -49,6 +49,7 @@ import EnrichmentCard from './EnrichmentCard'
 import { KidLibraryView } from './HomeLibrary'
 import HomeschoolTaskBlock from './HomeschoolTaskBlock'
 import MyDayView from './MyDayView'
+import AiBuddyChat from './AiBuddyChat'
 
 interface KidPortalProps {
   kidData: {
@@ -1912,6 +1913,15 @@ export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProp
 
       {/* Break Button — visible on all tabs */}
       <BreakButton childName={profile.first_name || ''} />
+
+      {/* AI Buddy — floating chat */}
+      {!previewMode && (
+        <AiBuddyChat
+          role="kid"
+          kidName={(profile.first_name || '').toLowerCase()}
+          displayName={profile.first_name || ''}
+        />
+      )}
     </div>
   )
 }
