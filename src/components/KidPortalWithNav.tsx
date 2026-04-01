@@ -50,6 +50,8 @@ import { KidLibraryView } from './HomeLibrary'
 import HomeschoolTaskBlock from './HomeschoolTaskBlock'
 import MyDayView from './MyDayView'
 import AiBuddyChat from './AiBuddyChat'
+import JourneyMap from './JourneyMap'
+import PositiveReportButton from './PositiveReportButton'
 
 interface KidPortalProps {
   kidData: {
@@ -1786,7 +1788,13 @@ export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProp
       case 'dashboard':
         return renderDashboard()
       case 'school':
-        return renderSchoolTab()
+        return (
+          <div className="space-y-6">
+            {renderSchoolTab()}
+            <JourneyMap kidName={profile.first_name || profile.name} subject="elar" />
+            <JourneyMap kidName={profile.first_name || profile.name} subject="math" />
+          </div>
+        )
       case 'portfolio':
         return <LearningPortfolioTab childName={profile.first_name || profile.name} />
       case 'about':

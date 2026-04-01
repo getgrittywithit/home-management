@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, AlertTriangle } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
+import PositiveReportButton from './PositiveReportButton'
 
 // ============================================================================
 // Types
@@ -551,6 +552,14 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
           </div>
           {noteSent && <p className="text-xs text-green-600 mt-1">Sent!</p>}
         </div>
+
+        {/* Positive reporting */}
+        {!previewMode && (
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+            <PositiveReportButton kidName={kidName} source="self" />
+            <PositiveReportButton kidName={kidName} source="sibling" />
+          </div>
+        )}
       </div>
     </div>
   )
