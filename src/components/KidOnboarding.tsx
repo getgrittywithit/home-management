@@ -80,7 +80,7 @@ export default function KidOnboarding({ kidName, kidColor, onComplete }: KidOnbo
   }
 
   const finishOnboarding = async () => {
-    await saveProfile()
+    // Mark complete FIRST — this is the critical DB write
     try {
       await fetch('/api/kid-profile', {
         method: 'POST',
@@ -88,8 +88,10 @@ export default function KidOnboarding({ kidName, kidColor, onComplete }: KidOnbo
         body: JSON.stringify({ action: 'mark_onboarding_complete', kid_name: kidKey }),
       })
     } catch (err) {
-      console.error('Complete error:', err)
+      console.error('mark_onboarding_complete error:', err)
     }
+    // Then save profile data (non-blocking)
+    saveProfile().catch(() => {})
     onComplete()
   }
 

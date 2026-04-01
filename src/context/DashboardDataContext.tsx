@@ -33,9 +33,12 @@ const defaults: DashboardData = {
 const DashboardDataContext = createContext<DashboardData>(defaults)
 export const useDashboardData = () => useContext(DashboardDataContext)
 
-const safeFetch = async (url: string, fallback: any) => {
+const safeFetch = async (url: string, fallback: any, timeoutMs = 10000) => {
   try {
-    const r = await fetch(url)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    const r = await fetch(url, { signal: controller.signal })
+    clearTimeout(timer)
     if (!r.ok) return fallback
     return await r.json()
   } catch { return fallback }

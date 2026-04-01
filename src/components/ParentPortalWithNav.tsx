@@ -60,7 +60,7 @@ import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
 import OverviewDashboard from './OverviewDashboard'
 import AiBuddyChat from './AiBuddyChat'
-import { DashboardDataProvider } from '@/context/DashboardDataContext'
+import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -133,21 +133,13 @@ const familyChildren = familyData.children.filter(Boolean) // Remove any null va
 const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null values
 
 function SickAlertBanner() {
-  const [alerts, setAlerts] = useState<{ kid_name: string; reason?: string }[]>([])
-
-  useEffect(() => {
-    fetch('/api/parent/flags?action=get_all_flags')
-      .then(r => r.json())
-      .then(data => {
-        const sick = data.sick_days || []
-        const breaks = data.break_requests || []
-        setAlerts([
-          ...sick.map((s: any) => ({ kid_name: s.kid_name, reason: 'not feeling well' })),
-          ...breaks.map((b: any) => ({ kid_name: b.kid_name, reason: 'needs a break' })),
-        ])
-      })
-      .catch(() => {})
-  }, [])
+  const { flagsData, loaded } = useDashboardData()
+  const sick = flagsData.sick_days || []
+  const breaks = flagsData.break_requests || []
+  const alerts = [
+    ...sick.map((s: any) => ({ kid_name: s.kid_name, reason: 'not feeling well' })),
+    ...breaks.map((b: any) => ({ kid_name: b.kid_name, reason: 'needs a break' })),
+  ]
 
   if (alerts.length === 0) return null
 

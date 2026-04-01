@@ -98,31 +98,27 @@ export default function HabitsTab() {
 
   const ctx = useDashboardData()
 
-  // Initialize from context if available
+  // Initialize from context — always use context data, never fall back to direct fetch on mount
   useEffect(() => {
-    if (ctx.loaded && ctx.habitsData?.habits_by_member && Object.keys(ctx.habitsData.habits_by_member).length > 0) {
-      setHabitsByMember(normalizeHabitKeys(ctx.habitsData.habits_by_member))
-      setLoading(false)
+    if (!ctx.loaded) return
+    const raw = ctx.habitsData?.habits_by_member || {}
+    if (Object.keys(raw).length > 0) {
+      setHabitsByMember(normalizeHabitKeys(raw))
     }
+    setLoading(false) // Always stop loading when context is ready
   }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Data fetching (used for refresh after mutations + initial if no context) ──
+  // Refresh function — ONLY used after mutations (markComplete, addHabit, etc.)
   const fetchAllHabits = useCallback(async () => {
     try {
       const res = await fetch(`/api/habits?action=get_all_habits_today&date=${getToday()}`)
+      if (!res.ok) return
       const data = await res.json()
       setHabitsByMember(normalizeHabitKeys(data.habits_by_member || {}))
     } catch (err) {
-      console.error('Failed to load habits:', err)
-    } finally {
-      setLoading(false)
+      console.error('Failed to refresh habits:', err)
     }
   }, [])
-
-  // Direct fetch if context didn't provide data
-  useEffect(() => {
-    if (ctx.loaded && Object.keys(habitsByMember).length === 0) fetchAllHabits()
-  }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ──
   const markComplete = async (habit: Habit) => {

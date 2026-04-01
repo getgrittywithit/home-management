@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Star, Camera, Gift, ChevronRight } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 interface KidMiniBalance {
   kid_name: string
@@ -22,22 +23,12 @@ interface RewardsDashboardCardProps {
 }
 
 export default function RewardsDashboardCard({ onNavigate }: RewardsDashboardCardProps) {
-  const [balances, setBalances] = useState<KidMiniBalance[]>([])
-  const [pendingPhotos, setPendingPhotos] = useState(0)
-  const [pendingRedemptions, setPendingRedemptions] = useState(0)
+  const { rewardsBalances, rewardsPhotos, rewardsRedemptions, loaded } = useDashboardData()
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/rewards?action=balances').then(r => r.json()).catch(() => ({ balances: [] })),
-      fetch('/api/rewards?action=photo_submissions').then(r => r.json()).catch(() => ({ submissions: [] })),
-      fetch('/api/rewards?action=redemptions').then(r => r.json()).catch(() => ({ redemptions: [] })),
-    ]).then(([balRes, photoRes, redeemRes]) => {
-      const bals = balRes.balances || KIDS.map(k => ({ kid_name: k, coin_balance: 0 }))
-      setBalances(bals)
-      setPendingPhotos((photoRes.submissions || []).length)
-      setPendingRedemptions((redeemRes.redemptions || []).length)
-    })
-  }, [])
+  const rawBals = rewardsBalances.balances || []
+  const balances = rawBals.length > 0 ? rawBals : KIDS.map(k => ({ kid_name: k, coin_balance: 0 }))
+  const pendingPhotos = (rewardsPhotos.submissions || []).length
+  const pendingRedemptions = (rewardsRedemptions.redemptions || []).length
 
   const totalPending = pendingPhotos + pendingRedemptions
 

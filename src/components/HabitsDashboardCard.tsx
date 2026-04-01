@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Flame, AlertTriangle, ChevronRight } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 interface MemberSummary {
   name: string
@@ -20,28 +21,18 @@ interface HabitsDashboardCardProps {
 }
 
 export default function HabitsDashboardCard({ onNavigate }: HabitsDashboardCardProps) {
-  const [members, setMembers] = useState<MemberSummary[]>([])
-  const [loading, setLoading] = useState(true)
+  const { habitsData, loaded } = useDashboardData()
 
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0]
-    fetch(`/api/habits?action=get_all_habits_today&date=${today}`)
-      .then(r => r.json())
-      .then(data => {
-        const grouped = data.habits_by_member || {}
-        const summaries: MemberSummary[] = Object.entries(grouped).map(([name, habits]: [string, any]) => {
-          const total = habits.length
-          const done = habits.filter((h: any) => h.completion_status === 'completed').length
-          const medAlerts = habits
-            .filter((h: any) => h.category === 'health' && h.emoji === '\uD83D\uDC8A' && h.completion_status !== 'completed')
-            .map((h: any) => h.title)
-          return { name, total, done, medAlerts }
-        })
-        setMembers(summaries)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+  const grouped = habitsData.habits_by_member || {}
+  const members: MemberSummary[] = Object.entries(grouped).map(([name, habits]: [string, any]) => {
+    const total = habits.length
+    const done = habits.filter((h: any) => h.completion_status === 'completed').length
+    const medAlerts = habits
+      .filter((h: any) => h.category === 'health' && h.emoji === '\uD83D\uDC8A' && h.completion_status !== 'completed')
+      .map((h: any) => h.title)
+    return { name, total, done, medAlerts }
+  })
+  const loading = !loaded
 
   const allMedAlerts = members.flatMap(m => m.medAlerts.map(a => `${m.name}: ${a}`))
 

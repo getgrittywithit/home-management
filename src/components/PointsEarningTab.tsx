@@ -79,17 +79,18 @@ export default function PointsEarningTab() {
   const ctx = useDashboardData()
 
   useEffect(() => {
-    if (ctx.loaded && ctx.pointsBalances.balances.length > 0) {
-      setBalances(ctx.pointsBalances.balances)
-      if (ctx.pointsBalances.settings?.mode) setSettings(ctx.pointsBalances.settings)
-      setSickDayCounts(ctx.pointsBalances.sickDayCounts || {})
-      setDraftMode(ctx.pointsBalances.settings?.mode || 'points')
-      setDraftRate(String(ctx.pointsBalances.settings?.conversion_rate || 0.10))
-      setFamilyGoals(ctx.familyGoals.familyGoals || [])
-      setLoaded(true)
-    } else if (ctx.loaded) {
-      loadData()
+    if (!ctx.loaded) return
+    // Always use context data — never fall back to direct fetch on mount
+    setBalances(ctx.pointsBalances.balances || [])
+    const ctxSettings = ctx.pointsBalances.settings
+    if (ctxSettings?.mode) {
+      setSettings(ctxSettings)
+      setDraftMode(ctxSettings.mode)
+      setDraftRate(String(ctxSettings.conversion_rate || 0.10))
     }
+    setSickDayCounts(ctx.pointsBalances.sickDayCounts || {})
+    setFamilyGoals(ctx.familyGoals.familyGoals || [])
+    setLoaded(true)
   }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = () => {
