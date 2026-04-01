@@ -31,17 +31,15 @@ export default function KidsChecklistOverview() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/kids/checklist?action=get_all_completion').then(r => r.json()).catch(() => ({ weekOf: '', kids: [] })),
-      fetch('/api/homeschool?action=get_task_progress').then(r => r.json()).catch(() => ({ progress: [] })),
+      fetch('/api/kids/checklist?action=get_all_completion').then(r => r.ok ? r.json() : { weekOf: '', kids: [] }).catch(() => ({ weekOf: '', kids: [] })),
+      fetch('/api/homeschool?action=get_task_progress').then(r => r.ok ? r.json() : { progress: [] }).catch(() => ({ progress: [] })),
     ]).then(([checklistData, taskData]) => {
       setWeekOf(checklistData.weekOf || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }))
-      // Merge: if checklist data is empty but task progress exists, use task data
       const checklistKids = checklistData.kids || []
       const taskProgress = taskData.progress || []
-      if (checklistKids.length > 0 && checklistKids.some((k: any) => k.required.total > 0)) {
+      if (checklistKids.length > 0 && checklistKids.some((k: any) => k.required?.total > 0)) {
         setKids(checklistKids)
       } else if (taskProgress.length > 0) {
-        // Build from homeschool task progress
         const allKidNames = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
         setKids(allKidNames.map(name => {
           const tp = taskProgress.find((p: any) => p.kid_name === name)
@@ -53,8 +51,18 @@ export default function KidsChecklistOverview() {
           }
         }))
       } else {
-        setKids(checklistKids)
+        // Show all kids with zeros rather than empty
+        const allKidNames = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
+        setKids(allKidNames.map(name => ({
+          name, required: { done: 0, total: 0 }, dailyCare: { done: 0, total: 0 }, earnMoney: { done: 0, total: 0 },
+        })))
       }
+      setLoaded(true)
+    }).catch(() => {
+      // Absolute fallback — show table with zeros
+      setKids(['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(name => ({
+        name, required: { done: 0, total: 0 }, dailyCare: { done: 0, total: 0 }, earnMoney: { done: 0, total: 0 },
+      })))
       setLoaded(true)
     })
   }, [])

@@ -377,17 +377,16 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
 
         {/* Content */}
         <div className="overflow-y-auto h-[calc(100%-64px)]">
-          {loading ? (
+          {loading || !data ? (
             <Skeleton />
-          ) : !data ? (
+          ) : (Object.keys(data).length === 0 && !loading) ? (
             <div className="p-8 text-center text-gray-500">
-              <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-              <p>Could not load notifications</p>
+              <p className="text-sm">No flags or alerts right now.</p>
               <button
                 onClick={fetchFlags}
                 className="mt-3 text-sm text-blue-600 hover:underline"
               >
-                Try again
+                Refresh
               </button>
             </div>
           ) : (

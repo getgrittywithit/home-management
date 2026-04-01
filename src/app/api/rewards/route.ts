@@ -282,6 +282,29 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Aliases for frontend compatibility
+    case 'balances': {
+      // Redirect to get_all_balances
+      try {
+        const rows = await db.query(
+          `SELECT kid_name, coin_balance, stars_balance FROM kid_rewards_profile ORDER BY kid_name`
+        )
+        return NextResponse.json({ balances: rows })
+      } catch { return NextResponse.json({ balances: [] }) }
+    }
+    case 'redemptions':
+    case 'get_redemptions': {
+      try {
+        const rows = await db.query(
+          `SELECT * FROM reward_redemptions ORDER BY created_at DESC LIMIT 50`
+        )
+        return NextResponse.json({ redemptions: rows })
+      } catch { return NextResponse.json({ redemptions: [] }) }
+    }
+    case 'photo_submissions': {
+      return NextResponse.json({ submissions: [] }) // No photo submission system yet
+    }
+
     default:
       return NextResponse.json(
         { error: `Unknown GET action: ${action}` },

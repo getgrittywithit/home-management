@@ -66,12 +66,19 @@ export async function GET(request: NextRequest) {
       const kids = ['zoey', 'kaylee', 'wyatt', 'amos', 'ellie', 'hannah']
       const snapshots = []
       for (const kid of kids) {
-        const profile = await ensureProfile(kid)
-        const wishes = await db.query(
-          `SELECT * FROM kid_wish_list WHERE kid_name = $1 AND status = 'wished' ORDER BY created_at DESC LIMIT 3`,
-          [kid]
-        )
-        snapshots.push({ ...profile, wishes })
+        try {
+          const profile = await ensureProfile(kid)
+          let wishes: any[] = []
+          try {
+            wishes = await db.query(
+              `SELECT * FROM kid_wish_list WHERE kid_name = $1 AND status = 'wished' ORDER BY created_at DESC LIMIT 3`,
+              [kid]
+            )
+          } catch { /* wish_list query failed */ }
+          snapshots.push({ ...profile, wishes })
+        } catch {
+          snapshots.push({ kid_name: kid, wishes: [] })
+        }
       }
       return NextResponse.json({ snapshots })
     }
@@ -189,7 +196,7 @@ export async function POST(request: NextRequest) {
       const { kid_name } = body
       if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
       await db.query(
-        `UPDATE kid_profiles SET onboarding_complete = true, onboarding_step = 'complete', updated_at = NOW() WHERE kid_name = $1`,
+        `UPDATE kid_profiles SET onboarding_complete = true, onboarding_step = 'complete', onboarded_at = NOW() WHERE kid_name = $1`,
         [kid_name]
       )
       return NextResponse.json({ success: true })

@@ -90,7 +90,14 @@ export default function HabitsTab() {
     try {
       const res = await fetch(`/api/habits?action=get_all_habits_today&date=${getToday()}`)
       const data = await res.json()
-      setHabitsByMember(data.habits_by_member || {})
+      // Normalize keys: add capitalized versions so MEMBERS array matches
+      const raw = data.habits_by_member || {}
+      const normalized: Record<string, any[]> = { ...raw }
+      for (const [key, val] of Object.entries(raw)) {
+        const cap = key.charAt(0).toUpperCase() + key.slice(1)
+        if (!normalized[cap]) normalized[cap] = val as any[]
+      }
+      setHabitsByMember(normalized)
     } catch (err) {
       console.error('Failed to load habits:', err)
     } finally {

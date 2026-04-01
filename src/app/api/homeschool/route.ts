@@ -715,6 +715,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Alias for dashboard widget
+    case 'dashboard_summary': {
+      try {
+        const progress = await db.query(
+          `SELECT t.kid_name, COUNT(t.id)::int AS total_tasks, COUNT(c.id)::int AS completed_tasks
+           FROM homeschool_tasks t
+           LEFT JOIN homeschool_task_completions c ON c.task_id = t.id AND c.task_date = CURRENT_DATE
+           WHERE t.active = true
+           GROUP BY t.kid_name ORDER BY t.kid_name`
+        )
+        return NextResponse.json({ progress, date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) })
+      } catch { return NextResponse.json({ progress: [] }) }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }
