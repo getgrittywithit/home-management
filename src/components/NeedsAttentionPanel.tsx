@@ -85,6 +85,23 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
     })
   }
 
+  if (data.low_moods?.length > 0) {
+    for (const m of data.low_moods) {
+      const name = m.kid_name?.charAt(0).toUpperCase() + m.kid_name?.slice(1)
+      flags.push({
+        type: 'mood', label: `${name} is having a tough day`,
+        tabId: 'health', icon: <AlertTriangle className="w-3.5 h-3.5" />,
+      })
+    }
+  }
+
+  if (data.school_notes?.length > 0) {
+    flags.push({
+      type: 'note', label: `${data.school_notes.length} unread school note${data.school_notes.length > 1 ? 's' : ''}`,
+      tabId: 'messages-alerts', icon: <MessageSquare className="w-3.5 h-3.5" />,
+    })
+  }
+
   if (flags.length === 0 || dismissed) {
     return (
       <div className="text-center text-gray-400 py-8">

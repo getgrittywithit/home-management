@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(request: NextRequest) {
   try {
@@ -64,6 +65,13 @@ export async function POST(request: NextRequest) {
           `INSERT INTO kid_school_notes (kid_name, category, note) VALUES ($1, $2, $3)`,
           [kid_name.toLowerCase(), category, note.trim().substring(0, 200)]
         )
+        const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+        await createNotification({
+          title: `School note from ${kidDisplay}`,
+          message: `${category.replace(/_/g, ' ')}: ${note.length > 60 ? note.slice(0, 60) + '...' : note}`,
+          source_type: 'school_note', source_ref: `note-${kid_name.toLowerCase()}`,
+          link_tab: 'messages-alerts', icon: '📝',
+        })
         return NextResponse.json({ success: true })
       }
 

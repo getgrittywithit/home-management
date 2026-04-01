@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,6 +76,16 @@ export async function POST(request: NextRequest) {
            DO UPDATE SET mood = $3, notes = $4`,
           [kid_name.toLowerCase(), today, mood, notes || null]
         )
+        // Low mood alert
+        if (mood <= 1) {
+          const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+          await createNotification({
+            title: `${kidDisplay} is having a tough day`,
+            message: notes || 'Mood check-in was low',
+            source_type: 'low_mood', source_ref: `mood-${kid_name.toLowerCase()}`,
+            link_tab: 'health', icon: '😢',
+          })
+        }
         return NextResponse.json({ success: true })
       }
 
@@ -85,6 +96,13 @@ export async function POST(request: NextRequest) {
           `INSERT INTO kid_break_flags (kid_name, note) VALUES ($1, $2)`,
           [kid_name.toLowerCase(), note || null]
         )
+        const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+        await createNotification({
+          title: `${kidDisplay} needs a break`,
+          message: `Pressed the break button${note ? ': ' + note : ''}`,
+          source_type: 'break_request', source_ref: `break-${kid_name.toLowerCase()}`,
+          link_tab: 'health', icon: '🌿',
+        })
         return NextResponse.json({ success: true })
       }
 

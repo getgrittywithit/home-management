@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 function getSeason(): string {
   const month = new Date().getMonth() + 1 // 1-12
@@ -110,6 +111,17 @@ export async function POST(request: NextRequest) {
          RETURNING id`,
         [kid_name, meal_id, date, sub_option_id || null, selected_starch || null, selected_veggie || null]
       )
+      // Notification
+      const meal = await db.query(`SELECT name FROM meal_library WHERE id = $1`, [meal_id]).catch(() => [])
+      const mealName = meal[0]?.name || 'a meal'
+      const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1)
+      await createNotification({
+        title: `${kidDisplay} picked dinner`,
+        message: `Requested: ${mealName}`,
+        source_type: 'meal_request', source_ref: `meal-${kid_name}`,
+        link_tab: 'messages-alerts', icon: '🍽️',
+      })
+
       return NextResponse.json({ success: true, request_id: result[0]?.id })
     }
 

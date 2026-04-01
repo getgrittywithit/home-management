@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { getKidZone } from '@/lib/zoneRotation'
+import { createNotification } from '@/lib/notifications'
 
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -560,6 +561,14 @@ export async function POST(request: NextRequest) {
             [kid.toLowerCase(), `${kid} reported not feeling well (kid portal)`]
           )
         } catch {}
+
+        const kidDisplay = kid.charAt(0).toUpperCase() + kid.slice(1)
+        await createNotification({
+          title: `${kidDisplay} reported sick`,
+          message: `${kidDisplay} said they're not feeling well today`,
+          source_type: 'sick_day', source_ref: `sick-${kid.toLowerCase()}`,
+          link_tab: 'health', icon: '🤒',
+        })
 
         return NextResponse.json({ success: true })
       }

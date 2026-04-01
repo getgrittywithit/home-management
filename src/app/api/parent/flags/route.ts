@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
       const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
 
-      const [messages, breaks, sickDays, missedChores, petCare, upcomingMeetings, zoneStatus, checklistStatus, pointsToday, mealRequests, upcomingMeetings30d, expiringExemptions, expiringDocuments] = await Promise.all([
+      const [messages, breaks, sickDays, missedChores, petCare, upcomingMeetings, zoneStatus, checklistStatus, pointsToday, mealRequests, upcomingMeetings30d, expiringExemptions, expiringDocuments, lowMoods, schoolNotes] = await Promise.all([
         // Unread messages
         db.query(`SELECT from_kid, COUNT(*)::int as count FROM family_messages WHERE read_at IS NULL GROUP BY from_kid`).catch(() => []),
 
@@ -143,12 +143,25 @@ export async function GET(request: NextRequest) {
            WHERE expiration_date IS NOT NULL
            AND expiration_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'`
         ).catch(() => []),
+
+        // Low mood alerts today
+        db.query(
+          `SELECT child_name as kid_name, mood, notes FROM kid_mood_log WHERE log_date = $1 AND mood <= 1`,
+          [today]
+        ).catch(() => []),
+
+        // Unread school notes
+        db.query(
+          `SELECT kid_name, category, note, created_at FROM kid_school_notes WHERE read_at IS NULL AND resolved = FALSE ORDER BY created_at DESC LIMIT 10`
+        ).catch(() => []),
       ])
 
       const totalUnread = (messages as { count: number }[]).reduce((sum: number, r) => sum + r.count, 0)
         + (breaks as unknown[]).length
         + (sickDays as unknown[]).length
         + (mealRequests as unknown[]).length
+        + (lowMoods as unknown[]).length
+        + (schoolNotes as unknown[]).length
 
       return NextResponse.json({
         messages,
@@ -165,6 +178,8 @@ export async function GET(request: NextRequest) {
         checklist_status: checklistStatus,
         meal_requests: mealRequests,
         points_today: (pointsToday as { total: number }[])[0]?.total || 0,
+        low_moods: lowMoods,
+        school_notes: schoolNotes,
         total_unread: totalUnread,
       })
     }

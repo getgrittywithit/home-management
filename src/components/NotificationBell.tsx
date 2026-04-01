@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Check, CheckCheck, MessageSquare, Thermometer, Trophy, Flame, X } from 'lucide-react'
+import { Bell, Check, CheckCheck, MessageSquare, Thermometer, Trophy, Flame, X, Heart, BookOpen, ChefHat } from 'lucide-react'
 
 interface Notification {
   id: number
@@ -26,6 +26,10 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
   message: <MessageSquare className="w-4 h-4 text-blue-500" />,
   all_tasks_complete: <Trophy className="w-4 h-4 text-amber-500" />,
   streak: <Flame className="w-4 h-4 text-orange-500" />,
+  break_request: <Heart className="w-4 h-4 text-rose-400" />,
+  school_note: <BookOpen className="w-4 h-4 text-indigo-500" />,
+  meal_request: <ChefHat className="w-4 h-4 text-orange-400" />,
+  low_mood: <Heart className="w-4 h-4 text-rose-600" />,
 }
 
 function timeAgo(dateStr: string): string {
