@@ -125,12 +125,12 @@ export const SCHOOL_ASSIGNMENTS = {
 
 // EXTRACURRICULAR ACTIVITIES - Update as needed
 export const EXTRACURRICULARS: Record<string, string[]> = {
-  'amos': ['Basketball', 'Math Club', 'Student Council'],
-  'zoey': ['Volleyball', 'Drama Club', 'Art Club'],
-  'kaylee': ['Soccer', 'Band', 'Student Newspaper'],
-  'ellie': ['Track', 'Chess Club', 'Science Fair'],
-  'wyatt': ['Soccer', 'Cub Scouts', 'Library Club'],
-  'hannah': ['Dance', 'Girl Scouts', 'Reading Club']
+  'amos': [],
+  'zoey': ['JROTC'],
+  'kaylee': ['Theater'],
+  'ellie': [],
+  'wyatt': [],
+  'hannah': []
 }
 
 // CHORE PAY SCALE - Update as needed

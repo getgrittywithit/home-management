@@ -343,7 +343,6 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <HabitsDashboardCard onNavigate={() => setActiveTab('habits')} />
             <FinanceDashboardCard onNavigate={() => setActiveTab('finance')} />
             <KidSnapshotCards />
-            <Dashboard initialData={initialData} />
           </div>
         )
       case 'messages-alerts':
@@ -378,7 +377,12 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'family':
         return renderFamilyTab()
       default:
-        return <Dashboard initialData={initialData} />
+        // Redirect unknown tabs to overview
+        return (
+          <div className="p-6 text-center text-gray-500">
+            <p>Select a tab from the sidebar to get started.</p>
+          </div>
+        )
     }
   }
 
