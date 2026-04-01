@@ -60,6 +60,7 @@ import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
 import OverviewDashboard from './OverviewDashboard'
 import AiBuddyChat from './AiBuddyChat'
+import { DashboardDataProvider } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
@@ -388,6 +389,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   }
 
   return (
+    <DashboardDataProvider>
     <div className="min-h-screen bg-gray-50 flex">
       {/* Left Navigation */}
       <div className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-visible">
@@ -471,5 +473,6 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       {/* Notification & Flag Center */}
       <FlagCenterPanel open={flagPanelOpen} onClose={() => setFlagPanelOpen(false)} onNavigate={(tab) => { setActiveTab(tab); setFlagPanelOpen(false) }} />
     </div>
+    </DashboardDataProvider>
   )
 }

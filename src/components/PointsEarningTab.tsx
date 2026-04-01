@@ -5,6 +5,7 @@ import {
   Star, DollarSign, AlertTriangle, Trophy, Target, Users,
   Plus, Minus, Settings, Save, Heart, ChevronDown, ChevronUp, X
 } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 interface Balance {
   kid_name: string
@@ -75,14 +76,26 @@ export default function PointsEarningTab() {
   const [draftMode, setDraftMode] = useState<'points' | 'dollars'>('points')
   const [draftRate, setDraftRate] = useState('0.10')
 
+  const ctx = useDashboardData()
+
   useEffect(() => {
-    loadData()
-  }, [])
+    if (ctx.loaded && ctx.pointsBalances.balances.length > 0) {
+      setBalances(ctx.pointsBalances.balances)
+      if (ctx.pointsBalances.settings?.mode) setSettings(ctx.pointsBalances.settings)
+      setSickDayCounts(ctx.pointsBalances.sickDayCounts || {})
+      setDraftMode(ctx.pointsBalances.settings?.mode || 'points')
+      setDraftRate(String(ctx.pointsBalances.settings?.conversion_rate || 0.10))
+      setFamilyGoals(ctx.familyGoals.familyGoals || [])
+      setLoaded(true)
+    } else if (ctx.loaded) {
+      loadData()
+    }
+  }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = () => {
     Promise.all([
-      fetch('/api/kids/points?action=get_all_balances').then(r => r.json()),
-      fetch('/api/kids/points?action=get_family_goals').then(r => r.json()),
+      fetch('/api/kids/points?action=get_all_balances').then(r => r.ok ? r.json() : { balances: [] }).catch(() => ({ balances: [] })),
+      fetch('/api/kids/points?action=get_family_goals').then(r => r.ok ? r.json() : { familyGoals: [] }).catch(() => ({ familyGoals: [] })),
     ]).then(([balData, goalData]) => {
       setBalances(balData.balances || [])
       setSettings(balData.settings || settings)

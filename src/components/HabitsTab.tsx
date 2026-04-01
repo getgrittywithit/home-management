@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 import {
   Flame, Plus, Check, X, ChevronDown, ChevronRight, AlertTriangle,
   SkipForward, Undo2, Trash2, Edit3, Clock, Target, Calendar, Award
@@ -74,6 +75,16 @@ function getToday() {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
+
+function normalizeHabitKeys(raw: Record<string, any[]>): Record<string, any[]> {
+  const normalized: Record<string, any[]> = { ...raw }
+  for (const [key, val] of Object.entries(raw)) {
+    const cap = key.charAt(0).toUpperCase() + key.slice(1)
+    if (!normalized[cap]) normalized[cap] = val as any[]
+  }
+  return normalized
+}
+
 export default function HabitsTab() {
   const [habitsByMember, setHabitsByMember] = useState<Record<string, Habit[]>>({})
   const [expandedMember, setExpandedMember] = useState<string | null>(null)
@@ -85,19 +96,22 @@ export default function HabitsTab() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // ── Data fetching ──
+  const ctx = useDashboardData()
+
+  // Initialize from context if available
+  useEffect(() => {
+    if (ctx.loaded && ctx.habitsData?.habits_by_member && Object.keys(ctx.habitsData.habits_by_member).length > 0) {
+      setHabitsByMember(normalizeHabitKeys(ctx.habitsData.habits_by_member))
+      setLoading(false)
+    }
+  }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Data fetching (used for refresh after mutations + initial if no context) ──
   const fetchAllHabits = useCallback(async () => {
     try {
       const res = await fetch(`/api/habits?action=get_all_habits_today&date=${getToday()}`)
       const data = await res.json()
-      // Normalize keys: add capitalized versions so MEMBERS array matches
-      const raw = data.habits_by_member || {}
-      const normalized: Record<string, any[]> = { ...raw }
-      for (const [key, val] of Object.entries(raw)) {
-        const cap = key.charAt(0).toUpperCase() + key.slice(1)
-        if (!normalized[cap]) normalized[cap] = val as any[]
-      }
-      setHabitsByMember(normalized)
+      setHabitsByMember(normalizeHabitKeys(data.habits_by_member || {}))
     } catch (err) {
       console.error('Failed to load habits:', err)
     } finally {
@@ -105,7 +119,10 @@ export default function HabitsTab() {
     }
   }, [])
 
-  useEffect(() => { fetchAllHabits() }, [fetchAllHabits])
+  // Direct fetch if context didn't provide data
+  useEffect(() => {
+    if (ctx.loaded && Object.keys(habitsByMember).length === 0) fetchAllHabits()
+  }, [ctx.loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Actions ──
   const markComplete = async (habit: Habit) => {
