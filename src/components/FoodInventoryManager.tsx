@@ -11,6 +11,7 @@ import MealAdminEditor from './MealAdminEditor'
 import GroceryTab from './GroceryTab'
 import RecipeSuggestions from './RecipeSuggestions'
 import MealFeedbackAnalytics from './MealFeedbackAnalytics'
+import WeeklyDinnerRotation from './WeeklyDinnerRotation'
 import { aiAgent } from '@/services/aiAgent'
 import {
   getFoodInventory, addFoodItem, updateFoodItem, deleteFoodItem,
@@ -435,6 +436,7 @@ Example:
           {/* Meal Plan Tab */}
           {activeTab === 'meal-plan' && (
             <div className="space-y-8">
+              <WeeklyDinnerRotation />
               <RecipeSuggestions />
               <MealPlanWeekView />
               <MealFeedbackAnalytics />

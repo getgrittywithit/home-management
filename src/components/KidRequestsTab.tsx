@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, Utensils, Users, Gamepad2, Heart } from 'lucide-react'
+import { Send, Utensils, Users, Gamepad2, Heart, ShoppingBag, Lock, X } from 'lucide-react'
 
 interface Message {
   id: string; message: string; created_at: string; parent_reply: string | null; reply_at: string | null
@@ -18,12 +18,19 @@ const QUICK_REQUESTS = [
   { label: 'Special Request', icon: Heart, color: 'text-pink-500', msg: '💝 Special request' },
 ]
 
+const PERSONAL_NEEDS_ITEMS = [
+  'Underwear', 'Socks', 'Pads/Tampons', 'Deodorant', 'Shampoo',
+  'Toothbrush', 'School Supplies', 'Shoes', 'Clothing', 'Other',
+]
+
 export default function KidRequestsTab({ childName }: { childName: string }) {
   const [customMsg, setCustomMsg] = useState('')
   const [sentLabel, setSentLabel] = useState<string | null>(null)
   const [recent, setRecent] = useState<Message[]>([])
   const [pendingRewards, setPendingRewards] = useState<PendingRedemption[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [showPersonalNeeds, setShowPersonalNeeds] = useState(false)
+  const [personalItem, setPersonalItem] = useState('')
 
   const childKey = childName.toLowerCase()
 
@@ -88,6 +95,63 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
             </button>
           )
         })}
+      </div>
+
+      {/* Personal Needs (Private) */}
+      <div className="bg-white p-4 rounded-lg border">
+        <button
+          onClick={() => setShowPersonalNeeds(!showPersonalNeeds)}
+          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+        >
+          <ShoppingBag className="w-4 h-4 text-rose-500" />
+          Personal Needs
+          <Lock className="w-3 h-3 text-gray-400" />
+          <span className="text-xs text-gray-400">(only Mom sees)</span>
+        </button>
+
+        {showPersonalNeeds && (
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-gray-500 flex items-center gap-1">
+              <Lock className="w-3 h-3" /> This request is private — only Mom will see it.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {PERSONAL_NEEDS_ITEMS.map(item => (
+                <button
+                  key={item}
+                  onClick={() => {
+                    sendRequest(`🔒 Personal need: ${item}`, 'personal')
+                    setShowPersonalNeeds(false)
+                  }}
+                  className="px-3 py-1.5 text-sm bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={personalItem}
+                onChange={e => setPersonalItem(e.target.value)}
+                placeholder="Something else..."
+                className="flex-1 border rounded-lg px-3 py-2 text-sm"
+              />
+              <button
+                onClick={() => {
+                  if (personalItem.trim()) {
+                    sendRequest(`🔒 Personal need: ${personalItem.trim()}`, 'personal')
+                    setPersonalItem('')
+                    setShowPersonalNeeds(false)
+                  }
+                }}
+                disabled={!personalItem.trim()}
+                className="bg-rose-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-rose-600 disabled:opacity-50"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Custom Request */}

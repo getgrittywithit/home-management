@@ -9,6 +9,7 @@ interface Notification {
   message: string
   icon: string | null
   source_type: string | null
+  source_ref: string | null
   link_tab: string | null
   read_at: string | null
   created_at: string
@@ -160,7 +161,12 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick }
                     <p className={`text-sm ${!n.read_at ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
                       {n.title}
                     </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {n.source_ref && (
+                        <span className="font-medium text-gray-600 capitalize">{n.source_ref.split('-')[0]} · </span>
+                      )}
+                      {n.message}
+                    </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-gray-400">{timeAgo(n.created_at)}</span>
                       {n.link_tab && onNavigate && (
