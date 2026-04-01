@@ -2,19 +2,20 @@
 
 import { use, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import KidPortalNew from '@/components/KidPortalNew'
-import { Lock, Eye } from 'lucide-react'
+import KidPortalWithNav from '@/components/KidPortalWithNav'
+import { Lock, Eye, Loader2 } from 'lucide-react'
 
 export default function KidPage({ params }: { params: Promise<{ kidName: string }> }) {
   const { kidName } = use(params)
   const searchParams = useSearchParams()
   const isPreview = searchParams.get('preview') === 'parent'
-  const [status, setStatus] = useState<'loading' | 'enabled' | 'disabled' | 'not_found'>('loading')
+  const [status, setStatus] = useState<'loading' | 'enabled' | 'disabled' | 'not_found' | 'ready'>('loading')
+  const [kidData, setKidData] = useState<any>(null)
 
   useEffect(() => {
     // In preview mode, skip portal settings check
     if (isPreview) {
-      setStatus('enabled')
+      loadKidData()
       return
     }
 
@@ -24,18 +25,44 @@ export default function KidPage({ params }: { params: Promise<{ kidName: string 
         if (!ok) {
           setStatus('not_found')
         } else if (data.enabled) {
-          setStatus('enabled')
+          loadKidData()
         } else {
           setStatus('disabled')
         }
       })
-      .catch(() => setStatus('enabled'))
+      .catch(() => loadKidData()) // On error, allow through
   }, [kidName, isPreview])
+
+  async function loadKidData() {
+    try {
+      const res = await fetch(`/api/kid-data?kid_name=${encodeURIComponent(kidName)}`)
+      if (!res.ok) {
+        setStatus('not_found')
+        return
+      }
+      const data = await res.json()
+      setKidData(data)
+      setStatus('ready')
+    } catch {
+      // Provide minimal fallback data so portal still loads
+      setKidData({
+        profile: { first_name: kidName.charAt(0).toUpperCase() + kidName.slice(1), name: kidName, emoji: '👦' },
+        todaysChecklist: [],
+        todaysEvents: [],
+        weekEvents: [],
+        zones: [],
+      })
+      setStatus('ready')
+    }
+  }
 
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading...</div>
+        <div className="flex items-center gap-2 text-gray-400">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          Loading portal...
+        </div>
       </div>
     )
   }
@@ -60,6 +87,8 @@ export default function KidPage({ params }: { params: Promise<{ kidName: string 
     )
   }
 
+  if (!kidData) return null
+
   return (
     <div>
       {/* Preview banner */}
@@ -72,7 +101,7 @@ export default function KidPage({ params }: { params: Promise<{ kidName: string 
           </a>
         </div>
       )}
-      <KidPortalNew kidName={kidName} />
+      <KidPortalWithNav kidData={kidData} />
     </div>
   )
 }
