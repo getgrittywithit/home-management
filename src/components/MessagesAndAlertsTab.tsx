@@ -14,14 +14,7 @@ interface MessagesAndAlertsTabProps {
 
 export default function MessagesAndAlertsTab({ onNavigate }: MessagesAndAlertsTabProps) {
   const [subTab, setSubTab] = useState<SubTab>('alerts')
-  const [msgCount, setMsgCount] = useState(0)
-
-  useEffect(() => {
-    fetch('/api/kids/messages?action=get_unread_count')
-      .then(r => r.json())
-      .then(data => setMsgCount(data.count || 0))
-      .catch(() => {})
-  }, [])
+  const msgCount = 0 // Badge count comes from parent layout, no independent fetch
 
   const tabs: { id: SubTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }[] = [
     { id: 'alerts', label: 'Alerts', icon: Bell },

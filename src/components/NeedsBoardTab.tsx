@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { ShoppingCart, Check, CheckCircle2, ClipboardList, AlertTriangle, Gift, Camera, MessageSquare } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 const KID_DISPLAY: Record<string, string> = {
   amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', zoey: 'Zoey', kaylee: 'Kaylee'
@@ -41,6 +42,7 @@ interface Note {
 }
 
 export default function NeedsBoardTab() {
+  const ctx = useDashboardData()
   const [shoppingList, setShoppingList] = useState<Note[]>([])
   const [allNotes, setAllNotes] = useState<Note[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -69,16 +71,19 @@ export default function NeedsBoardTab() {
   }
 
   const loadData = async () => {
-    const [shopData, allData, flagsData] = await Promise.all([
+    // Use context for flags (already fetched)
+    const flagsData = ctx.flagsData || {}
+    setSickAlerts(flagsData.sick_days || [])
+    setUnreadMessages(flagsData.messages || [])
+
+    // Fetch school notes + rewards (not in context)
+    const [shopData, allData] = await Promise.all([
       safeFetch('/api/kids/school-notes?action=get_shopping_list', { items: [] }),
       safeFetch('/api/kids/school-notes?action=get_all_notes', { notes: [], unreadCount: 0 }),
-      safeFetch('/api/parent/flags?action=get_all_flags', {}),
     ])
     setShoppingList(shopData.items || [])
     setAllNotes(allData.notes || [])
     setUnreadCount(allData.unreadCount || 0)
-    setSickAlerts(flagsData.sick_days || [])
-    setUnreadMessages(flagsData.messages || [])
 
     const [rewardData, subData] = await Promise.all([
       safeFetch('/api/rewards?action=get_pending_redemptions', { redemptions: [] }),

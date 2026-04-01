@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   AlertTriangle, Thermometer, MessageSquare, Clock, MapPin,
-  Calendar, Gift, ChevronRight, X
+  Calendar, Gift, ChevronRight, X, CheckCircle2
 } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 interface FlagItem {
   type: string
@@ -19,98 +20,79 @@ interface NeedsAttentionPanelProps {
 }
 
 export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelProps) {
-  const [flags, setFlags] = useState<FlagItem[]>([])
   const [dismissed, setDismissed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  const ctx = useDashboardData()
 
-  useEffect(() => {
-    fetch('/api/parent/flags?action=get_all_flags')
-      .then(r => r.json())
-      .then(data => {
-        const items: FlagItem[] = []
+  if (!ctx.loaded) return null
 
-        // Sick reports
-        if (data.sick_days?.length > 0) {
-          for (const s of data.sick_days) {
-            const name = s.kid_name?.charAt(0).toUpperCase() + s.kid_name?.slice(1)
-            items.push({
-              type: 'sick',
-              label: `${name} not feeling well`,
-              time: 'Today',
-              tabId: 'kids-health',
-              icon: <Thermometer className="w-3.5 h-3.5" />,
-            })
-          }
-        }
+  const data = ctx.flagsData || {}
+  const flags: FlagItem[] = []
 
-        // Unread messages
-        if (data.messages?.length > 0) {
-          const totalMessages = data.messages.reduce((sum: number, m: any) => sum + (m.count || 0), 0)
-          if (totalMessages > 0) {
-            items.push({
-              type: 'message',
-              label: `${totalMessages} unread message${totalMessages > 1 ? 's' : ''}`,
-              tabId: 'messages',
-              icon: <MessageSquare className="w-3.5 h-3.5" />,
-            })
-          }
-        }
-
-        // Break requests
-        if (data.breaks?.length > 0) {
-          for (const b of data.breaks) {
-            const name = b.kid_name?.charAt(0).toUpperCase() + b.kid_name?.slice(1)
-            items.push({
-              type: 'break',
-              label: `${name} needs a break`,
-              time: b.created_at ? new Date(b.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : undefined,
-              tabId: 'kids-checklist',
-              icon: <Clock className="w-3.5 h-3.5" />,
-            })
-          }
-        }
-
-        // Missed zone tasks
-        if (data.missed_chores?.length > 0) {
-          const kidNames = Array.from(new Set(data.missed_chores.map((c: any) => c.child_name) as string[]))
-          items.push({
-            type: 'zone',
-            label: `${kidNames.length} kid${kidNames.length > 1 ? 's' : ''} missed zone tasks yesterday`,
-            tabId: 'chores',
-            icon: <MapPin className="w-3.5 h-3.5" />,
-          })
-        }
-
-        // Upcoming meetings
-        if (data.upcoming_meetings?.length > 0) {
-          for (const m of data.upcoming_meetings) {
-            const name = m.kid_name?.charAt(0).toUpperCase() + m.kid_name?.slice(1)
-            items.push({
-              type: 'meeting',
-              label: `${name}: ${m.plan_type} meeting ${m.next_meeting_date}`,
-              tabId: 'school',
-              icon: <Calendar className="w-3.5 h-3.5" />,
-            })
-          }
-        }
-
-        // Meal requests pending
-        if (data.meal_requests?.length > 0) {
-          items.push({
-            type: 'meal',
-            label: `${data.meal_requests.length} pending meal request${data.meal_requests.length > 1 ? 's' : ''}`,
-            tabId: 'food-inventory',
-            icon: <Gift className="w-3.5 h-3.5" />,
-          })
-        }
-
-        setFlags(items)
-        setLoaded(true)
+  if (data.sick_days?.length > 0) {
+    for (const s of data.sick_days) {
+      const name = s.kid_name?.charAt(0).toUpperCase() + s.kid_name?.slice(1)
+      flags.push({
+        type: 'sick', label: `${name} not feeling well`, time: 'Today',
+        tabId: 'health', icon: <Thermometer className="w-3.5 h-3.5" />,
       })
-      .catch(() => setLoaded(true))
-  }, [])
+    }
+  }
 
-  if (!loaded || flags.length === 0 || dismissed) return null
+  if (data.messages?.length > 0) {
+    const total = data.messages.reduce((sum: number, m: any) => sum + (m.count || 0), 0)
+    if (total > 0) {
+      flags.push({
+        type: 'message', label: `${total} unread message${total > 1 ? 's' : ''}`,
+        tabId: 'messages-alerts', icon: <MessageSquare className="w-3.5 h-3.5" />,
+      })
+    }
+  }
+
+  if (data.break_requests?.length > 0) {
+    for (const b of data.break_requests) {
+      const name = b.kid_name?.charAt(0).toUpperCase() + b.kid_name?.slice(1)
+      flags.push({
+        type: 'break', label: `${name} needs a break`,
+        time: b.created_at ? new Date(b.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : undefined,
+        tabId: 'kids-checklist', icon: <Clock className="w-3.5 h-3.5" />,
+      })
+    }
+  }
+
+  if (data.missed_chores?.length > 0) {
+    const names = Array.from(new Set((data.missed_chores as any[]).map(c => c.child_name)))
+    flags.push({
+      type: 'zone', label: `${names.length} kid${names.length > 1 ? 's' : ''} missed zone tasks yesterday`,
+      tabId: 'chores', icon: <MapPin className="w-3.5 h-3.5" />,
+    })
+  }
+
+  if (data.upcoming_meetings?.length > 0) {
+    for (const m of data.upcoming_meetings) {
+      if (!m.next_meeting_date) continue
+      const name = m.kid_name?.charAt(0).toUpperCase() + m.kid_name?.slice(1)
+      flags.push({
+        type: 'meeting', label: `${name}: ${m.plan_type || 'ARD'} meeting`,
+        tabId: 'homeschool', icon: <Calendar className="w-3.5 h-3.5" />,
+      })
+    }
+  }
+
+  if (data.meal_requests?.length > 0) {
+    flags.push({
+      type: 'meal', label: `${data.meal_requests.length} pending meal request${data.meal_requests.length > 1 ? 's' : ''}`,
+      tabId: 'food-inventory', icon: <Gift className="w-3.5 h-3.5" />,
+    })
+  }
+
+  if (flags.length === 0 || dismissed) {
+    return (
+      <div className="text-center text-gray-400 py-8">
+        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-400" />
+        <p className="text-sm">All clear — nothing needs attention right now.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -121,10 +103,7 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
             {flags.length} item{flags.length > 1 ? 's' : ''} need{flags.length === 1 ? 's' : ''} attention
           </span>
         </div>
-        <button
-          onClick={() => setDismissed(true)}
-          className="p-1 hover:bg-amber-100 rounded"
-        >
+        <button onClick={() => setDismissed(true)} className="p-1 hover:bg-amber-100 rounded">
           <X className="w-4 h-4 text-amber-500" />
         </button>
       </div>
