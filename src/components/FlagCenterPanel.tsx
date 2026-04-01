@@ -228,7 +228,9 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
         )
         if (alreadyShown) return
 
+        if (!m.next_meeting_date) return
         const meetDate = new Date(m.next_meeting_date + 'T12:00:00')
+        if (isNaN(meetDate.getTime())) return
         const now = new Date()
         now.setHours(0, 0, 0, 0)
         const daysUntil = Math.ceil((meetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -238,7 +240,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           icon: GraduationCap,
           iconColor: 'text-purple-500',
           title: `${kidDisplay} ${m.plan_type?.toUpperCase() || 'ARD'} meeting in ${daysUntil} days — ${dateStr}`,
-          description: m.plan_label || `${m.plan_type?.toUpperCase()} plan meeting`,
+          description: `${m.plan_type?.toUpperCase() || 'ARD'} plan meeting`,
           navigateTo: 'teacher',
         })
       })
@@ -247,7 +249,9 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
     // Vaccine exemptions expiring
     if (data.expiring_exemptions?.length > 0) {
       data.expiring_exemptions.forEach(ex => {
+        if (!ex.vaccine_exemption_expiry) return
         const expDate = new Date(ex.vaccine_exemption_expiry + 'T12:00:00')
+        if (isNaN(expDate.getTime())) return
         const now = new Date()
         now.setHours(0, 0, 0, 0)
         const daysUntil = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))

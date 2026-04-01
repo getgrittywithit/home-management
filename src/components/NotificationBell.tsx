@@ -16,6 +16,8 @@ interface Notification {
 
 interface NotificationBellProps {
   onNavigate?: (tabId: string) => void
+  badgeCount?: number
+  onFlagClick?: () => void
 }
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
@@ -36,7 +38,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`
 }
 
-export default function NotificationBell({ onNavigate }: NotificationBellProps) {
+export default function NotificationBell({ onNavigate, badgeCount, onFlagClick }: NotificationBellProps) {
   const [count, setCount] = useState(0)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
@@ -107,9 +109,9 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         className="relative p-2 rounded-lg hover:bg-gray-100"
       >
         <Bell className="w-5 h-5 text-gray-600" />
-        {count > 0 && (
+        {(count + (badgeCount || 0)) > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs min-w-[18px] h-[18px] flex items-center justify-center rounded-full px-1">
-            {count > 99 ? '99+' : count}
+            {(count + (badgeCount || 0)) > 99 ? '99+' : count + (badgeCount || 0)}
           </span>
         )}
       </button>

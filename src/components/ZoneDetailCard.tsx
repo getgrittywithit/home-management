@@ -552,28 +552,42 @@ function TaskRow({ task, onToggle, expanded, onToggleInstructions }: {
         </div>
       </div>
 
-      {/* Expandable instructions */}
-      {task.instructions && task.instructions.length > 0 && (
-        <div className="px-3 pb-2">
-          <button
-            onClick={onToggleInstructions}
-            className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1"
-          >
-            <Info className="w-3 h-3" />
-            How to do this
-            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          </button>
-          {expanded && (
-            <div className="mt-2 bg-gray-50 rounded p-3">
-              <ol className="list-decimal list-inside space-y-1.5 text-sm text-gray-700">
-                {task.instructions.map((step: string, i: number) => (
-                  <li key={i} className="leading-snug">{step}</li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Expandable instructions — defensive: handle string, array, or null */}
+      {(() => {
+        let steps: string[] = []
+        if (Array.isArray(task.instructions)) {
+          steps = task.instructions.filter((s: any) => typeof s === 'string' && s.trim())
+        } else if (typeof task.instructions === 'string') {
+          try {
+            const parsed = JSON.parse(task.instructions as string)
+            if (Array.isArray(parsed)) steps = parsed.filter((s: any) => typeof s === 'string' && s.trim())
+          } catch {
+            if ((task.instructions as string).trim()) steps = [(task.instructions as string).trim()]
+          }
+        }
+        if (steps.length === 0) return null
+        return (
+          <div className="px-3 pb-2">
+            <button
+              onClick={onToggleInstructions}
+              className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1"
+            >
+              <Info className="w-3 h-3" />
+              How to do this
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+            {expanded && (
+              <div className="mt-2 bg-gray-50 rounded p-3">
+                <ol className="list-decimal list-inside space-y-1.5 text-sm text-gray-700">
+                  {steps.map((step: string, i: number) => (
+                    <li key={i} className="leading-snug">{step}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
