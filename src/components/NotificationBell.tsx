@@ -117,7 +117,7 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick }
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-[28rem] flex flex-col">
+        <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-[28rem] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <span className="font-semibold text-sm text-gray-900">Notifications</span>

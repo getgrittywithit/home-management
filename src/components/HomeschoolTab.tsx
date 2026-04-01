@@ -15,6 +15,7 @@ import ParentPortfolioPanel from './ParentPortfolioPanel'
 import TeacherDashboard from './TeacherDashboard'
 import OpportunitiesParentPanel from './OpportunitiesParentPanel'
 import ParentTaskManager from './ParentTaskManager'
+import ReadingProgressDashboard from './ReadingProgressDashboard'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -939,6 +940,7 @@ export default function HomeschoolTab() {
 
       {subTab === 'enrichment' && (
         <div className="space-y-6">
+          <ReadingProgressDashboard />
           <ParentEnrichmentSummary />
           <div className="grid gap-4 md:grid-cols-2">
             {students.map(student => (

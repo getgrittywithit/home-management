@@ -386,6 +386,8 @@ export async function POST(request: NextRequest) {
 
       try {
         let sql = `SELECT * FROM home_library WHERE active = TRUE AND archived = FALSE`
+        sql += ` AND COALESCE(audience_type, 'everyone') NOT IN ('parent_only', 'teacher_resource')`
+        sql += ` AND item_type != 'workbook'`
         const params: any[] = []
 
         // Format filter

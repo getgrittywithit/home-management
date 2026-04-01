@@ -93,3 +93,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { action } = body
+
+    if (action === 'delete_meal') {
+      const { meal_id } = body
+      if (!meal_id) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
+      // Soft delete
+      await db.query(`UPDATE meal_library SET active = FALSE WHERE id = $1`, [meal_id])
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'restore_meal') {
+      const { meal_id } = body
+      if (!meal_id) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
+      await db.query(`UPDATE meal_library SET active = TRUE WHERE id = $1`, [meal_id])
+      return NextResponse.json({ success: true })
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+  } catch (error) {
+    console.error('Error in POST meal-plan API:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

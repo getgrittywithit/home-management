@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, AlertTriangle } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
 import PositiveReportButton from './PositiveReportButton'
+import KidMealPicker from './KidMealPicker'
 
 // ============================================================================
 // Types
@@ -515,6 +516,9 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       })}
 
       <style>{`@keyframes checkPop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }`}</style>
+
+      {/* Meal Picker */}
+      <KidMealPicker kidName={kidName} previewMode={previewMode} />
 
       {/* Messages & Alerts */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">

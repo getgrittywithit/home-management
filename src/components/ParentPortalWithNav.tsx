@@ -390,9 +390,9 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Left Navigation */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-visible">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 overflow-visible relative z-50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
               <Home className="w-6 h-6 text-blue-600" />
