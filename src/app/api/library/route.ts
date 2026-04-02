@@ -160,6 +160,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    case 'get_pending_submissions': {
+      try {
+        const rows = await db.query(`SELECT * FROM library_submissions WHERE status = 'pending' ORDER BY submitted_at DESC`)
+        return NextResponse.json({ submissions: rows })
+      } catch { return NextResponse.json({ submissions: [] }) }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }
@@ -363,15 +370,30 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ found: false, barcode_type: 'isbn' })
         }
 
-        // UPC — try Open UPC DB
-        // For UPC games, we'd query BoardGameGeek by name after getting the product name
-        // This is a simplified version that returns the barcode for manual entry
-        return NextResponse.json({
-          found: false,
-          barcode_type: 'upc',
-          message: 'UPC lookup — enter details manually or search BoardGameGeek by name',
-          barcode,
-        })
+        // UPC — try Open Food Facts then UPCitemdb
+        try {
+          const offRes = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`)
+          const offData = await offRes.json()
+          if (offData.status === 1 && offData.product) {
+            const p = offData.product
+            return NextResponse.json({
+              found: true, source: 'openfoodfacts',
+              item: { item_type: 'other', title: p.product_name || p.generic_name || '', author_or_publisher: p.brands || '', upc: barcode, cover_image_url: p.image_url || null },
+            })
+          }
+        } catch {}
+        try {
+          const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`)
+          const upcData = await upcRes.json()
+          if (upcData.items?.length > 0) {
+            const item = upcData.items[0]
+            return NextResponse.json({
+              found: true, source: 'upcitemdb',
+              item: { item_type: 'other', title: item.title || '', author_or_publisher: item.brand || '', upc: barcode, cover_image_url: (item.images || [])[0] || null, description: item.description || '' },
+            })
+          }
+        } catch {}
+        return NextResponse.json({ found: false, barcode_type: 'upc', barcode })
       } catch (error) {
         console.error('lookup_barcode error:', error)
         return NextResponse.json({ error: 'Failed to look up barcode' }, { status: 500 })
@@ -579,6 +601,61 @@ export async function POST(request: NextRequest) {
         console.error('log_item_used error:', error)
         return NextResponse.json({ error: 'Failed to log item use' }, { status: 500 })
       }
+    }
+
+    // LIB-2: Library submission review (parent)
+    case 'get_pending_submissions': {
+      try {
+        const rows = await db.query(`SELECT * FROM library_submissions WHERE status = 'pending' ORDER BY submitted_at DESC`)
+        return NextResponse.json({ submissions: rows })
+      } catch { return NextResponse.json({ submissions: [] }) }
+    }
+
+    case 'approve_submission': {
+      const { submission_id } = data
+      if (!submission_id) return NextResponse.json({ error: 'submission_id required' }, { status: 400 })
+      try {
+        const sub = await db.query(`SELECT * FROM library_submissions WHERE id = $1`, [submission_id])
+        if (!sub[0]) return NextResponse.json({ error: 'not found' }, { status: 404 })
+        const s = sub[0]
+        await db.query(
+          `INSERT INTO home_library (item_type, title, author_or_publisher, isbn, upc, description, location_in_home, custom_tags, cover_image_url, added_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [s.item_type, s.title, s.author_or_publisher, s.isbn, s.upc, s.description, s.location_in_home, s.custom_tags || [], s.cover_image_url, s.kid_name]
+        )
+        await db.query(`UPDATE library_submissions SET status = 'approved', reviewed_at = NOW() WHERE id = $1`, [submission_id])
+        return NextResponse.json({ success: true })
+      } catch (error) { return NextResponse.json({ error: 'Failed' }, { status: 500 }) }
+    }
+
+    case 'reject_submission': {
+      const { submission_id, parent_note } = data
+      if (!submission_id) return NextResponse.json({ error: 'submission_id required' }, { status: 400 })
+      await db.query(
+        `UPDATE library_submissions SET status = 'rejected', parent_note = $2, reviewed_at = NOW() WHERE id = $1`,
+        [submission_id, parent_note || 'Please check and resubmit']
+      )
+      return NextResponse.json({ success: true })
+    }
+
+    // UPLOAD-1: Bulk add items
+    case 'bulk_add_items': {
+      const { items } = data
+      if (!Array.isArray(items) || items.length === 0) return NextResponse.json({ error: 'items array required' }, { status: 400 })
+      if (items.length > 200) return NextResponse.json({ error: 'Max 200 items per batch' }, { status: 400 })
+      let added = 0
+      for (const item of items) {
+        try {
+          await db.query(
+            `INSERT INTO home_library (item_type, title, author_or_publisher, isbn, upc, description, subject_tags, location_in_home, condition, custom_tags)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+            [item.item_type || 'book', item.title, item.author_or_publisher || null, item.isbn || null, item.upc || null,
+             item.description || null, item.subject_tags || [], item.location_in_home || null, item.condition || 'good', item.custom_tags || []]
+          )
+          added++
+        } catch {}
+      }
+      return NextResponse.json({ success: true, items_added: added })
     }
 
     default:

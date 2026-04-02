@@ -525,6 +525,28 @@ export async function POST(request: NextRequest) {
              ON CONFLICT (person_name, medication, log_date) DO UPDATE SET status = 'taken', logged_at = NOW()`,
             [kidName, medName]
           ).catch(() => {})
+
+          // MED-2: Decrement pill count + refill alert
+          await db.query(
+            `UPDATE medications SET pills_remaining = GREATEST(pills_remaining - 1, 0)
+             WHERE LOWER(person_name) = $1 AND LOWER(medication_name) LIKE $2 AND pills_remaining IS NOT NULL`,
+            [kidName, `%${medName.split(' ').pop()?.toLowerCase() || medName.toLowerCase()}%`]
+          ).catch(() => {})
+          try {
+            const medRow = await db.query(
+              `SELECT medication_name, pills_remaining, refill_alert_threshold FROM medications
+               WHERE LOWER(person_name) = $1 AND pills_remaining IS NOT NULL AND pills_remaining <= refill_alert_threshold`,
+              [kidName]
+            )
+            for (const m of (medRow || [])) {
+              await createNotification({
+                title: `Refill needed: ${m.medication_name}`,
+                message: `${kidName.charAt(0).toUpperCase() + kidName.slice(1)} has ${m.pills_remaining} pills left`,
+                source_type: 'refill_alert', source_ref: `med:${kidName}`,
+                link_tab: 'health', icon: '💊',
+              }).catch(() => {})
+            }
+          } catch {}
         }
 
         // ZONE-1: Sync zone completion to zone_task_rotation + award points

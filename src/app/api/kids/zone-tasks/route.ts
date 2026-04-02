@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 // ── Zone key mapping from checklist event summaries ──
 const ZONE_KEY_MAP: Record<string, string> = {
@@ -556,6 +557,28 @@ export async function POST(request: NextRequest) {
           newBalance = bal[0]?.balance || 0
         } catch {}
         return NextResponse.json({ success: true, points_awarded: 10, new_balance: newBalance })
+      }
+
+      // PHOTO-1: Submit zone photo
+      case 'submit_photo': {
+        const { kid_name, zone_name, photo_url } = body
+        if (!kid_name || !zone_name || !photo_url) return NextResponse.json({ error: 'kid_name, zone_name, photo_url required' }, { status: 400 })
+        try {
+          await db.query(
+            `INSERT INTO zone_photo_submissions (kid_name, zone_name, photo_url) VALUES ($1, $2, $3)`,
+            [kid_name.toLowerCase(), zone_name, photo_url]
+          )
+          const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+          await createNotification({
+            title: `${kidDisplay} submitted a zone photo`,
+            message: `Zone: ${zone_name} — needs review`,
+            source_type: 'zone_photo', source_ref: `kid:${kid_name.toLowerCase()}`,
+            link_tab: 'chores', icon: '📸',
+          }).catch(() => {})
+          return NextResponse.json({ success: true })
+        } catch (error) {
+          return NextResponse.json({ error: 'Failed' }, { status: 500 })
+        }
       }
 
       // ── Uncomplete a single task ──

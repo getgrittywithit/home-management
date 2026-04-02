@@ -660,6 +660,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'lookup_barcode': {
+        const { barcode } = body
+        if (!barcode) return NextResponse.json({ error: 'barcode required' }, { status: 400 })
+        try {
+          const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`)
+          const data = await res.json()
+          if (data.status === 1 && data.product) {
+            const p = data.product
+            return NextResponse.json({
+              found: true,
+              item: { name: p.product_name || p.generic_name || '', brand: p.brands || '', department: p.categories?.split(',')[0]?.trim() || 'Other', quantity: p.quantity || '', image_url: p.image_url || null, barcode },
+            })
+          }
+          return NextResponse.json({ found: false, barcode })
+        } catch { return NextResponse.json({ found: false, barcode }) }
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }

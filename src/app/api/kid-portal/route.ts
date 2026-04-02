@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { getKidZone } from '@/lib/zoneRotation'
+import { createNotification } from '@/lib/notifications'
 
 // ============================================================================
 // GET /api/kid-portal?action=...
@@ -797,6 +798,42 @@ export async function POST(request: NextRequest) {
         console.error('toggle_portal error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
+    }
+
+    // LIB-2: Kid submits library item for parent review
+    case 'submit_library_item': {
+      const { kid_name, item_type, title, author_or_publisher, isbn, upc, description, location_in_home, year_acquired, custom_tags, cover_image_url } = body
+      if (!kid_name || !title) return NextResponse.json({ error: 'kid_name and title required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `INSERT INTO library_submissions (kid_name, item_type, title, author_or_publisher, isbn, upc, description, location_in_home, year_acquired, custom_tags, cover_image_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+          [kid_name.toLowerCase(), item_type || 'book', title, author_or_publisher || null, isbn || null, upc || null, description || null, location_in_home || null, year_acquired || null, custom_tags || [], cover_image_url || null]
+        )
+        const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+        await createNotification({
+          title: `${kidDisplay} added a library item`,
+          message: `${title} (${item_type || 'book'}) — needs your review`,
+          source_type: 'library_submission', source_ref: `kid:${kid_name.toLowerCase()}`,
+          link_tab: 'homeschool', icon: '📚',
+        }).catch(() => {})
+        return NextResponse.json({ success: true, submission: rows[0] })
+      } catch (error) {
+        console.error('submit_library_item error:', error)
+        return NextResponse.json({ error: 'Failed' }, { status: 500 })
+      }
+    }
+
+    case 'get_my_library_submissions': {
+      const { kid_name } = body
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `SELECT * FROM library_submissions WHERE kid_name = $1 ORDER BY submitted_at DESC LIMIT 50`,
+          [kid_name.toLowerCase()]
+        )
+        return NextResponse.json({ submissions: rows })
+      } catch { return NextResponse.json({ submissions: [] }) }
     }
 
     default:
