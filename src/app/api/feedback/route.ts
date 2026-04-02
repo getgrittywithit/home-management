@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(request: NextRequest) {
   try {
@@ -207,6 +208,16 @@ export async function POST(request: NextRequest) {
             meal_date || new Date().toISOString().split('T')[0],
           ]
         )
+        // NOTIFY-FIX-1b #2: Notify parent if meal rating ≤1
+        if (rating <= 1) {
+          const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+          await createNotification({
+            title: `${kidDisplay} didn't like dinner`,
+            message: free_text ? `"${free_text.substring(0, 80)}"` : 'Left a low rating',
+            source_type: 'meal_feedback_low', source_ref: `meal-feedback-${kid_name}-${Date.now()}`,
+            link_tab: 'meals', icon: '🍽️',
+          }).catch(e => console.error('Meal feedback notify failed:', e.message))
+        }
         return NextResponse.json({ success: true })
       } catch (err: any) {
         // Auto-create table if it doesn't exist

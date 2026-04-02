@@ -440,6 +440,22 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // NOTIFY-FIX-1b #8: Notify parent when dental routine complete
+        if (allDoneToday && newCompleted) {
+          const childDisplay = childLower.charAt(0).toUpperCase() + childLower.slice(1)
+          const streakRow2 = await query(
+            `SELECT current_streak FROM kid_dental_streaks WHERE child_name = $1`,
+            [childLower]
+          ).catch(() => [])
+          const streak = streakRow2[0]?.current_streak || 1
+          await createNotification({
+            title: `${childDisplay} completed dental routine`,
+            message: `${streak} day streak!`,
+            source_type: 'dental_complete', source_ref: `dental-${childLower}-${today}`,
+            link_tab: 'health', icon: '🦷',
+          }).catch(e => console.error('Dental notify failed:', e.message))
+        }
+
         return NextResponse.json({ success: true, completed: newCompleted })
       }
 
@@ -494,6 +510,15 @@ export async function POST(request: NextRequest) {
            VALUES ($1, $2, $3, $4, $5) RETURNING id`,
           [child.toLowerCase(), activityType, durationMinutes || null, notes || null, today]
         )
+        // NOTIFY-FIX-1b #7: Notify parent of activity log
+        const actChildDisplay = child.charAt(0).toUpperCase() + child.slice(1).toLowerCase()
+        await createNotification({
+          title: `${actChildDisplay} logged activity`,
+          message: `${durationMinutes || '?'}min of ${activityType}`,
+          source_type: 'activity_logged', source_ref: `activity-${child.toLowerCase()}-${Date.now()}`,
+          link_tab: 'health', icon: '🏃',
+        }).catch(e => console.error('Activity notify failed:', e.message))
+
         return NextResponse.json({ success: true, id: result[0]?.id })
       }
 

@@ -59,6 +59,48 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ATTENDANCE-1: Homeschool compliance report
+    case 'get_homeschool_report': {
+      const kidName = searchParams.get('kid_name')
+      const startDate = searchParams.get('start_date') || '2025-08-01'
+      const endDate = searchParams.get('end_date') || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      const homeschoolKids = kidName ? [kidName.toLowerCase()] : ['amos', 'ellie', 'wyatt', 'hannah']
+
+      try {
+        const reports: any[] = []
+        for (const kid of homeschoolKids) {
+          if (SCHOOL_TYPES[kid] !== 'homeschool') continue
+          const rows = await db.query(
+            `SELECT
+              event_date,
+              COUNT(*) FILTER (WHERE completed = TRUE AND (
+                event_id LIKE '%school%' OR event_id LIKE '%math%' OR event_id LIKE '%elar%'
+                OR event_id LIKE '%science%' OR event_id LIKE '%reading%' OR event_id LIKE '%vocab%'
+              ))::int as academic_tasks
+             FROM kid_daily_checklist
+             WHERE child_name = $1 AND event_date BETWEEN $2 AND $3
+             GROUP BY event_date
+             HAVING COUNT(*) FILTER (WHERE completed = TRUE AND (
+               event_id LIKE '%school%' OR event_id LIKE '%math%' OR event_id LIKE '%elar%'
+               OR event_id LIKE '%science%' OR event_id LIKE '%reading%' OR event_id LIKE '%vocab%'
+             )) > 0
+             ORDER BY event_date`,
+            [kid, startDate, endDate]
+          )
+          const monthly: Record<string, number> = {}
+          rows.forEach((r: any) => {
+            const m = (r.event_date?.toISOString?.() || String(r.event_date)).slice(0, 7)
+            monthly[m] = (monthly[m] || 0) + 1
+          })
+          reports.push({ kid_name: kid, total_school_days: rows.length, monthly_breakdown: monthly })
+        }
+        return NextResponse.json({ reports, start_date: startDate, end_date: endDate })
+      } catch (error) {
+        console.error('Homeschool report error:', error)
+        return NextResponse.json({ reports: [], error: 'Failed' })
+      }
+    }
+
     case 'get_makeup_work': {
       const kidName = searchParams.get('kid_name')
       const status = searchParams.get('status') || 'pending'

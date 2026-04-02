@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 // ============================================================================
 // GET /api/homeschool?action=...
@@ -1252,6 +1253,15 @@ export async function POST(request: NextRequest) {
            RETURNING *`,
           [kid]
         )
+
+        // NOTIFY-FIX-1b #3: Notify parent of financial level advance
+        const kidDisplay = kid.charAt(0).toUpperCase() + kid.slice(1)
+        await createNotification({
+          title: `${kidDisplay} reached Financial Literacy Level ${lvl + 1}!`,
+          message: `Advanced from Level ${lvl} to Level ${lvl + 1}`,
+          source_type: 'financial_level_advance', source_ref: `fin-level-${kid}-${lvl + 1}`,
+          link_tab: 'school', icon: '🎓',
+        }).catch(e => console.error('Financial level notify failed:', e.message))
 
         return NextResponse.json({ progress: result[0] })
       } catch (error) {
