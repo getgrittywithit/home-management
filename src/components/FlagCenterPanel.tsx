@@ -129,7 +129,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-red-500',
           title: `${b.kid_name} requested a break`,
           description: 'Mood check-in flagged — needs parent attention',
-          navigateTo: 'kids-health',
+          navigateTo: 'health',
         })
       })
     }
@@ -141,7 +141,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-orange-500',
           title: `${s.kid_name} reported sick today`,
           description: 'Self-reported sick day',
-          navigateTo: 'kids-health',
+          navigateTo: 'health',
         })
       })
     }
@@ -153,7 +153,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-blue-500',
           title: `${m.count} unread message${m.count > 1 ? 's' : ''} from ${m.from_kid}`,
           description: 'Tap to read and respond',
-          navigateTo: 'messages',
+          navigateTo: 'messages-alerts',
         })
       })
     }
@@ -200,7 +200,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-emerald-600',
           title: `${m.kid_name} — ${m.plan_type} meeting`,
           description: `${dateStr}${m.next_meeting_time ? ' at ' + m.next_meeting_time : ''}`,
-          navigateTo: 'teacher',
+          navigateTo: 'homeschool',
         })
       })
     }
@@ -227,7 +227,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-purple-500',
           title: `${kidDisplay} ${m.plan_type?.toUpperCase() || 'ARD'} meeting in ${daysUntil} days — ${dateStr}`,
           description: `${m.plan_type?.toUpperCase() || 'ARD'} plan meeting`,
-          navigateTo: 'teacher',
+          navigateTo: 'homeschool',
         })
       })
     }
@@ -247,7 +247,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-red-500',
           title: `${kidDisplay} vaccine exemption expires in ${daysUntil} days`,
           description: expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          navigateTo: 'teacher',
+          navigateTo: 'homeschool',
         })
       })
     }
@@ -263,7 +263,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
           iconColor: 'text-teal-500',
           title: `${kidDisplay} ${docLabel} expires ${expDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
           description: `Document expiration`,
-          navigateTo: 'teacher',
+          navigateTo: 'homeschool',
         })
       })
     }
@@ -294,7 +294,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
       iconColor: 'text-amber-500',
       title: `${data.points_today} points earned today`,
       description: 'Family-wide total',
-      navigateTo: 'points-earning',
+      navigateTo: 'stars-rewards',
     })
   }
 

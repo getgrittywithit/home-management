@@ -206,3 +206,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load flags' }, { status: 500 })
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { action } = body
+
+    if (action === 'acknowledge_sick') {
+      const { kid_name, sick_date } = body
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      await db.query(
+        `UPDATE kid_sick_days SET acknowledged = TRUE WHERE kid_name = $1 AND sick_date = $2`,
+        [kid_name.toLowerCase(), sick_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })]
+      ).catch(() => {})
+      return NextResponse.json({ success: true })
+    }
+
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+  } catch (error) {
+    console.error('Flags POST error:', error)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+}

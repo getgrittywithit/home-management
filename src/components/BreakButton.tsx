@@ -6,13 +6,21 @@ export default function BreakButton({ childName }: { childName: string }) {
   const [showConfirm, setShowConfirm] = useState(false)
 
   const flagBreak = async () => {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    const key = `break-flag-${childName.toLowerCase()}-${today}`
+
     setShowConfirm(true)
+    setTimeout(() => setShowConfirm(false), 2000)
+
+    // Only send once per day
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, '1')
+
     await fetch('/api/kids/mood', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'flag_break', kid_name: childName.toLowerCase() })
     }).catch(() => {})
-    setTimeout(() => setShowConfirm(false), 2000)
   }
 
   return (

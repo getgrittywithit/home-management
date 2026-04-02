@@ -335,6 +335,7 @@ export async function GET(request: NextRequest) {
           const done = Object.values(cMap).filter(Boolean).length
           days.push({ date: dateStr, dayName: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dd.getDay()], assignee, totalTasks: taskKeys.length, completedTasks: done })
         }
+        days.sort((a: any, b: any) => a.date.localeCompare(b.date))
         return NextResponse.json({ days })
       }
 

@@ -146,8 +146,12 @@ export default function BelleCareTab() {
       {/* Weekly Grid */}
       <div className="bg-white rounded-lg border shadow-sm p-5">
         <h2 className="font-bold text-gray-900 mb-3">This Week</h2>
-        <div className="grid grid-cols-7 gap-2">
-          {weekDays.map((d: any) => {
+        <div className="grid grid-cols-6 gap-2">
+          {/* Weekdays Mon-Fri */}
+          {weekDays.filter((d: any) => {
+            const dow = new Date(d.date + 'T12:00:00').getDay()
+            return dow >= 1 && dow <= 5
+          }).map((d: any) => {
             const isToday = d.date === todayStr
             const isPast = d.date < todayStr
             const pct = d.totalTasks > 0 ? d.completedTasks / d.totalTasks : 0
@@ -162,6 +166,27 @@ export default function BelleCareTab() {
               </div>
             )
           })}
+          {/* Merged weekend */}
+          {(() => {
+            const sat = weekDays.find((d: any) => new Date(d.date + 'T12:00:00').getDay() === 6)
+            const sun = weekDays.find((d: any) => new Date(d.date + 'T12:00:00').getDay() === 0)
+            if (!sat) return null
+            const isWeekendToday = (sat.date === todayStr) || (sun?.date === todayStr)
+            const isPast = sun ? sun.date < todayStr : sat.date < todayStr
+            const totalTasks = (sat.totalTasks || 0) + (sun?.totalTasks || 0)
+            const doneTasks = (sat.completedTasks || 0) + (sun?.completedTasks || 0)
+            const pct = totalTasks > 0 ? doneTasks / totalTasks : 0
+            return (
+              <div className={`text-center p-2 rounded-lg ${isWeekendToday ? 'ring-2 ring-amber-400 bg-amber-50' : 'bg-gray-50'}`}>
+                <p className="text-xs font-medium text-gray-600">Wknd</p>
+                <p className={`text-xs ${KID_COLORS[sat.assignee]?.split(' ')[1] || 'text-gray-500'}`}>{KID_DISPLAY[sat.assignee] || '—'}</p>
+                <div className="text-lg mt-1">
+                  {!isPast && !isWeekendToday ? '⬜' : pct >= 1 ? '✅' : pct > 0 ? '⚠️' : isPast ? '❌' : '⬜'}
+                </div>
+                <p className="text-xs text-gray-400">{doneTasks}/{totalTasks}</p>
+              </div>
+            )
+          })()}
         </div>
       </div>
 

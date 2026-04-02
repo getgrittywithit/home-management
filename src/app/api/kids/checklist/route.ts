@@ -542,6 +542,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'all_required_complete': {
+        const { kid_name } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1)
+        await createNotification({
+          title: `${kidDisplay} finished all required tasks!`,
+          message: 'Daily checklist complete',
+          source_type: 'all_tasks_complete',
+          source_ref: `kid:${kid_name.toLowerCase()}`,
+          link_tab: 'kids-checklist',
+          icon: '🎉',
+        })
+        return NextResponse.json({ success: true })
+      }
+
       case 'flag_sick_day': {
         const { kid, date } = body
         if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })

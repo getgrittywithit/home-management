@@ -237,6 +237,19 @@ export async function POST(request: NextRequest) {
         [req.assigned_date, newMeal[0].name]
       )
 
+      // Notify kid of swap
+      try {
+        const kidRow = await db.query(`SELECT kid_name FROM meal_requests WHERE id = $1`, [requestId])
+        if (kidRow[0]) {
+          await createNotification({
+            title: 'Dinner swapped',
+            message: `Mom changed your dinner to ${newMeal[0].name}`,
+            source_type: 'meal_request', source_ref: `kid:${kidRow[0].kid_name}`,
+            link_tab: 'my-day', icon: '🔄',
+          })
+        }
+      } catch {}
+
       return NextResponse.json({ success: true })
     }
 
