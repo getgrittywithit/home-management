@@ -168,6 +168,19 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ submissions: [] }) }
     }
 
+    case 'get_my_submissions': {
+      const kidName = searchParams.get('kid_name')
+      if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `SELECT id, item_type, title, author_or_publisher, reason, status, parent_note, submitted_at as created_at
+           FROM library_submissions WHERE kid_name = $1 ORDER BY submitted_at DESC LIMIT 20`,
+          [kidName.toLowerCase()]
+        )
+        return NextResponse.json({ submissions: rows })
+      } catch { return NextResponse.json({ submissions: [] }) }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }
@@ -655,6 +668,30 @@ export async function POST(request: NextRequest) {
         }).catch(() => {})
       }
       return NextResponse.json({ success: true })
+    }
+
+    // Kid submission
+    case 'submit_item': {
+      const { kid_name, item_type, title, author_or_publisher, isbn_upc, reason } = data
+      if (!kid_name || !title) return NextResponse.json({ error: 'kid_name and title required' }, { status: 400 })
+      try {
+        await db.query(
+          `INSERT INTO library_submissions (kid_name, item_type, title, author_or_publisher, isbn, reason, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+          [kid_name.toLowerCase(), item_type || 'book', title.trim(), author_or_publisher || null, isbn_upc || null, reason || null]
+        )
+        const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+        await createNotification({
+          title: `Library suggestion from ${kidDisplay}`,
+          message: `${kidDisplay} suggested: "${title.trim()}"`,
+          source_type: 'library_submission', source_ref: `kid:${kid_name.toLowerCase()}`,
+          link_tab: 'library', icon: '📚',
+        }).catch(() => {})
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error('submit_item error:', error)
+        return NextResponse.json({ error: 'Failed to submit' }, { status: 500 })
+      }
     }
 
     // UPLOAD-1: Bulk add items

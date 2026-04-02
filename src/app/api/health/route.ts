@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { query } from '@/lib/database'
+import { db } from '@/lib/database'
+const query = db.query.bind(db)
 
 export async function GET(request: NextRequest) {
   try {

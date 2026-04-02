@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { BookOpen, Gamepad2, Puzzle, Search, Plus, Archive, Edit3, Star, AlertTriangle, X, Filter, ChevronDown } from 'lucide-react'
+import { BookOpen, Gamepad2, Puzzle, Search, Plus, Archive, Edit3, Star, AlertTriangle, X, Filter, ChevronDown, Camera, Check } from 'lucide-react'
+import BarcodeScanner from './BarcodeScanner'
+import KidLibrarySubmit from './KidLibrarySubmit'
 
 // ============================================================================
 // Types
@@ -508,6 +510,9 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
         </button>
       </div>
 
+      {/* Kid submission form */}
+      <KidLibrarySubmit kidName={kidName} />
+
       {/* Search */}
       <div className="flex gap-2">
         <div className="flex-1 relative">
@@ -596,6 +601,9 @@ export function ParentLibraryAdmin() {
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null)
   const [usageStats, setUsageStats] = useState<any[]>([])
   const [showStats, setShowStats] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
+  const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([])
+  const [showPending, setShowPending] = useState(false)
 
   // Add form state
   const [formData, setFormData] = useState({
@@ -637,6 +645,34 @@ export function ParentLibraryAdmin() {
   }, [filterType])
 
   useEffect(() => { loadItems() }, [loadItems])
+
+  useEffect(() => { loadPending() }, [])
+
+  const loadPending = async () => {
+    try {
+      const res = await fetch('/api/library?action=get_pending_submissions')
+      const json = await res.json()
+      setPendingSubmissions(json.submissions || [])
+    } catch {}
+  }
+
+  const handleApproveSubmission = async (id: number) => {
+    await fetch('/api/library', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve_submission', submission_id: id }),
+    }).catch(() => {})
+    loadPending()
+    loadItems()
+  }
+
+  const handleRejectSubmission = async (id: number) => {
+    const note = prompt('Let them know why (optional):') || 'Not right now'
+    await fetch('/api/library', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reject_submission', submission_id: id, parent_note: note }),
+    }).catch(() => {})
+    loadPending()
+  }
 
   const loadStats = async () => {
     try {
@@ -806,10 +842,24 @@ export function ParentLibraryAdmin() {
                 placeholder="ISBN (books)"
                 className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
               />
+              <button onClick={() => setShowScanner(true)} className="bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-200 flex items-center gap-1">
+                <Camera className="w-4 h-4" /> Scan
+              </button>
               <button onClick={handleBarcodeLookup} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
                 Look Up
               </button>
             </div>
+            {showScanner && (
+              <BarcodeScanner
+                onScan={(code) => {
+                  setShowScanner(false)
+                  setFormData((p) => ({ ...p, isbn: code }))
+                  // Auto-trigger lookup
+                  setTimeout(() => handleBarcodeLookup(), 100)
+                }}
+                onClose={() => setShowScanner(false)}
+              />
+            )}
           </div>
         )}
 
@@ -1093,6 +1143,44 @@ export function ParentLibraryAdmin() {
           </button>
         </div>
       </div>
+
+      {/* Pending kid submissions */}
+      {pendingSubmissions.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-bold text-amber-900 text-sm flex items-center gap-1.5">
+              <BookOpen className="w-4 h-4" /> Kid Suggestions ({pendingSubmissions.length} pending)
+            </h4>
+            <button onClick={() => setShowPending(!showPending)} className="text-xs text-amber-700 hover:text-amber-900 font-medium">
+              {showPending ? 'Hide' : 'Review'}
+            </button>
+          </div>
+          {showPending && pendingSubmissions.map((sub: any) => (
+            <div key={sub.id} className="bg-white rounded-lg p-3 mb-2 border border-amber-100">
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <p className="font-medium text-sm text-gray-900">{sub.title}</p>
+                  <p className="text-xs text-gray-500">
+                    Suggested by {sub.kid_name?.charAt(0).toUpperCase()}{sub.kid_name?.slice(1)} · {sub.item_type}
+                    {sub.author_or_publisher ? ` · ${sub.author_or_publisher}` : ''}
+                  </p>
+                  {sub.reason && <p className="text-xs text-blue-600 italic mt-1">&ldquo;{sub.reason}&rdquo;</p>}
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => handleApproveSubmission(sub.id)}
+                  className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium hover:bg-green-200 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Add to Library
+                </button>
+                <button onClick={() => handleRejectSubmission(sub.id)}
+                  className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-medium hover:bg-red-200">
+                  Not Right Now
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Type filters */}
       <div className="flex gap-2">

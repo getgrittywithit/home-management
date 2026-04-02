@@ -1,10 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Zap, Bell, Calendar, Users, X } from 'lucide-react'
-
-const ALL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
-const KID_DISPLAY: Record<string, string> = { amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', zoey: 'Zoey', kaylee: 'Kaylee' }
 
 type ModalType = 'greenlight' | 'alert' | 'event' | 'meeting' | null
 
@@ -17,6 +14,13 @@ export default function FamilyQuickActions() {
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [kidList, setKidList] = useState<{ name: string; display: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/family-members').then(r => r.json())
+      .then(data => { if (data.kids?.length) setKidList(data.kids) })
+      .catch(() => {})
+  }, [])
 
   // Event modal state
   const [eventTitle, setEventTitle] = useState('')
@@ -166,7 +170,7 @@ export default function FamilyQuickActions() {
       {/* Greenlight Modal */}
       {modal === 'greenlight' && (
         <Modal title="Post a Greenlight" icon="🟢" onClose={closeModal}>
-          <KidSelector value={targetKid} onChange={setTargetKid} />
+          <KidSelector value={targetKid} onChange={setTargetKid} kids={kidList} />
           <p className="text-sm text-gray-600 mt-3 mb-2">Quick presets:</p>
           <div className="flex flex-wrap gap-2">
             {GREENLIGHT_PRESETS.map(p => (
@@ -188,7 +192,7 @@ export default function FamilyQuickActions() {
       {/* Alert Modal */}
       {modal === 'alert' && (
         <Modal title="Send an Alert" icon="🚨" onClose={closeModal}>
-          <KidSelector value={targetKid} onChange={setTargetKid} />
+          <KidSelector value={targetKid} onChange={setTargetKid} kids={kidList} />
           <p className="text-sm text-gray-600 mt-3 mb-2">Quick presets:</p>
           <div className="flex flex-wrap gap-2">
             {ALERT_PRESETS.map(p => (
@@ -291,13 +295,13 @@ function Modal({ title, icon, onClose, children }: { title: string; icon: string
   )
 }
 
-function KidSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function KidSelector({ value, onChange, kids }: { value: string; onChange: (v: string) => void; kids: { name: string; display: string }[] }) {
   return (
     <div>
       <label className="text-sm text-gray-600">Who is this for?</label>
       <select value={value} onChange={e => onChange(e.target.value)} className="w-full border rounded px-3 py-2 text-sm mt-1">
         <option value="all">All Kids</option>
-        {ALL_KIDS.map(k => <option key={k} value={k}>{KID_DISPLAY[k]}</option>)}
+        {kids.map(k => <option key={k.name} value={k.name}>{k.display}</option>)}
       </select>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, Info, Sparkles, Heart, Anchor, Plus } from 'lucide-react'
+import ZonePhotoUpload from './ZonePhotoUpload'
 
 interface ZoneTask {
   id: number
@@ -485,6 +486,12 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
           )}
         </div>
       )}
+
+      {/* Zone photo upload */}
+      <div className="px-3 py-2 border-t border-gray-100 flex items-center justify-between">
+        <span className="text-xs text-gray-400">Done? Snap a photo for Mom to review</span>
+        <ZonePhotoUpload kidName={childName} zoneName={zone.display_name} />
+      </div>
 
       {/* Zone principle footer */}
       {zone.zone_principle && (
