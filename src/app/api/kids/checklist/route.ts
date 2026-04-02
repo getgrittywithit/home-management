@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { getKidZone } from '@/lib/zoneRotation'
 import { createNotification } from '@/lib/notifications'
+import { checkDailyPatterns } from '@/lib/pattern-detection'
 
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -622,6 +623,29 @@ export async function POST(request: NextRequest) {
           link_tab: 'kids-checklist',
           icon: '🎉',
         })
+        return NextResponse.json({ success: true })
+      }
+
+      // SKIP-1: Kid intentionally skips a task
+      case 'skip_task': {
+        const { child, eventId, skip_reason } = body
+        if (!child || !eventId) return NextResponse.json({ error: 'child and eventId required' }, { status: 400 })
+        const kidName = child.toLowerCase()
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await db.query(
+          `INSERT INTO kid_daily_checklist (child_name, event_date, event_id, event_summary, completed, status, skip_reason, skipped_at)
+           VALUES ($1, $2, $3, '', FALSE, 'skipped', $4, NOW())
+           ON CONFLICT (child_name, event_date, event_id)
+           DO UPDATE SET completed = FALSE, status = 'skipped', skip_reason = $4, skipped_at = NOW()`,
+          [kidName, today, eventId, skip_reason || null]
+        )
+        return NextResponse.json({ success: true, status: 'skipped' })
+      }
+
+      // Run pattern detection (called on checklist load)
+      case 'check_patterns': {
+        const { kid_name } = body
+        if (kid_name) checkDailyPatterns(kid_name).catch(() => {})
         return NextResponse.json({ success: true })
       }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 async function ensureTable() {
   await db.query(`
@@ -102,6 +103,21 @@ export async function POST(request: NextRequest) {
       } else {
         await db.query(`UPDATE notifications SET read_at = NOW() WHERE read_at IS NULL AND target_role = 'parent'`)
       }
+      return NextResponse.json({ success: true })
+    }
+
+    // HEART-1: Quick praise (parent → kid)
+    if (action === 'send_praise') {
+      const { kid_name, message: praiseMsg } = body
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      await createNotification({
+        title: '❤️ Mom saw that!',
+        message: praiseMsg || 'Great job today!',
+        source_type: 'parent_praise',
+        source_ref: `praise-${kid_name.toLowerCase()}-${Date.now()}`,
+        link_tab: 'my-day', icon: '❤️',
+        target_role: 'kid', kid_name: kid_name.toLowerCase(),
+      })
       return NextResponse.json({ success: true })
     }
 
