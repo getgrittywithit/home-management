@@ -66,24 +66,36 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'log_mood': {
-        const { kid_name, mood, notes } = body
-        if (!kid_name || !mood) return NextResponse.json({ error: 'kid_name and mood required' }, { status: 400 })
+        const { kid_name, mood, mood_score, notes, one_win, one_hard_thing, what_helped, energy, anxiety, irritability, focus } = body
+        const moodVal = mood || mood_score
+        if (!kid_name || !moodVal) return NextResponse.json({ error: 'kid_name and mood required' }, { status: 400 })
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const notesStr = notes || [one_win && `Win: ${one_win}`, one_hard_thing && `Hard: ${one_hard_thing}`, what_helped && `Helped: ${what_helped}`].filter(Boolean).join(' | ') || null
         await db.query(
-          `INSERT INTO kid_mood_log (child_name, log_date, mood, notes)
-           VALUES ($1, $2, $3, $4)
+          `INSERT INTO kid_mood_log (child_name, log_date, mood, mood_score, notes, one_win, one_hard_thing, what_helped, energy, anxiety, irritability, focus)
+           VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (child_name, log_date)
-           DO UPDATE SET mood = $3, notes = $4`,
-          [kid_name.toLowerCase(), today, mood, notes || null]
-        )
+           DO UPDATE SET mood = $3, mood_score = $3, notes = $4, one_win = $5, one_hard_thing = $6, what_helped = $7, energy = $8, anxiety = $9, irritability = $10, focus = $11`,
+          [kid_name.toLowerCase(), today, moodVal, notesStr, one_win || null, one_hard_thing || null, what_helped || null, energy || null, anxiety || null, irritability || null, focus || null]
+        ).catch(e => {
+          // Fallback without expanded columns (if columns don't exist yet)
+          console.error('Full mood log failed, trying basic:', e.message)
+          return db.query(
+            `INSERT INTO kid_mood_log (child_name, log_date, mood, notes)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (child_name, log_date)
+             DO UPDATE SET mood = $3, notes = $4`,
+            [kid_name.toLowerCase(), today, moodVal, notesStr]
+          )
+        })
         // NOTIFY-FIX-1 #5: Low mood alert (mood ≤2, not just ≤1)
-        if (mood <= 2) {
+        if (moodVal <= 2) {
           const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
           await createNotification({
-            title: mood <= 1 ? `${kidDisplay} is having a tough day` : `${kidDisplay} had a tough check-in`,
-            message: notes || `Mood: ${mood}/5`,
+            title: moodVal <= 1 ? `${kidDisplay} is having a tough day` : `${kidDisplay} had a tough check-in`,
+            message: notesStr || `Mood: ${moodVal}/5`,
             source_type: 'low_mood', source_ref: `mood-${kid_name.toLowerCase()}-${today}`,
-            link_tab: 'health', icon: mood <= 1 ? '😢' : '💛',
+            link_tab: 'health', icon: moodVal <= 1 ? '😢' : '💛',
           }).catch(e => console.error('Mood notification failed:', e.message))
         }
         return NextResponse.json({ success: true })
@@ -92,6 +104,14 @@ export async function POST(request: NextRequest) {
       case 'flag_break': {
         const { kid_name, note } = body
         if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        // BREAK-FIX-1: Server-side dedup — only one break flag per kid per day
+        const existing = await db.query(
+          `SELECT id FROM kid_break_flags WHERE kid_name = $1 AND flagged_at::date = CURRENT_DATE LIMIT 1`,
+          [kid_name.toLowerCase()]
+        ).catch(() => [])
+        if (existing.length > 0) {
+          return NextResponse.json({ success: true, already_flagged: true })
+        }
         await db.query(
           `INSERT INTO kid_break_flags (kid_name, note) VALUES ($1, $2)`,
           [kid_name.toLowerCase(), note || null]
@@ -100,7 +120,7 @@ export async function POST(request: NextRequest) {
         await createNotification({
           title: `${kidDisplay} needs a break`,
           message: `Pressed the break button${note ? ': ' + note : ''}`,
-          source_type: 'break_request', source_ref: `break-${kid_name.toLowerCase()}`,
+          source_type: 'break_request', source_ref: `break-${kid_name.toLowerCase()}-${Date.now()}`,
           link_tab: 'health', icon: '🌿',
         })
         return NextResponse.json({ success: true })

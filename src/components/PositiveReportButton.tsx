@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Sparkles, X, Heart, Shield, Users, Zap, Sprout, Eye } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 
 interface PositiveReportButtonProps {
   kidName: string
@@ -11,19 +11,26 @@ interface PositiveReportButtonProps {
 
 const CATEGORIES = [
   { id: 'kindness', label: 'Was kind to someone', icon: '💛' },
-  { id: 'patience', label: 'Stayed calm in a tough moment', icon: '😌' },
-  { id: 'helping', label: 'Helped someone without asking', icon: '🤝' },
-  { id: 'bravery', label: 'Was brave or did something hard', icon: '💪' },
-  { id: 'accountability', label: 'Said sorry / took ownership', icon: '🙏' },
-  { id: 'growth', label: 'Tried something new', icon: '🌱' },
+  { id: 'courage', label: 'Was brave or did something hard', icon: '🦁' },
+  { id: 'honesty', label: 'Told the truth / took ownership', icon: '⭐' },
+  { id: 'teamwork', label: 'Helped someone or worked together', icon: '🤝' },
+  { id: 'gratitude', label: 'Said thank you / showed appreciation', icon: '🙏' },
+  { id: 'resilience', label: 'Kept going when it was hard', icon: '💪' },
 ]
-
-const ALL_KIDS = ['Amos', 'Zoey', 'Kaylee', 'Ellie', 'Wyatt', 'Hannah']
 
 export default function PositiveReportButton({ kidName, source, onSubmit }: PositiveReportButtonProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<'who' | 'what' | 'note'>('who')
   const [targetKid, setTargetKid] = useState(source === 'self' ? kidName : '')
+  const [kidList, setKidList] = useState<{ name: string; display: string }[]>([])
+
+  useEffect(() => {
+    if (source !== 'self') {
+      fetch('/api/family-members').then(r => r.json())
+        .then(data => { if (data.kids?.length) setKidList(data.kids) })
+        .catch(() => {})
+    }
+  }, [source])
   const [category, setCategory] = useState('')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -90,13 +97,13 @@ export default function PositiveReportButton({ kidName, source, onSubmit }: Posi
         <div>
           <p className="text-sm text-gray-700 mb-2">Who did something great?</p>
           <div className="flex flex-wrap gap-2">
-            {ALL_KIDS.filter(k => k.toLowerCase() !== kidName.toLowerCase()).map(kid => (
+            {kidList.filter(k => k.name !== kidName.toLowerCase()).map(kid => (
               <button
-                key={kid}
-                onClick={() => { setTargetKid(kid.toLowerCase()); setStep('what') }}
+                key={kid.name}
+                onClick={() => { setTargetKid(kid.name); setStep('what') }}
                 className="px-4 py-2 rounded-lg border border-amber-200 bg-white text-sm font-medium hover:bg-amber-100"
               >
-                {kid}
+                {kid.display}
               </button>
             ))}
           </div>
