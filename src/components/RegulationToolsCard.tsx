@@ -86,6 +86,30 @@ export default function RegulationToolsCard() {
             </div>
           )}
         </div>
+        {/* REGULATION-1: Crisis Resources */}
+        <div className="rounded-lg border border-gray-200 overflow-hidden mt-3">
+          <button onClick={() => toggle('crisis')}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-500 hover:bg-gray-50">
+            <span>Need to talk to someone?</span>
+            {openSection === 'crisis' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {openSection === 'crisis' && (
+            <div className="px-4 pb-4 space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-gray-700 p-2 bg-blue-50 rounded-lg">
+                <span>💬</span>
+                <span>Text <strong>HOME</strong> to <strong>741741</strong> (Crisis Text Line)</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-700 p-2 bg-blue-50 rounded-lg">
+                <span>📞</span>
+                <span>Call <strong>988</strong> (Suicide &amp; Crisis Lifeline)</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-700 p-2 bg-green-50 rounded-lg">
+                <span>🏠</span>
+                <span>Talk to <strong>Mom or Dad</strong> — they always want to help</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

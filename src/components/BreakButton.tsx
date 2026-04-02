@@ -3,24 +3,34 @@
 import { useState } from 'react'
 
 export default function BreakButton({ childName }: { childName: string }) {
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'sent' | 'error'>('idle')
 
   const flagBreak = async () => {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
     const key = `break-flag-${childName.toLowerCase()}-${today}`
 
-    setShowConfirm(true)
-    setTimeout(() => setShowConfirm(false), 2000)
-
     // Only send once per day
-    if (sessionStorage.getItem(key)) return
-    sessionStorage.setItem(key, '1')
+    if (sessionStorage.getItem(key)) {
+      setStatus('sent')
+      setTimeout(() => setStatus('idle'), 2000)
+      return
+    }
 
-    await fetch('/api/kids/mood', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'flag_break', kid_name: childName.toLowerCase() })
-    }).catch(() => {})
+    try {
+      const res = await fetch('/api/kids/mood', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'flag_break', kid_name: childName.toLowerCase() })
+      })
+      if (!res.ok) throw new Error(`${res.status}`)
+      sessionStorage.setItem(key, '1')
+      setStatus('sent')
+      setTimeout(() => setStatus('idle'), 2000)
+    } catch (err) {
+      console.error('Break flag failed:', err)
+      setStatus('error')
+      setTimeout(() => setStatus('idle'), 3000)
+    }
   }
 
   return (
@@ -32,11 +42,20 @@ export default function BreakButton({ childName }: { childName: string }) {
         🌿 I Need a Break
       </button>
 
-      {showConfirm && (
+      {status === 'sent' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
           <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-xs">
             <p className="text-2xl mb-2">🌿</p>
             <p className="text-gray-700 font-medium">Got it. Mom will know.</p>
+          </div>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+          <div className="bg-white rounded-2xl p-8 shadow-xl text-center max-w-xs">
+            <p className="text-2xl mb-2">😕</p>
+            <p className="text-gray-700 font-medium">Couldn&apos;t send — try again or find Mom</p>
           </div>
         </div>
       )}

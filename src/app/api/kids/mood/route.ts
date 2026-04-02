@@ -76,15 +76,15 @@ export async function POST(request: NextRequest) {
            DO UPDATE SET mood = $3, notes = $4`,
           [kid_name.toLowerCase(), today, mood, notes || null]
         )
-        // Low mood alert
-        if (mood <= 1) {
+        // NOTIFY-FIX-1 #5: Low mood alert (mood ≤2, not just ≤1)
+        if (mood <= 2) {
           const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
           await createNotification({
-            title: `${kidDisplay} is having a tough day`,
-            message: notes || 'Mood check-in was low',
-            source_type: 'low_mood', source_ref: `mood-${kid_name.toLowerCase()}`,
-            link_tab: 'health', icon: '😢',
-          })
+            title: mood <= 1 ? `${kidDisplay} is having a tough day` : `${kidDisplay} had a tough check-in`,
+            message: notes || `Mood: ${mood}/5`,
+            source_type: 'low_mood', source_ref: `mood-${kid_name.toLowerCase()}-${today}`,
+            link_tab: 'health', icon: mood <= 1 ? '😢' : '💛',
+          }).catch(e => console.error('Mood notification failed:', e.message))
         }
         return NextResponse.json({ success: true })
       }
@@ -109,10 +109,22 @@ export async function POST(request: NextRequest) {
       case 'acknowledge_break': {
         const { id } = body
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+        // Get the kid name before updating
+        const breakRow = await db.query(`SELECT kid_name FROM kid_break_flags WHERE id = $1`, [id]).catch(() => [])
         await db.query(
           `UPDATE kid_break_flags SET acknowledged = TRUE, acknowledged_at = NOW() WHERE id = $1`,
           [id]
         )
+        // NOTIFY-FIX-1 #9: Notify kid that parent saw the break request
+        if (breakRow[0]?.kid_name) {
+          await createNotification({
+            title: 'Mom saw your break request',
+            message: 'Take the time you need.',
+            source_type: 'break_acknowledged', source_ref: `break-ack-${breakRow[0].kid_name}-${id}`,
+            link_tab: 'my-day', icon: '💚',
+            target_role: 'kid', kid_name: breakRow[0].kid_name,
+          }).catch(e => console.error('Break ack notification failed:', e.message))
+        }
         return NextResponse.json({ success: true })
       }
 

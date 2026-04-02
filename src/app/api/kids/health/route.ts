@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(request: NextRequest) {
   try {
@@ -260,6 +261,16 @@ export async function POST(request: NextRequest) {
            RETURNING id`,
           [child.toLowerCase(), category, duration, severity, notes || null]
         )
+        // NOTIFY-FIX-1 #1: Notify parent of health request (urgent if "Really Bothering Me")
+        const kidDisplay = child.charAt(0).toUpperCase() + child.slice(1).toLowerCase()
+        const isUrgent = severity === 'really_bothering' || severity === 'severe'
+        await createNotification({
+          title: isUrgent ? `URGENT: ${kidDisplay} health request` : `${kidDisplay} submitted a health request`,
+          message: `${category}${duration ? ' — ' + duration : ''}${notes ? ': ' + notes.substring(0, 80) : ''}`,
+          source_type: isUrgent ? 'health_urgent' : 'health_request',
+          source_ref: `health-req-${child.toLowerCase()}-${result[0]?.id}`,
+          link_tab: 'health', icon: isUrgent ? '🚨' : '🩺',
+        }).catch(e => console.error('Health request notification failed:', e.message))
         return NextResponse.json({ success: true, id: result[0]?.id })
       }
 

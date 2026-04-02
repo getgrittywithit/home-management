@@ -525,14 +525,23 @@ export async function POST(request: NextRequest) {
              VALUES ($1, $2, CURRENT_DATE, 'taken')
              ON CONFLICT (person_name, medication, log_date) DO UPDATE SET status = 'taken', logged_at = NOW()`,
             [kidName, medName]
-          ).catch(() => {})
+          ).catch(e => console.error('Med adherence log failed:', kidName, medName, e.message))
+
+          // NOTIFY-FIX-1 #4: Notify parent of med completion
+          const kidDisplay = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+          await createNotification({
+            title: `${kidDisplay} took ${medName}`,
+            message: `${medName} logged as taken`,
+            source_type: 'med_completion', source_ref: `med-done-${kidName}-${Date.now()}`,
+            link_tab: 'health', icon: '💊',
+          }).catch(e => console.error('Med completion notify failed:', e.message))
 
           // MED-2: Decrement pill count + refill alert
           await db.query(
             `UPDATE medications SET pills_remaining = GREATEST(pills_remaining - 1, 0)
              WHERE LOWER(person_name) = $1 AND LOWER(medication_name) LIKE $2 AND pills_remaining IS NOT NULL`,
             [kidName, `%${medName.split(' ').pop()?.toLowerCase() || medName.toLowerCase()}%`]
-          ).catch(() => {})
+          ).catch(e => console.error('Pill count decrement failed:', kidName, e.message))
           try {
             const medRow = await db.query(
               `SELECT medication_name, pills_remaining, refill_alert_threshold FROM medications
@@ -542,12 +551,12 @@ export async function POST(request: NextRequest) {
             for (const m of (medRow || [])) {
               await createNotification({
                 title: `Refill needed: ${m.medication_name}`,
-                message: `${kidName.charAt(0).toUpperCase() + kidName.slice(1)} has ${m.pills_remaining} pills left`,
+                message: `${kidDisplay} has ${m.pills_remaining} pills left`,
                 source_type: 'refill_alert', source_ref: `med:${kidName}`,
                 link_tab: 'health', icon: '💊',
-              }).catch(() => {})
+              }).catch(e => console.error('Refill alert failed:', e.message))
             }
-          } catch {}
+          } catch (e: any) { console.error('Refill check failed:', e.message) }
         }
 
         // ZONE-1: Sync zone completion to zone_task_rotation + award points
@@ -556,16 +565,16 @@ export async function POST(request: NextRequest) {
             `UPDATE zone_task_rotation SET completed_at = NOW()
              WHERE kid_name = $1 AND assigned_date = $2 AND completed_at IS NULL`,
             [kidName, today]
-          ).catch(() => {})
+          ).catch(e => console.error('Zone sync failed:', kidName, e.message))
           // Award 10 points for zone task
           await db.query(
             `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'earned', 10, $2)`,
             [kidName, `Zone chore: ${eventSummary || eventId}`]
-          ).catch(() => {})
+          ).catch(e => console.error('Points log failed:', kidName, e.message))
           await db.query(
             `UPDATE kid_points_balance SET current_points = current_points + 10, total_earned_all_time = total_earned_all_time + 10, updated_at = NOW() WHERE kid_name = $1`,
             [kidName]
-          ).catch(() => {})
+          ).catch(e => console.error('Points balance update failed:', kidName, e.message))
           try {
             const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])
             return NextResponse.json({ success: true, completed: newCompleted, points_awarded: 10, new_balance: bal[0]?.balance || 0 })
@@ -639,13 +648,21 @@ export async function POST(request: NextRequest) {
            DO UPDATE SET completed = FALSE, status = 'skipped', skip_reason = $4, skipped_at = NOW()`,
           [kidName, today, eventId, skip_reason || null]
         )
+        // NOTIFY-FIX-1 #6: Notify parent of task skip
+        const skipDisplay = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+        await createNotification({
+          title: `${skipDisplay} skipped a task`,
+          message: `${eventId}: ${skip_reason || 'No reason given'}`,
+          source_type: 'task_skip', source_ref: `skip-${kidName}-${eventId}-${today}`,
+          link_tab: 'kids-checklist', icon: '⏭️',
+        }).catch(e => console.error('Skip notification failed:', e.message))
         return NextResponse.json({ success: true, status: 'skipped' })
       }
 
       // Run pattern detection (called on checklist load)
       case 'check_patterns': {
         const { kid_name } = body
-        if (kid_name) checkDailyPatterns(kid_name).catch(() => {})
+        if (kid_name) checkDailyPatterns(kid_name).catch(e => console.error('Pattern detection failed:', kid_name, e.message))
         return NextResponse.json({ success: true })
       }
 

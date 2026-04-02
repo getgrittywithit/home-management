@@ -139,5 +139,17 @@ export async function computeVelocity(kidName: string, date: string) {
        new Date(Math.max(...timestamps)).toTimeString().slice(0, 8),
        completionWindows, clusterScore]
     )
-  } catch {}
+
+    // VELOCITY-NOTIFY-1: Alert parent on rapid batch-clicking
+    if (clusterScore === 'rapid_batch') {
+      const kidDisplay = kid.charAt(0).toUpperCase() + kid.slice(1)
+      const timeSpan = Math.round((Math.max(...timestamps) - Math.min(...timestamps)) / 1000)
+      await createNotification({
+        title: `${kidDisplay} may have rushed their checklist`,
+        message: `${tasks.length} tasks marked done in ${timeSpan < 60 ? timeSpan + ' seconds' : Math.round(timeSpan / 60) + ' minutes'} — might be worth verifying`,
+        source_type: 'velocity_alert', source_ref: `velocity-${kid}-${date}`,
+        link_tab: 'kids-checklist', icon: '👀',
+      }).catch(e => console.error('Velocity notification failed:', e.message))
+    }
+  } catch (e: any) { console.error('computeVelocity error:', kid, e.message) }
 }

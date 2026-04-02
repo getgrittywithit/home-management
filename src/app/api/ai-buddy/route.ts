@@ -1,23 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+
+// ============================================================================
+// SAFETY-1: Crisis & Concern Detection
+// ============================================================================
+const CRISIS_KEYWORDS = [
+  'want to die', 'kill myself', 'end it all', 'better off dead',
+  'nobody would care', 'wish i was dead', 'hurt myself', 'self harm',
+  'cut myself', 'suicide', 'dont want to be here', "don't want to be here",
+  'dont want to live', "don't want to live", 'hate myself so much',
+  'want to disappear', 'give up on everything', 'no reason to live',
+  'better off without me', 'want it to stop', 'end my life',
+]
+
+const CONCERN_KEYWORDS = [
+  'hate myself', "i'm stupid", 'im stupid', "can't do anything right",
+  "can't do anything", 'ugly', 'i am fat', "i'm fat", 'im fat',
+  'dumb', 'useless', 'broken', 'hate my life', 'nobody likes me',
+  'wish i was someone else', 'not good enough', 'always mess up',
+  "can't do this", "what's the point", 'whats the point',
+  "don't care anymore", 'nothing matters', 'everyone hates me',
+  'i am worthless', "i'm worthless", 'im worthless', 'no one cares',
+]
+
+function detectSafetyLevel(message: string): 'crisis' | 'concern' | 'safe' {
+  const lower = message.toLowerCase().replace(/['']/g, "'")
+  if (CRISIS_KEYWORDS.some(kw => lower.includes(kw))) return 'crisis'
+  if (CONCERN_KEYWORDS.some(kw => lower.includes(kw))) return 'concern'
+  return 'safe'
+}
+
+async function ensureSafetyTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS safety_events (
+      id SERIAL PRIMARY KEY,
+      kid_name TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      source TEXT DEFAULT 'ai_buddy',
+      message_snippet TEXT,
+      context_data JSONB,
+      ai_response_given BOOLEAN DEFAULT TRUE,
+      parent_notified BOOLEAN DEFAULT TRUE,
+      parent_acknowledged BOOLEAN DEFAULT FALSE,
+      acknowledged_at TIMESTAMPTZ,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(() => {})
+}
+
+async function logSafetyEvent(kidName: string, level: 'crisis' | 'concern', message: string) {
+  const kid = kidName.toLowerCase()
+  const kidDisplay = kidName.charAt(0).toUpperCase() + kidName.slice(1).toLowerCase()
+
+  await ensureSafetyTable()
+
+  // Log event
+  await db.query(
+    `INSERT INTO safety_events (kid_name, event_type, severity, source, message_snippet, parent_notified)
+     VALUES ($1, $2, $3, 'ai_buddy', $4, TRUE)`,
+    [kid, `${level}_keyword`, level === 'crisis' ? 'high' : 'medium', message.substring(0, 100)]
+  ).catch(e => console.error('Safety event log failed:', e))
+
+  // Notify parent
+  if (level === 'crisis') {
+    await createNotification({
+      title: `URGENT: Check on ${kidDisplay} now`,
+      message: `${kidDisplay} expressed something concerning in AI Buddy. Please check in with them immediately.`,
+      source_type: 'crisis_detection',
+      source_ref: `safety-crisis-${kid}-${Date.now()}`,
+      link_tab: 'health',
+      icon: '🚨',
+    }).catch(e => console.error('Crisis notification failed:', e))
+  } else {
+    await createNotification({
+      title: `${kidDisplay} might need encouragement`,
+      message: `${kidDisplay} expressed some negative feelings in AI Buddy. May be worth a check-in.`,
+      source_type: 'concern_detection',
+      source_ref: `safety-concern-${kid}-${Date.now()}`,
+      link_tab: 'health',
+      icon: '💛',
+    }).catch(e => console.error('Concern notification failed:', e))
+  }
+}
 
 const KID_AGES: Record<string, number> = {
   amos: 17, zoey: 15, kaylee: 13, ellie: 12, wyatt: 10, hannah: 8,
 }
 
-const KID_SYSTEM_PROMPT = (kidName: string, grade: string, age?: number) => {
+const KID_SYSTEM_PROMPT = (kidName: string, grade: string, age?: number, safetyLevel?: string) => {
   const kidAge = age || 10
   const baseRules = `You help ${kidName} navigate their family portal, understand their tasks, find things, and stay encouraged.
 Answer questions using their portal data provided below.
 If you don't know something or it's not in the data, say "That's a great question — send Mom a note from Requests."
 Never share information about other family members, finances, or parent-only settings.
-Never talk down. ${kidName} is capable and smart. Encourage problem-solving, not dependence.`
+Never talk down. ${kidName} is capable and smart. Encourage problem-solving, not dependence.
+
+CRITICAL SAFETY RULES — follow these exactly:
+If ${kidName} expresses self-harm, suicidal thoughts, or wanting to die:
+- Take it seriously. Do NOT dismiss it. Do NOT change the subject.
+- Say something like: "I hear you, and I'm glad you told me. These feelings are real and they matter."
+- ALWAYS say: "This is really important — please go talk to Mom or Dad right now. They love you and want to help."
+- Do NOT try to be a therapist. Do NOT give coping strategies for crisis. Direct them to a person.
+- Keep your response short and warm. Don't lecture.
+
+If ${kidName} engages in negative self-talk (calling themselves stupid, ugly, worthless, etc.):
+- Do NOT agree or validate the negative belief.
+- Do NOT dismiss their feelings with "You're not stupid!" — that invalidates how they feel.
+- Acknowledge the feeling, then gently challenge the belief:
+  "It sounds like you're being really hard on yourself. That's a feeling, not a fact."
+  "Having a tough time doesn't mean you can't do it. It means it's hard right now."
+- Reference real achievements from their data when possible.
+- If negative talk persists, suggest: "I think talking to Mom would really help. Want to send her a note?"
+
+NEVER agree that a child is stupid, ugly, worthless, or hopeless.
+NEVER suggest they "just think positive" — that's dismissive.
+NEVER roleplay as a therapist or provide clinical mental health advice.
+NEVER ignore warning signs to keep the conversation "fun."
+${safetyLevel === 'crisis' ? `\nIMPORTANT: ${kidName}'s last message contained very concerning language. Respond with warmth and immediately direct them to talk to Mom or Dad. Keep it short, caring, and clear.` : ''}
+${safetyLevel === 'concern' ? `\nNOTE: ${kidName}'s message contained some negative self-talk. Be especially warm and encouraging. Gently challenge any negative beliefs using their real achievements.` : ''}`
+
+  const learningRules = `
+You are also a learning companion. When ${kidName} asks about science, history, social studies, geography, art, music, or any school subject:
+- Use Socratic prompting: ask follow-up questions to make them think
+- Adapt to ${grade}-level vocabulary and complexity
+- Connect to their interests when possible
+- Encourage deeper exploration: "Want to dig deeper?"
+- For hands-on learners, suggest a simple activity or experiment
+- You can use your full knowledge for learning topics — not limited to portal data`
+
+  const taskRules = `
+If ${kidName} has uncompleted important tasks visible in their data:
+- On the first message, casually mention ONE undone task: "Hey, looks like you still have [task] on your list. No rush — just making sure it's on your radar."
+- Do NOT list ALL undone tasks. Do NOT repeat the reminder in the same conversation.
+- If they say they'll do it later, say "Sounds good" and move on.`
 
   if (kidAge >= 15) {
     return `You're ${kidName}'s portal assistant. ${kidName} is in ${grade}.
 ${baseRules}
+${learningRules}
+${taskRules}
 Talk to ${kidName} like a capable young adult. Be direct, clear, and respectful — no fluff.
 If they ask about something complex, give them a real answer. They can handle it.
 Help them think through problems rather than just giving answers.
@@ -25,12 +151,16 @@ Keep responses concise.`
   } else if (kidAge >= 11) {
     return `You're ${kidName}'s portal helper. ${kidName} is in ${grade}.
 ${baseRules}
+${learningRules}
+${taskRules}
 Be warm and encouraging but not cutesy. ${kidName} is growing up — talk to them like it.
 Use clear language. Celebrate their wins. If they're stuck, help them figure it out step by step.
 Keep responses short and focused.`
   } else {
     return `You're ${kidName}'s friendly helper! ${kidName} is in ${grade}.
 ${baseRules}
+${learningRules}
+${taskRules}
 Be warm, patient, and encouraging. Use simple, clear sentences.
 Celebrate small wins. If they're confused, break things into smaller steps.
 Keep responses short — 2-3 sentences is perfect.`
@@ -185,13 +315,22 @@ export async function POST(request: NextRequest) {
     }
   } catch { /* skip limit check on error */ }
 
+  // SAFETY-1: Detect crisis/concern keywords in kid messages
+  let safetyLevel: 'crisis' | 'concern' | 'safe' = 'safe'
+  if (role === 'kid' && kid_name) {
+    safetyLevel = detectSafetyLevel(message)
+    if (safetyLevel !== 'safe') {
+      await logSafetyEvent(kid_name, safetyLevel, message)
+    }
+  }
+
   // Build context
   let systemPrompt: string
   let context: string
   if (role === 'kid') {
     if (!kid_name) return NextResponse.json({ error: 'kid_name required for kid role' }, { status: 400 })
     const kid = kid_name.toLowerCase()
-    systemPrompt = KID_SYSTEM_PROMPT(kid_name, KID_GRADES[kid] || 'unknown grade', KID_AGES[kid])
+    systemPrompt = KID_SYSTEM_PROMPT(kid_name, KID_GRADES[kid] || 'unknown grade', KID_AGES[kid], safetyLevel)
     context = await getKidContext(kid)
   } else {
     systemPrompt = PARENT_SYSTEM_PROMPT
@@ -258,16 +397,40 @@ export async function POST(request: NextRequest) {
     const data = await res.json()
     const reply = data.content?.[0]?.text || "Sorry, I couldn't process that. Try asking in a different way!"
 
+    // BUDDY-3: Detect learning subject
+    const subjectMap: Record<string, string[]> = {
+      science: ['volcano', 'planet', 'animal', 'plant', 'chemical', 'gravity', 'energy', 'weather', 'ecosystem', 'cell', 'atom', 'electricity', 'magnet', 'experiment', 'photosynthesis'],
+      history: ['colonist', 'revolution', 'war', 'president', 'ancient', 'civil rights', 'constitution', 'founding', 'slavery', 'empire', 'independence'],
+      social_studies: ['government', 'democracy', 'economy', 'culture', 'citizen', 'law', 'vote', 'rights'],
+      geography: ['continent', 'country', 'ocean', 'mountain', 'capital', 'map', 'equator', 'climate'],
+      art: ['painting', 'sculpture', 'artist', 'museum', 'color theory', 'pottery'],
+      music: ['instrument', 'rhythm', 'melody', 'composer', 'orchestra'],
+    }
+    let subjectDetected: string | null = null
+    if (role === 'kid') {
+      const lower = message.toLowerCase()
+      for (const [subject, keywords] of Object.entries(subjectMap)) {
+        if (keywords.some(kw => lower.includes(kw))) { subjectDetected = subject; break }
+      }
+    }
+
     // Log conversation
     try {
+      await db.query(
+        `INSERT INTO ai_buddy_conversations (conversation_id, role, kid_name, user_message, assistant_message, subject_detected)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [conversation_id || null, role, kid_name?.toLowerCase() || null, message, reply, subjectDetected]
+      )
+    } catch {
+      // Fallback without subject_detected column
       await db.query(
         `INSERT INTO ai_buddy_conversations (conversation_id, role, kid_name, user_message, assistant_message)
          VALUES ($1, $2, $3, $4, $5)`,
         [conversation_id || null, role, kid_name?.toLowerCase() || null, message, reply]
-      )
-    } catch { /* log failed */ }
+      ).catch(() => {})
+    }
 
-    return NextResponse.json({ reply, messages_used: 0, messages_limit: role === 'kid' ? 20 : 50 })
+    return NextResponse.json({ reply, messages_used: 0, messages_limit: role === 'kid' ? 20 : 50, safety_level: safetyLevel !== 'safe' ? safetyLevel : undefined })
   } catch (error) {
     console.error('AI Buddy error:', error)
     return NextResponse.json({
