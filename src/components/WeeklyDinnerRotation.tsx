@@ -18,7 +18,7 @@ const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: strin
     tuesday: { kid: 'zoey', theme: 'asian', emoji: '🥡', label: 'Asian Night' },
     wednesday: { kid: 'wyatt', theme: 'easy-lazy', emoji: '🥪', label: 'Easy/Lazy Night' },
     thursday: { kid: 'amos', theme: 'mexican', emoji: '🌮', label: 'Mexican Night' },
-    friday: { kid: 'ellie', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian' },
+    friday: { kid: 'hannah', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian' },
     saturday: { kid: 'parents', theme: 'experiment', emoji: '🔬', label: 'Experiment/Big Cook' },
     sunday: { kid: 'parents', theme: 'brunch', emoji: '🍳', label: 'Brunch Sunday' },
   },
@@ -26,7 +26,7 @@ const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: strin
 
 const KID_DISPLAY: Record<string, string> = {
   kaylee: 'Kaylee', zoey: 'Zoey', wyatt: 'Wyatt', amos: 'Amos',
-  ellie: 'Ellie & Hannah', parents: 'Parents',
+  ellie: 'Ellie', hannah: 'Hannah', parents: 'Parents',
 }
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']

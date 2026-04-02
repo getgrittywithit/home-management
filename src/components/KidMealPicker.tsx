@@ -23,7 +23,7 @@ const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: strin
     tuesday: { kid: 'zoey', theme: 'asian', emoji: '🥡', label: 'Asian Night' },
     wednesday: { kid: 'wyatt', theme: 'easy-lazy', emoji: '🥪', label: 'Easy/Lazy Night' },
     thursday: { kid: 'amos', theme: 'mexican', emoji: '🌮', label: 'Mexican Night' },
-    friday: { kid: 'ellie', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian Night' },
+    friday: { kid: 'hannah', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian Night' },
     saturday: { kid: 'parents', theme: 'experiment', emoji: '🔬', label: 'Experiment/Big Cook' },
     sunday: { kid: 'parents', theme: 'brunch', emoji: '🍳', label: 'Brunch Sunday' },
   },
@@ -47,7 +47,7 @@ export default function KidMealPicker({ kidName, previewMode }: KidMealPickerPro
   const todaysDinner = DINNER_ROTATION[weekKey]?.[dayName]
 
   // Find this kid's dinner night this week
-  const myNight = Object.entries(DINNER_ROTATION[weekKey] || {}).find(([_, v]) => v.kid === kid || (v.kid === 'ellie' && kid === 'hannah'))
+  const myNight = Object.entries(DINNER_ROTATION[weekKey] || {}).find(([_, v]) => v.kid === kid)
   const myDayName = myNight?.[0]
   const myDinner = myNight?.[1]
 
@@ -84,9 +84,11 @@ export default function KidMealPicker({ kidName, previewMode }: KidMealPickerPro
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'submit_pick',
+        action: 'request_meal',
         kid_name: kid,
         meal_id: selected,
+        meal_name: meal.name,
+        theme: myDinner?.theme || '',
         assigned_date: now.toLocaleDateString('en-CA'),
       }),
     }).catch(() => {})

@@ -158,6 +158,43 @@ export async function POST(request: NextRequest) {
         [req.assigned_date, req.meal_name]
       )
 
+      // Notify kid of approval
+      try {
+        const kidRow = await db.query(`SELECT kid_name FROM meal_requests WHERE id = $1`, [requestId])
+        if (kidRow[0]) {
+          const kidDisplay = kidRow[0].kid_name.charAt(0).toUpperCase() + kidRow[0].kid_name.slice(1)
+          await createNotification({
+            title: `Dinner approved!`,
+            message: `${req.meal_name} is locked in`,
+            source_type: 'meal_request', source_ref: `kid:${kidRow[0].kid_name}`,
+            link_tab: 'my-day', icon: '✅',
+          })
+        }
+      } catch {}
+
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'deny') {
+      const { id, reason } = body
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(
+        `UPDATE meal_requests SET status = 'denied', updated_at = NOW() WHERE id = $1`,
+        [id]
+      )
+      try {
+        const req = await db.query(`SELECT kid_name, meal_id FROM meal_requests WHERE id = $1`, [id])
+        const meal = req[0] ? await db.query(`SELECT name FROM meal_library WHERE id = $1`, [req[0].meal_id]) : []
+        if (req[0]) {
+          const kidDisplay = req[0].kid_name.charAt(0).toUpperCase() + req[0].kid_name.slice(1)
+          await createNotification({
+            title: `Pick a different meal`,
+            message: `${meal[0]?.name || 'Your pick'} was declined${reason ? ': ' + reason : ''}`,
+            source_type: 'meal_request', source_ref: `kid:${req[0].kid_name}`,
+            link_tab: 'requests', icon: '🍽️',
+          })
+        }
+      } catch {}
       return NextResponse.json({ success: true })
     }
 

@@ -2,53 +2,25 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Dashboard from './Dashboard'
 import ChoresTab from './ChoresTab'
 import SchoolTabWithSchedules from './SchoolTabWithSchedules'
-import FilterableCalendar from './FilterableCalendar'
-import CalendarTab from './CalendarTab'
 import FamilyCalendarTab from './FamilyCalendarTab'
 import CalendarDashboardCard from './CalendarDashboardCard'
-import TodoTab from './TodoTab'
-import ContactsTab from './ContactsTab'
-import AboutMeAdminTab from './AboutMeAdminTab'
-import BulkDocumentProcessor from './BulkDocumentProcessor'
 import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
 import FlagCenterPanel from './FlagCenterPanel'
 import FamilyConfigAdmin from './FamilyConfigAdmin'
-import ScheduleDisplay from './ScheduleDisplay'
 import KidsChecklistOverview from './KidsChecklistOverview'
-import WeeklyChecklistTab from './WeeklyChecklistTab'
-import PrintTab from './PrintTab'
-import MoeMoneyTab from './MoeMoneyTab'
-import HealthTab from './HealthTab'
-import PointsEarningTab from './PointsEarningTab'
-import MessagesTab from './MessagesTab'
-import NeedsBoardTab from './NeedsBoardTab'
-import MoodOverview from './MoodOverview'
-import ParentPortfolioPanel from './ParentPortfolioPanel'
 import AvailabilityWidget from './AvailabilityWidget'
-import WeeklySummaryTab from './WeeklySummaryTab'
-import TeacherDashboard from './TeacherDashboard'
 import HomeschoolTab from './HomeschoolTab'
 import HomeschoolDashboardCard from './HomeschoolDashboardCard'
-import HouseholdConfigTab from './HouseholdConfigTab'
 import PetsTab from './PetsTab'
-import HealthHubTab from './HealthHubTab'
-import QuickHealthLog from './QuickHealthLog'
-import SchoolHealthCard from './SchoolHealthCard'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
-import RewardsTab from './RewardsTab'
-import ParentRewardsManager from './ParentRewardsManager'
 import RewardsDashboardCard from './RewardsDashboardCard'
-import OpportunitiesParentPanel from './OpportunitiesParentPanel'
 import HabitsTab from './HabitsTab'
 import HabitsDashboardCard from './HabitsDashboardCard'
-import FinanceTab from './FinanceTab'
 import FinanceDashboardCard from './FinanceDashboardCard'
-import DigiPetParentPanel from './DigiPetParentPanel'
 import PortalSettingsPanel from './PortalSettingsPanel'
 import NeedsAttentionPanel from './NeedsAttentionPanel'
 import NotificationBell from './NotificationBell'
@@ -58,15 +30,14 @@ import FinanceMergedTab from './FinanceMergedTab'
 import StarsAndRewardsTab from './StarsAndRewardsTab'
 import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
-import OverviewDashboard from './OverviewDashboard'
 import AiBuddyChat from './AiBuddyChat'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
-  User, CheckSquare, Phone, Upload, ChefHat, Printer, DollarSign, CalendarCheck, Heart, Star, MessageCircle, ShoppingCart, Dog, BarChart2, GraduationCap, Bell, Flame, Trophy, Sparkles, Shield
+  User, CheckSquare, ChefHat, DollarSign, Heart, Star, MessageCircle,
+  Dog, GraduationCap, Flame, Shield
 } from 'lucide-react'
-import { DashboardData } from '@/types'
 
 interface Tab {
   id: string
@@ -124,7 +95,7 @@ const LEGACY_TAB_MAP: Record<string, string> = {
 }
 
 interface ParentPortalWithNavProps {
-  initialData?: DashboardData
+  initialData?: any
 }
 
 // Get all family data from centralized config
