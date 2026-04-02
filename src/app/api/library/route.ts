@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
         cover_image_url, grade_min, grade_max, subject_tags, edu_uses,
         player_min, player_max, play_time_min, play_time_max, play_style,
         competition_level, accessibility_flags, who_uses, location_in_home,
-        condition,
+        condition, year_acquired, custom_tags, storage_detail, acquired_from, added_by,
       } = data
       if (!item_type || !title) {
         return NextResponse.json({ error: 'item_type and title required' }, { status: 400 })
@@ -208,8 +208,8 @@ export async function POST(request: NextRequest) {
              cover_image_url, grade_min, grade_max, subject_tags, edu_uses,
              player_min, player_max, play_time_min, play_time_max, play_style,
              competition_level, accessibility_flags, who_uses, location_in_home,
-             condition
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+             condition, year_acquired, custom_tags, storage_detail, acquired_from, added_by
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
            RETURNING *`,
           [
             item_type, title, author_or_publisher || null, isbn || null, upc || null,
@@ -221,6 +221,7 @@ export async function POST(request: NextRequest) {
             play_style || null, competition_level || null,
             accessibility_flags || null, who_uses || null,
             location_in_home || null, condition || null,
+            year_acquired || null, custom_tags || [], storage_detail || null, acquired_from || null, added_by || 'parent',
           ]
         )
         return NextResponse.json({ item: result[0] }, { status: 201 })

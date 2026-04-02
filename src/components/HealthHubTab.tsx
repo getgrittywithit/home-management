@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import MedAdherenceCalendar from './MedAdherenceCalendar'
 import {
   Activity, Heart, Thermometer, Droplets, Wind, Scale, Smile, StickyNote,
   Plus, X, Check, ChevronRight, ChevronDown, Clock, AlertTriangle,
@@ -1309,6 +1310,18 @@ function AdherenceSection() {
             </div>
           )
         })}
+      </div>
+
+      {/* MED-1 Adherence Calendars */}
+      <div className="mt-6">
+        <h3 className="font-semibold text-gray-900 mb-3">Monthly Adherence Calendars</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MedAdherenceCalendar personName="amos" medication="Morning Focalin" />
+          <MedAdherenceCalendar personName="amos" medication="Evening Clonidine" />
+          <MedAdherenceCalendar personName="wyatt" medication="Morning Focalin" />
+          <MedAdherenceCalendar personName="wyatt" medication="Evening Clonidine" />
+          <MedAdherenceCalendar personName="lola" medication="Take Adderall" />
+        </div>
       </div>
     </div>
   )

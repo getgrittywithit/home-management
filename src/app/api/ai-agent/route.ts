@@ -3,10 +3,11 @@ import { db } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, content, message, context, familyContext, chatHistory, sessionId, apiKey } = await request.json()
+    const { action, content, message, context, familyContext, chatHistory, sessionId } = await request.json()
 
+    const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key required' }, { status: 400 })
+      return NextResponse.json({ error: 'AI agent not configured — add ANTHROPIC_API_KEY to environment' }, { status: 503 })
     }
 
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {

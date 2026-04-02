@@ -55,18 +55,18 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
   const loadAll = useCallback(async () => {
     try {
-      // Batch 1: 6 calls (within browser's 6-connection limit)
-      const [checklist, tasks, habits, flags, rwdBal, rwdPhotos] = await Promise.all([
+      // Batch 1: 5 calls (leaves 1 connection buffer)
+      const [checklist, tasks, habits, flags, rwdBal] = await Promise.all([
         safeFetch('/api/kids/checklist?action=get_all_completion', { weekOf: '', kids: [] }),
         safeFetch('/api/homeschool?action=get_task_progress', { progress: [] }),
         safeFetch(`/api/habits?action=get_all_habits_today&date=${today}`, { habits_by_member: {} }),
         safeFetch('/api/parent/flags?action=get_all_flags', {}),
         safeFetch('/api/rewards?action=balances', { balances: [] }),
-        safeFetch('/api/rewards?action=photo_submissions', { submissions: [] }),
       ])
 
-      // Batch 2: 5 calls (after batch 1 connections close)
-      const [rwdRedeem, ptsBal, ptsGoals, snapshots, hsSummary] = await Promise.all([
+      // Batch 2: 6 calls (after batch 1 connections close)
+      const [rwdPhotos, rwdRedeem, ptsBal, ptsGoals, snapshots, hsSummary] = await Promise.all([
+        safeFetch('/api/rewards?action=photo_submissions', { submissions: [] }),
         safeFetch('/api/rewards?action=redemptions', { redemptions: [] }),
         safeFetch('/api/kids/points?action=get_all_balances', { balances: [], settings: {}, sickDayCounts: {} }),
         safeFetch('/api/kids/points?action=get_family_goals', { familyGoals: [] }),
