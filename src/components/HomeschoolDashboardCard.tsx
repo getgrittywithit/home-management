@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { BookOpen, AlertTriangle } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 interface KidSummary {
   name: string
@@ -16,27 +16,21 @@ interface HomeschoolDashboardCardProps {
 }
 
 export default function HomeschoolDashboardCard({ onNavigate }: HomeschoolDashboardCardProps) {
-  const [kids, setKids] = useState<KidSummary[]>([])
-  const [loaded, setLoaded] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/homeschool?action=dashboard_summary')
-      .then(r => r.json())
-      .then(data => {
-        setKids(data.kids || [])
-        setLoaded(true)
-      })
-      .catch(() => {
-        // Fallback with placeholder structure
-        setKids([
-          { name: 'Amos', mascot: '🦉', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
-          { name: 'Ellie', mascot: '🐱', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
-          { name: 'Wyatt', mascot: '🐕', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
-          { name: 'Hannah', mascot: '🐰', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
-        ])
-        setLoaded(true)
-      })
-  }, [])
+  const ctx = useDashboardData()
+  const summary = ctx.homeschoolSummary || {}
+  const kids: KidSummary[] = summary.progress?.map((p: any) => ({
+    name: p.kid_name?.charAt(0).toUpperCase() + p.kid_name?.slice(1),
+    mascot: ({ amos: '🦉', ellie: '🐱', wyatt: '🐕', hannah: '🐰' } as Record<string, string>)[p.kid_name] || '📚',
+    subjects_done: p.completed_tasks || 0,
+    subjects_total: p.total_tasks || 0,
+    focus_sessions: 0,
+  })) || summary.kids || [
+    { name: 'Amos', mascot: '🦉', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
+    { name: 'Ellie', mascot: '🐱', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
+    { name: 'Wyatt', mascot: '🐕', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
+    { name: 'Hannah', mascot: '🐰', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
+  ]
+  const loaded = ctx.loaded
 
   const now = new Date()
   const isAfter10am = now.getHours() >= 10

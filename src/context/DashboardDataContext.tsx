@@ -12,6 +12,8 @@ interface DashboardData {
   rewardsBalances: { balances: any[] }
   rewardsPhotos: { submissions: any[] }
   rewardsRedemptions: { redemptions: any[] }
+  kidSnapshots: { snapshots: any[] }
+  homeschoolSummary: any
   loaded: boolean
   refresh: () => void
 }
@@ -26,6 +28,8 @@ const defaults: DashboardData = {
   rewardsBalances: { balances: [] },
   rewardsPhotos: { submissions: [] },
   rewardsRedemptions: { redemptions: [] },
+  kidSnapshots: { snapshots: [] },
+  homeschoolSummary: {},
   loaded: false,
   refresh: () => {},
 }
@@ -61,11 +65,13 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
         safeFetch('/api/rewards?action=photo_submissions', { submissions: [] }),
       ])
 
-      // Batch 2: 3 calls (after batch 1 connections close)
-      const [rwdRedeem, ptsBal, ptsGoals] = await Promise.all([
+      // Batch 2: 5 calls (after batch 1 connections close)
+      const [rwdRedeem, ptsBal, ptsGoals, snapshots, hsSummary] = await Promise.all([
         safeFetch('/api/rewards?action=redemptions', { redemptions: [] }),
         safeFetch('/api/kids/points?action=get_all_balances', { balances: [], settings: {}, sickDayCounts: {} }),
         safeFetch('/api/kids/points?action=get_family_goals', { familyGoals: [] }),
+        safeFetch('/api/kid-profile?action=get_all_snapshots', { snapshots: [] }),
+        safeFetch('/api/homeschool?action=dashboard_summary', {}),
       ])
 
       setData(prev => ({
@@ -79,6 +85,8 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
         rewardsBalances: rwdBal,
         rewardsPhotos: rwdPhotos,
         rewardsRedemptions: rwdRedeem,
+        kidSnapshots: snapshots,
+        homeschoolSummary: hsSummary,
         loaded: true,
       }))
     } catch {

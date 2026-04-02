@@ -1,9 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import {
-  User, Heart, Star, Palette, Gift, Eye, Edit3
-} from 'lucide-react'
+import { User, Heart, Star, Palette, Gift, Eye, Edit3 } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 interface Snapshot {
   kid_name: string
@@ -35,18 +33,9 @@ const COLOR_BG: Record<string, string> = {
 }
 
 export default function KidSnapshotCards({ onViewFull, onEdit }: KidSnapshotCardsProps) {
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
-  const [loaded, setLoaded] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/kid-profile?action=get_all_snapshots')
-      .then(r => r.json())
-      .then(data => {
-        setSnapshots(data.snapshots || [])
-        setLoaded(true)
-      })
-      .catch(() => setLoaded(true))
-  }, [])
+  const ctx = useDashboardData()
+  const snapshots: Snapshot[] = ctx.kidSnapshots?.snapshots || []
+  const loaded = ctx.loaded
 
   if (!loaded) {
     return (

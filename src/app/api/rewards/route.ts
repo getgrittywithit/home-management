@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 // ============================================================================
 // GET /api/rewards?action=...
@@ -762,6 +763,14 @@ export async function POST(request: NextRequest) {
           [kid_name, reward_id, reward.coin_cost]
         )
 
+        const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1)
+        await createNotification({
+          title: `${kidDisplay} wants to redeem a reward`,
+          message: `${reward.reward_name} (${reward.coin_cost} coins)`,
+          source_type: 'reward_request', source_ref: `kid:${kid_name}`,
+          link_tab: 'stars-rewards', icon: '🎁',
+        }).catch(() => {})
+
         return NextResponse.json({ redemption: redemptionRows[0], balance_after: balanceAfter })
       } catch (error: any) {
         console.error('request_redemption error:', error)
@@ -820,6 +829,17 @@ export async function POST(request: NextRequest) {
            WHERE kid_name = $1`,
           [redemption.kid_name, redemption.coins_spent]
         )
+
+        // Notify kid
+        try {
+          const rewardName = await db.query(`SELECT reward_name FROM reward_catalog WHERE id = $1`, [redemption.reward_id])
+          await createNotification({
+            title: 'Reward approved!',
+            message: `${rewardName[0]?.reward_name || 'Your reward'} is yours!`,
+            source_type: 'reward_approved', source_ref: `kid:${redemption.kid_name}`,
+            link_tab: 'rewards-store', icon: '🎉',
+          })
+        } catch {}
 
         return NextResponse.json({ redemption })
       } catch (error: any) {
