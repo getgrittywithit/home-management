@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 // Accessibility warning tips
 const ACCESSIBILITY_TIPS: Record<string, Record<string, string[]>> = {
@@ -625,6 +626,13 @@ export async function POST(request: NextRequest) {
           [s.item_type, s.title, s.author_or_publisher, s.isbn, s.upc, s.description, s.location_in_home, s.custom_tags || [], s.cover_image_url, s.kid_name]
         )
         await db.query(`UPDATE library_submissions SET status = 'approved', reviewed_at = NOW() WHERE id = $1`, [submission_id])
+        await createNotification({
+          title: 'Library item approved!',
+          message: `"${s.title}" is now in the family library`,
+          source_type: 'library_approved', source_ref: `kid:${s.kid_name}`,
+          link_tab: 'library', icon: '📚',
+          target_role: 'kid', kid_name: s.kid_name,
+        }).catch(() => {})
         return NextResponse.json({ success: true })
       } catch (error) { return NextResponse.json({ error: 'Failed' }, { status: 500 }) }
     }
@@ -632,10 +640,20 @@ export async function POST(request: NextRequest) {
     case 'reject_submission': {
       const { submission_id, parent_note } = data
       if (!submission_id) return NextResponse.json({ error: 'submission_id required' }, { status: 400 })
+      const sub = await db.query(`SELECT * FROM library_submissions WHERE id = $1`, [submission_id]).catch(() => [])
       await db.query(
         `UPDATE library_submissions SET status = 'rejected', parent_note = $2, reviewed_at = NOW() WHERE id = $1`,
         [submission_id, parent_note || 'Please check and resubmit']
       )
+      if (sub[0]) {
+        await createNotification({
+          title: 'Library submission needs edits',
+          message: `"${sub[0].title}": ${parent_note || 'Check details and resubmit'}`,
+          source_type: 'library_rejected', source_ref: `kid:${sub[0].kid_name}`,
+          link_tab: 'library', icon: '📝',
+          target_role: 'kid', kid_name: sub[0].kid_name,
+        }).catch(() => {})
+      }
       return NextResponse.json({ success: true })
     }
 

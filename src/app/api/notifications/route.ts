@@ -6,6 +6,7 @@ async function ensureTable() {
     CREATE TABLE IF NOT EXISTS notifications (
       id SERIAL PRIMARY KEY,
       target_role TEXT NOT NULL DEFAULT 'parent',
+      kid_name TEXT DEFAULT NULL,
       title TEXT NOT NULL,
       message TEXT NOT NULL,
       icon TEXT DEFAULT NULL,
@@ -16,6 +17,8 @@ async function ensureTable() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  // Ensure kid_name column exists on existing tables
+  await db.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS kid_name TEXT DEFAULT NULL`).catch(() => {})
 }
 
 export async function GET(request: NextRequest) {

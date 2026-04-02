@@ -111,10 +111,22 @@ export async function POST(request: NextRequest) {
       case 'reply_to_message': {
         const { id, reply } = body
         if (!id || !reply?.trim()) return NextResponse.json({ error: 'id and reply required' }, { status: 400 })
+        // Get the original message to find kid name
+        const origMsg = await db.query(`SELECT from_kid FROM family_messages WHERE id = $1`, [id]).catch(() => [])
         await db.query(
           `UPDATE family_messages SET parent_reply = $2, reply_at = NOW(), read_by_parent = TRUE, read_at = COALESCE(read_at, NOW()) WHERE id = $1`,
           [id, reply.trim()]
         )
+        // Notify kid of reply
+        if (origMsg[0]?.from_kid) {
+          await createNotification({
+            title: 'New message from Mom',
+            message: reply.length > 80 ? reply.slice(0, 80) + '...' : reply,
+            source_type: 'message_reply', source_ref: `msg-reply-${origMsg[0].from_kid}`,
+            link_tab: 'requests', icon: '💬',
+            target_role: 'kid', kid_name: origMsg[0].from_kid,
+          }).catch(() => {})
+        }
         return NextResponse.json({ success: true })
       }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(request: NextRequest) {
   try {
@@ -223,6 +224,14 @@ export async function POST(request: NextRequest) {
         `UPDATE kid_sick_days SET acknowledged = TRUE WHERE kid_name = $1 AND sick_date = $2`,
         [kid_name.toLowerCase(), sick_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })]
       ).catch(() => {})
+      // Notify kid
+      await createNotification({
+        title: 'Mom saw your report',
+        message: 'Your sick day was acknowledged. Feel better!',
+        source_type: 'flag_acknowledged', source_ref: `flag-${kid_name.toLowerCase()}`,
+        link_tab: 'my-day', icon: '👍',
+        target_role: 'kid', kid_name: kid_name.toLowerCase(),
+      }).catch(() => {})
       return NextResponse.json({ success: true })
     }
 
