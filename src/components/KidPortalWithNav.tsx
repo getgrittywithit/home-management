@@ -52,6 +52,7 @@ import MyDayView from './MyDayView'
 import AiBuddyChat from './AiBuddyChat'
 import JourneyMap from './JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
+import NotificationBell from './NotificationBell'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
 interface KidPortalProps {
@@ -1901,6 +1902,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
             <div className="flex-1">
               <div className="font-semibold">{profile.first_name}</div>
             </div>
+            <NotificationBell onNavigate={(tab) => setActiveTab(tab as TabId)} />
             <StarBalanceHeader childName={profile.first_name || ''} />
           </div>
         </div>

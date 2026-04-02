@@ -172,6 +172,12 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
       setShowCelebration(true)
       sessionStorage.setItem(sessionKey, '1')
       setTimeout(() => setShowCelebration(false), 2500)
+      // ZONE-5: Notify parent that all required tasks are done
+      fetch('/api/kids/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'all_required_complete', kid_name: childKey }),
+      }).catch(() => {})
     }
     setPrevAllDone(allRequiredDone)
   }, [allRequiredDone, loaded, stats.requiredTotal, childKey, prevAllDone])

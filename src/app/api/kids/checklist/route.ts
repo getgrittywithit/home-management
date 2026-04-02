@@ -227,8 +227,16 @@ export async function GET(request: NextRequest) {
       }
     } catch { /* laundry schedule table may not exist */ }
 
-    // Belle care
-    if (getBelleHelper(todayDate) === child) {
+    // Belle care — check for accepted swaps first (BELLE-3)
+    let belleAssignee = getBelleHelper(todayDate)
+    try {
+      const swapResult = await db.query(
+        `SELECT covering_kid FROM belle_care_swaps WHERE swap_date = $1 AND status = 'accepted' ORDER BY responded_at DESC LIMIT 1`,
+        [today]
+      )
+      if (swapResult.length > 0) belleAssignee = swapResult[0].covering_kid
+    } catch {}
+    if (belleAssignee === child) {
       required.push({
         id: `belle-am-${today}`, title: 'Belle Care — AM Feed + Walk',
         description: 'Feed Belle and take her for a walk', category: 'belle', time: '7:00 AM',
@@ -509,6 +517,24 @@ export async function POST(request: NextRequest) {
               [kidName, eventSummary || eventId]
             )
           } catch { /* health_logs table may not exist */ }
+        }
+
+        // ZONE-1: Sync zone completion to zone_task_rotation
+        if (eventId.startsWith('zone-') && newCompleted) {
+          await db.query(
+            `UPDATE zone_task_rotation SET completed_at = NOW()
+             WHERE kid_name = $1 AND assigned_date = $2 AND completed_at IS NULL`,
+            [kidName, today]
+          ).catch(() => {})
+        }
+
+        // Return with points info if earned
+        let pointsAwarded = 0
+        if (eventId.startsWith('earn-') && newCompleted) {
+          try {
+            const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])
+            return NextResponse.json({ success: true, completed: newCompleted, points_awarded: 10, new_balance: bal[0]?.balance || 0 })
+          } catch {}
         }
 
         return NextResponse.json({ success: true, completed: newCompleted })

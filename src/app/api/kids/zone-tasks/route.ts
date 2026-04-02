@@ -533,11 +533,29 @@ export async function POST(request: NextRequest) {
       case 'complete_task': {
         const { rotation_id } = body
         if (!rotation_id) return NextResponse.json({ error: 'rotation_id required' }, { status: 400 })
-        await db.query(
-          `UPDATE zone_task_rotation SET completed = TRUE, completed_at = NOW() WHERE id = $1`,
+        const row = await db.query(
+          `UPDATE zone_task_rotation SET completed = TRUE, completed_at = NOW() WHERE id = $1 RETURNING kid_name`,
           [rotation_id]
         )
-        return NextResponse.json({ success: true })
+        // ZONE-2: Award points for zone completion
+        const kidName = row[0]?.kid_name
+        if (kidName) {
+          await db.query(
+            `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'earned', 10, 'Zone chore completed')`,
+            [kidName]
+          ).catch(() => {})
+          await db.query(
+            `UPDATE kid_points_balance SET current_points = current_points + 10, total_earned_all_time = total_earned_all_time + 10, updated_at = NOW() WHERE kid_name = $1`,
+            [kidName]
+          ).catch(() => {})
+        }
+        // ZONE-3: Return balance
+        let newBalance = 0
+        try {
+          const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])
+          newBalance = bal[0]?.balance || 0
+        } catch {}
+        return NextResponse.json({ success: true, points_awarded: 10, new_balance: newBalance })
       }
 
       // ── Uncomplete a single task ──

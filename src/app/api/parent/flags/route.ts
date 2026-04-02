@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
           } catch { return { completed: 0, total: kids.length } }
         })(),
 
-        // Checklist completion today
+        // Checklist completion today (per-kid breakdown)
         (async () => {
           try {
             const rows = await db.query(
@@ -98,9 +98,13 @@ export async function GET(request: NextRequest) {
                GROUP BY child_name`,
               [today]
             )
-            const completed = rows.filter((r: { done: number; total: number }) => r.done === r.total && r.total > 0).length
-            return { completed, total: kids.length }
-          } catch { return { completed: 0, total: kids.length } }
+            const kidStatus = kids.map(k => {
+              const r = rows.find((row: any) => row.child_name === k)
+              return { name: k, done: r ? r.done === r.total && r.total > 0 : false }
+            })
+            const completed = kidStatus.filter(k => k.done).length
+            return { completed, total: kids.length, kids: kidStatus }
+          } catch { return { completed: 0, total: kids.length, kids: kids.map(k => ({ name: k, done: false })) } }
         })(),
 
         // Points earned today
