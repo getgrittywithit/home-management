@@ -25,22 +25,39 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action') || ''
 
     if (action === 'get_unread_count') {
-      const rows = await db.query(
-        `SELECT COUNT(*)::int as count FROM notifications WHERE read_at IS NULL AND target_role = 'parent'`
-      )
+      const role = searchParams.get('role') || 'parent'
+      const kidName = searchParams.get('kid_name')
+      let rows
+      if (role === 'kid' && kidName) {
+        rows = await db.query(
+          `SELECT COUNT(*)::int as count FROM notifications WHERE read_at IS NULL AND target_role = 'kid' AND kid_name = $1`,
+          [kidName.toLowerCase()]
+        )
+      } else {
+        rows = await db.query(
+          `SELECT COUNT(*)::int as count FROM notifications WHERE read_at IS NULL AND target_role = 'parent'`
+        )
+      }
       return NextResponse.json({ count: rows[0]?.count || 0 })
     }
 
     if (action === 'get_recent') {
-      const limit = parseInt(searchParams.get('limit') || '20')
-      const includeOld = searchParams.get('include_old') === 'true'
-      const cutoff = includeOld ? '1970-01-01' : new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
-      const rows = await db.query(
-        `SELECT * FROM notifications
-         WHERE target_role = 'parent' AND created_at >= $1
-         ORDER BY created_at DESC LIMIT $2`,
-        [cutoff, limit]
-      )
+      const role = searchParams.get('role') || 'parent'
+      const kidName = searchParams.get('kid_name')
+      const limit = parseInt(searchParams.get('limit') || '20') || 20
+      const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+      let rows
+      if (role === 'kid' && kidName) {
+        rows = await db.query(
+          `SELECT * FROM notifications WHERE target_role = 'kid' AND kid_name = $1 AND created_at >= $2 ORDER BY created_at DESC LIMIT $3`,
+          [kidName.toLowerCase(), cutoff, limit]
+        )
+      } else {
+        rows = await db.query(
+          `SELECT * FROM notifications WHERE target_role = 'parent' AND created_at >= $1 ORDER BY created_at DESC LIMIT $2`,
+          [cutoff, limit]
+        )
+      }
       return NextResponse.json({ notifications: rows })
     }
 
@@ -76,7 +93,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'mark_all_read') {
-      await db.query(`UPDATE notifications SET read_at = NOW() WHERE read_at IS NULL AND target_role = 'parent'`)
+      const { role, kid_name } = body
+      if (role === 'kid' && kid_name) {
+        await db.query(`UPDATE notifications SET read_at = NOW() WHERE read_at IS NULL AND target_role = 'kid' AND kid_name = $1`, [kid_name.toLowerCase()])
+      } else {
+        await db.query(`UPDATE notifications SET read_at = NOW() WHERE read_at IS NULL AND target_role = 'parent'`)
+      }
       return NextResponse.json({ success: true })
     }
 

@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
             message: `${req.meal_name} is locked in`,
             source_type: 'meal_request', source_ref: `kid:${kidRow[0].kid_name}`,
             link_tab: 'my-day', icon: '✅',
+            target_role: 'kid', kid_name: kidRow[0].kid_name,
           })
         }
       } catch {}
@@ -192,6 +193,7 @@ export async function POST(request: NextRequest) {
             message: `${meal[0]?.name || 'Your pick'} was declined${reason ? ': ' + reason : ''}`,
             source_type: 'meal_request', source_ref: `kid:${req[0].kid_name}`,
             link_tab: 'requests', icon: '🍽️',
+            target_role: 'kid', kid_name: req[0].kid_name,
           })
         }
       } catch {}
@@ -246,6 +248,7 @@ export async function POST(request: NextRequest) {
             message: `Mom changed your dinner to ${newMeal[0].name}`,
             source_type: 'meal_request', source_ref: `kid:${kidRow[0].kid_name}`,
             link_tab: 'my-day', icon: '🔄',
+            target_role: 'kid', kid_name: kidRow[0].kid_name,
           })
         }
       } catch {}

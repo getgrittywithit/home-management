@@ -19,6 +19,8 @@ interface NotificationBellProps {
   onNavigate?: (tabId: string) => void
   badgeCount?: number
   onFlagClick?: () => void
+  role?: 'parent' | 'kid'
+  kidName?: string
 }
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
@@ -43,7 +45,8 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`
 }
 
-export default function NotificationBell({ onNavigate, badgeCount, onFlagClick }: NotificationBellProps) {
+export default function NotificationBell({ onNavigate, badgeCount, onFlagClick, role = 'parent', kidName }: NotificationBellProps) {
+  const roleParam = role === 'kid' && kidName ? `&role=kid&kid_name=${kidName.toLowerCase()}` : ''
   const [count, setCount] = useState(0)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
@@ -53,20 +56,20 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick }
   // Fetch unread count
   useEffect(() => {
     const fetchCount = () => {
-      fetch('/api/notifications?action=get_unread_count')
+      fetch(`/api/notifications?action=get_unread_count${roleParam}`)
         .then(r => r.json())
         .then(data => setCount(data.count || 0))
         .catch(() => {})
     }
     fetchCount()
-    const interval = setInterval(fetchCount, 120000) // Poll every 2 minutes
+    const interval = setInterval(fetchCount, role === 'kid' ? 30000 : 120000)
     return () => clearInterval(interval)
   }, [])
 
   // Fetch notifications when dropdown opens
   useEffect(() => {
     if (open && !loaded) {
-      fetch('/api/notifications?action=get_recent&limit=20')
+      fetch(`/api/notifications?action=get_recent&limit=20${roleParam}`)
         .then(r => r.json())
         .then(data => {
           setNotifications(data.notifications || [])
@@ -103,7 +106,7 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick }
     await fetch('/api/notifications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_all_read' }),
+      body: JSON.stringify({ action: 'mark_all_read', role, kid_name: kidName?.toLowerCase() }),
     }).catch(() => {})
   }
 

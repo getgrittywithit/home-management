@@ -859,6 +859,7 @@ export async function POST(request: NextRequest) {
             message: `${rewardName[0]?.reward_name || 'Your reward'} is yours!`,
             source_type: 'reward_approved', source_ref: `kid:${redemption.kid_name}`,
             link_tab: 'rewards-store', icon: '🎉',
+            target_role: 'kid', kid_name: redemption.kid_name,
           })
         } catch {}
 

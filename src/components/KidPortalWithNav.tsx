@@ -1902,7 +1902,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
             <div className="flex-1">
               <div className="font-semibold">{profile.first_name}</div>
             </div>
-            <NotificationBell onNavigate={(tab) => setActiveTab(tab as TabId)} />
+            <NotificationBell role="kid" kidName={(profile?.first_name || '').toLowerCase()} onNavigate={(tab) => setActiveTab(tab as TabId)} />
             <StarBalanceHeader childName={profile.first_name || ''} />
           </div>
         </div>

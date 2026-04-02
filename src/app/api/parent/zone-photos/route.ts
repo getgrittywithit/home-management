@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       message: `Your ${sub[0].zone_name} zone photo was approved`,
       source_type: 'zone_photo', source_ref: `kid:${sub[0].kid_name}`,
       link_tab: 'chores', icon: '✅',
+      target_role: 'kid', kid_name: sub[0].kid_name,
     }).catch(() => {})
     return NextResponse.json({ success: true })
   }
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       message: `${sub[0].zone_name}: ${parent_note || 'Please redo this area'}`,
       source_type: 'zone_photo', source_ref: `kid:${sub[0].kid_name}`,
       link_tab: 'chores', icon: '🔄',
+      target_role: 'kid', kid_name: sub[0].kid_name,
     }).catch(() => {})
     return NextResponse.json({ success: true })
   }
