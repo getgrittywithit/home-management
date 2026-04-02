@@ -302,7 +302,28 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ redemptions: [] }) }
     }
     case 'photo_submissions': {
-      return NextResponse.json({ submissions: [] }) // No photo submission system yet
+      return NextResponse.json({ submissions: [] })
+    }
+
+    case 'get_weekly_leaderboard': {
+      try {
+        const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+        const dow = now.getDay()
+        const monday = new Date(now)
+        monday.setDate(now.getDate() - ((dow + 6) % 7))
+        const weekStart = monday.toLocaleDateString('en-CA')
+        const rows = await db.query(
+          `SELECT kid_name, COALESCE(SUM(points), 0)::int as weekly_points
+           FROM kid_points_log
+           WHERE created_at >= $1::date
+           GROUP BY kid_name
+           ORDER BY weekly_points DESC`,
+          [weekStart]
+        )
+        return NextResponse.json({ leaderboard: rows })
+      } catch {
+        return NextResponse.json({ leaderboard: [] })
+      }
     }
 
     default:

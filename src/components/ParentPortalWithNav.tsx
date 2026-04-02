@@ -31,6 +31,7 @@ import StarsAndRewardsTab from './StarsAndRewardsTab'
 import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
 import AiBuddyChat from './AiBuddyChat'
+import LeaderboardCard from './LeaderboardCard'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
@@ -308,6 +309,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <RewardsDashboardCard onNavigate={() => setActiveTab('stars-rewards')} />
             <HabitsDashboardCard onNavigate={() => setActiveTab('habits')} />
             <FinanceDashboardCard onNavigate={() => setActiveTab('finance')} />
+            <LeaderboardCard />
             <KidSnapshotCards />
           </div>
         )

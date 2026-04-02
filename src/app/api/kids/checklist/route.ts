@@ -508,7 +508,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Log medication dose to health_logs when checking a med item
+        // Log medication dose to health_logs + adherence calendar when checking a med item
         if (eventId.startsWith('med-') && newCompleted) {
           try {
             await db.query(
@@ -516,20 +516,40 @@ export async function POST(request: NextRequest) {
                VALUES ($1, 'dose_log', $2, 'Auto-logged from daily checklist', NOW())`,
               [kidName, eventSummary || eventId]
             )
-          } catch { /* health_logs table may not exist */ }
+          } catch {}
+          // MED-1: Log to medication adherence calendar
+          const medName = eventSummary || (eventId.includes('am') ? 'Morning Focalin' : 'Evening Clonidine')
+          await db.query(
+            `INSERT INTO medication_adherence_log (person_name, medication, log_date, status)
+             VALUES ($1, $2, CURRENT_DATE, 'taken')
+             ON CONFLICT (person_name, medication, log_date) DO UPDATE SET status = 'taken', logged_at = NOW()`,
+            [kidName, medName]
+          ).catch(() => {})
         }
 
-        // ZONE-1: Sync zone completion to zone_task_rotation
+        // ZONE-1: Sync zone completion to zone_task_rotation + award points
         if (eventId.startsWith('zone-') && newCompleted) {
           await db.query(
             `UPDATE zone_task_rotation SET completed_at = NOW()
              WHERE kid_name = $1 AND assigned_date = $2 AND completed_at IS NULL`,
             [kidName, today]
           ).catch(() => {})
+          // Award 10 points for zone task
+          await db.query(
+            `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'earned', 10, $2)`,
+            [kidName, `Zone chore: ${eventSummary || eventId}`]
+          ).catch(() => {})
+          await db.query(
+            `UPDATE kid_points_balance SET current_points = current_points + 10, total_earned_all_time = total_earned_all_time + 10, updated_at = NOW() WHERE kid_name = $1`,
+            [kidName]
+          ).catch(() => {})
+          try {
+            const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])
+            return NextResponse.json({ success: true, completed: newCompleted, points_awarded: 10, new_balance: bal[0]?.balance || 0 })
+          } catch {}
         }
 
-        // Return with points info if earned
-        let pointsAwarded = 0
+        // Return with points info if earned (earn-money chores)
         if (eventId.startsWith('earn-') && newCompleted) {
           try {
             const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])

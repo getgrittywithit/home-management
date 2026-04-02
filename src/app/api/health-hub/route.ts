@@ -405,6 +405,33 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    case 'get_med_adherence': {
+      const person = searchParams.get('person')
+      const medication = searchParams.get('medication')
+      const month = searchParams.get('month')
+      if (!person || !medication) return NextResponse.json({ error: 'person and medication required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `SELECT log_date as date, status FROM medication_adherence_log
+           WHERE person_name = $1 AND medication = $2
+           AND to_char(log_date, 'YYYY-MM') = $3
+           ORDER BY log_date`,
+          [person.toLowerCase(), medication, month || new Date().toISOString().slice(0, 7)]
+        )
+        // Calculate streak
+        let streak = 0
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        let checkDate = new Date(today)
+        for (let i = 0; i < 365; i++) {
+          const dateStr = checkDate.toLocaleDateString('en-CA')
+          const found = rows.find((r: any) => r.date?.toLocaleDateString?.('en-CA') === dateStr || r.date === dateStr)
+          if (found?.status === 'taken') { streak++; checkDate.setDate(checkDate.getDate() - 1) }
+          else break
+        }
+        return NextResponse.json({ days: rows.map((r: any) => ({ date: typeof r.date === 'string' ? r.date : r.date?.toLocaleDateString('en-CA'), status: r.status })), streak })
+      } catch { return NextResponse.json({ days: [], streak: 0 }) }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }

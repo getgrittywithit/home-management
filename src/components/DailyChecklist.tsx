@@ -142,6 +142,7 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
   const [stats, setStats] = useState({ requiredTotal: 0, requiredDone: 0, dailyCareTotal: 0, dailyCareDone: 0, earnMoneyTotal: 0, earnMoneyDone: 0 })
   const [loaded, setLoaded] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
+  const [pointsToast, setPointsToast] = useState<{ show: boolean; amount: number; balance: number }>({ show: false, amount: 0, balance: 0 })
   const [showCelebration, setShowCelebration] = useState(false)
   const [prevAllDone, setPrevAllDone] = useState(false)
   const [starPopup, setStarPopup] = useState<{ amount: number; key: number } | null>(null)
@@ -202,11 +203,19 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
 
     const newCompleted = !item.completed
     try {
-      await fetch('/api/kids/checklist', {
+      const toggleRes = await fetch('/api/kids/checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'toggle', child: childKey, eventId: item.id, eventSummary: item.title })
       })
+      // Show points toast if earned
+      try {
+        const toggleData = await toggleRes.json()
+        if (toggleData.points_awarded && toggleData.points_awarded > 0) {
+          setPointsToast({ show: true, amount: toggleData.points_awarded, balance: toggleData.new_balance || 0 })
+          setTimeout(() => setPointsToast({ show: false, amount: 0, balance: 0 }), 2500)
+        }
+      } catch {}
       // Award digi-pet stars on task completion
       if (newCompleted) {
         const result = await awardTaskStars(childKey, item)
@@ -248,6 +257,13 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
     <div className="space-y-6 relative">
       {/* Star award popup */}
       {starPopup && <StarPopup amount={starPopup.amount} key={starPopup.key} />}
+
+      {/* Points earned toast */}
+      {pointsToast.show && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 font-bold px-4 py-2 rounded-full shadow-lg z-50 animate-bounce">
+          +{pointsToast.amount} ⭐ · Balance: {pointsToast.balance}
+        </div>
+      )}
 
       {/* Celebration burst overlay */}
       {showCelebration && <CelebrationBurst />}

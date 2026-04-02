@@ -134,7 +134,18 @@ export default function FocusTimer({
         })
       }).catch(() => {})
     }
-  }, [sessionId, elapsedFocus])
+    // FOCUS-1: Actually award points for focus session
+    fetch('/api/digi-pet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'award_task_stars',
+        kid_name: studentName.toLowerCase(),
+        task_type: 'lesson',
+        source_ref: `focus-${studentName.toLowerCase()}-${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })}`,
+      }),
+    }).catch(() => {})
+  }, [sessionId, elapsedFocus, studentName])
 
   const handleMoodSelect = (mood: string) => {
     onComplete({ mood, elapsed: elapsedFocus, coins: COINS_PER_SESSION })
