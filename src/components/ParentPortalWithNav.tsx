@@ -146,13 +146,45 @@ function BadgeCountSync({ setBadgeCounts, setFlagBadgeCount }: {
     const breakCount = (data.breaks || data.break_requests || []).length
     const sickCount = (data.sick_days || []).length
     const mealCount = (data.meal_requests || []).length
+    const missedChores = (data.missed_chores || []).length
+    const petCare = (data.pet_care || []).length
+    const lowMoods = (data.low_moods || []).length
+    const schoolNotes = (data.school_notes || []).length
 
+    // TAB-BADGE-1: Badge counts for all relevant tabs
     setBadgeCounts({
       'messages-alerts': msgCount,
-      health: breakCount,
+      health: breakCount + sickCount + lowMoods,
+      'kids-checklist': missedChores,
+      'pets-plants': petCare,
+      'food-meals': mealCount,
+      'school-notes': schoolNotes,
     })
-    setFlagBadgeCount(msgCount + breakCount + sickCount + mealCount)
+    setFlagBadgeCount(msgCount + breakCount + sickCount + mealCount + missedChores + petCare)
   }, [flagsData, loaded, setBadgeCounts, setFlagBadgeCount])
+
+  // Fetch additional badge sources not in flagsData
+  useEffect(() => {
+    if (!loaded) return
+    // Notification count for overview
+    fetch('/api/notifications?action=get_unread_count&role=parent')
+      .then(r => r.json())
+      .then(data => {
+        if (data.count > 0) {
+          setBadgeCounts(prev => ({ ...prev, overview: data.count }))
+        }
+      })
+      .catch(() => {})
+    // Positive reports pending approval
+    fetch('/api/positive-reports?action=get_pending')
+      .then(r => r.json())
+      .then(data => {
+        if ((data.reports || []).length > 0) {
+          setBadgeCounts(prev => ({ ...prev, 'stars-rewards': (data.reports || []).length }))
+        }
+      })
+      .catch(() => {})
+  }, [loaded, setBadgeCounts])
 
   return null
 }
