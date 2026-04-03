@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { checkAchievements } from '@/lib/achievement-checker'
 
 function getToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
@@ -102,6 +103,13 @@ export async function POST(request: NextRequest) {
         `UPDATE kid_achievements SET seen_by_kid = TRUE WHERE kid_name = $1 AND achievement_key = ANY($2)`,
         [kid_name.toLowerCase(), keys]
       )
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'check_achievements') {
+      const { kid_name } = body
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      await checkAchievements(kid_name)
       return NextResponse.json({ success: true })
     }
 

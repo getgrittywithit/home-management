@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
+import { checkAchievements } from '@/lib/achievement-checker'
 
 const CATEGORIES = ['kindness', 'courage', 'honesty', 'teamwork', 'gratitude', 'resilience']
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -136,6 +137,11 @@ export async function POST(request: NextRequest) {
             link_tab: 'achievements', icon: emoji,
             target_role: 'kid', kid_name: r.kid_name,
           }).catch(e => console.error('Approve notify failed:', e.message))
+          // ACHIEVE-1: Check for kindness/community badges
+          checkAchievements(r.kid_name).catch(() => {})
+          if (r.source === 'sibling' && r.submitted_by) {
+            checkAchievements(r.submitted_by).catch(() => {}) // community badge for reporter
+          }
         }
         return NextResponse.json({ success: true })
       } catch { return NextResponse.json({ error: 'Failed' }, { status: 500 }) }
