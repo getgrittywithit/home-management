@@ -369,20 +369,20 @@ export async function GET(request: NextRequest) {
     // Also pull daily care items from student_health_conditions
     try {
       const careItems = await db.query(
-        `SELECT item_name, instructions, time_of_day, category FROM student_health_conditions
-         WHERE LOWER(kid_name) = $1 AND is_active = TRUE`,
+        `SELECT condition_label, notes, condition_type FROM student_health_conditions
+         WHERE LOWER(kid_name) = $1`,
         [child]
-      )
+      ).catch(() => [])
       careItems.forEach((item: any, idx: number) => {
-        const alreadyAdded = dailyCare.some(d => d.title.toLowerCase().includes(item.item_name?.toLowerCase?.() || ''))
-        if (item.item_name && !alreadyAdded) {
-          const timeOfDay = item.time_of_day || 'morning'
+        const label = item.condition_label || ''
+        const alreadyAdded = dailyCare.some(d => d.title.toLowerCase().includes(label.toLowerCase()))
+        if (label && !alreadyAdded) {
           dailyCare.push({
             id: `health-care-${idx}-${today}`,
-            title: `${item.category === 'skincare' ? '🧴' : '💊'} ${item.item_name}`,
-            description: item.instructions || '',
+            title: `💊 ${label}`,
+            description: item.notes || '',
             category: 'hygiene',
-            time: timeOfDay === 'evening' || timeOfDay === 'pm' ? '8:15 PM' : '7:15 AM',
+            time: '7:15 AM',
           })
         }
       })
