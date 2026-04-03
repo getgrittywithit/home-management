@@ -141,8 +141,58 @@ export async function GET(request: NextRequest) {
     const dayOfWeek = todayDate.getDay()
     const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
 
+    // GAP-13: Check for sick day — reduce checklist to essentials
+    let isSickDay = false
+    try {
+      const sickCheck = await db.query(
+        `SELECT 1 FROM kid_sick_days WHERE kid_name = $1 AND sick_date = $2 LIMIT 1`,
+        [child, today]
+      )
+      isSickDay = sickCheck.length > 0
+    } catch {}
+
     // ── Tier 1: Required tasks ──
     const required: any[] = []
+
+    // GAP-13: If sick day, skip zone/dishes/belle/school tasks
+    if (isSickDay) {
+      // Sick day — only include meds + basic hygiene in dailyCare
+      const dailyCare: any[] = [
+        { id: `hygiene-morning-${today}`, title: 'Morning Routine', description: 'Brush teeth, get dressed', category: 'hygiene', time: '7:00 AM' },
+        { id: `hygiene-bedtime-${today}`, title: 'Bedtime Routine', description: 'Brush teeth, pajamas', category: 'hygiene', time: '8:30 PM' },
+      ]
+
+      // Still include meds
+      const MED_KIDS = ['amos', 'wyatt']
+      if (MED_KIDS.includes(child)) {
+        const medAm = child === 'amos' ? 'Morning Focalin' : 'Morning Focalin'
+        const medPm = child === 'amos' ? 'Evening Clonidine' : 'Evening Clonidine'
+        dailyCare.push({ id: `med-am-${today}`, title: `💊 ${medAm}`, category: 'hygiene', time: '7:00 AM' })
+        dailyCare.push({ id: `med-pm-${today}`, title: `💊 ${medPm}`, category: 'hygiene', time: '8:00 PM' })
+      }
+
+      // Load completion states
+      const completions = await db.query(
+        `SELECT event_id, completed, substep_progress FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2`,
+        [child, today]
+      ).catch(() => [])
+      const completionMap = new Map<string, any>()
+      completions.forEach((c: any) => completionMap.set(c.event_id, c))
+
+      const mapCompletion = (items: any[]) => items.map(item => ({
+        ...item, completed: completionMap.get(item.id)?.completed || false,
+      }))
+
+      return NextResponse.json({
+        required: [],
+        dailyCare: mapCompletion(dailyCare),
+        earnMoney: [],
+        allRequiredDone: true,
+        zone: null,
+        isSickDay: true,
+        stats: { requiredTotal: 0, requiredDone: 0, dailyCareTotal: dailyCare.length, dailyCareDone: mapCompletion(dailyCare).filter(d => d.completed).length, earnMoneyTotal: 0, earnMoneyDone: 0 },
+      })
+    }
 
     // Zone chores
     const zone = getKidZone(child.charAt(0).toUpperCase() + child.slice(1))

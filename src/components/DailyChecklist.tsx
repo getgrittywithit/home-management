@@ -146,6 +146,7 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
   const [showCelebration, setShowCelebration] = useState(false)
   const [prevAllDone, setPrevAllDone] = useState(false)
   const [starPopup, setStarPopup] = useState<{ amount: number; key: number } | null>(null)
+  const [isSickDay, setIsSickDay] = useState(false)
 
   const childKey = childName.toLowerCase()
 
@@ -159,6 +160,7 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
         setAllRequiredDone(data.allRequiredDone || false)
         setZone(data.zone || null)
         setStats(data.stats || stats)
+        setIsSickDay(data.isSickDay || false)
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -267,6 +269,17 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
 
       {/* Celebration burst overlay */}
       {showCelebration && <CelebrationBurst />}
+
+      {/* GAP-13: Sick Day Rest Banner */}
+      {isSickDay && (
+        <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 flex items-center gap-3">
+          <span className="text-2xl">🤒</span>
+          <div>
+            <p className="font-bold text-rose-900">Rest Day — Feel Better!</p>
+            <p className="text-sm text-rose-700">Mom has been notified. Only essential tasks today.</p>
+          </div>
+        </div>
+      )}
 
       {/* Morning check-in (Kaylee/Zoey only, weekdays) */}
       <MorningCheckinCard childName={childName} />
