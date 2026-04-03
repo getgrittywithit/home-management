@@ -1,15 +1,44 @@
 'use client'
 
+import { useState } from 'react'
+import { STUDENT_DEFAULTS } from './types'
+import MathBuddy from './MathBuddy'
+import JourneyMap from './JourneyMap'
+
+type MathView = 'math-buddy' | 'journey-map'
+
 export default function HomeschoolMath() {
+  const [view, setView] = useState<MathView>('math-buddy')
+  const [selectedKid, setSelectedKid] = useState('Amos')
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg border shadow-sm p-8 text-center">
-        <span className="text-4xl mb-3 block">🔢</span>
-        <h2 className="text-lg font-bold text-gray-900 mb-2">Math Buddy</h2>
-        <p className="text-sm text-gray-500">Adaptive math practice coming soon.</p>
-        <p className="text-xs text-gray-400 mt-2">Phase 5.9 will add placement quizzes, skill tracking, and the Math Journey Map.</p>
+    <div className="space-y-4">
+      {/* Sub-navigation */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+        <button onClick={() => setView('math-buddy')}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            view === 'math-buddy' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
+          }`}>Math Buddy</button>
+        <button onClick={() => setView('journey-map')}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            view === 'journey-map' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
+          }`}>Journey Map</button>
       </div>
-      {/* Phase 5.9: Math Buddy progress + Math Journey Map + Workbook tracking will render here */}
+
+      {/* Kid selector */}
+      <div className="flex gap-2">
+        {STUDENT_DEFAULTS.map(s => (
+          <button key={s.id} onClick={() => setSelectedKid(s.name)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+              selectedKid === s.name ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            {s.mascot} {s.name}
+          </button>
+        ))}
+      </div>
+
+      {view === 'math-buddy' && <MathBuddy kidName={selectedKid} />}
+      {view === 'journey-map' && <JourneyMap kidName={selectedKid} subject="math" />}
     </div>
   )
 }
