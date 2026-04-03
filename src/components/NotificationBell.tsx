@@ -26,12 +26,35 @@ interface NotificationBellProps {
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
   sick_day: <Thermometer className="w-4 h-4 text-rose-500" />,
   message: <MessageSquare className="w-4 h-4 text-blue-500" />,
+  message_reply: <MessageSquare className="w-4 h-4 text-blue-500" />,
   all_tasks_complete: <Trophy className="w-4 h-4 text-amber-500" />,
   streak: <Flame className="w-4 h-4 text-orange-500" />,
   break_request: <Heart className="w-4 h-4 text-rose-400" />,
+  break_acknowledged: <Heart className="w-4 h-4 text-green-500" />,
   school_note: <BookOpen className="w-4 h-4 text-indigo-500" />,
   meal_request: <ChefHat className="w-4 h-4 text-orange-400" />,
+  meal_feedback_low: <ChefHat className="w-4 h-4 text-red-400" />,
   low_mood: <Heart className="w-4 h-4 text-rose-600" />,
+  crisis_detection: <Thermometer className="w-4 h-4 text-red-600" />,
+  concern_detection: <Heart className="w-4 h-4 text-amber-500" />,
+  health_urgent: <Thermometer className="w-4 h-4 text-red-600" />,
+  health_request: <Thermometer className="w-4 h-4 text-blue-500" />,
+  med_completion: <Check className="w-4 h-4 text-green-500" />,
+  refill_alert: <Bell className="w-4 h-4 text-amber-600" />,
+  task_skip: <Bell className="w-4 h-4 text-gray-500" />,
+  velocity_alert: <Bell className="w-4 h-4 text-amber-500" />,
+  positive_report: <Trophy className="w-4 h-4 text-amber-500" />,
+  positive_approved: <Trophy className="w-4 h-4 text-green-500" />,
+  caught_being_good: <Trophy className="w-4 h-4 text-amber-500" />,
+  achievement_earned: <Trophy className="w-4 h-4 text-purple-500" />,
+  achievement_parent: <Trophy className="w-4 h-4 text-purple-500" />,
+  library_submission: <BookOpen className="w-4 h-4 text-emerald-500" />,
+  library_approved: <BookOpen className="w-4 h-4 text-green-500" />,
+  dental_complete: <Check className="w-4 h-4 text-cyan-500" />,
+  activity_logged: <Flame className="w-4 h-4 text-green-500" />,
+  financial_level_advance: <Trophy className="w-4 h-4 text-green-600" />,
+  zone_photo: <Check className="w-4 h-4 text-blue-500" />,
+  parent_praise: <Heart className="w-4 h-4 text-pink-500" />,
 }
 
 function timeAgo(dateStr: string): string {
@@ -159,21 +182,18 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick, 
                     !n.read_at ? 'bg-blue-50/40' : ''
                   }`}
                 >
-                  <div className="flex-shrink-0 mt-0.5">
-                    {n.source_type && SOURCE_ICONS[n.source_type]
+                  <div className="flex-shrink-0 mt-0.5 text-lg">
+                    {n.icon || (n.source_type && SOURCE_ICONS[n.source_type]
                       ? SOURCE_ICONS[n.source_type]
-                      : <Bell className="w-4 h-4 text-gray-400" />}
+                      : <Bell className="w-4 h-4 text-gray-400" />)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm ${!n.read_at ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
                       {n.title}
                     </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {n.source_ref && (
-                        <span className="font-medium text-gray-600 capitalize">{n.source_ref.split('-')[0]} · </span>
-                      )}
-                      {n.message}
-                    </p>
+                    {n.message && n.message !== n.title && (
+                      <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                    )}
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-gray-400">{timeAgo(n.created_at)}</span>
                       {n.link_tab && onNavigate && (
