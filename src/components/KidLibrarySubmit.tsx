@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { BookOpen, Gamepad2, Puzzle, Camera, Loader2, Send, Check, Clock, X } from 'lucide-react'
-import BarcodeScanner from './BarcodeScanner'
+import BarcodeScanner, { useCameraAvailable } from './BarcodeScanner'
 
 interface Submission {
   id: number
@@ -25,6 +25,7 @@ const TYPE_OPTIONS = [
 export default function KidLibrarySubmit({ kidName }: { kidName: string }) {
   const [showForm, setShowForm] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+  const cameraAvailable = useCameraAvailable()
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [lookupLoading, setLookupLoading] = useState(false)
@@ -164,9 +165,11 @@ export default function KidLibrarySubmit({ kidName }: { kidName: string }) {
               placeholder="ISBN or barcode number"
               className="flex-1 border rounded-lg px-3 py-2 text-sm"
             />
-            <button onClick={() => setShowScanner(true)} className="bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-200 flex items-center gap-1">
-              <Camera className="w-4 h-4" /> Scan
-            </button>
+            {cameraAvailable !== false && (
+              <button onClick={() => setShowScanner(true)} className="bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-blue-200 flex items-center gap-1">
+                <Camera className="w-4 h-4" /> Scan
+              </button>
+            )}
             {isbnUpc && !lookupLoading && (
               <button onClick={() => lookupBarcode(isbnUpc)} className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-blue-700">
                 Look Up

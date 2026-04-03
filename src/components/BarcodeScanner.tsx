@@ -8,6 +8,21 @@ interface BarcodeScannerProps {
   onError?: (error: string) => void
 }
 
+/** Check if camera is available before showing scan button */
+export function useCameraAvailable() {
+  const [available, setAvailable] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) {
+      setAvailable(false)
+      return
+    }
+    navigator.mediaDevices.enumerateDevices()
+      .then(devices => setAvailable(devices.some(d => d.kind === 'videoinput')))
+      .catch(() => setAvailable(false))
+  }, [])
+  return available
+}
+
 export default function BarcodeScanner({ onScan, onClose, onError }: BarcodeScannerProps) {
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)

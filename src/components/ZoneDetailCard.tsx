@@ -559,20 +559,24 @@ function TaskRow({ task, onToggle, expanded, onToggleInstructions }: {
         </div>
       </div>
 
-      {/* Expandable instructions — defensive: handle string, array, or null */}
+      {/* Expandable instructions — defensive: handle string, array, null, undefined, or malformed */}
       {(() => {
-        let steps: string[] = []
-        if (Array.isArray(task.instructions)) {
-          steps = task.instructions.filter((s: any) => typeof s === 'string' && s.trim())
-        } else if (typeof task.instructions === 'string') {
-          try {
-            const parsed = JSON.parse(task.instructions as string)
-            if (Array.isArray(parsed)) steps = parsed.filter((s: any) => typeof s === 'string' && s.trim())
-          } catch {
-            if ((task.instructions as string).trim()) steps = [(task.instructions as string).trim()]
+        try {
+          let steps: string[] = []
+          const raw = task.instructions as any
+          if (!raw) return null
+          if (Array.isArray(raw)) {
+            steps = raw.filter((s: any) => s && typeof s === 'string' && s.trim())
+          } else if (typeof raw === 'string') {
+            try {
+              const parsed = JSON.parse(raw)
+              if (Array.isArray(parsed)) steps = parsed.filter((s: any) => s && typeof s === 'string' && s.trim())
+              else if (typeof parsed === 'string' && parsed.trim()) steps = [parsed.trim()]
+            } catch {
+              if (raw.trim()) steps = [raw.trim()]
+            }
           }
-        }
-        if (steps.length === 0) return null
+          if (steps.length === 0) return null
         return (
           <div className="px-3 pb-2">
             <button
@@ -594,6 +598,7 @@ function TaskRow({ task, onToggle, expanded, onToggleInstructions }: {
             )}
           </div>
         )
+        } catch { return null }
       })()}
     </div>
   )

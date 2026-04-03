@@ -22,13 +22,19 @@ export async function GET(request: NextRequest) {
         // Get kid's grade number for filtering
         let kidGrade: number | null = null
         if (kidName) {
+          // Try student_profiles first, fall back to profiles table
           const profiles = await db.query(
             `SELECT grade FROM student_profiles WHERE LOWER(kid_name) = LOWER($1) LIMIT 1`,
             [kidName]
-          )
+          ).catch(() => [])
           if (profiles[0]?.grade) {
             const match = String(profiles[0].grade).match(/(\d+)/)
             kidGrade = match ? parseInt(match[1], 10) : null
+          }
+          // Fallback: known grades
+          if (kidGrade === null) {
+            const gradeMap: Record<string, number> = { amos: 10, zoey: 9, kaylee: 7, ellie: 6, wyatt: 4, hannah: 3 }
+            kidGrade = gradeMap[kidName.toLowerCase()] || null
           }
         }
 

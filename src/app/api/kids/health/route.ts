@@ -275,16 +275,30 @@ export async function POST(request: NextRequest) {
       }
 
       case 'update_request_status': {
-        const { requestId, status, parent_response } = body
+        const { requestId, status, parent_response, resolution_notes } = body
         if (!requestId || !status) {
           return NextResponse.json({ error: 'Missing requestId or status' }, { status: 400 })
         }
         const resolvedAt = ['scheduled', 'handled', 'dismissed'].includes(status) ? 'NOW()' : 'NULL'
         await query(
           `UPDATE kid_health_requests
-           SET status = $1, parent_response = $2, resolved_at = ${resolvedAt}
+           SET status = $1, parent_response = $2, resolved_at = ${resolvedAt},
+               resolution_notes = COALESCE($4, resolution_notes)
            WHERE id = $3`,
-          [status, parent_response || null, requestId]
+          [status, parent_response || null, requestId, resolution_notes || null]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      // UX-3: Add/update follow-up notes on resolved health request
+      case 'add_resolution_notes': {
+        const { requestId, resolution_notes } = body
+        if (!requestId || !resolution_notes?.trim()) {
+          return NextResponse.json({ error: 'requestId and resolution_notes required' }, { status: 400 })
+        }
+        await query(
+          `UPDATE kid_health_requests SET resolution_notes = $2 WHERE id = $1`,
+          [requestId, resolution_notes.trim()]
         )
         return NextResponse.json({ success: true })
       }
