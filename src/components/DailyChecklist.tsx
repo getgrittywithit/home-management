@@ -404,12 +404,66 @@ function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expand
   const expandable = isExpandableItem(item)
   const zoneKey = expandable ? getZoneKeyForItem(item, childName, currentZone) : null
 
+  // UX-1B: Parse description into substeps for non-zone expandable items
+  const substeps = (!zoneKey && item.description)
+    ? item.description.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+    : []
+  const hasSubsteps = substeps.length > 1
+  const canExpand = (expandable && zoneKey) || hasSubsteps
+
+  // Substep state — loaded from server, persisted via toggle_substep
+  const [substepState, setSubstepState] = useState<boolean[]>(substeps.map(() => false))
+  const [substepsLoaded, setSubstepsLoaded] = useState(false)
+
+  // Load substep progress on mount
+  useEffect(() => {
+    if (!hasSubsteps || substepsLoaded) return
+    fetch('/api/kids/checklist', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_substep_progress', child: childName.toLowerCase() }),
+    }).then(r => r.json()).then(data => {
+      if (data.progress?.[item.id]) {
+        setSubstepState(data.progress[item.id])
+      }
+      setSubstepsLoaded(true)
+    }).catch(() => setSubstepsLoaded(true))
+  }, [hasSubsteps, substepsLoaded, item.id, childName])
+
+  const toggleSubstep = async (index: number) => {
+    const newState = [...substepState]
+    newState[index] = !newState[index]
+    setSubstepState(newState)
+
+    try {
+      const res = await fetch('/api/kids/checklist', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_substep', child: childName.toLowerCase(),
+          eventId: item.id, substepIndex: index, totalSubsteps: substeps.length,
+        }),
+      })
+      const data = await res.json()
+      if (data.substep_progress) setSubstepState(data.substep_progress)
+      if (data.all_complete && !item.completed) {
+        onToggle() // Trigger parent completion + stars
+      }
+    } catch (e) {
+      console.error('Substep toggle failed:', e)
+      newState[index] = !newState[index] // Revert on error
+      setSubstepState(newState)
+    }
+  }
+
   return (
     <div>
       <div className={`flex items-center gap-3 px-4 py-3 ${item.completed ? 'bg-gray-50/50' : ''}`}>
-        <button onClick={onToggle} className="flex-shrink-0">
+        <button onClick={hasSubsteps ? onToggleExpand : onToggle} className="flex-shrink-0">
           {item.completed ? (
             <CheckCircle2 className="w-5 h-5 text-green-600" />
+          ) : hasSubsteps ? (
+            <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center text-[9px] font-bold text-gray-400">
+              {substepState.filter(Boolean).length}/{substeps.length}
+            </div>
           ) : (
             <Circle className="w-5 h-5 text-gray-300" />
           )}
@@ -421,26 +475,44 @@ function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expand
           <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
             {item.title}
           </span>
-          {item.description && !expanded && (
+          {item.description && !expanded && !hasSubsteps && (
             <p className={`text-xs ${item.completed ? 'text-gray-300' : 'text-gray-500'}`}>{item.description}</p>
           )}
+          {hasSubsteps && !expanded && (
+            <p className="text-xs text-gray-400">{substepState.filter(Boolean).length} of {substeps.length} steps done</p>
+          )}
         </div>
-        {item.time && !expandable && <span className="text-xs text-gray-400 flex-shrink-0">{item.time}</span>}
+        {item.time && !canExpand && <span className="text-xs text-gray-400 flex-shrink-0">{item.time}</span>}
         {showPoints && item.points && (
           <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">
             +{item.points} pts
           </span>
         )}
-        {expandable && zoneKey && (
+        {canExpand && (
           <button onClick={onToggleExpand} className="flex-shrink-0 p-1 hover:bg-gray-100 rounded">
-            {expanded ? (
-              <ChevronUp className="w-4 h-4 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            )}
+            {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </button>
         )}
       </div>
+
+      {/* UX-1B: Substep checkboxes for non-zone items */}
+      {expanded && hasSubsteps && !zoneKey && (
+        <div className="px-4 pb-3 pl-12 space-y-1">
+          {substeps.map((step, idx) => (
+            <button key={idx} onClick={() => toggleSubstep(idx)}
+              className="flex items-center gap-2 w-full text-left py-1.5 hover:bg-gray-50 rounded px-2 -mx-2">
+              {substepState[idx] ? (
+                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+              ) : (
+                <Circle className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              )}
+              <span className={`text-sm ${substepState[idx] ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                {step}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Inline zone detail card */}
       {expanded && zoneKey && (
