@@ -1043,32 +1043,31 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
         </div>
       )}
 
-      {/* Sub-Navigation */}
-      <div className="flex gap-2 flex-wrap">
+      {/* Sub-Navigation — 8 tabs matching health/ sub-tab structure */}
+      <div className="flex gap-2 overflow-x-auto border-b pb-2 mb-4">
         {[
-          { id: 'insurance', label: 'Insurance & Benefits', icon: Shield },
-          { id: 'appointments', label: 'Appointments', icon: Calendar },
-          { id: 'medications', label: 'Medications', icon: Pill },
-          { id: 'notes', label: 'Visit Notes & AI', icon: FileText },
-          ...(memberGroup === 'kids' ? [
-            { id: 'daily_care', label: 'Daily Care', icon: ListChecks },
-            { id: 'dental', label: 'Dental', icon: ClipboardList },
-            { id: 'activity_mood', label: 'Activity & Mood', icon: Heart },
-            { id: 'cycle', label: 'Cycle Tracker', icon: CircleDot },
-            { id: 'kid_requests', label: `Kid Requests${kidRequests.filter(r => r.status === 'pending').length > 0 ? ` (${kidRequests.filter(r => r.status === 'pending').length})` : ''}`, icon: AlertTriangle }
-          ] : [])
-        ].map(tab => (
+          { id: 'kid_requests', label: '📊 Overview', show: memberGroup === 'kids' },
+          { id: 'medications', label: '💊 Medications', show: true },
+          { id: 'insurance', label: '🏥 Providers', show: true },
+          { id: 'appointments', label: '📅 Appointments', show: true },
+          { id: 'daily_care', label: '🩺 Daily Care', show: memberGroup === 'kids' },
+          { id: 'activity_mood', label: '💛 Mood & Activity', show: memberGroup === 'kids' },
+          { id: 'notes', label: '📋 Visit Notes', show: true },
+          { id: 'cycle', label: '🌙 Cycle Tracker', show: memberGroup === 'kids' },
+        ].filter(t => t.show).map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveSection(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full font-medium transition ${
+            className={`px-3 py-2 rounded-t whitespace-nowrap text-sm font-medium transition-colors ${
               activeSection === tab.id
-                ? `bg-${themeColor}-500 text-white`
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-white border-b-2 border-teal-500 text-teal-600'
+                : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            {tab.icon && <tab.icon className="w-4 h-4" />}
             {tab.label}
+            {tab.id === 'kid_requests' && kidRequests.filter((r: any) => r.status === 'pending').length > 0 && (
+              <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5">{kidRequests.filter((r: any) => r.status === 'pending').length}</span>
+            )}
           </button>
         ))}
       </div>
