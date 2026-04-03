@@ -643,6 +643,65 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      // UX-1: Toggle individual substep completion
+      case 'toggle_substep': {
+        const { child, eventId, substepIndex, totalSubsteps } = body
+        if (!child || !eventId || substepIndex === undefined) return NextResponse.json({ error: 'child, eventId, substepIndex required' }, { status: 400 })
+        const kidName = child.toLowerCase()
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+
+        // Get current substep progress
+        const existing = await db.query(
+          `SELECT substep_progress, completed FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2 AND event_id = $3`,
+          [kidName, today, eventId]
+        ).catch(() => [])
+
+        let progress: boolean[] = []
+        if (existing[0]?.substep_progress && typeof existing[0].substep_progress === 'object') {
+          progress = Array.isArray(existing[0].substep_progress) ? existing[0].substep_progress : []
+        }
+
+        // Ensure array is the right size
+        const total = totalSubsteps || Math.max(progress.length, substepIndex + 1)
+        while (progress.length < total) progress.push(false)
+
+        // Toggle the specific substep
+        progress[substepIndex] = !progress[substepIndex]
+
+        // Check if all substeps are now done
+        const allDone = progress.length > 0 && progress.every(Boolean)
+
+        // Upsert the progress
+        await db.query(
+          `INSERT INTO kid_daily_checklist (child_name, event_date, event_id, event_summary, completed, substep_progress, completed_at)
+           VALUES ($1, $2, $3, '', $4, $5, $6)
+           ON CONFLICT (child_name, event_date, event_id)
+           DO UPDATE SET substep_progress = $5, completed = CASE WHEN $4 = TRUE THEN TRUE ELSE kid_daily_checklist.completed END,
+             completed_at = CASE WHEN $4 = TRUE AND kid_daily_checklist.completed_at IS NULL THEN NOW() ELSE kid_daily_checklist.completed_at END`,
+          [kidName, today, eventId, allDone, JSON.stringify(progress), allDone ? new Date().toISOString() : null]
+        )
+
+        return NextResponse.json({ success: true, substep_progress: progress, all_complete: allDone })
+      }
+
+      // UX-1: Get substep progress for a kid's tasks
+      case 'get_substep_progress': {
+        const { child } = body
+        if (!child) return NextResponse.json({ error: 'child required' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const rows = await db.query(
+          `SELECT event_id, substep_progress FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2 AND substep_progress IS NOT NULL AND substep_progress != '{}'::jsonb`,
+          [child.toLowerCase(), today]
+        ).catch(() => [])
+        const progress: Record<string, boolean[]> = {}
+        rows.forEach((r: any) => {
+          if (r.substep_progress && Array.isArray(r.substep_progress)) {
+            progress[r.event_id] = r.substep_progress
+          }
+        })
+        return NextResponse.json({ progress })
+      }
+
       // SKIP-1: Kid intentionally skips a task
       case 'skip_task': {
         const { child, eventId, skip_reason } = body
