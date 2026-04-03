@@ -143,12 +143,16 @@ export async function GET(request: NextRequest) {
 
     // GAP-13: Check for sick day — reduce checklist to essentials
     let isSickDay = false
+    let sickDayStatus = ''
     try {
       const sickCheck = await db.query(
-        `SELECT 1 FROM kid_sick_days WHERE kid_name = $1 AND sick_date = $2 LIMIT 1`,
+        `SELECT status FROM kid_sick_days WHERE kid_name = $1 AND sick_date = $2 LIMIT 1`,
         [child, today]
       )
-      isSickDay = sickCheck.length > 0
+      if (sickCheck.length > 0 && sickCheck[0].status !== 'overridden') {
+        isSickDay = true
+        sickDayStatus = sickCheck[0].status || 'active'
+      }
     } catch {}
 
     // ── Tier 1: Required tasks ──
@@ -750,6 +754,73 @@ export async function POST(request: NextRequest) {
           }
         })
         return NextResponse.json({ progress })
+      }
+
+      // GAP-13b: Parent sick day override actions
+      case 'confirm_sick_day': {
+        const { kid_name } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await db.query(
+          `UPDATE kid_sick_days SET parent_confirmed = TRUE, status = 'confirmed' WHERE kid_name = $1 AND sick_date = $2`,
+          [kid_name.toLowerCase(), today]
+        )
+        const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
+        await createNotification({
+          title: 'Mom confirmed your sick day',
+          message: 'Rest up! Only essentials today.',
+          source_type: 'sick_day', source_ref: `sick-confirmed-${kid_name.toLowerCase()}-${today}`,
+          link_tab: 'my-day', icon: '💛',
+          target_role: 'kid', kid_name: kid_name.toLowerCase(),
+        }).catch(() => {})
+        return NextResponse.json({ success: true })
+      }
+
+      case 'override_sick_day': {
+        const { kid_name } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await db.query(
+          `UPDATE kid_sick_days SET status = 'overridden' WHERE kid_name = $1 AND sick_date = $2`,
+          [kid_name.toLowerCase(), today]
+        )
+        await createNotification({
+          title: 'Your full task list is back',
+          message: 'Mom restored your regular day.',
+          source_type: 'sick_day', source_ref: `sick-override-${kid_name.toLowerCase()}-${today}`,
+          link_tab: 'my-day', icon: '📋',
+          target_role: 'kid', kid_name: kid_name.toLowerCase(),
+        }).catch(() => {})
+        return NextResponse.json({ success: true })
+      }
+
+      case 'modify_sick_day': {
+        const { kid_name, kept_tasks } = body
+        if (!kid_name || !Array.isArray(kept_tasks)) return NextResponse.json({ error: 'kid_name and kept_tasks required' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await db.query(
+          `UPDATE kid_sick_days SET status = 'modified', modified_tasks = $3 WHERE kid_name = $1 AND sick_date = $2`,
+          [kid_name.toLowerCase(), today, JSON.stringify(kept_tasks)]
+        )
+        await createNotification({
+          title: 'Mom adjusted your day',
+          message: `${kept_tasks.length} tasks kept for today.`,
+          source_type: 'sick_day', source_ref: `sick-modified-${kid_name.toLowerCase()}-${today}`,
+          link_tab: 'my-day', icon: '📝',
+          target_role: 'kid', kid_name: kid_name.toLowerCase(),
+        }).catch(() => {})
+        return NextResponse.json({ success: true })
+      }
+
+      case 'get_sick_day_status': {
+        const { kid_name } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const rows = await db.query(
+          `SELECT * FROM kid_sick_days WHERE kid_name = $1 AND sick_date = $2 LIMIT 1`,
+          [kid_name.toLowerCase(), today]
+        ).catch(() => [])
+        return NextResponse.json({ sick_day: rows[0] || null })
       }
 
       // SKIP-1: Kid intentionally skips a task
