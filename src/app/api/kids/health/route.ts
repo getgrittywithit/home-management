@@ -575,6 +575,35 @@ export async function POST(request: NextRequest) {
                          notes = COALESCE($8, kid_wellness_log.notes)`,
           [child.toLowerCase(), today, steps || null, waterCups || null, fastingStart || null, fastingEnd || null, weight || null, notes || null]
         )
+
+        // NOTIFY-FIX-1c #10: Wellness concern alert (fasting >18hrs OR weight change >5%)
+        const concerns: string[] = []
+        if (fastingStart && fastingEnd) {
+          const start = new Date(`${today}T${fastingStart}`)
+          const end = new Date(`${today}T${fastingEnd}`)
+          const hours = Math.abs(end.getTime() - start.getTime()) / 3600000
+          if (hours > 18) concerns.push(`fasting duration: ${Math.round(hours)} hours`)
+        }
+        if (weight) {
+          const prevWeight = await query(
+            `SELECT weight FROM kid_wellness_log WHERE child_name = $1 AND weight IS NOT NULL AND log_date < $2 ORDER BY log_date DESC LIMIT 1`,
+            [child.toLowerCase(), today]
+          ).catch(() => [])
+          if (prevWeight[0]?.weight) {
+            const pctChange = Math.abs((weight - prevWeight[0].weight) / prevWeight[0].weight) * 100
+            if (pctChange > 5) concerns.push(`weight change: ${pctChange.toFixed(1)}% from last entry`)
+          }
+        }
+        if (concerns.length > 0) {
+          const childDisplay = child.charAt(0).toUpperCase() + child.slice(1).toLowerCase()
+          await createNotification({
+            title: `${childDisplay} wellness may need review`,
+            message: concerns.join(', '),
+            source_type: 'wellness_concern', source_ref: `wellness-${child.toLowerCase()}-${today}`,
+            link_tab: 'health', icon: '⚠️',
+          }).catch(e => console.error('Wellness concern notify failed:', e.message))
+        }
+
         return NextResponse.json({ success: true })
       }
 

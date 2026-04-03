@@ -218,6 +218,36 @@ export async function POST(request: NextRequest) {
             link_tab: 'meals', icon: '🍽️',
           }).catch(e => console.error('Meal feedback notify failed:', e.message))
         }
+
+        // NOTIFY-FIX-1c #12: Meal feedback daily digest (after 8 PM, once per day)
+        try {
+          const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+          const feedbackDate = meal_date || new Date().toISOString().split('T')[0]
+          if (now.getHours() >= 20) {
+            // Check if digest already sent today
+            const existing = await db.query(
+              `SELECT 1 FROM notifications WHERE source_type = 'meal_digest' AND source_ref = $1 LIMIT 1`,
+              [`meal-digest-${feedbackDate}`]
+            ).catch(() => [])
+            if (existing.length === 0) {
+              // Count today's feedback
+              const feedbackCount = await db.query(
+                `SELECT COUNT(DISTINCT kid_name)::int as count FROM meal_feedback WHERE meal_date = $1`,
+                [feedbackDate]
+              ).catch(() => [])
+              const count = feedbackCount[0]?.count || 0
+              if (count > 0) {
+                await createNotification({
+                  title: `${count} kid${count > 1 ? 's' : ''} left dinner feedback tonight`,
+                  message: 'Check meal ratings in Food & Meals',
+                  source_type: 'meal_digest', source_ref: `meal-digest-${feedbackDate}`,
+                  link_tab: 'food-meals', icon: '🍽️',
+                })
+              }
+            }
+          }
+        } catch (e: any) { console.error('Meal digest check failed:', e.message) }
+
         return NextResponse.json({ success: true })
       } catch (err: any) {
         // Auto-create table if it doesn't exist
