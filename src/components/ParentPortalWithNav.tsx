@@ -104,31 +104,85 @@ const familyData = getAllFamilyData()
 const familyChildren = familyData.children.filter(Boolean) // Remove any null values
 const familyMembers = familyData.allMembers.filter(Boolean) // Remove any null values
 
+function SickDayActions({ kidName }: { kidName: string }) {
+  const [status, setStatus] = useState<'pending' | 'confirmed' | 'overridden' | 'modified'>('pending')
+  const [loading, setLoading] = useState(false)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+  const display = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+
+  // Check current status on mount
+  useEffect(() => {
+    fetch('/api/kids/checklist', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_sick_day_status', kid_name: kidName }),
+    }).then(r => r.json()).then(data => {
+      if (data.sick_day?.status && data.sick_day.status !== 'active') {
+        setStatus(data.sick_day.status as any)
+      }
+    }).catch(() => {})
+  }, [kidName])
+
+  const callAction = async (action: string, extra?: Record<string, any>) => {
+    setLoading(true)
+    await fetch('/api/kids/checklist', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, kid_name: kidName, date: today, ...extra }),
+    }).catch(() => {})
+    setLoading(false)
+  }
+
+  if (status === 'confirmed') return <span className="text-xs text-green-600 font-medium">✅ Sick day confirmed</span>
+  if (status === 'overridden') return <span className="text-xs text-blue-600 font-medium">📋 Tasks restored</span>
+  if (status === 'modified') return <span className="text-xs text-amber-600 font-medium">✅ Modified day set</span>
+
+  return (
+    <div className="flex gap-1.5 mt-1.5">
+      <button disabled={loading} onClick={async () => { await callAction('confirm_sick_day'); setStatus('confirmed') }}
+        className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium hover:bg-green-200 disabled:opacity-50">
+        Confirm Sick Day
+      </button>
+      <button disabled={loading} onClick={async () => { await callAction('override_sick_day'); setStatus('overridden') }}
+        className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium hover:bg-gray-200 disabled:opacity-50">
+        Not Sick — Restore
+      </button>
+    </div>
+  )
+}
+
 function SickAlertBanner() {
   const { flagsData, loaded } = useDashboardData()
   const sick = flagsData.sick_days || []
   const breaks = flagsData.breaks || flagsData.break_requests || []
-  const alerts = [
-    ...sick.map((s: any) => ({ kid_name: s.kid_name, reason: 'not feeling well' })),
-    ...breaks.map((b: any) => ({ kid_name: b.kid_name, reason: 'needs a break' })),
-  ]
 
-  if (alerts.length === 0) return null
-
-  const names = alerts.map(a => {
-    const cap = a.kid_name.charAt(0).toUpperCase() + a.kid_name.slice(1)
-    return `${cap} (${a.reason})`
-  })
+  if (sick.length === 0 && breaks.length === 0) return null
 
   return (
-    <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-4 flex items-start gap-3">
-      <span className="text-xl flex-shrink-0">🤒</span>
-      <div>
-        <p className="font-semibold text-amber-900">
-          {alerts.length} kid{alerts.length > 1 ? 's' : ''} need{alerts.length === 1 ? 's' : ''} attention
-        </p>
-        <p className="text-sm text-amber-800 mt-0.5">{names.join(', ')}</p>
+    <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="text-xl flex-shrink-0">🤒</span>
+        <div>
+          <p className="font-semibold text-amber-900">
+            {sick.length + breaks.length} kid{sick.length + breaks.length > 1 ? 's' : ''} need{sick.length + breaks.length === 1 ? 's' : ''} attention
+          </p>
+        </div>
       </div>
+      {sick.map((s: any) => {
+        const cap = s.kid_name.charAt(0).toUpperCase() + s.kid_name.slice(1)
+        return (
+          <div key={s.kid_name} className="pl-9">
+            <p className="text-sm text-amber-800 font-medium">{cap} — not feeling well</p>
+            <SickDayActions kidName={s.kid_name} />
+          </div>
+        )
+      })}
+      {breaks.map((b: any) => {
+        const cap = b.kid_name.charAt(0).toUpperCase() + b.kid_name.slice(1)
+        return (
+          <div key={`break-${b.kid_name}`} className="pl-9">
+            <p className="text-sm text-amber-800">{cap} — needs a break</p>
+          </div>
+        )
+      })}
     </div>
   )
 }
