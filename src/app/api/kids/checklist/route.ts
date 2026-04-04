@@ -30,6 +30,17 @@ const DISHES: Record<string, string[]> = {
 
 const HOMESCHOOL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah']
 
+// Dinner Manager — day-gated per fixed weekly schedule
+const DINNER_MANAGER: Record<number, string[]> = {
+  0: [],             // Sunday = Dad
+  1: ['kaylee'],     // Monday
+  2: ['zoey'],       // Tuesday
+  3: ['wyatt'],      // Wednesday
+  4: ['amos'],       // Thursday
+  5: ['ellie', 'hannah'], // Friday — shared
+  6: [],             // Saturday = Mom
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -79,10 +90,6 @@ export async function GET(request: NextRequest) {
 
         const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(kid => {
           const kidRows = (rows as any[]).filter((r: any) => r.child_name === kid)
-          const todayRows = kidRows.filter((r: any) => {
-            // Only count today's rows for the completion denominator
-            return true // all rows in the week range count for done
-          })
           const req = kidRows.filter((r: any) => !r.event_id.startsWith('hygiene-') && !r.event_id.startsWith('earn-'))
           const care = kidRows.filter((r: any) => r.event_id.startsWith('hygiene-'))
           const earn = kidRows.filter((r: any) => r.event_id.startsWith('earn-'))
@@ -95,7 +102,10 @@ export async function GET(request: NextRequest) {
           }
         })
         return NextResponse.json({ weekOf: weekStart, kids })
-      } catch { return NextResponse.json({ weekOf: weekStart, kids: [] }) }
+      } catch (err) {
+        console.error('[checklist] get_all_completion error:', err)
+        return NextResponse.json({ weekOf: weekStart, kids: [] })
+      }
     }
 
     if (action === 'today_zone_status') {
@@ -246,16 +256,6 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Dinner Manager — day-gated per fixed weekly schedule
-    const DINNER_MANAGER: Record<number, string[]> = {
-      0: [],             // Sunday = Dad
-      1: ['kaylee'],     // Monday
-      2: ['zoey'],       // Tuesday
-      3: ['wyatt'],      // Wednesday
-      4: ['amos'],       // Thursday
-      5: ['ellie', 'hannah'], // Friday — shared
-      6: [],             // Saturday = Mom
-    }
     if ((DINNER_MANAGER[dayOfWeek] || []).includes(child)) {
       required.push({
         id: `dinner-manager-${today}`,
