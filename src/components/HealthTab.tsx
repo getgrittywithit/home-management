@@ -9,6 +9,8 @@ import {
   CircleDot, ChevronDown, ChevronUp
 } from 'lucide-react'
 import MoodHistoryCard from './MoodHistoryCard'
+import HealthProviders from './health/HealthProviders'
+import HealthMedications from './health/HealthMedications'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -284,6 +286,12 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
   })
 
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+
+  // Share with Provider modal
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportKid, setExportKid] = useState('amos')
+  const [exportRange, setExportRange] = useState(30)
+  const [exporting, setExporting] = useState(false)
 
   const themeColor = memberGroup === 'parents' ? 'blue' : 'teal'
   const themeClasses = memberGroup === 'parents'
@@ -991,6 +999,27 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
 
   const familyMembers = healthProfiles.map(p => p.family_member_name)
 
+  const handleExportPDF = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch('/api/health/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kid_name: exportKid, date_range: exportRange }),
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+      setShowExportModal(false)
+    } catch (err) {
+      console.error('Export error:', err)
+      setError('Failed to generate PDF')
+    }
+    setExporting(false)
+  }
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -1010,22 +1039,33 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className={`bg-gradient-to-r ${themeClasses} text-white p-6 rounded-lg shadow-lg`}>
-        <div className="flex items-start gap-3">
-          {memberGroup === 'parents' ? (
-            <Shield className="w-8 h-8 flex-shrink-0 mt-1" />
-          ) : (
-            <Heart className="w-8 h-8 flex-shrink-0 mt-1" />
-          )}
-          <div>
-            <h1 className="text-2xl font-bold">
-              {memberGroup === 'parents' ? 'Parents' : 'Kids'} Health Management
-            </h1>
-            <p className="text-opacity-90 mt-1">
-              {memberGroup === 'parents'
-                ? 'Insurance, benefits, and health records for adults'
-                : 'Insurance, pediatric care, and health profiles for children'}
-            </p>
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            {memberGroup === 'parents' ? (
+              <Shield className="w-8 h-8 flex-shrink-0 mt-1" />
+            ) : (
+              <Heart className="w-8 h-8 flex-shrink-0 mt-1" />
+            )}
+            <div>
+              <h1 className="text-2xl font-bold">
+                {memberGroup === 'parents' ? 'Parents' : 'Kids'} Health Management
+              </h1>
+              <p className="text-opacity-90 mt-1">
+                {memberGroup === 'parents'
+                  ? 'Insurance, benefits, and health records for adults'
+                  : 'Insurance, pediatric care, and health profiles for children'}
+              </p>
+            </div>
           </div>
+          {memberGroup === 'kids' && (
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition shrink-0"
+            >
+              <ClipboardList className="w-4 h-4" />
+              Share with Provider
+            </button>
+          )}
         </div>
       </div>
 
@@ -1076,341 +1116,15 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       {/* INSURANCE & BENEFITS SECTION (Phase 1 - unchanged) */}
       {/* ================================================================== */}
       {activeSection === 'insurance' && (
-        <div className="space-y-6">
-          {/* Insurance Plan Card */}
-          {insurancePlan && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-3">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                    memberGroup === 'parents' ? 'bg-blue-100' : 'bg-teal-100'
-                  }`}>
-                    <Building2 className={`w-6 h-6 ${
-                      memberGroup === 'parents' ? 'text-blue-600' : 'text-teal-600'
-                    }`} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">{insurancePlan.plan_name}</h2>
-                    <p className="text-sm text-gray-600 capitalize">{insurancePlan.plan_type}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setEditingPlan(!editingPlan)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition ${
-                    editingPlan
-                      ? `bg-${themeColor}-100 text-${themeColor}-700`
-                      : `bg-gray-100 text-gray-700 hover:bg-gray-200`
-                  }`}
-                >
-                  <Edit2 className="w-4 h-4" />
-                  {editingPlan ? 'Cancel' : 'Edit'}
-                </button>
-              </div>
-
-              {editingPlan ? (
-                <InsurancePlanEditForm
-                  plan={insurancePlan}
-                  onSave={handleUpdatePlan}
-                  onCancel={() => setEditingPlan(false)}
-                  themeColor={themeColor}
-                />
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {insurancePlan.subscriber_name && (
-                      <div>
-                        <p className="text-sm text-gray-600">Subscriber</p>
-                        <p className="font-semibold text-gray-900">{insurancePlan.subscriber_name}</p>
-                      </div>
-                    )}
-                    {insurancePlan.member_id && (
-                      <div>
-                        <p className="text-sm text-gray-600">Member ID</p>
-                        <p className="font-semibold text-gray-900">{insurancePlan.member_id}</p>
-                      </div>
-                    )}
-                    {insurancePlan.group_number && (
-                      <div>
-                        <p className="text-sm text-gray-600">Group Number</p>
-                        <p className="font-semibold text-gray-900">{insurancePlan.group_number}</p>
-                      </div>
-                    )}
-                    {insurancePlan.network_type && (
-                      <div>
-                        <p className="text-sm text-gray-600">Network Type</p>
-                        <p className="font-semibold text-gray-900">{insurancePlan.network_type}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                    <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-green-600" />
-                      Copays & Coverage
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {insurancePlan.copay_primary && (
-                        <div className="bg-white p-3 rounded border">
-                          <p className="text-xs text-gray-600">Primary Care</p>
-                          <p className="font-bold text-gray-900">{insurancePlan.copay_primary}</p>
-                        </div>
-                      )}
-                      {insurancePlan.copay_specialist && (
-                        <div className="bg-white p-3 rounded border">
-                          <p className="text-xs text-gray-600">Specialist</p>
-                          <p className="font-bold text-gray-900">{insurancePlan.copay_specialist}</p>
-                        </div>
-                      )}
-                      {insurancePlan.copay_urgent_care && (
-                        <div className="bg-white p-3 rounded border">
-                          <p className="text-xs text-gray-600">Urgent Care</p>
-                          <p className="font-bold text-gray-900">{insurancePlan.copay_urgent_care}</p>
-                        </div>
-                      )}
-                      {insurancePlan.copay_er && (
-                        <div className="bg-white p-3 rounded border">
-                          <p className="text-xs text-gray-600">ER Visit</p>
-                          <p className="font-bold text-gray-900">{insurancePlan.copay_er}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      {insurancePlan.deductible && (
-                        <div className="bg-white p-3 rounded border">
-                          <p className="text-xs text-gray-600">Deductible</p>
-                          <p className="font-bold text-gray-900">{insurancePlan.deductible}</p>
-                        </div>
-                      )}
-                      {insurancePlan.out_of_pocket_max && (
-                        <div className="bg-white p-3 rounded border">
-                          <p className="text-xs text-gray-600">Out of Pocket Max</p>
-                          <p className="font-bold text-gray-900">{insurancePlan.out_of_pocket_max}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    {insurancePlan.plan_phone && (
-                      <div className="flex items-center gap-3">
-                        <Phone className="w-4 h-4 text-gray-500" />
-                        <a href={`tel:${insurancePlan.plan_phone}`} className="text-blue-600 hover:underline">
-                          {insurancePlan.plan_phone}
-                        </a>
-                      </div>
-                    )}
-                    {insurancePlan.plan_website && (
-                      <div className="flex items-center gap-3">
-                        <Globe className="w-4 h-4 text-gray-500" />
-                        <a href={insurancePlan.plan_website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                          {insurancePlan.plan_website}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Benefit Rules */}
-          {benefitRules.length > 0 && (
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-amber-600" />
-                Benefit Rules & Restrictions
-              </h3>
-              <div className="space-y-3">
-                {benefitRules.map(rule => (
-                  <div key={rule.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                    <div className="flex items-start gap-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${categoryColors[rule.rule_category]}`}>
-                        {rule.rule_category.replace('_', ' ').toUpperCase()}
-                      </span>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">{rule.rule_title}</h4>
-                        <p className="text-sm text-gray-700 mt-1">{rule.rule_description}</p>
-                        {rule.applies_to && (
-                          <p className="text-xs text-gray-600 mt-2">
-                            <strong>Applies to:</strong> {rule.applies_to}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Provider Directory */}
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Stethoscope className="w-5 h-5 text-blue-600" />
-                Provider Directory
-              </h3>
-              <button
-                onClick={() => { resetProviderForm(); setShowAddProvider(!showAddProvider) }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition ${
-                  showAddProvider
-                    ? `bg-${themeColor}-100 text-${themeColor}-700`
-                    : `bg-${themeColor}-500 text-white hover:bg-${themeColor}-600`
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                {showAddProvider ? 'Cancel' : 'Add Provider'}
-              </button>
-            </div>
-
-            {showAddProvider && (
-              <ProviderForm
-                form={providerForm} setForm={setProviderForm}
-                onSave={() => editingProvider ? handleUpdateProvider(editingProvider) : handleAddProvider()}
-                onCancel={resetProviderForm} isEditing={!!editingProvider} themeColor={themeColor}
-              />
-            )}
-
-            {providers.length === 0 ? (
-              <div className="text-center py-8">
-                <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-600">No providers added yet. Click &quot;Add Provider&quot; to get started.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {providers.map(provider => (
-                  <div key={provider.id} className="border rounded-lg p-4 hover:bg-gray-50 transition">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-gray-900">{provider.name}</h4>
-                          {provider.specialty && (
-                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{provider.specialty}</span>
-                          )}
-                        </div>
-                        {provider.practice_name && <p className="text-sm text-gray-700 mt-1">{provider.practice_name}</p>}
-                        <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-600">
-                          {provider.phone && (
-                            <a href={`tel:${provider.phone}`} className="flex items-center gap-1 hover:text-blue-600">
-                              <Phone className="w-4 h-4" /> {provider.phone}
-                            </a>
-                          )}
-                          {provider.address && (
-                            <div className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {provider.address}</div>
-                          )}
-                        </div>
-                        {provider.notes && <p className="text-sm text-gray-600 mt-2 italic">{provider.notes}</p>}
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => startEditProvider(provider)} className="p-2 hover:bg-blue-100 rounded-lg transition text-blue-600" title="Edit">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDeleteProvider(provider.id)} className="p-2 hover:bg-red-100 rounded-lg transition text-red-600" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Health Profiles */}
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <User className="w-5 h-5 text-purple-600" />
-                Health Profiles
-              </h3>
-              <button
-                onClick={() => { resetProfileForm(); setShowAddProfile(!showAddProfile) }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition ${
-                  showAddProfile
-                    ? `bg-${themeColor}-100 text-${themeColor}-700`
-                    : `bg-${themeColor}-500 text-white hover:bg-${themeColor}-600`
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                {showAddProfile ? 'Cancel' : 'Add Profile'}
-              </button>
-            </div>
-
-            {showAddProfile && (
-              <HealthProfileForm
-                form={profileForm} setForm={setProfileForm}
-                onSave={() => editingProfile ? handleUpdateProfile(editingProfile) : handleAddProfile()}
-                onCancel={resetProfileForm} isEditing={!!editingProfile} themeColor={themeColor}
-              />
-            )}
-
-            {healthProfiles.length === 0 ? (
-              <div className="text-center py-8">
-                <User className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-600">No health profiles added yet. Click &quot;Add Profile&quot; to get started.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {healthProfiles.map(profile => (
-                  <div key={profile.id} className="border rounded-lg p-4 hover:bg-gray-50 transition">
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <h4 className="font-semibold text-gray-900 text-lg">{profile.family_member_name}</h4>
-                      <div className="flex gap-1">
-                        <button onClick={() => startEditProfile(profile)} className="p-1.5 hover:bg-blue-100 rounded transition text-blue-600" title="Edit">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDeleteProfile(profile.id)} className="p-1.5 hover:bg-red-100 rounded transition text-red-600" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      {profile.blood_type && (
-                        <div><p className="text-gray-600">Blood Type</p><p className="font-semibold text-gray-900">{profile.blood_type}</p></div>
-                      )}
-                      {profile.allergies && (
-                        <div className="bg-red-50 border border-red-200 rounded p-2">
-                          <p className="text-red-900 font-semibold text-xs">ALLERGIES</p>
-                          <p className="text-red-800">{profile.allergies}</p>
-                        </div>
-                      )}
-                      {profile.chronic_conditions && (
-                        <div><p className="text-gray-600">Chronic Conditions</p><p className="text-gray-900">{profile.chronic_conditions}</p></div>
-                      )}
-                      {profile.primary_doctor && (
-                        <div>
-                          <p className="text-gray-600">Primary Doctor</p>
-                          <p className="text-gray-900">{profile.primary_doctor}</p>
-                          {profile.primary_doctor_phone && (
-                            <a href={`tel:${profile.primary_doctor_phone}`} className="text-blue-600 hover:underline">{profile.primary_doctor_phone}</a>
-                          )}
-                        </div>
-                      )}
-                      {profile.pharmacy_name && (
-                        <div>
-                          <p className="text-gray-600">Pharmacy</p>
-                          <p className="text-gray-900">{profile.pharmacy_name}</p>
-                          {profile.pharmacy_phone && (
-                            <a href={`tel:${profile.pharmacy_phone}`} className="text-blue-600 hover:underline">{profile.pharmacy_phone}</a>
-                          )}
-                        </div>
-                      )}
-                      {profile.emergency_contact && (
-                        <div className="border-t pt-2">
-                          <p className="text-gray-600 font-semibold">Emergency Contact</p>
-                          <p className="text-gray-900">{profile.emergency_contact}</p>
-                          {profile.emergency_phone && (
-                            <a href={`tel:${profile.emergency_phone}`} className="text-blue-600 hover:underline">{profile.emergency_phone}</a>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <HealthProviders
+          memberGroup={memberGroup}
+          insurancePlan={insurancePlan}
+          providers={providers}
+          healthProfiles={healthProfiles}
+          benefitRules={benefitRules}
+          onReload={loadData}
+          onError={setError}
+        />
       )}
 
       {/* ================================================================== */}
@@ -1597,217 +1311,16 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       )}
 
       {/* ================================================================== */}
-      {/* MEDICATIONS SECTION (Phase 2 - NEW) */}
+      {/* MEDICATIONS SECTION — Extracted to HealthMedications */}
       {/* ================================================================== */}
       {activeSection === 'medications' && (
-        <div className="space-y-6">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white rounded-lg p-4 shadow-sm border text-center">
-              <p className="text-2xl font-bold text-green-600">
-                {medications.filter(m => m.is_active).length}
-              </p>
-              <p className="text-xs text-gray-600 mt-1">Active Meds</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border text-center">
-              <p className="text-2xl font-bold text-amber-600">
-                {medications.filter(m => m.is_active && m.refill_date && isPastDue(m.refill_date)).length}
-              </p>
-              <p className="text-xs text-gray-600 mt-1">Refills Due</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border text-center">
-              <p className="text-2xl font-bold text-gray-400">
-                {medications.filter(m => !m.is_active).length}
-              </p>
-              <p className="text-xs text-gray-600 mt-1">Discontinued</p>
-            </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm border text-center">
-              <p className="text-2xl font-bold text-gray-600">
-                {medications.length}
-              </p>
-              <p className="text-xs text-gray-600 mt-1">Total</p>
-            </div>
-          </div>
-
-          {/* Refill Alerts */}
-          {medications.filter(m => m.is_active && m.refill_date && isPastDue(m.refill_date)).length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <h4 className="font-semibold text-amber-900 flex items-center gap-2 mb-2">
-                <AlertTriangle className="w-5 h-5" />
-                Refills Past Due
-              </h4>
-              <div className="space-y-1">
-                {medications.filter(m => m.is_active && m.refill_date && isPastDue(m.refill_date)).map(m => (
-                  <p key={m.id} className="text-sm text-amber-800">
-                    <strong>{m.medication_name}</strong> for {m.family_member_name} — refill was due {formatDate(m.refill_date!)}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Medications List */}
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Pill className="w-5 h-5 text-purple-600" />
-                Medications
-              </h3>
-              <button
-                onClick={() => { resetMedicationForm(); setShowAddMedication(!showAddMedication) }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition ${
-                  showAddMedication
-                    ? `bg-${themeColor}-100 text-${themeColor}-700`
-                    : `bg-${themeColor}-500 text-white hover:bg-${themeColor}-600`
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                {showAddMedication ? 'Cancel' : 'Add Medication'}
-              </button>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex gap-2 mb-4">
-              {(['active', 'all'] as const).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setMedFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                    medFilter === f
-                      ? 'bg-gray-800 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {f === 'active' ? 'Active' : 'All'}
-                </button>
-              ))}
-            </div>
-
-            {/* Add/Edit Form */}
-            {showAddMedication && (
-              <MedicationForm
-                form={medicationForm}
-                setForm={setMedicationForm}
-                onSave={() => editingMedication ? handleUpdateMedication(editingMedication) : handleAddMedication()}
-                onCancel={resetMedicationForm}
-                isEditing={!!editingMedication}
-                themeColor={themeColor}
-                familyMembers={familyMembers}
-              />
-            )}
-
-            {/* Medications List */}
-            {filteredMedications.length === 0 ? (
-              <div className="text-center py-8">
-                <Pill className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-600">
-                  {medFilter === 'active'
-                    ? 'No active medications. Click "Add Medication" to track one.'
-                    : 'No medications found.'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredMedications.map(med => {
-                  const refillDays = med.refill_date ? getDaysUntil(med.refill_date) : null
-                  return (
-                    <div key={med.id} className={`border rounded-lg p-4 transition ${
-                      !med.is_active ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'
-                    }`}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-semibold text-gray-900">{med.medication_name}</h4>
-                            {med.dosage && <span className="text-sm text-gray-600">({med.dosage})</span>}
-                            <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                              med.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {med.is_active ? 'Active' : 'Discontinued'}
-                            </span>
-                            {med.is_active && refillDays !== null && refillDays <= 7 && (
-                              <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                                refillDays <= 0 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {refillDays <= 0 ? 'Refill Overdue' : `Refill in ${refillDays}d`}
-                              </span>
-                            )}
-                          </div>
-
-                          <p className="text-sm text-gray-600 mt-1">
-                            For <strong>{med.family_member_name}</strong>
-                          </p>
-
-                          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600">
-                            {med.frequency && (
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>{med.frequency}</span>
-                              </div>
-                            )}
-                            {med.prescribing_doctor && (
-                              <div className="flex items-center gap-2">
-                                <Stethoscope className="w-3.5 h-3.5" />
-                                <span>{med.prescribing_doctor}</span>
-                              </div>
-                            )}
-                            {med.pharmacy && (
-                              <div className="flex items-center gap-2">
-                                <Building2 className="w-3.5 h-3.5" />
-                                <span>{med.pharmacy}</span>
-                              </div>
-                            )}
-                            {med.refill_date && (
-                              <div className="flex items-center gap-2">
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                <span>Refill: {formatDate(med.refill_date)}</span>
-                                {med.refills_remaining !== null && med.refills_remaining !== undefined && (
-                                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
-                                    {med.refills_remaining} left
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {med.purpose && (
-                              <div className="flex items-center gap-2 md:col-span-2">
-                                <ArrowRight className="w-3.5 h-3.5" />
-                                <span>For: {med.purpose}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {med.side_effects && (
-                            <p className="text-xs text-amber-700 mt-2 bg-amber-50 px-2 py-1 rounded">
-                              Side effects: {med.side_effects}
-                            </p>
-                          )}
-                          {med.notes && <p className="text-sm text-gray-500 italic mt-1">{med.notes}</p>}
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                          <button
-                            onClick={() => handleToggleMedicationActive(med.id, med.is_active)}
-                            className={`p-2 rounded-lg transition ${
-                              med.is_active ? 'hover:bg-gray-200 text-gray-500' : 'hover:bg-green-100 text-green-600'
-                            }`}
-                            title={med.is_active ? 'Mark Discontinued' : 'Mark Active'}
-                          >
-                            {med.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                          <button onClick={() => startEditMedication(med)} className="p-2 hover:bg-blue-100 rounded-lg transition text-blue-600" title="Edit">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDeleteMedication(med.id)} className="p-2 hover:bg-red-100 rounded-lg transition text-red-600" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+        <HealthMedications
+          memberGroup={memberGroup}
+          medications={medications}
+          familyMembers={familyMembers}
+          onReload={loadData}
+          onError={setError}
+        />
       )}
 
       {/* ================================================================== */}
@@ -2485,6 +1998,50 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
           )}
         </div>
       )}
+
+      {/* Share with Provider Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-teal-600" />
+                Share with Provider
+              </h3>
+              <button onClick={() => setShowExportModal(false)} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Select Child</label>
+              <select value={exportKid} onChange={e => setExportKid(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 text-sm">
+                {['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah'].map(k => (
+                  <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">Date Range</label>
+              <div className="flex gap-2">
+                {[7, 30, 90].map(r => (
+                  <button key={r} onClick={() => setExportRange(r)}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      exportRange === r ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}>
+                    Last {r} Days
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button onClick={handleExportPDF} disabled={exporting}
+              className="w-full bg-teal-500 text-white py-3 rounded-lg font-medium hover:bg-teal-600 disabled:opacity-50 flex items-center justify-center gap-2">
+              {exporting ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <>Generate PDF</>}
+            </button>
+            <p className="text-xs text-gray-500 text-center">PDF opens in a new tab. Print or save to share with your provider.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2710,6 +2267,7 @@ function CycleManager({ overview, onRefresh, onError }: {
           )
         })
       )}
+
     </div>
   )
 }
@@ -2841,6 +2399,7 @@ function DentalManager({ overview, onRefresh, onError }: {
           </div>
         )
       })}
+
     </div>
   )
 }
@@ -3052,171 +2611,21 @@ function KidRequestActions({ onUpdate }: { requestId: number; onUpdate: (status:
   )
 }
 
-// ============================================================================
-// SUB-COMPONENTS: FORMS
-// ============================================================================
+// Forms (ProviderForm, HealthProfileForm, InsurancePlanEditForm) moved to health/HealthProviders.tsx
+// MedicationForm moved to health/HealthMedications.tsx
 
-// Provider Form (Phase 1)
-interface ProviderFormProps {
-  form: Partial<HealthProvider>
-  setForm: (form: Partial<HealthProvider>) => void
-  onSave: () => void
-  onCancel: () => void
-  isEditing: boolean
-  themeColor: string
-}
+// NOTE: Remaining form sub-components (AppointmentForm, VisitNoteForm, etc.) are still below
+// and will be extracted in future REFACTOR-2 iterations.
 
-function ProviderForm({ form, setForm, onSave, onCancel, isEditing, themeColor }: ProviderFormProps) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
-      <input type="text" placeholder="Provider Name *" value={form.name || ''}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="text" placeholder="Specialty (e.g., Primary Care, Rheumatology, Pediatrics)" value={form.specialty || ''}
-        onChange={(e) => setForm({ ...form, specialty: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="text" placeholder="Practice Name" value={form.practice_name || ''}
-        onChange={(e) => setForm({ ...form, practice_name: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="tel" placeholder="Phone" value={form.phone || ''}
-        onChange={(e) => setForm({ ...form, phone: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="text" placeholder="Address" value={form.address || ''}
-        onChange={(e) => setForm({ ...form, address: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <textarea placeholder="Notes" value={form.notes || ''}
-        onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
-      <div className="flex gap-2">
-        <button onClick={onSave}
-          className={`flex-1 bg-${themeColor}-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-${themeColor}-600 transition`}>
-          {isEditing ? 'Update Provider' : 'Add Provider'}
-        </button>
-        <button onClick={onCancel}
-          className="flex-1 bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
+// Provider Form — REMOVED, now in HealthProviders.tsx
+// HealthProfileForm — REMOVED, now in HealthProviders.tsx
+// InsurancePlanEditForm — REMOVED, now in HealthProviders.tsx
+// MedicationForm — REMOVED, now in HealthMedications.tsx
 
-// Health Profile Form (Phase 1)
-interface HealthProfileFormProps {
-  form: Partial<HealthProfile>
-  setForm: (form: Partial<HealthProfile>) => void
-  onSave: () => void
-  onCancel: () => void
-  isEditing: boolean
-  themeColor: string
-}
-
-function HealthProfileForm({ form, setForm, onSave, onCancel, isEditing, themeColor }: HealthProfileFormProps) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
-      <input type="text" placeholder="Family Member Name *" value={form.family_member_name || ''}
-        onChange={(e) => setForm({ ...form, family_member_name: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="text" placeholder="Blood Type" value={form.blood_type || ''}
-        onChange={(e) => setForm({ ...form, blood_type: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <textarea placeholder="Allergies" value={form.allergies || ''}
-        onChange={(e) => setForm({ ...form, allergies: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
-      <textarea placeholder="Chronic Conditions" value={form.chronic_conditions || ''}
-        onChange={(e) => setForm({ ...form, chronic_conditions: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
-      <input type="text" placeholder="Primary Doctor" value={form.primary_doctor || ''}
-        onChange={(e) => setForm({ ...form, primary_doctor: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="tel" placeholder="Primary Doctor Phone" value={form.primary_doctor_phone || ''}
-        onChange={(e) => setForm({ ...form, primary_doctor_phone: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="text" placeholder="Pharmacy Name" value={form.pharmacy_name || ''}
-        onChange={(e) => setForm({ ...form, pharmacy_name: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="tel" placeholder="Pharmacy Phone" value={form.pharmacy_phone || ''}
-        onChange={(e) => setForm({ ...form, pharmacy_phone: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="text" placeholder="Emergency Contact Name" value={form.emergency_contact || ''}
-        onChange={(e) => setForm({ ...form, emergency_contact: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <input type="tel" placeholder="Emergency Contact Phone" value={form.emergency_phone || ''}
-        onChange={(e) => setForm({ ...form, emergency_phone: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      <textarea placeholder="Additional Notes" value={form.notes || ''}
-        onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
-      <div className="flex gap-2">
-        <button onClick={onSave}
-          className={`flex-1 bg-${themeColor}-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-${themeColor}-600 transition`}>
-          {isEditing ? 'Update Profile' : 'Add Profile'}
-        </button>
-        <button onClick={onCancel}
-          className="flex-1 bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// Insurance Plan Edit Form (Phase 1)
-interface InsurancePlanEditFormProps {
-  plan: InsurancePlan
-  onSave: (updates: Partial<InsurancePlan>) => void
-  onCancel: () => void
-  themeColor: string
-}
-
-function InsurancePlanEditForm({ plan, onSave, onCancel, themeColor }: InsurancePlanEditFormProps) {
-  const [updates, setUpdates] = useState<Partial<InsurancePlan>>({
-    copay_primary: plan.copay_primary, copay_specialist: plan.copay_specialist,
-    copay_urgent_care: plan.copay_urgent_care, copay_er: plan.copay_er,
-    deductible: plan.deductible, out_of_pocket_max: plan.out_of_pocket_max, notes: plan.notes
-  })
-
-  return (
-    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <input type="text" placeholder="Primary Care Copay" value={updates.copay_primary || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_primary: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Specialist Copay" value={updates.copay_specialist || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_specialist: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Urgent Care Copay" value={updates.copay_urgent_care || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_urgent_care: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="ER Copay" value={updates.copay_er || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_er: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Deductible" value={updates.deductible || ''}
-          onChange={(e) => setUpdates({ ...updates, deductible: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Out of Pocket Max" value={updates.out_of_pocket_max || ''}
-          onChange={(e) => setUpdates({ ...updates, out_of_pocket_max: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-      <textarea placeholder="Notes" value={updates.notes || ''}
-        onChange={(e) => setUpdates({ ...updates, notes: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
-      <div className="flex gap-2">
-        <button onClick={() => onSave(updates)}
-          className={`flex-1 bg-${themeColor}-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-${themeColor}-600 transition`}>
-          Save Changes
-        </button>
-        <button onClick={onCancel}
-          className="flex-1 bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
+// (AppointmentForm still used inline — remaining forms will be extracted in future REFACTOR-2 iterations)
 
 // ============================================================================
-// PHASE 2 FORMS
+// PHASE 2 FORMS (AppointmentForm still inline — remaining extraction in future REFACTOR-2)
 // ============================================================================
 
 // Appointment Form
@@ -3333,105 +2742,3 @@ function AppointmentForm({ form, setForm, onSave, onCancel, isEditing, themeColo
   )
 }
 
-// Medication Form
-interface MedicationFormProps {
-  form: Partial<Medication>
-  setForm: (form: Partial<Medication>) => void
-  onSave: () => void
-  onCancel: () => void
-  isEditing: boolean
-  themeColor: string
-  familyMembers: string[]
-}
-
-function MedicationForm({ form, setForm, onSave, onCancel, isEditing, themeColor, familyMembers }: MedicationFormProps) {
-  return (
-    <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Family Member */}
-        {familyMembers.length > 0 ? (
-          <select value={form.family_member_name || ''}
-            onChange={(e) => setForm({ ...form, family_member_name: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-            <option value="">Select Family Member *</option>
-            {familyMembers.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        ) : (
-          <input type="text" placeholder="Family Member Name *" value={form.family_member_name || ''}
-            onChange={(e) => setForm({ ...form, family_member_name: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        )}
-
-        <input type="text" placeholder="Medication Name *" value={form.medication_name || ''}
-          onChange={(e) => setForm({ ...form, medication_name: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-        <input type="text" placeholder="Dosage (e.g. 20mg, 500mg)" value={form.dosage || ''}
-          onChange={(e) => setForm({ ...form, dosage: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-        <input type="text" placeholder="Frequency (e.g. Once daily, Twice daily)" value={form.frequency || ''}
-          onChange={(e) => setForm({ ...form, frequency: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-        <input type="text" placeholder="Prescribing Doctor" value={form.prescribing_doctor || ''}
-          onChange={(e) => setForm({ ...form, prescribing_doctor: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-        <input type="text" placeholder="Pharmacy" value={form.pharmacy || ''}
-          onChange={(e) => setForm({ ...form, pharmacy: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-
-      <input type="text" placeholder="Purpose (e.g. Blood pressure, ADHD, Pain management)" value={form.purpose || ''}
-        onChange={(e) => setForm({ ...form, purpose: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">Start Date</label>
-          <input type="date" value={form.start_date || ''}
-            onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">End Date (if applicable)</label>
-          <input type="date" value={form.end_date || ''}
-            onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">Next Refill Date</label>
-          <input type="date" value={form.refill_date || ''}
-            onChange={(e) => setForm({ ...form, refill_date: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <input type="number" placeholder="Refills Remaining" value={form.refills_remaining ?? ''}
-          onChange={(e) => setForm({ ...form, refills_remaining: e.target.value ? parseInt(e.target.value) : undefined })}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-
-        <input type="text" placeholder="Side Effects (if any)" value={form.side_effects || ''}
-          onChange={(e) => setForm({ ...form, side_effects: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-
-      <textarea placeholder="Notes" value={form.notes || ''}
-        onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
-
-      <div className="flex gap-2">
-        <button onClick={onSave}
-          className={`flex-1 bg-${themeColor}-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-${themeColor}-600 transition`}>
-          {isEditing ? 'Update Medication' : 'Add Medication'}
-        </button>
-        <button onClick={onCancel}
-          className="flex-1 bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
