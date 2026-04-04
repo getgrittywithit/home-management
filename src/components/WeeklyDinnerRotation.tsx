@@ -9,7 +9,7 @@ const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: strin
     tuesday: { kid: 'zoey', theme: 'asian', emoji: '🥡', label: 'Asian Night' },
     wednesday: { kid: 'wyatt', theme: 'bar-night', emoji: '🥗', label: 'Bar Night' },
     thursday: { kid: 'amos', theme: 'mexican', emoji: '🌮', label: 'Mexican Night' },
-    friday: { kid: 'ellie', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian' },
+    friday: { kid: 'ellie & hannah', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian' },
     saturday: { kid: 'parents', theme: 'grill', emoji: '🔥', label: 'Grill Night' },
     sunday: { kid: 'parents', theme: 'roast-comfort', emoji: '🏡', label: 'Roast/Comfort' },
   },
@@ -18,7 +18,7 @@ const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: strin
     tuesday: { kid: 'zoey', theme: 'asian', emoji: '🥡', label: 'Asian Night' },
     wednesday: { kid: 'wyatt', theme: 'easy-lazy', emoji: '🥪', label: 'Easy/Lazy Night' },
     thursday: { kid: 'amos', theme: 'mexican', emoji: '🌮', label: 'Mexican Night' },
-    friday: { kid: 'hannah', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian' },
+    friday: { kid: 'ellie & hannah', theme: 'pizza-italian', emoji: '🍕', label: 'Pizza & Italian' },
     saturday: { kid: 'parents', theme: 'experiment', emoji: '🔬', label: 'Experiment/Big Cook' },
     sunday: { kid: 'parents', theme: 'brunch', emoji: '🍳', label: 'Brunch Sunday' },
   },
@@ -27,6 +27,7 @@ const DINNER_ROTATION: Record<string, Record<string, { kid: string; theme: strin
 const KID_DISPLAY: Record<string, string> = {
   kaylee: 'Kaylee', zoey: 'Zoey', wyatt: 'Wyatt', amos: 'Amos',
   ellie: 'Ellie', hannah: 'Hannah', parents: 'Parents',
+  'ellie & hannah': 'Ellie & Hannah',
 }
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']

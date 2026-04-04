@@ -25,11 +25,11 @@ export default function HomeschoolMath() {
           }`}>Journey Map</button>
       </div>
 
-      {/* Kid selector */}
-      <div className="flex gap-2">
-        {STUDENT_DEFAULTS.map(s => (
+      {/* Kid selector — ALL kids, not just homeschool */}
+      <div className="flex gap-2 overflow-x-auto">
+        {[...STUDENT_DEFAULTS, { id: 'zoey', name: 'Zoey', grade: '9th', mascot: '🌟', mascotName: 'Star', color: 'pink' }, { id: 'kaylee', name: 'Kaylee', grade: '7th', mascot: '🎭', mascotName: 'Drama', color: 'rose' }].map(s => (
           <button key={s.id} onClick={() => setSelectedKid(s.name)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${
               selectedKid === s.name ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
             {s.mascot} {s.name}

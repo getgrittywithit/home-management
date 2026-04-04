@@ -43,12 +43,14 @@ export default function HomeschoolELAR({ students, familyBook }: Props) {
         ))}
       </div>
 
-      {/* Kid selector for buddy/journey views */}
+      {/* Kid selector for buddy/journey views — ALL kids, not just homeschool */}
       {(view === 'book-buddy' || view === 'journey-map') && (
-        <div className="flex gap-2">
-          {students.map(s => (
+        <div className="flex gap-2 overflow-x-auto">
+          {[...students, { id: 'zoey', name: 'Zoey', mascot: '🌟' }, { id: 'kaylee', name: 'Kaylee', mascot: '🎭' }]
+            .filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i) // dedupe
+            .map(s => (
             <button key={s.id} onClick={() => setSelectedKid(s.name)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${
                 selectedKid === s.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}>
               {s.mascot} {s.name}

@@ -5,6 +5,7 @@ import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, Alert
 import EnrichmentCard from './EnrichmentCard'
 import PositiveReportButton from './PositiveReportButton'
 import KidMealPicker from './KidMealPicker'
+import WeeklyMealCalendar from './WeeklyMealCalendar'
 
 // ============================================================================
 // Types
@@ -518,6 +519,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       <style>{`@keyframes checkPop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }`}</style>
 
       {/* Meal Picker */}
+      <WeeklyMealCalendar kidName={kidName} compact />
       <KidMealPicker kidName={kidName} previewMode={previewMode} />
 
       {/* Messages & Alerts */}
