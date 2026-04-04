@@ -242,6 +242,26 @@ async function getKidContext(kidName: string): Promise<string> {
       [kid]
     ).catch(() => [])
     if (achievement[0]) parts.push(`Latest achievement: ${achievement[0].title}`)
+
+    // Recent zone/pet task completions (last 30 days)
+    const zoneCompletions = await db.query(
+      `SELECT r.assigned_date, t.task_text, t.zone_key
+       FROM zone_task_rotation r
+       JOIN zone_task_library t ON r.task_id = t.id
+       WHERE r.kid_name = $1 AND r.completed = TRUE
+         AND r.assigned_date >= CURRENT_DATE - INTERVAL '30 days'
+       ORDER BY r.assigned_date DESC LIMIT 15`,
+      [kid]
+    ).catch(() => [])
+    if (zoneCompletions.length > 0) {
+      const lines = zoneCompletions.map((c: any) => {
+        const d = new Date(c.assigned_date)
+        const daysAgo = Math.floor((Date.now() - d.getTime()) / 86400000)
+        const when = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`
+        return `${c.task_text} (${c.zone_key}) — ${when}`
+      })
+      parts.push('Recent task completions:\n' + lines.join('\n'))
+    }
   } catch { /* partial context is fine */ }
 
   return parts.join('\n')
@@ -405,6 +425,8 @@ export async function POST(request: NextRequest) {
       geography: ['continent', 'country', 'ocean', 'mountain', 'capital', 'map', 'equator', 'climate'],
       art: ['painting', 'sculpture', 'artist', 'museum', 'color theory', 'pottery'],
       music: ['instrument', 'rhythm', 'melody', 'composer', 'orchestra'],
+      pet_care: ['cage', 'clean', 'feed', 'feeding', 'water', 'bedding', 'groom', 'nail', 'substrate', 'hay', 'midnight', 'spike', 'hades', 'belle', 'pet', 'bunny', 'rabbit', 'snake', 'dragon', 'bearded'],
+      chore_history: ['chore', 'zone', 'last time', 'when did i', 'how long since', 'overdue', 'streak'],
     }
     let subjectDetected: string | null = null
     if (role === 'kid') {

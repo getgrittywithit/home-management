@@ -120,7 +120,7 @@ export default function KidOnboarding({ kidName, kidColor, onComplete }: KidOnbo
 
   const next = () => setScreen(s => Math.min(TOTAL_SCREENS - 1, s + 1))
   const prev = () => setScreen(s => Math.max(0, s - 1))
-  const skip = () => next()
+  const skip = () => finishOnboarding()
 
   const toggleInterest = (interest: string) => {
     setProfile(p => ({

@@ -145,7 +145,9 @@ export async function GET(request: NextRequest) {
         } else if (isWeekend && !isFirstSatOfMonth) {
           rotatingTasks = rotatingTasks.filter((t: any) => !t.frequency || t.frequency === 'always' || t.frequency === 'weekly')
         }
-        rotatingTasks = rotatingTasks.slice(0, zoneDef.rotating_count || 4)
+        // Pet/duty zones: show fewer rotating tasks per day (most overdue first)
+        const maxRotating = zoneDef.zone_type === 'duty' ? Math.min(zoneDef.rotating_count || 2, 2) : (zoneDef.rotating_count || 4)
+        rotatingTasks = rotatingTasks.slice(0, maxRotating)
       } catch { rotatingTasks = [] }
 
       // ── Pull weekly tasks — only on weekends (Sat/Sun) ──
@@ -262,7 +264,13 @@ export async function GET(request: NextRequest) {
       })
 
       const completedCount = tasks.filter(t => t.completed).length
-      const totalMins = tasks.reduce((sum, t) => sum + (t.duration_mins || 0), 0)
+      // Time estimate: anchor tasks always count, rotating tasks only count the ones assigned today
+      // (not ALL rotating tasks — just the limited set from rotating_count)
+      const anchorMins = tasks.filter(t => t.task_type === 'anchor').reduce((sum: number, t: any) => sum + (t.duration_mins || 0), 0)
+      const rotatingMins = tasks.filter(t => t.task_type === 'rotating').reduce((sum: number, t: any) => sum + (t.duration_mins || 0), 0)
+      const weeklyMins = tasks.filter(t => t.task_type === 'weekly').reduce((sum: number, t: any) => sum + (t.duration_mins || 0), 0)
+      const monthlyMins = tasks.filter(t => t.task_type === 'monthly').reduce((sum: number, t: any) => sum + (t.duration_mins || 0), 0)
+      const totalMins = anchorMins + rotatingMins + weeklyMins + monthlyMins
 
       // Morning routine footer note
       let footerNote: string | null = null

@@ -134,6 +134,21 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, rotation_id: task.rotation_id })
       })
+      // Award stars on completion
+      if (newCompleted) {
+        const kidKey = childName.toLowerCase()
+        const today = new Date().toLocaleDateString('en-CA')
+        fetch('/api/digi-pet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'award_task_stars',
+            kid_name: kidKey,
+            task_type: 'zone_chore',
+            source_ref: `zone-${task.id}-${today}`,
+          }),
+        }).catch(() => {})
+      }
     } catch (err) {
       // Revert on error
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: wasCompleted } : t))

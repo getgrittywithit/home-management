@@ -188,7 +188,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
   const [showModal, setShowModal] = useState(false)
-  const [schoolData, setSchoolData] = useState<SchoolProfile>(SAMPLE_SCHOOL_DATA)
+  const [schoolData, setSchoolData] = useState<SchoolProfile>({ childId: '', grade: '', school: '', schoolYear: '2025-2026', personalNotes: '', teachers: [], classes: [], links: [], assignments: [] })
   const [realSchedule, setRealSchedule] = useState<any>(null)
   const [currentlyReading, setCurrentlyReading] = useState<string>('')
 

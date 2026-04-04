@@ -134,6 +134,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    case 'get_my_books': {
+      const kid = searchParams.get('kid_name')
+      if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      try {
+        const books = await db.query(
+          `SELECT * FROM kid_book_progress WHERE kid_name = $1 ORDER BY
+           CASE WHEN status = 'reading' THEN 0 WHEN status = 'paused' THEN 1 ELSE 2 END,
+           COALESCE(finished_at, started_at) DESC
+           LIMIT 20`,
+          [kid.toLowerCase()]
+        )
+        return NextResponse.json({ books })
+      } catch {
+        return NextResponse.json({ books: [] })
+      }
+    }
+
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }
@@ -224,6 +241,26 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       } catch (error) {
         return NextResponse.json({ error: 'Failed' }, { status: 500 })
+      }
+    }
+
+    case 'log_enjoyment': {
+      const { kid_name, book_title, enjoyment_rating, session_notes } = body
+      if (!kid_name || !book_title || !enjoyment_rating) {
+        return NextResponse.json({ error: 'kid_name, book_title, enjoyment_rating required' }, { status: 400 })
+      }
+      try {
+        // Add enjoyment_rating column if it doesn't exist
+        await db.query(`ALTER TABLE kid_reading_log ADD COLUMN IF NOT EXISTS enjoyment_rating INT`).catch(() => {})
+        await db.query(
+          `INSERT INTO kid_reading_log (kid_name, book_title, minutes_read, enjoyment_rating, session_notes, log_date)
+           VALUES ($1, $2, 0, $3, $4, CURRENT_DATE)`,
+          [kid_name.toLowerCase(), book_title, enjoyment_rating, session_notes || null]
+        )
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error('log_enjoyment error:', error)
+        return NextResponse.json({ error: 'Failed to log enjoyment' }, { status: 500 })
       }
     }
 

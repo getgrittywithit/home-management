@@ -577,12 +577,12 @@ export const ALL_KIDS_BIRTH_DATA: Record<string, BirthCertificateInfo> = {
 
 // Current grades for 2025-2026 school year
 export const CURRENT_GRADES: Record<string, string> = {
-  'amos': '12th',      // Born 2009, age 16-17, homeschooled
-  'zoey': '12th',      // Born 2010, age 15-16, public school
-  'kaylee': '10th',    // Born 2012, age 13-14, public school
-  'ellie': '8th',      // Born 2014, age 11-12, homeschooled
-  'wyatt': '4th',      // Born 2015, age 10-11, homeschooled
-  'hannah': '6th'      // Born 2017, age 8-9, homeschooled
+  'amos': '10th',      // Born 2008, age 17, homeschooled
+  'zoey': '9th',       // Born 2010, age 15, public school (Champion High)
+  'kaylee': '7th',     // Born 2012, age 13, public school (BMSN)
+  'ellie': '6th',      // Born 2013, age 12, homeschooled
+  'wyatt': '4th',      // Born 2015, age 10, homeschooled
+  'hannah': '3rd'      // Born 2017, age 8, homeschooled
 }
 
 // Age-appropriate field visibility

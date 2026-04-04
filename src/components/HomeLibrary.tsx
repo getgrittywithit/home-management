@@ -33,6 +33,7 @@ interface LibraryItem {
   condition: string | null
   favorite_flag: boolean
   last_used: string | null
+  custom_tags?: string[]
 }
 
 interface AccessibilityWarning {
@@ -63,6 +64,18 @@ const SUBJECT_OPTIONS = [
   'math', 'elar', 'science', 'social_studies', 'life_skills',
   'financial_literacy', 'art', 'pe_outdoor', 'geography', 'logic', 'memory', 'typing',
 ]
+
+const VIBE_TAGS = [
+  'adventure', 'funny', 'animals', 'space', 'cooking', 'art', 'mystery',
+  'sports', 'science experiments', 'building', 'music', 'history', 'fantasy',
+  'scary', 'nature',
+]
+
+const VIBE_EMOJI: Record<string, string> = {
+  adventure: '\u{1F5FA}\uFE0F', funny: '\u{1F602}', animals: '\u{1F43E}', space: '\u{1F680}', cooking: '\u{1F373}',
+  art: '\u{1F3A8}', mystery: '\u{1F50D}', sports: '\u26BD', 'science experiments': '\u{1F9EA}',
+  building: '\u{1F527}', music: '\u{1F3B5}', history: '\u{1F4DC}', fantasy: '\u{1F409}', scary: '\u{1F47B}', nature: '\u{1F33F}',
+}
 
 const ALL_KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 
@@ -332,6 +345,60 @@ function LibraryBuddy({ kidName, onClose }: { kidName: string; onClose: () => vo
 }
 
 // ============================================================================
+// My Books Section (kid reading progress)
+// ============================================================================
+function MyBooksSection({ kidName }: { kidName: string }) {
+  const [books, setBooks] = useState<any[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/reading?action=get_my_books&kid_name=${kidName.toLowerCase()}`)
+      .then(r => r.json())
+      .then(data => { setBooks(data.books || []); setLoaded(true) })
+      .catch(() => setLoaded(true))
+  }, [kidName])
+
+  if (!loaded || books.length === 0) return null
+
+  const reading = books.filter((b: any) => b.status === 'reading')
+  const finished = books.filter((b: any) => b.status === 'finished').slice(0, 3)
+
+  return (
+    <div className="bg-white rounded-xl border p-4 space-y-3">
+      <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+        <BookOpen className="w-4 h-4 text-blue-600" /> My Books
+      </h4>
+      {reading.length > 0 && (
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Currently Reading</p>
+          {reading.map((b: any) => (
+            <div key={b.id || b.book_title} className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+              <span className="text-lg">{'\u{1F4D6}'}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{b.book_title}</p>
+                {b.total_pages && <p className="text-xs text-gray-500">Page {b.current_page || 0} of {b.total_pages}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {finished.length > 0 && (
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Recently Finished</p>
+          {finished.map((b: any) => (
+            <div key={b.id || b.book_title} className="flex items-center gap-2 text-sm text-gray-600">
+              <span>{'\u2705'}</span>
+              <span className="truncate">{b.book_title}</span>
+              {b.rating && <span className="text-xs text-amber-500">{'\u2B50'.repeat(Math.min(b.rating, 5))}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
 // Kid Library View
 // ============================================================================
 export function KidLibraryView({ kidName }: { kidName: string }) {
@@ -464,6 +531,19 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
           </div>
         )}
 
+        {selectedItem.custom_tags && selectedItem.custom_tags.length > 0 && (
+          <div className="mb-3">
+            <h4 className="text-xs font-medium text-gray-500 mb-1">Vibes</h4>
+            <div className="flex flex-wrap gap-1">
+              {selectedItem.custom_tags.map((tag) => (
+                <span key={tag} className="text-xs px-2 py-0.5 bg-purple-50 text-purple-600 rounded">
+                  {VIBE_EMOJI[tag] || '\u2728'} {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {selectedItem.edu_uses && selectedItem.edu_uses.length > 0 && (
           <div className="mb-3">
             <h4 className="text-xs font-medium text-gray-500 mb-1">Learning Uses</h4>
@@ -551,28 +631,52 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
         ))}
       </div>
 
-      {/* Subject filter */}
+      {/* Interest / Vibe filter */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         <button
           onClick={() => setFilterSubject(null)}
           className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${
-            !filterSubject ? 'bg-blue-100 text-blue-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+            !filterSubject ? 'bg-purple-100 text-purple-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
           }`}
         >
-          All Subjects
+          All
         </button>
-        {SUBJECT_OPTIONS.slice(0, 8).map((subj) => (
+        {VIBE_TAGS.map((tag) => (
           <button
-            key={subj}
-            onClick={() => setFilterSubject(subj)}
+            key={tag}
+            onClick={() => setFilterSubject(tag)}
             className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${
-              filterSubject === subj ? 'bg-blue-100 text-blue-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+              filterSubject === tag ? 'bg-purple-100 text-purple-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
             }`}
           >
-            {subj.replace('_', ' ')}
+            {VIBE_EMOJI[tag] || '\u2728'} {tag}
           </button>
         ))}
       </div>
+
+      {/* For You — personalized picks */}
+      {!filterType && !filterSubject && !searchQuery && (
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
+          <h4 className="font-semibold text-purple-900 text-sm mb-2">{'\u2728'} Picked for You</h4>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {items.filter(i => i.who_uses?.includes(kidName.toLowerCase()) || i.favorite_flag).slice(0, 5).map(item => (
+              <button key={item.id} onClick={() => handleSelectItem(item)}
+                className="shrink-0 w-28 text-center p-2 bg-white rounded-lg border hover:border-purple-300 transition">
+                <div className="text-2xl mb-1">{TYPE_ICONS[item.item_type] ? '\u{1F4DA}' : '\u{1F3AE}'}</div>
+                <p className="text-xs font-medium text-gray-900 line-clamp-2">{item.title}</p>
+              </button>
+            ))}
+            {items.filter(i => i.who_uses?.includes(kidName.toLowerCase()) || i.favorite_flag).length === 0 && (
+              <p className="text-xs text-purple-600">Start reading and rating to get personalized picks!</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* My Books section */}
+      {!filterType && !filterSubject && !searchQuery && (
+        <MyBooksSection kidName={kidName} />
+      )}
 
       {/* Items grid */}
       {loading ? (
@@ -604,6 +708,7 @@ export function ParentLibraryAdmin() {
   const [showScanner, setShowScanner] = useState(false)
   const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([])
   const [showPending, setShowPending] = useState(false)
+  const [discoveryMode, setDiscoveryMode] = useState(false)
 
   // Add form state
   const [formData, setFormData] = useState({
@@ -1181,6 +1286,55 @@ export function ParentLibraryAdmin() {
           ))}
         </div>
       )}
+
+      {/* Mode toggle */}
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          onClick={() => setDiscoveryMode(false)}
+          className={`text-xs px-2.5 py-1 rounded-lg font-medium ${!discoveryMode ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+        >
+          {'\u{1F4DA}'} Curriculum
+        </button>
+        <button
+          onClick={() => setDiscoveryMode(true)}
+          className={`text-xs px-2.5 py-1 rounded-lg font-medium ${discoveryMode ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+        >
+          {'\u{1F3AF}'} Discovery
+        </button>
+      </div>
+
+      {/* Subject / Vibe filter */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {!discoveryMode ? (
+          <>
+            {SUBJECT_OPTIONS.map((subj) => (
+              <button
+                key={subj}
+                onClick={() => setFilterType(subj)}
+                className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${
+                  filterType === subj ? 'bg-blue-100 text-blue-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                {subj.replace('_', ' ')}
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            {VIBE_TAGS.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setFilterType(tag)}
+                className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${
+                  filterType === tag ? 'bg-purple-100 text-purple-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                {VIBE_EMOJI[tag] || '\u2728'} {tag}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
 
       {/* Type filters */}
       <div className="flex gap-2">

@@ -32,20 +32,17 @@ export const SCHOOLS: Record<string, SchoolInfo> = {
     name: 'BOERNE - SAMUEL V CHAMPION H S',
     address: '1580 Champion Dr, Boerne, TX 78006',
     phone: '(830) 357-2000',
-    principal: 'Mr. Johnson',
     website: 'https://chs.bisd.net'
   },
   'boerne-middle-north': {
     name: 'BOERNE MIDDLE NORTH',
     address: 'Boerne, TX',
     phone: '(830) 357-2100',
-    principal: 'Ms. Anderson'
   },
   'herff-elementary': {
     name: 'HERFF EL',
     address: 'Boerne, TX',
     phone: '(830) 357-2200',
-    principal: 'Mrs. Williams'
   }
 }
 
@@ -133,14 +130,14 @@ export const EXTRACURRICULARS: Record<string, string[]> = {
   'hannah': []
 }
 
-// CHORE PAY SCALE - Update as needed
+// CHORE PAY SCALE - Zeroed out until reward/allowance system is built (Phase 6.1)
 export const CHORE_PAY_SCALE = {
-  'amos': { monthlyTarget: 40, dailyPaid: 3, requiredDaily: 2 },
-  'zoey': { monthlyTarget: 35, dailyPaid: 3, requiredDaily: 2 },
-  'kaylee': { monthlyTarget: 25, dailyPaid: 2, requiredDaily: 2 },
-  'ellie': { monthlyTarget: 20, dailyPaid: 2, requiredDaily: 2 },
-  'wyatt': { monthlyTarget: 15, dailyPaid: 2, requiredDaily: 2 },
-  'hannah': { monthlyTarget: 10, dailyPaid: 1, requiredDaily: 2 }
+  'amos': { monthlyTarget: 0, dailyPaid: 0, requiredDaily: 2 },
+  'zoey': { monthlyTarget: 0, dailyPaid: 0, requiredDaily: 2 },
+  'kaylee': { monthlyTarget: 0, dailyPaid: 0, requiredDaily: 2 },
+  'ellie': { monthlyTarget: 0, dailyPaid: 0, requiredDaily: 2 },
+  'wyatt': { monthlyTarget: 0, dailyPaid: 0, requiredDaily: 2 },
+  'hannah': { monthlyTarget: 0, dailyPaid: 0, requiredDaily: 2 }
 } as const
 
 // COMPREHENSIVE FAMILY MEMBER DATA - All dynamic from above configs
