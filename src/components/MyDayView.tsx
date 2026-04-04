@@ -72,6 +72,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const [noteSent, setNoteSent] = useState(false)
   const [announcement, setAnnouncement] = useState<string | null>(null)
   const [schoolDone, setSchoolDone] = useState(false)
+  const [mealRefreshKey, setMealRefreshKey] = useState(0)
 
   const kid = kidName.toLowerCase()
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
@@ -519,8 +520,8 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       <style>{`@keyframes checkPop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }`}</style>
 
       {/* Meal Picker */}
-      <WeeklyMealCalendar kidName={kidName} compact />
-      <KidMealPicker kidName={kidName} previewMode={previewMode} />
+      <WeeklyMealCalendar key={mealRefreshKey} kidName={kidName} compact />
+      <KidMealPicker kidName={kidName} previewMode={previewMode} onPick={() => setMealRefreshKey(k => k + 1)} />
 
       {/* Messages & Alerts */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">

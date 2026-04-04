@@ -6,6 +6,7 @@ import { ChefHat, Check, Clock, Shuffle, Loader2 } from 'lucide-react'
 interface KidMealPickerProps {
   kidName: string
   previewMode?: boolean
+  onPick?: () => void
 }
 
 const DINNER_MANAGERS: Record<number, { kid: string; theme1: string; theme2: string; emoji: string; label1: string; label2: string }> = {
@@ -26,7 +27,7 @@ function getMonday(d: Date): string {
   return monday.toLocaleDateString('en-CA')
 }
 
-export default function KidMealPicker({ kidName, previewMode }: KidMealPickerProps) {
+export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealPickerProps) {
   const [meals, setMeals] = useState<any[]>([])
   const [shuffled, setShuffled] = useState<any>(null)
   const [submitted, setSubmitted] = useState(false)
@@ -97,6 +98,7 @@ export default function KidMealPicker({ kidName, previewMode }: KidMealPickerPro
     }).catch(() => {})
     setSubmitting(false)
     setSubmitted(true)
+    onPick?.()
   }
 
   if (!myTheme || myMgr?.kid === 'parents') return null
