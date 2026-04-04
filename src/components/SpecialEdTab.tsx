@@ -18,7 +18,7 @@ const KID_DISPLAY: Record<string, string> = {
   ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah',
 }
 const KID_AGES: Record<string, number> = {
-  amos: 16, zoey: 14, kaylee: 12, ellie: 10, wyatt: 8, hannah: 5,
+  amos: 17, zoey: 15, kaylee: 13, ellie: 12, wyatt: 10, hannah: 8,
 }
 const KID_AVATAR_COLORS: Record<string, string> = {
   amos: 'bg-blue-500', zoey: 'bg-purple-500', kaylee: 'bg-pink-500',
@@ -602,11 +602,22 @@ export default function SpecialEdTab() {
                       {unconfirmedMeetings.length} unconfirmed meeting{unconfirmedMeetings.length > 1 ? 's' : ''}
                     </p>
                     {unconfirmedMeetings.map(m => (
-                      <p key={m.plan.id} className="text-xs text-amber-700">
-                        {KID_DISPLAY[m.kid]} — {m.plan.plan_type} on{' '}
-                        {new Date(m.plan.next_meeting_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        {m.plan.next_meeting_time && ` at ${m.plan.next_meeting_time}`}
-                      </p>
+                      <div key={m.plan.id} className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setSelectedKid(m.kid); setDetailTab('plans'); setExpandedPlan(m.plan.id) }}
+                          className="text-xs text-amber-700 hover:text-amber-900 hover:underline text-left"
+                        >
+                          {KID_DISPLAY[m.kid]} — {m.plan.plan_type} on{' '}
+                          {new Date(m.plan.next_meeting_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {m.plan.next_meeting_time && ` at ${m.plan.next_meeting_time}`}
+                        </button>
+                        <button
+                          onClick={() => confirmMeeting(m.plan.id)}
+                          className="text-[10px] bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 flex items-center gap-0.5 shrink-0"
+                        >
+                          <Check className="w-2.5 h-2.5" /> Confirm
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -845,6 +856,16 @@ export default function SpecialEdTab() {
                                 </div>
                               </div>
                             </div>
+                          )}
+
+                          {/* Schedule Meeting — show when no upcoming meeting */}
+                          {(!plan.next_meeting_date || new Date(plan.next_meeting_date) < new Date()) && (
+                            <button
+                              onClick={() => startEditPlan(plan)}
+                              className="text-xs text-purple-600 border border-purple-200 px-3 py-1.5 rounded hover:bg-purple-50 flex items-center gap-1 mt-3"
+                            >
+                              <Calendar className="w-3 h-3" /> Schedule Next Meeting
+                            </button>
                           )}
 
                           {/* Accommodations */}
