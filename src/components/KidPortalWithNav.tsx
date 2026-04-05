@@ -1870,7 +1870,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
       {/* Star award popup */}
       {starPopup && (
         <div className="fixed top-20 right-6 z-50 pointer-events-none">
@@ -1892,7 +1892,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
       )}
 
       {/* Left Navigation */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
         {/* Profile Section */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -1938,7 +1938,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
           {renderActiveTab()}
         </div>

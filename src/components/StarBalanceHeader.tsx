@@ -13,9 +13,9 @@ export default function StarBalanceHeader({ childName }: StarBalanceHeaderProps)
 
   useEffect(() => {
     if (!kidKey) return
-    fetch(`/api/stars?action=get_balance&kid_name=${kidKey}`)
+    fetch(`/api/kids/points?action=get_balance&child=${kidKey}`)
       .then(r => r.json())
-      .then(data => setBalance(data.available ?? data.balance ?? 0))
+      .then(data => setBalance(data.balance?.current_points ?? 0))
       .catch(() => {})
   }, [kidKey])
 
