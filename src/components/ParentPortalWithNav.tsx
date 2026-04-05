@@ -28,6 +28,7 @@ import KidSnapshotCards from './KidSnapshotCards'
 import HealthMergedTab from './HealthMergedTab'
 import EmailInbox from './email/EmailInbox'
 import ShoppingHelper from './shopping/ShoppingHelper'
+import FamilyHuddle from './FamilyHuddle'
 import GiftSuggestions from './gifts/GiftSuggestions'
 import FinanceMergedTab from './FinanceMergedTab'
 import StarsAndRewardsTab from './StarsAndRewardsTab'
@@ -57,6 +58,7 @@ const tabs: Tab[] = [
   { id: 'messages-alerts', name: 'Messages & Alerts', icon: MessageCircle, color: 'bg-pink-500', section: 'DAILY' },
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600', section: 'DAILY' },
   { id: 'email', name: 'Email', icon: Mail, color: 'bg-indigo-500', section: 'DAILY' },
+  { id: 'family-huddle', name: 'Family Huddle', icon: Users, color: 'bg-violet-500', section: 'DAILY' },
   // SCHOOL
   { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500', section: 'SCHOOL' },
   { id: 'school', name: 'School', icon: GraduationCap, color: 'bg-orange-500', section: 'SCHOOL' },
@@ -422,6 +424,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <PetsTab />
       case 'email':
         return <div className="p-6 max-w-5xl mx-auto"><EmailInbox /></div>
+      case 'family-huddle':
+        return <FamilyHuddle />
       case 'shopping':
         return <ShoppingHelper />
       case 'gifts':
