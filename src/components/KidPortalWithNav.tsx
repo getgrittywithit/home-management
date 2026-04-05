@@ -50,6 +50,7 @@ import { KidLibraryView } from './HomeLibrary'
 import HomeschoolTaskBlock from './HomeschoolTaskBlock'
 import MyDayView from './MyDayView'
 import AiBuddyChat from './AiBuddyChat'
+import MyVibe from './kid/MyVibe'
 import JourneyMap from './JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
 import NotificationBell from './NotificationBell'
@@ -66,7 +67,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe'
 
 interface NavTab {
   id: TabId
@@ -101,6 +102,7 @@ const navSections: NavSection[] = [
       { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' },
       { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
       { id: 'library', name: 'Our Library', icon: Library, color: 'bg-emerald-500' },
+      { id: 'my-vibe', name: 'My Vibe', icon: Sparkles, color: 'bg-purple-500' },
     ],
   },
   {
@@ -1844,6 +1846,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return <KidRequestsTab childName={profile.first_name || profile.name} />
       case 'library':
         return <KidLibraryView kidName={profile.first_name || profile.name} />
+      case 'my-vibe':
+        return <MyVibe kidName={profile.first_name || profile.name} />
       case 'typing-race':
         return <TypingRace kidName={profile.first_name || profile.name} />
       case 'financial-literacy':

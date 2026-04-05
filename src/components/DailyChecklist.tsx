@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   CheckCircle2, Circle, Lock, DollarSign, Sparkles,
-  Dog, Utensils, Home, Trash2, Trophy, ChevronDown, ChevronUp, Heart,
+  Dog, Utensils, Home, Trash2, Trophy, ChevronDown, ChevronUp, Heart, Camera,
 } from 'lucide-react'
 import ZoneDetailCard from './ZoneDetailCard'
 import MorningCheckinCard from './MorningCheckinCard'
@@ -500,6 +500,22 @@ function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expand
           <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">
             +{item.points} pts
           </span>
+        )}
+        {item.completed && (
+          <label className="flex-shrink-0 p-1 hover:bg-gray-100 rounded cursor-pointer" title="Add photo">
+            <Camera className="w-4 h-4 text-gray-400 hover:text-blue-500" />
+            <input type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = async () => {
+                  await fetch('/api/kids/checklist', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'upload_task_photo', kid_name: childName, task_key: item.id, photo_url: reader.result }) }).catch(() => {})
+                }
+                reader.readAsDataURL(file)
+              }} />
+          </label>
         )}
         {canExpand && (
           <button onClick={onToggleExpand} className="flex-shrink-0 p-1 hover:bg-gray-100 rounded">

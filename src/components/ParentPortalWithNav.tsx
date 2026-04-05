@@ -27,6 +27,8 @@ import NotificationBell from './NotificationBell'
 import KidSnapshotCards from './KidSnapshotCards'
 import HealthMergedTab from './HealthMergedTab'
 import EmailInbox from './email/EmailInbox'
+import ShoppingHelper from './shopping/ShoppingHelper'
+import GiftSuggestions from './gifts/GiftSuggestions'
 import FinanceMergedTab from './FinanceMergedTab'
 import StarsAndRewardsTab from './StarsAndRewardsTab'
 import MessagesAndAlertsTab from './MessagesAndAlertsTab'
@@ -38,7 +40,7 @@ import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, CheckSquare, ChefHat, DollarSign, Heart, Star, MessageCircle,
-  Dog, GraduationCap, Flame, Shield, Mail
+  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift
 } from 'lucide-react'
 
 interface Tab {
@@ -62,9 +64,11 @@ const tabs: Tab[] = [
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500', section: 'HOME' },
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600', section: 'HOME' },
   { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500', section: 'HOME' },
+  { id: 'shopping', name: 'Shopping', icon: ShoppingCart, color: 'bg-rose-500', section: 'HOME' },
   // REWARDS & GROWTH
   { id: 'stars-rewards', name: 'Stars & Rewards', icon: Star, color: 'bg-amber-500', section: 'REWARDS' },
   { id: 'habits', name: 'Habits', icon: Flame, color: 'bg-orange-500', section: 'REWARDS' },
+  { id: 'gifts', name: 'Gift Ideas', icon: Gift, color: 'bg-pink-500', section: 'REWARDS' },
   // HEALTH
   { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-600', section: 'HEALTH' },
   // PLANNING & ADMIN
@@ -418,6 +422,10 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <PetsTab />
       case 'email':
         return <div className="p-6 max-w-5xl mx-auto"><EmailInbox /></div>
+      case 'shopping':
+        return <ShoppingHelper />
+      case 'gifts':
+        return <GiftSuggestions />
       case 'food-inventory':
         return <FoodInventoryManager />
       case 'stars-rewards':

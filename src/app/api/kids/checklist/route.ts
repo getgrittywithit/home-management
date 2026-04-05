@@ -885,6 +885,41 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      // ── UX-2: Task Photo Actions ──
+      case 'upload_task_photo': {
+        const { kid_name, task_key, substep_key, photo_url } = body
+        if (!kid_name || !task_key || !photo_url) return NextResponse.json({ error: 'kid_name, task_key, photo_url required' }, { status: 400 })
+        await db.query(`CREATE TABLE IF NOT EXISTS checklist_task_photos (
+          id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, checklist_date DATE NOT NULL DEFAULT CURRENT_DATE,
+          task_key TEXT NOT NULL, substep_key TEXT, photo_url TEXT NOT NULL, thumbnail_url TEXT,
+          uploaded_at TIMESTAMPTZ DEFAULT NOW())`)
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const rows = await db.query(
+          `INSERT INTO checklist_task_photos (kid_name, checklist_date, task_key, substep_key, photo_url, thumbnail_url)
+           VALUES ($1, $2, $3, $4, $5, $5) RETURNING *`,
+          [kid_name.toLowerCase(), today, task_key, substep_key || null, photo_url]
+        )
+        return NextResponse.json({ success: true, photo: rows[0] })
+      }
+
+      case 'get_task_photos': {
+        const { kid_name, checklist_date } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const date = checklist_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const rows = await db.query(
+          `SELECT * FROM checklist_task_photos WHERE kid_name = $1 AND checklist_date = $2 ORDER BY uploaded_at`,
+          [kid_name.toLowerCase(), date]
+        ).catch(() => [])
+        return NextResponse.json({ photos: rows })
+      }
+
+      case 'delete_task_photo': {
+        const { photo_id } = body
+        if (!photo_id) return NextResponse.json({ error: 'photo_id required' }, { status: 400 })
+        await db.query(`DELETE FROM checklist_task_photos WHERE id = $1`, [photo_id])
+        return NextResponse.json({ success: true })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
