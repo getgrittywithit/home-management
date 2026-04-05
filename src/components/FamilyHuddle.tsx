@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Shuffle, Trophy, Star, CheckCircle2, Calendar, Utensils, Dog, MessageSquare, ChevronDown, ChevronUp, Clock, Loader2 } from 'lucide-react'
+import { Users, Shuffle, Trophy, Star, CheckCircle2, Calendar, Utensils, Dog, MessageSquare, ChevronDown, ChevronUp, Clock, Loader2, Printer, ClipboardList } from 'lucide-react'
 
 const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 const KID_EMOJIS: Record<string, string> = {
@@ -129,7 +129,12 @@ export default function FamilyHuddle() {
   const hostDisplay = huddle ? cap(huddle.host_kid) : ''
   const hostEmoji = huddle ? KID_EMOJIS[huddle.host_kid] || '' : ''
   const statusBadge = huddle ? STATUS_BADGES[huddle.status] || STATUS_BADGES.pending : STATUS_BADGES.pending
-  const huddleDateStr = huddle ? new Date(huddle.huddle_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : ''
+  const formatHuddleDate = (d: any) => {
+    if (!d) return ''
+    const str = typeof d === 'string' ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10)
+    return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  }
+  const huddleDateStr = huddle ? formatHuddleDate(huddle.huddle_date) : ''
 
   if (loading) return <div className="p-6 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
 
@@ -145,6 +150,12 @@ export default function FamilyHuddle() {
         </div>
         <div className="flex items-center gap-2">
           {huddle && <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusBadge.color}`}>{statusBadge.label}</span>}
+          {huddle && (
+            <button onClick={() => window.open('/printable/weekly', '_blank')}
+              className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+              <Printer className="w-3.5 h-3.5" /> Print
+            </button>
+          )}
           <button onClick={() => setView(view === 'history' ? 'current' : 'history')}
             className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
             {view === 'history' ? 'This Week' : 'History'}
@@ -250,6 +261,24 @@ export default function FamilyHuddle() {
             </div>
           )}
 
+          {/* Zone Recap */}
+          {agenda?.zone_recap && (
+            <div className="bg-white rounded-lg border shadow-sm p-5">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-1">
+                <ClipboardList className="w-4 h-4 text-green-600" /> Zone Recap
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">{agenda.zone_recap.week_label}</p>
+              <div className="space-y-2">
+                {agenda.zone_recap.assignments?.map((a: any) => (
+                  <div key={a.kid} className="flex items-center gap-3">
+                    <span className="font-medium text-gray-900 w-20">{a.kid}</span>
+                    <span className="text-sm bg-green-50 text-green-700 px-2 py-0.5 rounded">{a.zone}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Meal Plan Preview */}
           {agenda?.meal_plan?.length > 0 && (
             <div className="bg-white rounded-lg border shadow-sm p-5">
@@ -276,13 +305,23 @@ export default function FamilyHuddle() {
                 <Dog className="w-4 h-4 text-amber-600" /> Belle Care This Week
               </h3>
               <div className="flex flex-wrap gap-3 text-sm">
-                {Object.entries(agenda.belle_this_week).filter(([k]) => !['grooming'].includes(k)).map(([day, kid]) => (
+                {['monday','tuesday','wednesday','thursday','friday'].map(day => (
                   <div key={day} className="bg-amber-50 px-3 py-1.5 rounded-lg">
                     <span className="text-gray-500 capitalize">{day.slice(0, 3)}: </span>
-                    <span className="font-medium text-gray-900">{kid as string}</span>
+                    <span className="font-medium text-gray-900">{agenda.belle_this_week[day]}</span>
                   </div>
                 ))}
+                <div className="bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
+                  <span className="text-gray-500">Sat &amp; Sun: </span>
+                  <span className="font-bold text-green-800">{agenda.belle_this_week.weekend_owner}</span>
+                </div>
               </div>
+              {agenda.belle_this_week.grooming && (agenda.belle_this_week.grooming.bath || agenda.belle_this_week.grooming.nails) && (
+                <div className="mt-2 flex gap-3 text-xs text-gray-600">
+                  {agenda.belle_this_week.grooming.bath && <span>{'\uD83D\uDEC1'} Bath Time Saturday</span>}
+                  {agenda.belle_this_week.grooming.nails && <span>{'\uD83D\uDC85'} Nail Trim Sunday</span>}
+                </div>
+              )}
             </div>
           )}
 

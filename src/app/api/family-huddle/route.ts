@@ -8,6 +8,83 @@ const KID_EMOJIS: Record<string, string> = {
   ellie: '\uD83D\uDCA1', wyatt: '\u26A1', hannah: '\uD83C\uDF3B',
 }
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'Kaylee', 2: 'Amos', 3: 'Hannah', 4: 'Wyatt', 5: 'Ellie' }
+const BELLE_WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
+const BELLE_WEEKEND_EPOCH = new Date('2026-06-13T12:00:00') // anchor Saturday
+const BATH_ANCHOR = new Date('2026-06-13T12:00:00') // biweekly Saturday
+const NAIL_ANCHOR = new Date('2026-06-14T12:00:00') // biweekly Sunday
+
+// Zone rotation
+const ZONE_NAMES = ['Hotspot', 'Kitchen', 'Guest Bath', 'Kids Bath', 'Pantry', 'Floors']
+const ZONE_KIDS = ['amos', 'kaylee', 'hannah', 'ellie', 'wyatt', 'zoey']
+const ZONE_OFFSETS: Record<string, number[]> = {
+  amos: [0, 1, 2, 3, 4, 5], kaylee: [5, 0, 1, 2, 3, 4], hannah: [4, 5, 0, 1, 2, 3],
+  ellie: [3, 4, 5, 0, 1, 2], wyatt: [2, 3, 4, 5, 0, 1], zoey: [1, 2, 3, 4, 5, 0],
+}
+const ZONE_EPOCH = new Date('2026-03-15T12:00:00')
+
+const LAUNDRY: Record<string, string> = {
+  Monday: 'Levi work clothes', Tuesday: 'Lola personal + sheets',
+  Wednesday: 'Ellie, Hannah & Kaylee', Thursday: 'Amos',
+  Friday: 'Ellie, Hannah & Kaylee', Saturday: 'Zoey bedding day',
+  Sunday: 'Wyatt towels + overflow',
+}
+const DISHES = {
+  breakfast: 'Amos & Wyatt', lunch: 'Ellie & Hannah',
+  dinner_cleanup: 'Zoey & Kaylee', deep_clean: 'Saturday',
+  trash: 'Mon & Tue (Amos)',
+}
+
+// Dinner managers + themes (2-week rotation, epoch Mar 30)
+const MEAL_EPOCH = new Date('2026-03-30T12:00:00')
+const MEAL_WEEK1 = [
+  { day: 'Monday', manager: 'Kaylee', theme: 'American Comfort' },
+  { day: 'Tuesday', manager: 'Zoey', theme: 'Asian Night' },
+  { day: 'Wednesday', manager: 'Wyatt', theme: 'Bar Night' },
+  { day: 'Thursday', manager: 'Amos', theme: 'Mexican Night' },
+  { day: 'Friday', manager: 'Ellie & Hannah', theme: 'Pizza & Italian' },
+  { day: 'Saturday', manager: 'Levi/Parents', theme: 'Grill Night' },
+  { day: 'Sunday', manager: 'Parents', theme: 'Roast/Comfort' },
+]
+const MEAL_WEEK2 = [
+  { day: 'Monday', manager: 'Kaylee', theme: 'Soup/Comfort/Crockpot' },
+  { day: 'Tuesday', manager: 'Zoey', theme: 'Asian Night' },
+  { day: 'Wednesday', manager: 'Wyatt', theme: 'Easy/Lazy Night' },
+  { day: 'Thursday', manager: 'Amos', theme: 'Mexican Night' },
+  { day: 'Friday', manager: 'Ellie & Hannah', theme: 'Pizza & Italian' },
+  { day: 'Saturday', manager: 'Levi/Parents', theme: 'Experiment/Big Cook' },
+  { day: 'Sunday', manager: 'Parents', theme: 'Brunch/Light' },
+]
+
+function getBelleWeekendOwner(saturdayDate: Date) {
+  const weeks = Math.floor((saturdayDate.getTime() - BELLE_WEEKEND_EPOCH.getTime()) / (7 * 86400000))
+  const idx = ((weeks % BELLE_WEEKEND_ROTATION.length) + BELLE_WEEKEND_ROTATION.length) % BELLE_WEEKEND_ROTATION.length
+  return BELLE_WEEKEND_ROTATION[idx]
+}
+
+function isBathWeek(saturdayDate: Date) {
+  const weeks = Math.floor((saturdayDate.getTime() - BATH_ANCHOR.getTime()) / (7 * 86400000))
+  return weeks % 2 === 0
+}
+
+function isNailWeek(sundayDate: Date) {
+  const weeks = Math.floor((sundayDate.getTime() - NAIL_ANCHOR.getTime()) / (7 * 86400000))
+  return weeks % 2 === 0
+}
+
+function getZoneAssignments(weekDate: Date) {
+  const weeks = Math.floor((weekDate.getTime() - ZONE_EPOCH.getTime()) / (7 * 86400000))
+  const zoneWeekIdx = ((weeks % 6) + 6) % 6
+  const assignments: Record<string, string> = {}
+  for (const kid of ZONE_KIDS) {
+    assignments[kid] = ZONE_NAMES[ZONE_OFFSETS[kid][zoneWeekIdx]]
+  }
+  return { assignments, weekNum: zoneWeekIdx + 1 }
+}
+
+function getMealWeek(mondayDate: Date) {
+  const weeks = Math.floor((mondayDate.getTime() - MEAL_EPOCH.getTime()) / (7 * 86400000))
+  return weeks % 2 === 0 ? 1 : 2
+}
 
 function getToday() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
@@ -198,6 +275,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      case 'generate_printable': {
+        const today = getToday()
+        const sunday = body.date || getSundayOfWeek(today)
+        const agenda = await buildAgenda(sunday)
+        return NextResponse.json({ success: true, printable: agenda })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
@@ -209,42 +293,40 @@ export async function POST(req: NextRequest) {
 
 // ── Build agenda from system data ──
 async function buildAgenda(sundayDate: string) {
-  const nextSunday = new Date(sundayDate + 'T12:00:00')
-  const weekStart = new Date(nextSunday)
-  weekStart.setDate(weekStart.getDate() + 1) // Monday
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekEnd.getDate() + 6) // following Sunday
-  const weekStartStr = weekStart.toLocaleDateString('en-CA')
-  const weekEndStr = weekEnd.toLocaleDateString('en-CA')
+  const sunday = new Date(sundayDate + 'T12:00:00')
+  const monday = new Date(sunday)
+  monday.setDate(monday.getDate() + 1)
+  const saturday = new Date(monday)
+  saturday.setDate(saturday.getDate() + 5)
+  const nextSunday = new Date(saturday)
+  nextSunday.setDate(nextSunday.getDate() + 1)
+
+  const monStr = monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const sunStr = nextSunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   // Stars leaderboard
   const stars = await db.query(
     `SELECT kid_name, stars_balance as stars, streak_days as streak FROM digi_pets ORDER BY stars_balance DESC`
   ).catch(() => [])
 
-  // Zone assignments (from zone rotation)
-  // Week number in 6-week cycle
-  const epoch = new Date('2026-03-15T12:00:00')
-  const weeksSinceZoneEpoch = Math.floor((nextSunday.getTime() - epoch.getTime()) / (7 * 86400000))
-  const zoneWeek = ((weeksSinceZoneEpoch % 6) + 6) % 6
+  // Zone assignments
+  const { assignments: zoneAssignments, weekNum: zoneWeekNum } = getZoneAssignments(monday)
 
-  // Upcoming events (placeholder — would need calendar integration)
-  const events: any[] = []
-
-  // Meal plan
-  const mealPlan = await db.query(
-    `SELECT day_of_week, theme, manager_name, meal_name FROM meal_week_plan
-     WHERE week_number = $1 ORDER BY CASE day_of_week
-       WHEN 'Monday' THEN 1 WHEN 'Tuesday' THEN 2 WHEN 'Wednesday' THEN 3
-       WHEN 'Thursday' THEN 4 WHEN 'Friday' THEN 5 WHEN 'Saturday' THEN 6 WHEN 'Sunday' THEN 7 END`,
-    [zoneWeek % 2 === 0 ? 1 : 2]
+  // Meal plan from rotation
+  const mealWeekNum = getMealWeek(monday)
+  const mealTemplate = mealWeekNum === 1 ? MEAL_WEEK1 : MEAL_WEEK2
+  // Try to get picked meals from DB
+  const pickedMeals = await db.query(
+    `SELECT day_of_week, meal_name FROM meal_week_plan WHERE week_number = $1`, [mealWeekNum]
   ).catch(() => [])
+  const pickedMap: Record<string, string> = {}
+  pickedMeals.forEach((m: any) => { if (m.meal_name) pickedMap[m.day_of_week] = m.meal_name })
 
-  // Belle care
-  const belleWeek = {
-    monday: BELLE_WEEKDAY[1], tuesday: BELLE_WEEKDAY[2], wednesday: BELLE_WEEKDAY[3],
-    thursday: BELLE_WEEKDAY[4], friday: BELLE_WEEKDAY[5],
-  }
+  // Belle care with weekend
+  const weekendOwner = getBelleWeekendOwner(saturday)
+  const weekendOwnerDisplay = weekendOwner.charAt(0).toUpperCase() + weekendOwner.slice(1)
+  const bathDue = isBathWeek(saturday)
+  const nailsDue = isNailWeek(nextSunday)
 
   // Open requests
   const mealRequests = await db.query(
@@ -260,17 +342,32 @@ async function buildAgenda(sundayDate: string) {
   ]
 
   return {
+    week_label: `${monStr} – ${sunStr}`,
     stars_leaderboard: stars.map((s: any) => ({
       kid: s.kid_name?.charAt(0).toUpperCase() + s.kid_name?.slice(1),
       stars: s.stars || 0, streak: s.streak || 0,
     })),
-    zone_week: zoneWeek + 1,
-    upcoming_events: events,
-    meal_plan: mealPlan.map((m: any) => ({
-      day: m.day_of_week, theme: m.theme, manager: m.manager_name, meal: m.meal_name,
+    zone_recap: {
+      week_num: zoneWeekNum,
+      week_label: `Week ${zoneWeekNum} of 6 (${monStr} – ${sunStr})`,
+      assignments: Object.entries(zoneAssignments).map(([kid, zone]) => ({
+        kid: kid.charAt(0).toUpperCase() + kid.slice(1), zone,
+      })),
+    },
+    meal_plan: mealTemplate.map(m => ({
+      day: m.day, theme: m.theme, manager: m.manager, meal: pickedMap[m.day] || null,
     })),
-    belle_this_week: belleWeek,
+    meal_week: mealWeekNum,
+    belle_this_week: {
+      monday: BELLE_WEEKDAY[1], tuesday: BELLE_WEEKDAY[2], wednesday: BELLE_WEEKDAY[3],
+      thursday: BELLE_WEEKDAY[4], friday: BELLE_WEEKDAY[5],
+      weekend_owner: weekendOwnerDisplay,
+      grooming: { bath: bathDue, nails: nailsDue },
+    },
     open_requests: openRequests,
+    upcoming_events: [] as any[],
+    laundry: LAUNDRY,
+    dishes: DISHES,
     kid_share_prompts: [
       'Share one WIN from this week',
       'Share one thing you\'re LOOKING FORWARD TO next week',
