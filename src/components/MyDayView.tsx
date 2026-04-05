@@ -211,15 +211,17 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       timeBlock: 'afternoon',
     })
 
-    allTasks.push({
-      id: 'school-room-clean',
-      label: 'School Room Group Clean',
-      steps: instructionMap['habit:school_room_clean'] || ['Put away materials', 'Wipe desk', 'Push in chairs'],
-      stars: 3,
-      completed: false,
-      source: 'habit',
-      timeBlock: 'afternoon',
-    })
+    if (['amos', 'ellie', 'wyatt', 'hannah'].includes(kid) && isWeekday) {
+      allTasks.push({
+        id: 'school-room-clean',
+        label: 'School Room Group Clean',
+        steps: instructionMap['habit:school_room_clean'] || ['Put away materials', 'Wipe desk', 'Push in chairs'],
+        stars: 3,
+        completed: false,
+        source: 'habit',
+        timeBlock: 'afternoon',
+      })
+    }
 
     // 5. Evening tasks
     if (isBelleDay) {
