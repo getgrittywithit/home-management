@@ -253,6 +253,59 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ progress: rows[0] || { current_level: 1 } })
       }
 
+      // ── VOCAB-MIX-1 ──
+      case 'get_vocab_words': {
+        if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const words = await db.query(
+          `SELECT id, word, definition, book_title, created_at FROM kid_vocab_words
+           WHERE kid_name = $1 ORDER BY created_at DESC`,
+          [kidName]
+        ).catch(() => [])
+        return NextResponse.json({ words })
+      }
+
+      case 'get_vocab_history': {
+        if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const sessions = await db.query(
+          `SELECT vs.id, vs.word_count, vs.quiz_type, vs.created_at,
+                  vq.id as quiz_id, vq.score, vq.max_score, vq.completed_at
+           FROM vocab_mixer_sessions vs
+           LEFT JOIN vocab_quizzes vq ON vq.session_id = vs.id
+           WHERE vs.kid_name = $1 ORDER BY vs.created_at DESC LIMIT 20`,
+          [kidName]
+        ).catch(() => [])
+        return NextResponse.json({ history: sessions })
+      }
+
+      // ── WORKBOOK-1 ──
+      case 'get_workbooks': {
+        if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const progress = await db.query(
+          `SELECT workbook_name, page_number, skill_tags, completed, completed_at, notes
+           FROM kid_workbook_progress WHERE kid_name = $1 ORDER BY workbook_name, page_number`,
+          [kidName]
+        ).catch(() => [])
+        // Group by workbook
+        const workbooks: Record<string, any[]> = {}
+        progress.forEach((p: any) => {
+          if (!workbooks[p.workbook_name]) workbooks[p.workbook_name] = []
+          workbooks[p.workbook_name].push(p)
+        })
+        return NextResponse.json({ workbooks })
+      }
+
+      case 'get_workbook_skills': {
+        if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const rows = await db.query(
+          `SELECT skill_tag, COUNT(*)::int as page_count
+           FROM kid_workbook_progress, jsonb_array_elements_text(skill_tags) AS skill_tag
+           WHERE kid_name = $1 AND completed = TRUE
+           GROUP BY skill_tag ORDER BY page_count DESC`,
+          [kidName]
+        ).catch(() => [])
+        return NextResponse.json({ skills: rows })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
@@ -519,6 +572,100 @@ export async function POST(request: NextRequest) {
         )
 
         return NextResponse.json({ success: true, record_id: result[0]?.id, generated_data: generatedData })
+      }
+
+      // ── VOCAB-MIX-1 POST ──
+      case 'create_vocab_mix': {
+        const { kid_name, book_ids, word_count } = body
+        if (!kid_name || !book_ids) return NextResponse.json({ error: 'kid_name, book_ids required' }, { status: 400 })
+        const rows = await db.query(
+          `INSERT INTO vocab_mixer_sessions (kid_name, book_ids, word_count)
+           VALUES ($1, $2, $3) RETURNING *`,
+          [kid_name, JSON.stringify(book_ids), word_count || 15]
+        )
+        return NextResponse.json({ success: true, session: rows[0] })
+      }
+
+      case 'generate_vocab_quiz': {
+        const { session_id } = body
+        if (!session_id) return NextResponse.json({ error: 'session_id required' }, { status: 400 })
+        const session = await db.query(`SELECT * FROM vocab_mixer_sessions WHERE id = $1`, [session_id])
+        if (!session[0]) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+
+        const kidName = session[0].kid_name
+        const words = await db.query(
+          `SELECT word, definition FROM kid_vocab_words WHERE kid_name = $1 ORDER BY RANDOM() LIMIT $2`,
+          [kidName, session[0].word_count || 15]
+        ).catch(() => [])
+
+        if (words.length < 5) return NextResponse.json({ error: 'Not enough vocab words. Add more words from reading first.' }, { status: 400 })
+
+        // Generate quiz sections
+        const shuffled = words.sort(() => Math.random() - 0.5)
+        const unscramble = shuffled.slice(0, 5).map((w: any) => ({
+          scrambled: w.word.split('').sort(() => Math.random() - 0.5).join(''),
+          answer: w.word, definition: w.definition,
+        }))
+        const spotError = shuffled.slice(5, 10).map((w: any) => ({
+          word: w.word, definition: w.definition,
+          sentence: `The ${w.word} was very important for the project.`,
+        }))
+        const useInSentence = shuffled.slice(0, 3).map((w: any) => ({
+          word: w.word, definition: w.definition,
+        }))
+        const matchIt = shuffled.slice(0, Math.min(8, shuffled.length)).map((w: any) => ({
+          word: w.word, definition: w.definition,
+        }))
+
+        const quizData = { unscramble, spotError, useInSentence, matchIt }
+        const maxScore = 5 + 5 + 3 + 8 // 21 points
+        const quiz = await db.query(
+          `INSERT INTO vocab_quizzes (session_id, quiz_data, max_score) VALUES ($1, $2, $3) RETURNING *`,
+          [session_id, JSON.stringify(quizData), maxScore]
+        )
+        return NextResponse.json({ success: true, quiz: quiz[0] })
+      }
+
+      case 'submit_vocab_quiz': {
+        const { quiz_id, score } = body
+        if (!quiz_id) return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
+        await db.query(
+          `UPDATE vocab_quizzes SET score = $1, completed_at = NOW() WHERE id = $2`,
+          [score || 0, quiz_id]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      // ── WORKBOOK-1 POST ──
+      case 'add_workbook': {
+        const { kid_name, workbook_name } = body
+        if (!kid_name || !workbook_name) return NextResponse.json({ error: 'kid_name, workbook_name required' }, { status: 400 })
+        return NextResponse.json({ success: true, workbook_name })
+      }
+
+      case 'log_workbook_page': {
+        const { kid_name, workbook_name, page_number, skill_tags, notes } = body
+        if (!kid_name || !workbook_name || !page_number) return NextResponse.json({ error: 'kid_name, workbook_name, page_number required' }, { status: 400 })
+        const rows = await db.query(
+          `INSERT INTO kid_workbook_progress (kid_name, workbook_name, page_number, skill_tags, completed, completed_at, notes)
+           VALUES ($1, $2, $3, $4, TRUE, NOW(), $5)
+           ON CONFLICT (kid_name, workbook_name, page_number) DO UPDATE SET
+             skill_tags = EXCLUDED.skill_tags, completed = TRUE, completed_at = NOW(), notes = EXCLUDED.notes
+           RETURNING *`,
+          [kid_name, workbook_name, page_number, JSON.stringify(skill_tags || []), notes || null]
+        )
+        return NextResponse.json({ success: true, entry: rows[0] })
+      }
+
+      case 'bulk_map_skills': {
+        const { workbook_name, page_range, skill_tags, description } = body
+        if (!workbook_name || !page_range || !skill_tags) return NextResponse.json({ error: 'workbook_name, page_range, skill_tags required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO workbook_skill_map (workbook_name, page_range, skill_tags, description)
+           VALUES ($1, $2, $3, $4)`,
+          [workbook_name, page_range, JSON.stringify(skill_tags), description || null]
+        )
+        return NextResponse.json({ success: true })
       }
 
       default:

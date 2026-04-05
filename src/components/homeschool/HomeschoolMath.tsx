@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { STUDENT_DEFAULTS } from './types'
 import MathBuddy from './MathBuddy'
 import JourneyMap from './JourneyMap'
+import WorkbookTracker from './WorkbookTracker'
 
-type MathView = 'math-buddy' | 'journey-map'
+type MathView = 'math-buddy' | 'journey-map' | 'workbook'
 
 export default function HomeschoolMath() {
   const [view, setView] = useState<MathView>('math-buddy')
@@ -23,6 +24,10 @@ export default function HomeschoolMath() {
           className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
             view === 'journey-map' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
           }`}>Journey Map</button>
+        <button onClick={() => setView('workbook')}
+          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            view === 'workbook' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500'
+          }`}>Workbook</button>
       </div>
 
       {/* Kid selector — ALL kids, not just homeschool */}
@@ -39,6 +44,7 @@ export default function HomeschoolMath() {
 
       {view === 'math-buddy' && <MathBuddy kidName={selectedKid} />}
       {view === 'journey-map' && <JourneyMap kidName={selectedKid} subject="math" />}
+      {view === 'workbook' && <WorkbookTracker kidName={selectedKid.toLowerCase()} />}
     </div>
   )
 }

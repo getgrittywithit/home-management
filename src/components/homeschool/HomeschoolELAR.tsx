@@ -8,13 +8,14 @@ import ReadingProgressDashboard from '../ReadingProgressDashboard'
 import { ParentLibraryAdmin } from '../HomeLibrary'
 import BookBuddy from './BookBuddy'
 import JourneyMap from './JourneyMap'
+import VocabMixer from './VocabMixer'
 
 interface Props {
   students: StudentData[]
   familyBook: FamilyBook | null
 }
 
-type ElarView = 'overview' | 'book-buddy' | 'journey-map' | 'books' | 'vocab' | 'library'
+type ElarView = 'overview' | 'book-buddy' | 'journey-map' | 'books' | 'vocab' | 'vocab-mixer' | 'library'
 
 export default function HomeschoolELAR({ students, familyBook }: Props) {
   const [view, setView] = useState<ElarView>('overview')
@@ -26,6 +27,7 @@ export default function HomeschoolELAR({ students, familyBook }: Props) {
     { id: 'journey-map', label: 'Journey Map' },
     { id: 'books', label: 'Books' },
     { id: 'vocab', label: 'Vocab' },
+    { id: 'vocab-mixer', label: 'Vocab Mixer' },
     { id: 'library', label: 'Library' },
   ]
 
@@ -64,6 +66,7 @@ export default function HomeschoolELAR({ students, familyBook }: Props) {
       {view === 'journey-map' && <JourneyMap kidName={selectedKid} subject="elar" />}
       {view === 'books' && <BooksView students={students} familyBook={familyBook} />}
       {view === 'vocab' && <VocabWordsTab />}
+      {view === 'vocab-mixer' && <VocabMixer kidName={selectedKid.toLowerCase()} />}
       {view === 'library' && <ParentLibraryAdmin />}
     </div>
   )
