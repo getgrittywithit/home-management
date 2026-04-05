@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
 import PositiveReportButton from './PositiveReportButton'
 import KidMealPicker from './KidMealPicker'
@@ -74,6 +74,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const [announcement, setAnnouncement] = useState<string | null>(null)
   const [schoolDone, setSchoolDone] = useState(false)
   const [mealRefreshKey, setMealRefreshKey] = useState(0)
+  const [expandedInstructions, setExpandedInstructions] = useState<Set<string>>(new Set())
 
   const kid = kidName.toLowerCase()
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
@@ -417,6 +418,19 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       ))}
       <style>{`@keyframes starFloat { 0% { opacity:0; transform:translateY(10px) scale(0.8); } 15% { opacity:1; transform:translateY(0) scale(1); } 70% { opacity:1; transform:translateY(-20px); } 100% { opacity:0; transform:translateY(-40px) scale(0.9); } }`}</style>
 
+      {/* Pinned Mom Message — always at top */}
+      {announcement && (
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">📌</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Message from Mom</p>
+              <p className="text-sm text-amber-800 mt-1">{announcement}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl p-5">
         <h1 className="text-2xl font-bold">{greetings()}, {displayName}!</h1>
@@ -492,15 +506,34 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
                             +{task.stars} <Star className="w-3 h-3" />
                           </span>
                         </div>
-                        {/* Steps — always visible */}
+                        {/* Collapsible "How to do this" instructions */}
                         {!task.completed && task.steps.length > 0 && (
-                          <div className="mt-1.5 space-y-0.5">
-                            {task.steps.map((step, i) => (
-                              <div key={i} className="text-xs text-gray-500 flex items-start gap-1.5 pl-0.5">
-                                <span className="text-gray-300 mt-px">├─</span>
-                                <span>{step}</span>
+                          <div className="mt-1.5">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setExpandedInstructions(prev => {
+                                  const next = new Set(prev)
+                                  if (next.has(task.id)) next.delete(task.id)
+                                  else next.add(task.id)
+                                  return next
+                                })
+                              }}
+                              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition-colors"
+                            >
+                              {expandedInstructions.has(task.id) ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              <span>How to do this</span>
+                            </button>
+                            {expandedInstructions.has(task.id) && (
+                              <div className="mt-1 space-y-0.5 pl-1 border-l-2 border-blue-100">
+                                {task.steps.map((step, i) => (
+                                  <div key={i} className="text-xs text-gray-600 flex items-start gap-1.5 pl-1">
+                                    <span className="text-blue-300 font-bold mt-px">{i + 1}.</span>
+                                    <span>{step}</span>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            )}
                           </div>
                         )}
                       </div>
@@ -533,13 +566,6 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
           <MessageSquare className="w-4 h-4 text-blue-600" />
           Messages
         </h2>
-
-        {announcement && (
-          <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg p-3">
-            <p className="text-xs font-medium text-amber-800">Message from Mom</p>
-            <p className="text-sm text-amber-700 mt-0.5">{announcement}</p>
-          </div>
-        )}
 
         <div>
           <p className="text-sm text-gray-600 mb-2">Leave a Note for Mom</p>
