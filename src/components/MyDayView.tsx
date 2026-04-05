@@ -7,6 +7,7 @@ import PositiveReportButton from './PositiveReportButton'
 import KidMealPicker from './KidMealPicker'
 import WeeklyMealCalendar from './WeeklyMealCalendar'
 import GroceryDeadlineBar from './GroceryDeadlineBar'
+import GroceryRequestBox from './GroceryRequestBox'
 
 // ============================================================================
 // Types
@@ -559,6 +560,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       <WeeklyMealCalendar key={mealRefreshKey} kidName={kidName} compact />
       <GroceryDeadlineBar kidName={kidName} />
       <KidMealPicker kidName={kidName} previewMode={previewMode} onPick={() => setMealRefreshKey(k => k + 1)} />
+      <GroceryRequestBox kidName={kidName} />
 
       {/* Messages & Alerts */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">

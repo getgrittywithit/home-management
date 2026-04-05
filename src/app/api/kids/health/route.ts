@@ -737,7 +737,90 @@ export async function POST(request: NextRequest) {
            WHERE kid_name = $1 AND log_date >= $2 ORDER BY log_date ASC`,
           [childLower, startDate]
         )
-        return NextResponse.json({ settings: settings[0] || null, logs, symptoms })
+        // Product + OTC summaries for report
+        const products = await query(
+          `SELECT product_type, SUM(quantity) as total FROM kid_cycle_products
+           WHERE kid_name = $1 AND log_date >= $2 GROUP BY product_type ORDER BY total DESC`,
+          [childLower, startDate]
+        ).catch(() => [])
+        const otcMeds = await query(
+          `SELECT medication, COUNT(*) as count, COUNT(*) FILTER (WHERE helped = TRUE) as helped_count
+           FROM kid_cycle_otc_meds WHERE kid_name = $1 AND log_date >= $2
+           GROUP BY medication ORDER BY count DESC`,
+          [childLower, startDate]
+        ).catch(() => [])
+        return NextResponse.json({ settings: settings[0] || null, logs, symptoms, products, otcMeds })
+      }
+
+      // ── Cycle Product + OTC actions ──
+      case 'log_cycle_product': {
+        const { child, logDate, productType, productDetail, quantity, notes } = body
+        if (!child || !logDate || !productType) return NextResponse.json({ error: 'child, logDate, productType required' }, { status: 400 })
+        await query(`CREATE TABLE IF NOT EXISTS kid_cycle_products (
+          id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, log_date DATE NOT NULL,
+          product_type TEXT NOT NULL, product_detail TEXT, quantity INTEGER DEFAULT 1,
+          notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`)
+        const rows = await query(
+          `INSERT INTO kid_cycle_products (kid_name, log_date, product_type, product_detail, quantity, notes)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+          [child.toLowerCase(), logDate, productType, productDetail || null, quantity || 1, notes || null]
+        )
+        return NextResponse.json({ success: true, entry: rows[0] })
+      }
+
+      case 'get_cycle_products': {
+        const { child, days } = body
+        if (!child) return NextResponse.json({ error: 'child required' }, { status: 400 })
+        const lookback = days || 90
+        const rows = await query(
+          `SELECT id, kid_name, log_date, product_type, product_detail, quantity, notes, created_at
+           FROM kid_cycle_products WHERE kid_name = $1 AND log_date >= (CURRENT_DATE - $2::int)
+           ORDER BY log_date DESC, id DESC`,
+          [child.toLowerCase(), lookback]
+        ).catch(() => [])
+        return NextResponse.json({ products: rows })
+      }
+
+      case 'delete_cycle_product': {
+        const { entryId } = body
+        if (!entryId) return NextResponse.json({ error: 'entryId required' }, { status: 400 })
+        await query(`DELETE FROM kid_cycle_products WHERE id = $1`, [entryId])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'log_cycle_otc': {
+        const { child, logDate, medication, dosage, timeTaken, helped, notes } = body
+        if (!child || !logDate || !medication) return NextResponse.json({ error: 'child, logDate, medication required' }, { status: 400 })
+        await query(`CREATE TABLE IF NOT EXISTS kid_cycle_otc_meds (
+          id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, log_date DATE NOT NULL,
+          medication TEXT NOT NULL, dosage TEXT, time_taken TEXT, helped BOOLEAN,
+          notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`)
+        const rows = await query(
+          `INSERT INTO kid_cycle_otc_meds (kid_name, log_date, medication, dosage, time_taken, helped, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [child.toLowerCase(), logDate, medication, dosage || null, timeTaken || null, helped ?? null, notes || null]
+        )
+        return NextResponse.json({ success: true, entry: rows[0] })
+      }
+
+      case 'get_cycle_otc': {
+        const { child, days } = body
+        if (!child) return NextResponse.json({ error: 'child required' }, { status: 400 })
+        const lookback = days || 90
+        const rows = await query(
+          `SELECT id, kid_name, log_date, medication, dosage, time_taken, helped, notes, created_at
+           FROM kid_cycle_otc_meds WHERE kid_name = $1 AND log_date >= (CURRENT_DATE - $2::int)
+           ORDER BY log_date DESC, id DESC`,
+          [child.toLowerCase(), lookback]
+        ).catch(() => [])
+        return NextResponse.json({ otcMeds: rows })
+      }
+
+      case 'delete_cycle_otc': {
+        const { entryId } = body
+        if (!entryId) return NextResponse.json({ error: 'entryId required' }, { status: 400 })
+        await query(`DELETE FROM kid_cycle_otc_meds WHERE id = $1`, [entryId])
+        return NextResponse.json({ success: true })
       }
 
       case 'get_cycle_overview': {

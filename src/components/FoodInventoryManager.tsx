@@ -12,6 +12,7 @@ import GroceryTab from './GroceryTab'
 import RecipeSuggestions from './RecipeSuggestions'
 import MealFeedbackAnalytics from './MealFeedbackAnalytics'
 import WeeklyDinnerRotation from './WeeklyDinnerRotation'
+import GroceryRequestReview from './GroceryRequestReview'
 import { aiAgent } from '@/services/aiAgent'
 import {
   getFoodInventory, addFoodItem, updateFoodItem, deleteFoodItem,
@@ -431,7 +432,12 @@ Example:
           {activeTab === 'shopping' && <ShoppingListView />}
 
           {/* Grocery Tab */}
-          {activeTab === 'grocery' && <GroceryTab />}
+          {activeTab === 'grocery' && (
+            <div className="space-y-6">
+              <GroceryRequestReview />
+              <GroceryTab />
+            </div>
+          )}
 
           {/* Meal Plan Tab */}
           {activeTab === 'meal-plan' && (

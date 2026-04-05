@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(request: NextRequest) {
   try {
@@ -535,6 +536,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (action === 'kid_requests') {
+      const status = searchParams.get('status') || 'all'
+      const kid = searchParams.get('kid') || null
+      try {
+        await db.query(`CREATE TABLE IF NOT EXISTS kid_grocery_requests (
+          id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, item_name TEXT NOT NULL,
+          category TEXT DEFAULT 'general', quantity TEXT, reason TEXT,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'denied')),
+          parent_note TEXT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`)
+        let sql = `SELECT * FROM kid_grocery_requests`
+        const params: any[] = []
+        const conditions: string[] = []
+        if (status !== 'all') { params.push(status); conditions.push(`status = $${params.length}`) }
+        if (kid) { params.push(kid.toLowerCase()); conditions.push(`kid_name = $${params.length}`) }
+        if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`
+        sql += ` ORDER BY created_at DESC`
+        const rows = await db.query(sql, params)
+        return NextResponse.json({ requests: rows })
+      } catch { return NextResponse.json({ requests: [] }) }
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Grocery GET error:', error)
@@ -658,6 +680,53 @@ export async function POST(request: NextRequest) {
           if (!err?.message?.includes('does not exist') && err?.code !== '42P01') throw err
         }
         return NextResponse.json({ success: true })
+      }
+
+      case 'submit_grocery_request': {
+        const { kidName, itemName, category, quantity, reason } = body
+        if (!kidName || !itemName) return NextResponse.json({ error: 'kidName and itemName required' }, { status: 400 })
+        await db.query(`CREATE TABLE IF NOT EXISTS kid_grocery_requests (
+          id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, item_name TEXT NOT NULL,
+          category TEXT DEFAULT 'general', quantity TEXT, reason TEXT,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'denied')),
+          parent_note TEXT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`)
+        const kid = kidName.toLowerCase()
+        const kidDisplay = kid.charAt(0).toUpperCase() + kid.slice(1)
+        const rows = await db.query(
+          `INSERT INTO kid_grocery_requests (kid_name, item_name, category, quantity, reason)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [kid, itemName.trim(), category || 'general', quantity || null, reason || null]
+        )
+        await createNotification({
+          title: `${kidDisplay} requested: ${itemName.trim()}`,
+          message: reason ? `Reason: ${reason}` : `Category: ${category || 'general'}`,
+          source_type: 'grocery_request', source_ref: `grocery-req:${rows[0]?.id}`,
+          link_tab: 'food-inventory', icon: '\uD83D\uDED2',
+        }).catch(() => {})
+        return NextResponse.json({ success: true, request: rows[0] })
+      }
+
+      case 'review_grocery_request': {
+        const { requestId, decision, parentNote } = body
+        if (!requestId || !decision) return NextResponse.json({ error: 'requestId and decision required' }, { status: 400 })
+        if (!['approved', 'denied'].includes(decision)) return NextResponse.json({ error: 'decision must be approved or denied' }, { status: 400 })
+        const rows = await db.query(
+          `UPDATE kid_grocery_requests SET status = $1, parent_note = $2, reviewed_at = NOW()
+           WHERE id = $3 RETURNING *`,
+          [decision, parentNote || null, requestId]
+        )
+        if (rows[0]) {
+          const req = rows[0]
+          const emoji = decision === 'approved' ? '\u2705' : '\u274C'
+          await createNotification({
+            title: `${emoji} Grocery request ${decision}`,
+            message: `"${req.item_name}" was ${decision}${parentNote ? ` — ${parentNote}` : ''}`,
+            source_type: 'grocery_reviewed', source_ref: `grocery-req:${requestId}`,
+            link_tab: 'my-day', icon: emoji,
+            target_role: 'kid', kid_name: req.kid_name,
+          }).catch(() => {})
+        }
+        return NextResponse.json({ success: true, request: rows[0] })
       }
 
       case 'lookup_barcode': {

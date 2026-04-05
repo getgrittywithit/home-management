@@ -244,6 +244,125 @@ export async function POST(request: NextRequest) {
       y = addKeyValue(doc, 'School Days (Academic Tasks Completed)', `${attendance[0].school_days || 0} days in ${days}-day period`, y)
     }
 
+    // ── PAGE 5 (conditional): Cycle Health ──
+    const cycleSettings = await db.query(
+      `SELECT * FROM kid_cycle_settings WHERE kid_name = $1 AND mode = 'full' AND onboarded = TRUE`,
+      [kid]
+    ).catch(() => [])
+
+    if (cycleSettings.length > 0) {
+      const sixMonthsAgo = new Date()
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+      const cycleStart = sixMonthsAgo.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+
+      const cycleLogs = await db.query(
+        `SELECT event_type, event_date FROM kid_cycle_log WHERE kid_name = $1 AND event_date >= $2 ORDER BY event_date ASC`,
+        [kid, cycleStart]
+      ).catch(() => [])
+      const cycleSymptoms = await db.query(
+        `SELECT log_date, mood, cramps, flow, notes, irregularities FROM kid_cycle_symptoms
+         WHERE kid_name = $1 AND log_date >= $2 ORDER BY log_date ASC`,
+        [kid, cycleStart]
+      ).catch(() => [])
+      const cycleProducts = await db.query(
+        `SELECT product_type, SUM(quantity)::int as total FROM kid_cycle_products
+         WHERE kid_name = $1 AND log_date >= $2 GROUP BY product_type ORDER BY total DESC`,
+        [kid, cycleStart]
+      ).catch(() => [])
+      const cycleOtc = await db.query(
+        `SELECT medication, COUNT(*)::int as count, COUNT(*) FILTER (WHERE helped = TRUE)::int as helped_count
+         FROM kid_cycle_otc_meds WHERE kid_name = $1 AND log_date >= $2
+         GROUP BY medication ORDER BY count DESC`,
+        [kid, cycleStart]
+      ).catch(() => [])
+
+      doc.addPage()
+      y = addHeader(doc, `Health Summary — ${kidDisplay}`, 'Cycle Health')
+      addFooter(doc, 'Confidential — Prepared for healthcare provider use')
+
+      const cs = cycleSettings[0]
+      y = addSectionTitle(doc, 'Cycle Overview', y)
+      y = addKeyValue(doc, 'Regularity', cs.cycle_regularity || 'Unknown', y)
+      y = addKeyValue(doc, 'Avg Cycle Length', `${cs.avg_cycle_length || '?'} days`, y)
+      y = addKeyValue(doc, 'Avg Period Duration', `${cs.avg_period_duration || '?'} days`, y)
+      if (cs.common_symptoms?.length) {
+        y = addKeyValue(doc, 'Common Symptoms', cs.common_symptoms.join(', '), y)
+      }
+      y += 3
+
+      // Cycle history table
+      const starts = cycleLogs.filter((l: any) => l.event_type === 'start')
+      const ends = cycleLogs.filter((l: any) => l.event_type === 'end')
+      if (starts.length > 0) {
+        const toStr = (d: any) => {
+          if (!d) return ''
+          if (typeof d === 'string') return d.slice(0, 10)
+          try { return new Date(d).toISOString().slice(0, 10) } catch { return '' }
+        }
+        y = addSectionTitle(doc, 'Cycle History (Last 6 Months)', y)
+        const cycleRows = starts.map((s: any, i: number) => {
+          const sd = toStr(s.event_date)
+          const matchEnd = ends.find((e: any) => toStr(e.event_date) >= sd)
+          const ed = matchEnd ? toStr(matchEnd.event_date) : 'Ongoing'
+          const dur = matchEnd ? Math.round((new Date(toStr(matchEnd.event_date) + 'T12:00:00').getTime() - new Date(sd + 'T12:00:00').getTime()) / 86400000) + 1 : '-'
+          let cycLen = '-'
+          if (i > 0) {
+            const prevStart = toStr(starts[i-1].event_date)
+            cycLen = String(Math.round((new Date(sd + 'T12:00:00').getTime() - new Date(prevStart + 'T12:00:00').getTime()) / 86400000))
+          }
+          return [sd, ed === 'Ongoing' ? 'Ongoing' : ed, String(dur), cycLen]
+        })
+        y = addTable(doc, ['Start', 'End', 'Duration', 'Cycle Length'], cycleRows, y, [40, 40, 35, 40])
+        y += 3
+      }
+
+      // Symptom patterns
+      if (cycleSymptoms.length > 0) {
+        y = addSectionTitle(doc, 'Symptom Patterns', y)
+        const moodCounts: Record<string, number> = {}
+        let crampTotal = 0, crampCount = 0
+        cycleSymptoms.forEach((s: any) => {
+          if (s.mood) moodCounts[s.mood] = (moodCounts[s.mood] || 0) + 1
+          if (s.cramps != null) { crampTotal += s.cramps; crampCount++ }
+        })
+        const topMoods = Object.entries(moodCounts).sort(([,a],[,b]) => b - a).slice(0, 3).map(([m,c]) => `${m} (${c}x)`).join(', ')
+        y = addKeyValue(doc, 'Most Common Moods', topMoods || 'None logged', y)
+        y = addKeyValue(doc, 'Avg Cramp Severity', crampCount > 0 ? `${(crampTotal / crampCount).toFixed(1)}/3` : 'N/A', y)
+
+        const allIrr: Record<string, number> = {}
+        cycleSymptoms.forEach((s: any) => { (s.irregularities || []).forEach((ir: string) => { allIrr[ir] = (allIrr[ir] || 0) + 1 }) })
+        const irrText = Object.entries(allIrr).map(([k,v]) => `${k} (${v}x)`).join(', ')
+        if (irrText) y = addKeyValue(doc, 'Irregularities', irrText, y)
+        y += 3
+      }
+
+      // Product usage summary
+      if (cycleProducts.length > 0) {
+        const productLabels: Record<string, string> = {
+          pad_regular: 'Regular Pad', pad_overnight: 'Overnight Pad', pad_thin: 'Thin Pad',
+          liner: 'Liner', heating_pad: 'Heating Pad', epsom_bath: 'Epsom Bath',
+          tampon_regular: 'Tampon', heat_patch: 'Heat Patch', gel_cream: 'Gel/Cream',
+        }
+        y = addSectionTitle(doc, 'Product Usage (6-Month Totals)', y)
+        y = addTable(doc, ['Product', 'Total Used'],
+          cycleProducts.map((p: any) => [productLabels[p.product_type] || p.product_type, String(p.total)]),
+          y, [120, 65])
+        y += 3
+      }
+
+      // OTC medication summary
+      if (cycleOtc.length > 0) {
+        y = addSectionTitle(doc, 'OTC Medications (6-Month Totals)', y)
+        y = addTable(doc, ['Medication', 'Doses', 'Helped'],
+          cycleOtc.map((m: any) => [
+            m.medication.charAt(0).toUpperCase() + m.medication.slice(1),
+            String(m.count),
+            m.count > 0 ? `${Math.round((m.helped_count / m.count) * 100)}%` : 'N/A',
+          ]),
+          y, [80, 50, 55])
+      }
+    }
+
     // Generate PDF
     const pdfBytes = pdfToUint8Array(doc)
 
