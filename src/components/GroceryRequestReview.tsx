@@ -60,8 +60,6 @@ export default function GroceryRequestReview() {
 
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-  if (pending.length === 0 && !showHistory) return null
-
   return (
     <div className="bg-white rounded-lg border shadow-sm p-4 space-y-3">
       <div className="flex items-center justify-between">
