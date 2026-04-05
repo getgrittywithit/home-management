@@ -13,6 +13,7 @@ import RecipeSuggestions from './RecipeSuggestions'
 import MealFeedbackAnalytics from './MealFeedbackAnalytics'
 import WeeklyDinnerRotation from './WeeklyDinnerRotation'
 import GroceryRequestReview from './GroceryRequestReview'
+import GroceryPDFButtons from './GroceryPDFButtons'
 import { aiAgent } from '@/services/aiAgent'
 import {
   getFoodInventory, addFoodItem, updateFoodItem, deleteFoodItem,
@@ -435,6 +436,7 @@ Example:
           {activeTab === 'grocery' && (
             <div className="space-y-6">
               <GroceryRequestReview />
+              <GroceryPDFButtons />
               <GroceryTab />
             </div>
           )}

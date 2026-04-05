@@ -26,6 +26,7 @@ import NeedsAttentionPanel from './NeedsAttentionPanel'
 import NotificationBell from './NotificationBell'
 import KidSnapshotCards from './KidSnapshotCards'
 import HealthMergedTab from './HealthMergedTab'
+import EmailInbox from './email/EmailInbox'
 import FinanceMergedTab from './FinanceMergedTab'
 import StarsAndRewardsTab from './StarsAndRewardsTab'
 import MessagesAndAlertsTab from './MessagesAndAlertsTab'
@@ -37,7 +38,7 @@ import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, CheckSquare, ChefHat, DollarSign, Heart, Star, MessageCircle,
-  Dog, GraduationCap, Flame, Shield
+  Dog, GraduationCap, Flame, Shield, Mail
 } from 'lucide-react'
 
 interface Tab {
@@ -53,6 +54,7 @@ const tabs: Tab[] = [
   { id: 'overview', name: 'Overview', icon: Home, color: 'bg-blue-500', section: 'DAILY' },
   { id: 'messages-alerts', name: 'Messages & Alerts', icon: MessageCircle, color: 'bg-pink-500', section: 'DAILY' },
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600', section: 'DAILY' },
+  { id: 'email', name: 'Email', icon: Mail, color: 'bg-indigo-500', section: 'DAILY' },
   // SCHOOL
   { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500', section: 'SCHOOL' },
   { id: 'school', name: 'School', icon: GraduationCap, color: 'bg-orange-500', section: 'SCHOOL' },
@@ -414,6 +416,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <ChoresTab familyMembers={familyMembers} />
       case 'belle-care':
         return <PetsTab />
+      case 'email':
+        return <div className="p-6 max-w-5xl mx-auto"><EmailInbox /></div>
       case 'food-inventory':
         return <FoodInventoryManager />
       case 'stars-rewards':

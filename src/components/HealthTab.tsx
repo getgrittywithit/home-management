@@ -2,17 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import {
-  Shield, Heart, AlertCircle, Plus, X, Trash2, Loader2, ClipboardList, CheckCircle
+  Shield, Heart, AlertCircle, Loader2, ClipboardList, X
 } from 'lucide-react'
-import MoodHistoryCard from './MoodHistoryCard'
 import HealthProviders from './health/HealthProviders'
 import HealthMedications from './health/HealthMedications'
 import HealthAppointments from './health/HealthAppointments'
 import HealthVisitNotes from './health/HealthVisitNotes'
-import MedMoodTimeline from './health/MedMoodTimeline'
 import HealthDailyCare from './health/HealthDailyCare'
 import HealthCycleTracker from './health/HealthCycleTracker'
 import HealthOverview from './health/HealthOverview'
+import HealthMoodActivity from './health/HealthMoodActivity'
+import HealthDentalManager from './health/HealthDentalManager'
+import ShareWithProviderModal from './health/ShareWithProviderModal'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -182,9 +183,6 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
 
   // Share with Provider modal
   const [showExportModal, setShowExportModal] = useState(false)
-  const [exportKid, setExportKid] = useState('amos')
-  const [exportRange, setExportRange] = useState(30)
-  const [exporting, setExporting] = useState(false)
 
   const themeColor = memberGroup === 'parents' ? 'blue' : 'teal'
   const themeClasses = memberGroup === 'parents'
@@ -282,27 +280,6 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
   // Helper functions and filters moved to extracted sub-tab components
 
   const familyMembers = healthProfiles.map(p => p.family_member_name)
-
-  const handleExportPDF = async () => {
-    setExporting(true)
-    try {
-      const res = await fetch('/api/health/export-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kid_name: exportKid, date_range: exportRange }),
-      })
-      if (!res.ok) throw new Error('Export failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
-      setShowExportModal(false)
-    } catch (err) {
-      console.error('Export error:', err)
-      setError('Failed to generate PDF')
-    }
-    setExporting(false)
-  }
 
   // ============================================================================
   // RENDER
@@ -474,7 +451,7 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       {/* DENTAL MANAGER (Parent portal — kids memberGroup only) */}
       {/* ================================================================== */}
       {activeSection === 'dental' && memberGroup === 'kids' && dentalOverview && (
-        <DentalManager
+        <HealthDentalManager
           overview={dentalOverview}
           onRefresh={async () => {
             try {
@@ -490,22 +467,7 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       {/* ACTIVITY & MOOD OVERVIEW (Parent portal — kids memberGroup only) */}
       {/* ================================================================== */}
       {activeSection === 'activity_mood' && memberGroup === 'kids' && (
-        <div className="space-y-4">
-          <h3 className="font-semibold text-gray-900">Activity & Mood Overview</h3>
-
-          {/* Med-Mood Correlation Timeline (MED-MOOD-1) */}
-          <MedMoodTimeline />
-
-          {/* Mood Check-In History */}
-          <div className="bg-white rounded-lg border shadow-sm p-6">
-            <h3 className="text-xl font-bold mb-4">Mood Check-In History</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {['Amos', 'Ellie', 'Wyatt', 'Hannah', 'Zoey', 'Kaylee'].map(kid => (
-                <MoodHistoryCard key={kid} childName={kid} />
-              ))}
-            </div>
-          </div>
-        </div>
+        <HealthMoodActivity />
       )}
 
       {/* ================================================================== */}
@@ -548,183 +510,15 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
 
       {/* Share with Provider Modal */}
       {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-teal-600" />
-                Share with Provider
-              </h3>
-              <button onClick={() => setShowExportModal(false)} className="p-1 rounded hover:bg-gray-100">
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Select Child</label>
-              <select value={exportKid} onChange={e => setExportKid(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm">
-                {['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah'].map(k => (
-                  <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Date Range</label>
-              <div className="flex gap-2">
-                {[7, 30, 90].map(r => (
-                  <button key={r} onClick={() => setExportRange(r)}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                      exportRange === r ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}>
-                    Last {r} Days
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button onClick={handleExportPDF} disabled={exporting}
-              className="w-full bg-teal-500 text-white py-3 rounded-lg font-medium hover:bg-teal-600 disabled:opacity-50 flex items-center justify-center gap-2">
-              {exporting ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <>Generate PDF</>}
-            </button>
-            <p className="text-xs text-gray-500 text-center">PDF opens in a new tab. Print or save to share with your provider.</p>
-          </div>
-        </div>
+        <ShareWithProviderModal onClose={() => setShowExportModal(false)} />
       )}
     </div>
   )
 }
 
-function DentalManager({ overview, onRefresh, onError }: {
-  overview: any; onRefresh: () => void; onError: (msg: string) => void
-}) {
-  const [noteForm, setNoteForm] = useState({ child: '', note: '' })
-  const [showNoteForm, setShowNoteForm] = useState(false)
-  const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
-
-  const byKid: Record<string, any[]> = {}
-  overview.items?.forEach((item: any) => {
-    if (!byKid[item.child_name]) byKid[item.child_name] = []
-    byKid[item.child_name].push(item)
-  })
-
-  const streakMap: Record<string, any> = {}
-  overview.streaks?.forEach((s: any) => { streakMap[s.child_name] = s })
-
-  const notesByKid: Record<string, any[]> = {}
-  overview.notes?.forEach((n: any) => {
-    if (!notesByKid[n.child_name]) notesByKid[n.child_name] = []
-    notesByKid[n.child_name].push(n)
-  })
-
-  const handleAddNote = async () => {
-    if (!noteForm.child || !noteForm.note.trim()) return
-    try {
-      await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add_dental_note', child: noteForm.child, note: noteForm.note }) })
-      setNoteForm({ child: '', note: '' }); setShowNoteForm(false); onRefresh()
-    } catch { onError('Failed to add dental note') }
-  }
-
-  const handleDeleteNote = async (noteId: number) => {
-    try {
-      await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete_dental_note', noteId }) })
-      onRefresh()
-    } catch { onError('Failed to delete note') }
-  }
-
-  const handleToggleItem = async (itemId: number, enabled: boolean) => {
-    try {
-      await fetch('/api/kids/health', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update_dental_items', dentalItemId: itemId, enabled }) })
-      onRefresh()
-    } catch { onError('Failed to update item') }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-900">🦷 Dental Manager</h3>
-        <button onClick={() => setShowNoteForm(!showNoteForm)}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-cyan-500 text-white hover:bg-cyan-600 transition">
-          <Plus className="w-4 h-4" />Add Note
-        </button>
-      </div>
-
-      {showNoteForm && (
-        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-          <select value={noteForm.child} onChange={e => setNoteForm(f => ({ ...f, child: e.target.value }))}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
-            <option value="">Select child...</option>
-            {KIDS.map(k => <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>)}
-          </select>
-          <input type="text" placeholder="Dental note (e.g., 2 cavities filled Jan 2026)" value={noteForm.note}
-            onChange={e => setNoteForm(f => ({ ...f, note: e.target.value }))}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-          <div className="flex gap-2">
-            <button onClick={handleAddNote} disabled={!noteForm.child || !noteForm.note.trim()}
-              className="flex-1 bg-cyan-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-cyan-600 transition disabled:opacity-50">Add Note</button>
-            <button onClick={() => setShowNoteForm(false)}
-              className="flex-1 bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium hover:bg-gray-400 transition">Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {KIDS.map(kid => {
-        const items = byKid[kid] || []
-        const streak = streakMap[kid]
-        const notes = notesByKid[kid] || []
-        const capName = kid.charAt(0).toUpperCase() + kid.slice(1)
-        return (
-          <div key={kid} className="bg-white rounded-lg p-5 shadow-sm border">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-gray-900">{capName}</h4>
-              {streak && (
-                <span className="text-sm">
-                  {streak.current_streak > 0 ? `🔥 ${streak.current_streak}-day streak` : 'No streak yet'}
-                  {streak.longest_streak > 0 && streak.longest_streak > streak.current_streak && (
-                    <span className="text-xs text-gray-500 ml-1">(best: {streak.longest_streak})</span>
-                  )}
-                </span>
-              )}
-            </div>
-            {notes.length > 0 && (
-              <div className="mb-2 space-y-1">
-                {notes.map((n: any) => (
-                  <div key={n.id} className="flex items-center justify-between text-sm text-gray-600 bg-cyan-50 rounded px-3 py-1.5 group">
-                    <span>📝 {n.note}</span>
-                    <button onClick={() => handleDeleteNote(n.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {items.length > 0 ? (
-              <div className="space-y-1">
-                {items.map((item: any) => (
-                  <div key={item.id} className="flex items-center gap-2 text-sm">
-                    <button onClick={() => handleToggleItem(item.id, !item.enabled)}
-                      className={`w-4 h-4 rounded border flex-shrink-0 ${item.enabled ? 'bg-cyan-500 border-cyan-500' : 'bg-gray-200 border-gray-300'}`}>
-                      {item.enabled && <CheckCircle className="w-4 h-4 text-white" />}
-                    </button>
-                    <span className={item.enabled ? 'text-gray-900' : 'text-gray-400 line-through'}>
-                      {item.time_of_day === 'morning' ? '☀️' : '🌙'} {item.item_name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">No dental items configured</p>
-            )}
-          </div>
-        )
-      })}
-
-    </div>
-  )
-}
-
-// CycleManager moved to health/HealthCycleTracker.tsx
-// DailyCareManager moved to health/HealthDailyCare.tsx
+// DentalManager extracted to health/HealthDentalManager.tsx
+// CycleManager extracted to health/HealthCycleTracker.tsx
+// DailyCareManager extracted to health/HealthDailyCare.tsx
+// MoodActivity extracted to health/HealthMoodActivity.tsx
+// ShareWithProviderModal extracted to health/ShareWithProviderModal.tsx
 // KidRequestActions + Overview moved to health/HealthOverview.tsx
