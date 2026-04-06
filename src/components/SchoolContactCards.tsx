@@ -93,29 +93,46 @@ export default function SchoolContactCards({ kid }: { kid: string }) {
         </div>
       )}
 
-      {/* Contact cards */}
-      <div className="divide-y">
-        {contacts.map((c: any) => (
-          <div key={c.id} className="px-3 py-2.5 group">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getRoleColor(c.role)}`}>{c.role_label || c.role}</span>
-                <span className="text-sm font-medium text-gray-900">{c.contact_name}</span>
+      {/* Contact cards grouped by category */}
+      {[
+        { cat: 'school', label: 'School Contacts' },
+        { cat: 'health', label: 'Health & Therapy Providers' },
+        { cat: 'activities', label: 'Activities & Programs' },
+      ].map(({ cat, label }) => {
+        const catContacts = contacts.filter((c: any) => (c.category || 'school') === cat)
+        if (catContacts.length === 0) return null
+        return (
+          <div key={cat}>
+            {cat !== 'school' && (
+              <div className="px-3 pt-2 pb-1">
+                <span className="text-xs font-semibold text-gray-500 uppercase">{label}</span>
               </div>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => startEdit(c)} className="p-1 hover:bg-gray-100 rounded"><Pencil className="w-3 h-3 text-gray-400" /></button>
-                <button onClick={() => deleteContact(c.id)} className="p-1 hover:bg-red-50 rounded"><Trash2 className="w-3 h-3 text-gray-400" /></button>
-              </div>
+            )}
+            <div className="divide-y">
+              {catContacts.map((c: any) => (
+                <div key={c.id} className="px-3 py-2.5 group">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getRoleColor(c.role)}`}>{c.role_label || c.role}</span>
+                      <span className="text-sm font-medium text-gray-900">{c.contact_name}</span>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => startEdit(c)} className="p-1 hover:bg-gray-100 rounded"><Pencil className="w-3 h-3 text-gray-400" /></button>
+                      <button onClick={() => deleteContact(c.id)} className="p-1 hover:bg-red-50 rounded"><Trash2 className="w-3 h-3 text-gray-400" /></button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    {c.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {c.email}</span>}
+                    {c.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}{c.phone_ext ? ` x${c.phone_ext}` : ''}</span>}
+                  </div>
+                  {c.notes && <p className="text-xs text-gray-400 mt-0.5">{c.notes}</p>}
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-              {c.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {c.email}</span>}
-              {c.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}{c.phone_ext ? ` x${c.phone_ext}` : ''}</span>}
-            </div>
-            {c.notes && <p className="text-xs text-gray-400 mt-0.5">{c.notes}</p>}
           </div>
-        ))}
-        {contacts.length === 0 && <div className="p-3 text-xs text-gray-400 text-center">No contacts on file</div>}
-      </div>
+        )
+      })}
+      {contacts.length === 0 && <div className="p-3 text-xs text-gray-400 text-center">No contacts on file</div>}
     </div>
   )
 }

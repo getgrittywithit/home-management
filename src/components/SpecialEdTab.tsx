@@ -71,6 +71,16 @@ const DIAGNOSIS_PILLS: Record<string, { label: string; color: string }> = {
   other: { label: 'Other', color: 'bg-gray-100 text-gray-600' },
 }
 
+// Safe date parser — handles ISO timestamps from Postgres ("2026-03-06T06:00:00.000Z")
+function safeDate(d: any, opts?: Intl.DateTimeFormatOptions): string {
+  if (!d) return ''
+  try {
+    const str = typeof d === 'string' ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10)
+    const [y, m, day] = str.split('-').map(Number)
+    return new Date(y, m - 1, day).toLocaleDateString('en-US', opts || { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch { return '' }
+}
+
 const PROVIDER_TYPES: Record<string, string> = {
   speech_therapist: '🗣️',
   occupational_therapist: '🤲',
@@ -608,7 +618,7 @@ export default function SpecialEdTab() {
                           className="text-xs text-amber-700 hover:text-amber-900 hover:underline text-left"
                         >
                           {KID_DISPLAY[m.kid]} — {m.plan.plan_type} on{' '}
-                          {new Date(m.plan.next_meeting_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {safeDate(m.plan.next_meeting_date, { month: 'short', day: 'numeric' })}
                           {m.plan.next_meeting_time && ` at ${m.plan.next_meeting_time}`}
                         </button>
                         <button
@@ -629,7 +639,7 @@ export default function SpecialEdTab() {
                   <Calendar className="w-4 h-4 text-purple-500" />
                   <p className="text-sm text-purple-700">
                     Next meeting: {KID_DISPLAY[upcomingMeetings[0].kid]} — {upcomingMeetings[0].plan.plan_type} on{' '}
-                    {new Date(upcomingMeetings[0].plan.next_meeting_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    {safeDate(upcomingMeetings[0].plan.next_meeting_date, { month: 'long', day: 'numeric', year: 'numeric' })}
                   </p>
                 </div>
               )}
@@ -800,7 +810,7 @@ export default function SpecialEdTab() {
                           </span>
                           {plan.review_date && (
                             <span className="text-xs text-gray-400">
-                              Last review: {new Date(plan.review_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              Last review: {safeDate(plan.review_date)}
                             </span>
                           )}
                         </div>
@@ -831,7 +841,7 @@ export default function SpecialEdTab() {
                                 <div className="flex-1">
                                   <p className="font-medium text-sm">
                                     Upcoming Meeting —{' '}
-                                    {new Date(plan.next_meeting_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    {safeDate(plan.next_meeting_date, { month: 'long', day: 'numeric', year: 'numeric' })}
                                     {plan.next_meeting_time && ` at ${plan.next_meeting_time}`}
                                   </p>
                                   {plan.next_meeting_location && (
@@ -1069,7 +1079,7 @@ export default function SpecialEdTab() {
                       <div key={m.id} className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">
-                            {new Date(m.meeting_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {safeDate(m.meeting_date)}
                           </span>
                           <span className="text-xs text-gray-400 capitalize">
                             {(m.meeting_type || '').replace(/_/g, ' ')}
@@ -1237,7 +1247,7 @@ export default function SpecialEdTab() {
                               {(m.meeting_type || 'Meeting').replace(/_/g, ' ')}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {new Date(m.meeting_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                              {safeDate(m.meeting_date, { month: 'long', day: 'numeric', year: 'numeric' })}
                             </p>
                             {m.outcome && <p className="text-xs text-gray-600 mt-0.5">{m.outcome}</p>}
                           </div>
@@ -1278,7 +1288,7 @@ export default function SpecialEdTab() {
                           </span>
                           {p.start_date && (
                             <span className="text-xs text-gray-400">
-                              from {new Date(p.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              from {safeDate(p.start_date, { month: 'short', year: 'numeric' })}
                             </span>
                           )}
                           {p.created_at && !p.start_date && (
