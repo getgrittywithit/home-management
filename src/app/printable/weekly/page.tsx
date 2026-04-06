@@ -50,6 +50,14 @@ export default function WeeklyPrintable() {
         </button>
       </div>
 
+      {/* Family Challenge Banner */}
+      {data.family_challenge && (
+        <div className="mb-4 rounded-lg px-4 py-3 text-center" style={{ backgroundColor: '#fef3c7', border: '2px solid #c47c2b' }}>
+          <p className="text-xs font-semibold uppercase text-gray-600 mb-0.5">This Week&apos;s Family Challenge</p>
+          <p className="font-bold text-gray-900">{data.family_challenge}</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="text-center mb-4">
         <h1 className="text-2xl font-bold" style={{ color: '#1e2d4d' }}>Moses Family &mdash; Week at a Glance</h1>
