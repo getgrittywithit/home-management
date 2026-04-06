@@ -938,6 +938,30 @@ export async function POST(request: NextRequest) {
         } catch { return NextResponse.json({ found: false, barcode }) }
       }
 
+      case 'get_pantry': {
+        // Alias for GET pantry_stock — returns all active pantry items
+        const items = await db.query(`SELECT * FROM pantry_stock WHERE active = true ORDER BY department, name`).catch(() => [])
+        return NextResponse.json({ pantry: items })
+      }
+
+      case 'get_week_plan':
+      case 'get_meal_plan': {
+        // Return current week's meal rotation from family-huddle style calculation
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const weekOffset = body.week_offset || 0
+        const startDate = new Date(today + 'T12:00:00')
+        startDate.setDate(startDate.getDate() - startDate.getDay() + 1 + (weekOffset * 7)) // Monday
+        const endDate = new Date(startDate)
+        endDate.setDate(endDate.getDate() + 6) // Sunday
+        const start = startDate.toLocaleDateString('en-CA')
+        const end = endDate.toLocaleDateString('en-CA')
+        const plans = await db.query(
+          `SELECT id, date, meal_type, dish_name, ingredients, servings, notes FROM meal_plans WHERE date >= $1 AND date <= $2 ORDER BY date`,
+          [start, end]
+        ).catch(() => [])
+        return NextResponse.json({ plans, start, end, week_offset: weekOffset })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }

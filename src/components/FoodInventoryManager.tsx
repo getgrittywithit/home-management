@@ -43,7 +43,7 @@ export default function FoodInventoryManager() {
   const [inventory, setInventory] = useState<FoodItem[]>([])
   const [selectedLocation, setSelectedLocation] = useState<FoodLocation | 'all'>('all')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input' | 'shopping' | 'grocery'>('inventory')
+  const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input' | 'shopping' | 'grocery'>('meal-plan')
   const [bulkInput, setBulkInput] = useState('')
   const [apiKeySet] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)

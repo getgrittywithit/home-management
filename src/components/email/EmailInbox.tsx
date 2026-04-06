@@ -171,9 +171,19 @@ export default function EmailInbox() {
         <div className="text-center text-gray-400 py-12"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
       ) : emails.length === 0 ? (
         <div className="bg-white rounded-lg border p-12 text-center">
-          <Mail className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">No emails yet</p>
-          <p className="text-sm text-gray-400 mt-1">Click Sync to fetch from Gmail, or emails will appear as they arrive.</p>
+          <Mail className="w-12 h-12 text-indigo-200 mx-auto mb-4" />
+          <p className="text-gray-700 font-semibold text-lg">{'\uD83D\uDCE7'} Connect Gmail</p>
+          <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+            Your inbox isn&apos;t connected yet. Once Gmail is set up, emails will be sorted automatically
+            by School, Medical, Triton, Finance, and more.
+          </p>
+          <div className="mt-4 flex gap-3 justify-center">
+            <button onClick={handleSync}
+              className="px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600">
+              Try Sync
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-4">If sync doesn&apos;t work, Gmail OAuth credentials may need to be configured on the server.</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg border divide-y">

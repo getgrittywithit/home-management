@@ -37,6 +37,7 @@ import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
 import AiBuddyChat from './AiBuddyChat'
 import LeaderboardCard from './LeaderboardCard'
+import ParentMyDayCard from './ParentMyDayCard'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
@@ -401,6 +402,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           <div className="space-y-6 p-6 max-w-6xl mx-auto">
             <NeedsAttentionPanel onNavigate={(tab) => setActiveTab(tab)} />
             <SickAlertBanner />
+            <ParentMyDayCard onNavigate={(tab) => setActiveTab(tab)} />
             <AvailabilityWidget />
             <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
             <CalendarDashboardCard onNavigate={() => setActiveTab('calendar')} />

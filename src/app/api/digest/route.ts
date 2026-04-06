@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action')
 
-  switch (action) {
+  switch (action || 'generate') {
     case 'get_latest': {
       const rows = await db.query(
         `SELECT * FROM weekly_digests ORDER BY generated_at DESC LIMIT 1`

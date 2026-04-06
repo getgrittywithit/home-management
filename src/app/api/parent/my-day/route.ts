@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action')
 
-  switch (action) {
+  switch (action || 'get_today') {
     case 'get_today': {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
 

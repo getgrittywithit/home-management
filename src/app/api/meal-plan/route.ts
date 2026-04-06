@@ -26,8 +26,27 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { date, meal_type, dish_name, ingredients, servings, notes } = await request.json()
+    const body = await request.json()
+    const { action, date, meal_type, dish_name, ingredients, servings, notes } = body
 
+    // Action-based routing
+    if (action === 'get_week_plan') {
+      const weekOffset = body.week_offset || 0
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      const startDate = new Date(today + 'T12:00:00')
+      startDate.setDate(startDate.getDate() - startDate.getDay() + 1 + (weekOffset * 7))
+      const endDate = new Date(startDate)
+      endDate.setDate(endDate.getDate() + 6)
+      const start = startDate.toLocaleDateString('en-CA')
+      const end = endDate.toLocaleDateString('en-CA')
+      const rows = await db.query(
+        `SELECT id, date, meal_type, dish_name, ingredients, servings, notes, recipe_id FROM meal_plans WHERE date >= $1 AND date <= $2 ORDER BY date`,
+        [start, end]
+      )
+      return NextResponse.json({ plans: rows, start, end, week_offset: weekOffset })
+    }
+
+    // Default: upsert meal plan entry
     if (!date || !dish_name) {
       return NextResponse.json({ error: 'date and dish_name required' }, { status: 400 })
     }
