@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import {
   Calendar, Plus, Edit2, Trash2, Clock, Stethoscope,
-  MapPin, DollarSign, CheckCircle
+  MapPin, DollarSign, CheckCircle, List
 } from 'lucide-react'
+import HealthAppointmentsCalendar from './HealthAppointmentsCalendar'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -97,6 +98,7 @@ export default function HealthAppointments({
   const [showAddAppointment, setShowAddAppointment] = useState(false)
   const [editingAppointment, setEditingAppointment] = useState<string | null>(null)
   const [apptFilter, setApptFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [appointmentForm, setAppointmentForm] = useState<Partial<Appointment>>({
     family_member_name: '', provider_name: '', appointment_type: 'checkup',
     appointment_date: '', location: '', reason: '', status: 'scheduled',
@@ -190,8 +192,27 @@ export default function HealthAppointments({
         </div>
       </div>
 
+      {/* View toggle: List / Calendar */}
+      <div className="flex items-center gap-2">
+        <div className="flex rounded-lg overflow-hidden border text-xs">
+          <button onClick={() => setViewMode('list')}
+            className={`px-3 py-1.5 font-medium flex items-center gap-1 transition ${viewMode === 'list' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            <List className="w-3.5 h-3.5" /> List
+          </button>
+          <button onClick={() => setViewMode('calendar')}
+            className={`px-3 py-1.5 font-medium flex items-center gap-1 transition ${viewMode === 'calendar' ? 'bg-indigo-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+            <Calendar className="w-3.5 h-3.5" /> Calendar
+          </button>
+        </div>
+      </div>
+
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <HealthAppointmentsCalendar appointments={appointments as any} />
+      )}
+
       {/* Appointments List */}
-      <div className="bg-white rounded-lg p-6 shadow-sm border">
+      {viewMode === 'list' && <div className="bg-white rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-blue-600" />
@@ -354,7 +375,7 @@ export default function HealthAppointments({
             })}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

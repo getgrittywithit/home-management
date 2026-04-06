@@ -148,6 +148,40 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      // ── REGULATION-1b: Personalized regulation tools ──
+      case 'get_regulation_tools': {
+        const { kid_name } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const tools = await db.query(
+          `SELECT id, strategy_type, strategy_name, strategy_description, effectiveness_score, times_used, times_helped
+           FROM kid_regulation_profiles WHERE kid_name = $1 AND active = true
+           ORDER BY effectiveness_score DESC, times_used DESC`,
+          [kid_name.toLowerCase()]
+        ).catch(() => [])
+        return NextResponse.json({ success: true, tools })
+      }
+
+      case 'log_strategy_used': {
+        const { kid_name, strategy_id } = body
+        if (!strategy_id) return NextResponse.json({ error: 'strategy_id required' }, { status: 400 })
+        await db.query(`UPDATE kid_regulation_profiles SET times_used = times_used + 1 WHERE id = $1`, [strategy_id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'log_strategy_helped': {
+        const { strategy_id, helped } = body
+        if (!strategy_id) return NextResponse.json({ error: 'strategy_id required' }, { status: 400 })
+        if (helped) {
+          await db.query(`UPDATE kid_regulation_profiles SET times_helped = times_helped + 1 WHERE id = $1`, [strategy_id])
+        }
+        // Recalculate effectiveness_score = times_helped / times_used (min 0.1)
+        await db.query(
+          `UPDATE kid_regulation_profiles SET effectiveness_score = GREATEST(0.1, CASE WHEN times_used > 0 THEN times_helped::real / times_used ELSE 0.5 END) WHERE id = $1`,
+          [strategy_id]
+        )
+        return NextResponse.json({ success: true })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }

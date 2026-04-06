@@ -20,6 +20,46 @@ export async function GET(request: NextRequest) {
         const events = await db.getUpcomingEvents(20)
         return NextResponse.json(events)
 
+      case 'get_events': {
+        const startDate = searchParams.get('start_date') || new Date().toISOString().slice(0, 10)
+        const endDate = searchParams.get('end_date') || (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10) })()
+        const rows = await db.query(
+          `SELECT id, title, description, start_time, end_time, location, calendar_name, calendar_color, all_day, event_type
+           FROM family_events WHERE start_time::date BETWEEN $1 AND $2 ORDER BY start_time`,
+          [startDate, endDate]
+        ).catch(() => [])
+        const mapped = rows.map((e: any) => ({
+          id: e.id, title: e.title || 'Untitled', start: e.start_time, end: e.end_time,
+          calendar_name: e.calendar_name || 'Family', calendar_color: e.calendar_color || '#4285f4',
+          all_day: e.all_day || false, location: e.location || '', description: e.description || '',
+          event_type: e.event_type || '',
+        }))
+        return NextResponse.json({ events: mapped })
+      }
+
+      case 'get_today': {
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const rows = await db.query(
+          `SELECT id, title, description, start_time, end_time, location, calendar_name, calendar_color, all_day
+           FROM family_events WHERE start_time::date = $1 ORDER BY start_time`,
+          [today]
+        ).catch(() => [])
+        return NextResponse.json({ events: rows })
+      }
+
+      case 'get_week': {
+        const weekStart = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const ws = new Date(weekStart + 'T12:00:00')
+        ws.setDate(ws.getDate() + 6)
+        const weekEnd = ws.toLocaleDateString('en-CA')
+        const rows = await db.query(
+          `SELECT id, title, description, start_time, end_time, location, calendar_name, calendar_color, all_day
+           FROM family_events WHERE start_time::date BETWEEN $1 AND $2 ORDER BY start_time`,
+          [weekStart, weekEnd]
+        ).catch(() => [])
+        return NextResponse.json({ events: rows })
+      }
+
       default:
         return NextResponse.json(
           { error: 'Invalid action' },

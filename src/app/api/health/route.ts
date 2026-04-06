@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createPDF, addHeader, addFooter, addSectionTitle, addKeyValue, addTable } from '@/lib/pdf/generate'
 const query = db.query.bind(db)
 
 export async function GET(request: NextRequest) {
@@ -674,6 +675,154 @@ export async function POST(request: NextRequest) {
           [id]
         )
         return NextResponse.json(result[0])
+      }
+
+      // ── ARD-PACKET-1: ARD/IEP Meeting Packet Generator ──
+      case 'generate_ard_packet': {
+        const { kid_name, meeting_type, meeting_date, include_sections } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const mType = meeting_type || 'ARD'
+        const mDate = meeting_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+        const kidDisplay = cap(kid_name)
+        const sections = include_sections || ['goals', 'accommodations', 'behavioral', 'attendance', 'academic']
+
+        const doc = createPDF({ title: `${kidDisplay} — ${mType} Meeting Packet`, orientation: 'portrait' })
+        let y = 10
+
+        // ── Page 1: Cover + Summary ──
+        addHeader(doc, `${kidDisplay} — ${mType} Meeting Packet`, `Meeting Date: ${mDate} | Generated: ${new Date().toLocaleDateString('en-US')}`)
+        y = 50
+
+        // Quick stats
+        const goals = await db.query(`SELECT * FROM iep_goals WHERE kid_name = $1 AND active = true`, [kid_name.toLowerCase()]).catch(() => [])
+        const accoms = await db.query(`SELECT * FROM accommodations WHERE kid_name = $1 AND active = true`, [kid_name.toLowerCase()]).catch(() => [])
+        const attendanceRows = await db.query(
+          `SELECT status, COUNT(*)::int as c FROM attendance_log WHERE kid_name = $1 AND log_date >= CURRENT_DATE - INTERVAL '90 days' GROUP BY status`,
+          [kid_name.toLowerCase()]
+        ).catch(() => [])
+        const taskCompletion = await db.query(
+          `SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE completed = TRUE)::int as done
+           FROM kid_daily_checklist WHERE child_name = $1 AND event_date >= CURRENT_DATE - INTERVAL '30 days'`,
+          [kid_name.toLowerCase()]
+        ).catch(() => [])
+        const totalTasks = taskCompletion[0]?.total || 0
+        const doneTasks = taskCompletion[0]?.done || 0
+        const completionRate = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
+
+        const attendMap: Record<string, number> = {}
+        attendanceRows.forEach((r: any) => { attendMap[r.status] = r.c })
+        const totalDays = Object.values(attendMap).reduce((a: number, b: number) => a + b, 0)
+        const presentDays = attendMap['present'] || 0
+        const attendRate = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0
+
+        addSectionTitle(doc, 'Quick Summary', y)
+        y += 12
+        addKeyValue(doc, 'Active IEP Goals', `${goals.length}`, y); y += 8
+        addKeyValue(doc, 'Active Accommodations', `${accoms.length}`, y); y += 8
+        addKeyValue(doc, 'Attendance Rate (90 days)', `${attendRate}% (${presentDays}/${totalDays} days)`, y); y += 8
+        addKeyValue(doc, 'Task Completion (30 days)', `${completionRate}% (${doneTasks}/${totalTasks})`, y); y += 8
+        addKeyValue(doc, 'Sick Days (90 days)', `${attendMap['sick'] || 0}`, y); y += 15
+
+        // ── Page 2: IEP Goals & Progress ──
+        if (sections.includes('goals') && goals.length > 0) {
+          doc.addPage()
+          addHeader(doc, `${kidDisplay} — IEP Goals & Progress`, mType)
+          y = 50
+          const goalRows = goals.map((g: any) => [g.goal_area || 'General', g.goal_text || '', g.target || '', g.current_progress || '', g.status || 'active'])
+          y = addTable(doc, ['Area', 'Goal', 'Target', 'Progress', 'Status'], goalRows, y, [25, 70, 25, 30, 25])
+        }
+
+        // ── Page 3: Accommodations ──
+        if (sections.includes('accommodations') && accoms.length > 0) {
+          doc.addPage()
+          addHeader(doc, `${kidDisplay} — Active Accommodations`, mType)
+          y = 50
+          const accomRows = accoms.map((a: any) => [a.accommodation_type || 'General', a.description || '', a.setting || 'All'])
+          y = addTable(doc, ['Type', 'Description', 'Setting'], accomRows, y, [35, 100, 35])
+        }
+
+        // ── Page 4: Behavioral & Emotional ──
+        if (sections.includes('behavioral')) {
+          doc.addPage()
+          addHeader(doc, `${kidDisplay} — Behavioral & Emotional`, mType)
+          y = 50
+
+          const behaviors = await db.query(
+            `SELECT behavior_type, COUNT(*)::int as c FROM behavior_logs WHERE kid_name = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY behavior_type ORDER BY c DESC`,
+            [kid_name.toLowerCase()]
+          ).catch(() => [])
+
+          if (behaviors.length > 0) {
+            addSectionTitle(doc, 'Behavior Summary (Last 30 Days)', y); y += 12
+            const bRows = behaviors.map((b: any) => [b.behavior_type || 'Unknown', `${b.c}`])
+            y = addTable(doc, ['Behavior Type', 'Count'], bRows, y, [100, 40])
+            y += 8
+          }
+
+          const moods = await db.query(
+            `SELECT AVG(COALESCE(mood_score, mood))::numeric(3,1) as avg_mood, COUNT(*)::int as entries
+             FROM kid_mood_log WHERE child_name = $1 AND log_date >= CURRENT_DATE - INTERVAL '30 days'`,
+            [kid_name.toLowerCase()]
+          ).catch(() => [])
+          if (moods[0]?.entries > 0) {
+            addSectionTitle(doc, 'Mood (Last 30 Days)', y); y += 12
+            addKeyValue(doc, 'Average Mood', `${moods[0].avg_mood}/5 across ${moods[0].entries} entries`, y); y += 8
+          }
+
+          const breakCount = await db.query(
+            `SELECT COUNT(*)::int as c FROM kid_break_flags WHERE kid_name = $1 AND flagged_at >= CURRENT_DATE - INTERVAL '30 days'`,
+            [kid_name.toLowerCase()]
+          ).catch(() => [])
+          addKeyValue(doc, 'Break Button Usage (30 days)', `${breakCount[0]?.c || 0}`, y); y += 8
+
+          const regTools = await db.query(
+            `SELECT strategy_name, times_used, times_helped, effectiveness_score FROM kid_regulation_profiles WHERE kid_name = $1 AND times_used > 0 ORDER BY effectiveness_score DESC`,
+            [kid_name.toLowerCase()]
+          ).catch(() => [])
+          if (regTools.length > 0) {
+            y += 5
+            addSectionTitle(doc, 'Regulation Strategies Used', y); y += 12
+            const rRows = regTools.map((r: any) => [r.strategy_name, `${r.times_used}`, `${r.times_helped}`, `${Math.round((r.effectiveness_score || 0) * 100)}%`])
+            y = addTable(doc, ['Strategy', 'Used', 'Helped', 'Effectiveness'], rRows, y, [70, 25, 25, 35])
+          }
+        }
+
+        // ── Page 5: Attendance & Academic ──
+        if (sections.includes('attendance')) {
+          doc.addPage()
+          addHeader(doc, `${kidDisplay} — Attendance & Academic`, mType)
+          y = 50
+
+          addSectionTitle(doc, 'Attendance (Last 90 Days)', y); y += 12
+          const statuses = ['present', 'absent', 'tardy', 'sick', 'excused']
+          for (const s of statuses) {
+            addKeyValue(doc, cap(s), `${attendMap[s] || 0} days`, y); y += 8
+          }
+          y += 5
+
+          const benchmarks = await db.query(
+            `SELECT subject, score, assessment_date, notes FROM benchmarks WHERE kid_name = $1 ORDER BY assessment_date DESC LIMIT 10`,
+            [kid_name.toLowerCase()]
+          ).catch(() => [])
+          if (benchmarks.length > 0) {
+            addSectionTitle(doc, 'Academic Benchmarks', y); y += 12
+            const bmRows = benchmarks.map((b: any) => [b.subject || '', `${b.score || ''}`, b.assessment_date?.toString()?.slice(0, 10) || '', b.notes || ''])
+            y = addTable(doc, ['Subject', 'Score', 'Date', 'Notes'], bmRows, y, [35, 25, 30, 80])
+          }
+        }
+
+        // Add footer to all pages
+        const pageCount = doc.getNumberOfPages()
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i)
+          addFooter(doc, `Generated by Family Ops \u2022 family-ops.grittysystems.com \u2022 Confidential \u2022 Page ${i}/${pageCount}`)
+        }
+
+        const pdfOutput = doc.output('arraybuffer')
+        return new Response(pdfOutput, {
+          headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${kidDisplay}-${mType}-Packet.pdf"` },
+        })
       }
 
       default:

@@ -1832,7 +1832,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
       case 'health':
         return (
           <div className="space-y-6">
-            <RegulationToolsCard />
+            <RegulationToolsCard kidName={profile.first_name || profile.name} />
             <KidHealthTab childName={profile.first_name || profile.name} />
           </div>
         )

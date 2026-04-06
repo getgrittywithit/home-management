@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import ChoresTab from './ChoresTab'
 import SchoolTabWithSchedules from './SchoolTabWithSchedules'
 import FamilyCalendarTab from './FamilyCalendarTab'
+import CalendarView from './CalendarView'
 import CalendarDashboardCard from './CalendarDashboardCard'
 import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
@@ -335,7 +336,10 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   )
 
   const renderCalendarTab = () => (
-    <FamilyCalendarTab />
+    <div className="space-y-6">
+      <CalendarView />
+      <FamilyCalendarTab />
+    </div>
   )
 
   const renderSettingsTab = () => (

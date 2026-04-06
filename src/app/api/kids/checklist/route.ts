@@ -4,6 +4,7 @@ import { getKidZone } from '@/lib/zoneRotation'
 import { createNotification } from '@/lib/notifications'
 import { checkDailyPatterns, computeVelocity } from '@/lib/pattern-detection'
 import { checkAchievements } from '@/lib/achievement-checker'
+import { checkBonusStar } from '@/lib/bonus-stars'
 
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -649,6 +650,7 @@ export async function POST(request: NextRequest) {
         if (newCompleted) {
           computeVelocity(kidName, today).catch(e => console.error('Velocity check failed:', kidName, e.message))
           checkAchievements(kidName).catch(e => console.error('Achievement check failed:', kidName, e.message))
+          checkBonusStar(kidName, 'checklist').catch(e => console.error('Bonus star check failed:', kidName, e.message))
         }
 
         return NextResponse.json({ success: true, completed: newCompleted })
