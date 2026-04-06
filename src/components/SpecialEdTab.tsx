@@ -139,9 +139,14 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function SpecialEdTab() {
+interface SpecialEdTabProps {
+  preSelectedKid?: string | null
+  embedded?: boolean
+}
+
+export default function SpecialEdTab({ preSelectedKid, embedded }: SpecialEdTabProps = {}) {
   // Core state
-  const [selectedKid, setSelectedKid] = useState<string | null>(null)
+  const [selectedKid, setSelectedKid] = useState<string | null>(preSelectedKid || null)
   const [detailTab, setDetailTab] = useState<DetailTab>('plans')
   const [loading, setLoading] = useState(true)
 
@@ -178,6 +183,13 @@ export default function SpecialEdTab() {
   const [newAccom, setNewAccom] = useState('')
   const [newGoalSubject, setNewGoalSubject] = useState('')
   const [newGoalText, setNewGoalText] = useState('')
+
+  // Auto-select kid when embedded
+  useEffect(() => {
+    if (preSelectedKid && preSelectedKid !== selectedKid) {
+      setSelectedKid(preSelectedKid)
+    }
+  }, [preSelectedKid])
 
   // Email modal state
   const [emailKids, setEmailKids] = useState<Set<string>>(new Set(['zoey', 'kaylee']))
@@ -596,7 +608,7 @@ export default function SpecialEdTab() {
   return (
     <div className="space-y-4">
       {/* ════════════════════ Summary Banner ════════════════════ */}
-      {(unconfirmedMeetings.length > 0 || upcomingMeetings.length > 0) && (
+      {!embedded && (unconfirmedMeetings.length > 0 || upcomingMeetings.length > 0) && (
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <Shield className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
@@ -664,7 +676,7 @@ export default function SpecialEdTab() {
       </div>
 
       {/* ════════════════════ Kid Selector Cards ════════════════════ */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      <div className={`grid grid-cols-3 sm:grid-cols-6 gap-2 ${embedded ? 'hidden' : ''}`}>
         {ALL_KIDS.map(kid => {
           const plans = getKidPlanBadges(kid)
           const hasWarning = hasMissingData(kid)
