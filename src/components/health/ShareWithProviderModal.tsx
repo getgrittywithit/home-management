@@ -26,7 +26,7 @@ export default function ShareWithProviderModal({ onClose }: ShareWithProviderMod
         const blob = await res.blob()
         window.open(URL.createObjectURL(blob), '_blank')
       } else {
-        const res = await fetch('/api/health', {
+        const res = await fetch('/api/health/export-pdf', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'generate_ard_packet', kid_name: exportKid, meeting_type: meetingType }),
         })
