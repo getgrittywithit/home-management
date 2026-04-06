@@ -190,6 +190,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ balance, streak, history, goals })
     }
 
+    if (action === 'get_bonus_history') {
+      const kid = searchParams.get('kid_name')?.toLowerCase()
+      if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      const todayEvents = await db.query(
+        `SELECT bonus_amount as stars, trigger_type as trigger, message, created_at FROM bonus_star_events WHERE kid_name = $1 AND created_at::date = $2 ORDER BY created_at DESC`,
+        [kid, today]
+      ).catch(() => [])
+      const totalRow = await db.query(
+        `SELECT COALESCE(SUM(bonus_amount), 0)::int as total FROM bonus_star_events WHERE kid_name = $1`,
+        [kid]
+      ).catch(() => [])
+      return NextResponse.json({
+        today: todayEvents,
+        total_bonus_earned: totalRow[0]?.total || 0,
+        events_today: todayEvents.length,
+        max_per_day: 3,
+      })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error: any) {
     console.error('Stars API GET error:', error)
