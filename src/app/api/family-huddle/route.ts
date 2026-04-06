@@ -125,6 +125,13 @@ function getSundayOfWeek(dateStr: string) {
 
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 
+// Normalize date strings from Postgres (may arrive as "2026-04-05T00:00:00.000Z")
+function normalizeDate(d: any): string {
+  if (!d) return getToday()
+  const str = typeof d === 'string' ? d : new Date(d).toISOString()
+  return str.slice(0, 10) // "YYYY-MM-DD"
+}
+
 async function pickIcebreaker() {
   const rows = await db.query(
     `SELECT id, question, category FROM huddle_icebreakers
@@ -367,7 +374,7 @@ export async function POST(req: NextRequest) {
     switch (action) {
       case 'generate_agenda': {
         const today = getToday()
-        const sunday = body.date || getSundayOfWeek(today)
+        const sunday = body.date ? normalizeDate(body.date) : getSundayOfWeek(today)
         const weekNum = getWeeksSinceEpoch(sunday) + 1
         const host = getHostForDate(sunday)
 
@@ -785,7 +792,7 @@ export async function POST(req: NextRequest) {
       // ── Printable ──
       case 'generate_printable': {
         const today = getToday()
-        const sunday = body.date || getSundayOfWeek(today)
+        const sunday = body.date ? normalizeDate(body.date) : getSundayOfWeek(today)
         const agenda = await buildAgenda(sunday)
 
         // Get family challenge if set for this week's huddle
@@ -802,6 +809,106 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, printable: { ...agenda, family_challenge: familyChallenge } })
       }
 
+      // ── get_history via POST (also available via GET) ──
+      case 'get_history': {
+        const limit = body.limit || 10
+        const rows = await db.query(
+          `SELECT h.*, (SELECT COUNT(*)::int FROM family_huddle_shares s WHERE s.huddle_id = h.id) as share_count
+           FROM family_huddle h ORDER BY huddle_date DESC LIMIT $1`, [limit]
+        ).catch(() => [])
+        return NextResponse.json({ success: true, history: rows })
+      }
+
+      // ── Aliases for alternative action names ──
+      case 'shuffle_icebreaker': {
+        // Alias for reshuffle_icebreaker
+        const { huddle_id } = body
+        if (!huddle_id) return NextResponse.json({ error: 'huddle_id required' }, { status: 400 })
+        const icebreaker = await pickIcebreaker()
+        await db.query(`UPDATE huddle_icebreakers SET used_count = used_count + 1, last_used_date = CURRENT_DATE WHERE id = $1`, [icebreaker.id]).catch(() => {})
+        await db.query(`UPDATE family_huddle SET icebreaker_question = $1, icebreaker_category = $2 WHERE id = $3`,
+          [icebreaker.question, icebreaker.category, huddle_id])
+        return NextResponse.json({ success: true, icebreaker })
+      }
+
+      case 'save_pre_submit': {
+        // Alias for pre_submit_share — accepts { kid, content, type }
+        const spKid = body.kid || body.kid_name
+        if (!spKid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
+        // Find upcoming Sunday's huddle
+        const spToday = getToday()
+        const spTodayDate = new Date(spToday + 'T12:00:00')
+        const spDow = spTodayDate.getDay()
+        const spDaysUntil = spDow === 0 ? 0 : 7 - spDow
+        const spNext = new Date(spTodayDate)
+        spNext.setDate(spNext.getDate() + spDaysUntil)
+        const spSunday = spNext.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        let spHuddle = (await db.query(`SELECT * FROM family_huddle WHERE huddle_date = $1`, [spSunday]).catch(() => []))[0]
+        if (!spHuddle) {
+          const wn = getWeeksSinceEpoch(spSunday) + 1
+          const host = getHostForDate(spSunday)
+          const ice = await pickIcebreaker()
+          const bt = getBonusType(new Date(spSunday + 'T12:00:00'))
+          await db.query(`UPDATE huddle_icebreakers SET used_count = used_count + 1, last_used_date = $1 WHERE id = $2`, [spSunday, ice.id]).catch(() => {})
+          const rows = await db.query(
+            `INSERT INTO family_huddle (huddle_date, week_number, host_kid, icebreaker_question, icebreaker_category, bonus_type) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+            [spSunday, wn, host, ice.question, ice.category, bt]
+          )
+          spHuddle = rows[0]
+        }
+        const spExisting = await db.query(`SELECT id FROM family_huddle_shares WHERE huddle_id = $1 AND kid_name = $2`, [spHuddle.id, spKid.toLowerCase()]).catch(() => [])
+        if (spExisting[0]) {
+          await db.query(`UPDATE family_huddle_shares SET share_type = $1, content = $2, pre_submitted = true, pre_submitted_at = NOW() WHERE id = $3`,
+            [body.type || body.share_type || 'win', body.content || '', spExisting[0].id])
+        } else {
+          await db.query(`INSERT INTO family_huddle_shares (huddle_id, kid_name, share_type, content, pre_submitted, pre_submitted_at) VALUES ($1,$2,$3,$4,true,NOW())`,
+            [spHuddle.id, spKid.toLowerCase(), body.type || body.share_type || 'win', body.content || ''])
+        }
+        return NextResponse.json({ success: true })
+      }
+
+      case 'get_parent_prep': {
+        // Alias for generate_parent_prep
+        const weekEnd2 = getToday()
+        const d2 = new Date(); d2.setDate(d2.getDate() - 6)
+        const weekStart2 = d2.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const items2 = await generateParentPrep(weekStart2, weekEnd2)
+        return NextResponse.json({ success: true, items: items2 })
+      }
+
+      case 'get_auto_wins': {
+        // Returns celebrations from current week
+        const weekEnd3 = getToday()
+        const d3 = new Date(); d3.setDate(d3.getDate() - 6)
+        const weekStart3 = d3.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const celebrations = await scanCelebrations(weekStart3, weekEnd3)
+        return NextResponse.json({ success: true, celebrations })
+      }
+
+      case 'create_task_from_share':
+      case 'create_task': {
+        // Alias for create_action_item
+        const title = body.title || body.content || ''
+        if (!title) return NextResponse.json({ error: 'title/content required' }, { status: 400 })
+        const hId = body.huddle_id
+        // Find current huddle if not provided
+        let resolvedHuddleId = hId
+        if (!resolvedHuddleId) {
+          const latestH = await db.query(`SELECT id FROM family_huddle ORDER BY huddle_date DESC LIMIT 1`).catch(() => [])
+          resolvedHuddleId = latestH[0]?.id
+        }
+        if (!resolvedHuddleId) return NextResponse.json({ error: 'No huddle found' }, { status: 400 })
+        const task = await db.query(
+          `INSERT INTO parent_my_day (title, source, due_date, time_block) VALUES ($1, 'huddle', $2, 'morning') RETURNING *`,
+          [title, body.due_date || getToday()]
+        ).catch(() => [])
+        await db.query(
+          `INSERT INTO huddle_action_items (huddle_id, title, destination, kid_name, external_task_id) VALUES ($1, $2, 'my_day', $3, $4)`,
+          [resolvedHuddleId, title, body.kid || body.kid_name || null, task[0]?.id || null]
+        ).catch(() => {})
+        return NextResponse.json({ success: true, task: task[0] || null })
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
@@ -813,7 +920,8 @@ export async function POST(req: NextRequest) {
 
 // ── Build agenda from system data ──
 async function buildAgenda(sundayDate: string, huddleId?: number) {
-  const sunday = new Date(sundayDate + 'T12:00:00')
+  const normalized = normalizeDate(sundayDate)
+  const sunday = new Date(normalized + 'T12:00:00')
   const monday = new Date(sunday)
   monday.setDate(monday.getDate() + 1)
   const saturday = new Date(monday)

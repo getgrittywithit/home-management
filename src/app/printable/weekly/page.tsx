@@ -62,8 +62,8 @@ export default function WeeklyPrintable() {
       <div className="text-center mb-4">
         <h1 className="text-2xl font-bold" style={{ color: '#1e2d4d' }}>Moses Family &mdash; Week at a Glance</h1>
         <p className="text-sm text-gray-600 mt-1">
-          {data.week_label} &bull; Zone Week {data.zone_recap?.week_num || '?'}
-          {data.meal_week && ` &bull; Meal Week ${data.meal_week}`}
+          {data.week_label} {'\u2022'} Zone Week {data.zone_recap?.week_num || '?'}
+          {data.meal_week && ` \u2022 Meal Week ${data.meal_week}`}
         </p>
         <div className="mt-2 border-t-2" style={{ borderColor: '#c47c2b' }} />
       </div>

@@ -72,7 +72,9 @@ export default function FamilyHuddle() {
         inputs[s.kid_name] = { type: s.share_type || 'win', content: s.content || '' }
       }
       setShareInputs(inputs)
-      const agendaRes = await postAction('generate_agenda', { date: latest.huddle.huddle_date })
+      // Normalize date to YYYY-MM-DD (Postgres may return full ISO string)
+      const huddleDate = typeof latest.huddle.huddle_date === 'string' ? latest.huddle.huddle_date.slice(0, 10) : latest.huddle.huddle_date
+      const agendaRes = await postAction('generate_agenda', { date: huddleDate })
       setAgenda(agendaRes.agenda || null)
     }
     setLoading(false)
@@ -277,8 +279,8 @@ export default function FamilyHuddle() {
           {/* Parent Prep — collapsed by default, parent-eyes-only */}
           <ParentPrep huddleId={huddle.id} mode={mode} />
 
-          {/* Action buttons */}
-          <div className="flex gap-2">
+          {/* Action buttons + pre-submit count */}
+          <div className="flex gap-2 items-center">
             {huddle.status === 'pending' && (
               <button onClick={handleStart} className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 text-sm">
                 Start Huddle
@@ -291,6 +293,11 @@ export default function FamilyHuddle() {
             )}
             {(huddle.status === 'pending' || huddle.status === 'in_progress') && (
               <button onClick={handleSkip} className="text-sm text-gray-400 hover:text-gray-600">Skip This Week</button>
+            )}
+            {agenda?.pre_submit_count > 0 && (
+              <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-1 rounded-full ml-auto">
+                {'\uD83D\uDCDD'} {agenda.pre_submit_count} of 6 kids pre-submitted
+              </span>
             )}
           </div>
 

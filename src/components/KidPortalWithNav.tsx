@@ -54,6 +54,7 @@ import MyVibe from './kid/MyVibe'
 import JourneyMap from './JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
 import NotificationBell from './NotificationBell'
+import HuddlePreSubmit from './huddle/HuddlePreSubmit'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
 interface KidPortalProps {
@@ -1800,14 +1801,17 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
     switch (activeTab) {
       case 'my-day':
         return (
-          <MyDayView
-            kidName={profile.first_name || profile.name}
-            previewMode={previewMode}
-            onStarEarned={(amount) => {
-              setStarPopup({ amount, key: Date.now() })
-              setTimeout(() => setStarPopup(null), 2200)
-            }}
-          />
+          <div className="space-y-4">
+            <HuddlePreSubmit kidName={profile.first_name || profile.name} />
+            <MyDayView
+              kidName={profile.first_name || profile.name}
+              previewMode={previewMode}
+              onStarEarned={(amount) => {
+                setStarPopup({ amount, key: Date.now() })
+                setTimeout(() => setStarPopup(null), 2200)
+              }}
+            />
+          </div>
         )
       case 'dashboard':
         return renderDashboard()
