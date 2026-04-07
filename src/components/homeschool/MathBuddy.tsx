@@ -106,7 +106,11 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
               </div>
               <span className="text-sm font-medium">{skill.current_mastery || 0}%</span>
             </div>
-            <p className="text-teal-200 text-xs mt-1">{skill.reason}</p>
+            <p className="text-teal-200 text-xs mt-1">
+              {(skill.current_mastery || 0) > 0
+                ? `${skill.current_mastery}% mastery — Working on ${skill.skill_name}`
+                : skill.reason}
+            </p>
           </div>
         )}
       </div>

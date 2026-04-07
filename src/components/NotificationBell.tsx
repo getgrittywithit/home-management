@@ -198,7 +198,16 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick, 
                       <span className="text-xs text-gray-400">{timeAgo(n.created_at)}</span>
                       {n.link_tab && onNavigate && (
                         <button
-                          onClick={() => { onNavigate(n.link_tab!); setOpen(false) }}
+                          onClick={() => {
+                            // Map notification link_tab to actual portal tab IDs
+                            const TAB_MAP: Record<string, string> = {
+                              'food-meals': 'food-inventory', 'pets': 'belle-care',
+                              'achievements': 'stars-rewards', 'requests': 'messages-alerts',
+                              'chores': 'chores', 'health': 'health', 'my-day': 'my-day',
+                              'messages-alerts': 'messages-alerts', 'kids-checklist': 'kids-checklist',
+                            }
+                            onNavigate(TAB_MAP[n.link_tab!] || n.link_tab!); setOpen(false)
+                          }}
                           className="text-xs text-blue-600 hover:text-blue-800"
                         >
                           View

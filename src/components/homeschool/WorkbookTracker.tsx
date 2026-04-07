@@ -12,6 +12,25 @@ const MATH_SKILLS = [
   { id: 'M11', name: 'Graphs' }, { id: 'M12', name: 'Estimation' },
 ]
 
+const ELAR_SKILLS = [
+  { id: 'R1', name: 'Main Idea' }, { id: 'R2', name: 'Characters' },
+  { id: 'R3', name: 'Setting/Mood' }, { id: 'R4', name: 'Plot' },
+  { id: 'R5', name: 'Theme' }, { id: 'R6', name: 'Point of View' },
+  { id: 'R7', name: 'Author Purpose' }, { id: 'R8', name: 'Text Features' },
+  { id: 'R9', name: 'Vocabulary' }, { id: 'R10', name: 'Inference' },
+  { id: 'W1', name: 'Sentences' }, { id: 'W2', name: 'Grammar' },
+  { id: 'W3', name: 'Writing' }, { id: 'PH', name: 'Phonics' },
+  { id: 'SP', name: 'Spelling' },
+]
+
+function getSkillsForWorkbook(wbName: string) {
+  const lower = wbName.toLowerCase()
+  if (lower.includes('elar') || lower.includes('reading') || lower.includes('language') || lower.includes('writing') || lower.includes('phonics') || lower.includes('spelling')) {
+    return ELAR_SKILLS
+  }
+  return MATH_SKILLS
+}
+
 export default function WorkbookTracker({ kidName }: { kidName: string }) {
   const [workbooks, setWorkbooks] = useState<Record<string, any[]>>({})
   const [skillSummary, setSkillSummary] = useState<any[]>([])
@@ -123,8 +142,8 @@ export default function WorkbookTracker({ kidName }: { kidName: string }) {
 
       {view === 'skills' && (
         <div className="space-y-2">
-          <p className="text-xs text-gray-500">Pages completed per math skill across all workbooks:</p>
-          {MATH_SKILLS.map(skill => {
+          <p className="text-xs text-gray-500">Pages completed per skill across all workbooks:</p>
+          {[...MATH_SKILLS, ...ELAR_SKILLS].map(skill => {
             const count = skillSummary.find((s: any) => s.skill_tag === skill.id)?.page_count || 0
             return (
               <div key={skill.id} className="flex items-center gap-3">
@@ -153,7 +172,7 @@ export default function WorkbookTracker({ kidName }: { kidName: string }) {
           <div>
             <p className="text-xs text-gray-600 mb-1.5">Skill Tags:</p>
             <div className="flex flex-wrap gap-1.5">
-              {MATH_SKILLS.map(skill => (
+              {getSkillsForWorkbook(logForm.wb).map(skill => (
                 <button key={skill.id} onClick={() => toggleSkill(skill.id)}
                   className={`px-2 py-1 rounded text-xs font-medium transition ${
                     logForm.skills.includes(skill.id) ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
