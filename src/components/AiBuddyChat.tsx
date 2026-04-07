@@ -67,10 +67,11 @@ export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatP
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center text-2xl"
+        className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2 px-4 py-3 md:w-14 md:h-14 md:px-0 md:py-0 md:justify-center text-lg md:text-2xl"
         title={`Ask ${buddyName}`}
       >
         {buddyIcon}
+        <span className="text-sm font-medium md:hidden">Buddy</span>
       </button>
     )
   }
