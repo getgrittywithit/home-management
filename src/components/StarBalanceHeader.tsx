@@ -34,7 +34,7 @@ export default function StarBalanceHeader({ childName }: StarBalanceHeaderProps)
         <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
         <span className="text-xs font-bold text-amber-700">{stars}</span>
       </div>
-      {gems !== null && gems > 0 && (
+      {gems !== null && (
         <div className="flex items-center gap-1 bg-purple-50 border border-purple-200 rounded-full px-2.5 py-0.5">
           <Gem className="w-3.5 h-3.5 text-purple-500" />
           <span className="text-xs font-bold text-purple-700">{gems}</span>
