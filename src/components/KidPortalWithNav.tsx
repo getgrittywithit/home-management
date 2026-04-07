@@ -55,6 +55,7 @@ import JourneyMap from './JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
 import NotificationBell from './NotificationBell'
 import HuddlePreSubmit from './huddle/HuddlePreSubmit'
+import { TalkToParentsButton } from './KidReportForm'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
 interface KidPortalProps {
@@ -1973,6 +1974,9 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           {renderActiveTab()}
         </div>
       </div>
+
+      {/* Talk to Mom & Dad — visible on all tabs */}
+      <TalkToParentsButton kidName={profile.first_name || ''} />
 
       {/* Break Button — visible on all tabs */}
       <BreakButton childName={profile.first_name || ''} />

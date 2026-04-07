@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Bell, MessageCircle, ShoppingCart } from 'lucide-react'
+import { Bell, MessageCircle, ShoppingCart, Heart } from 'lucide-react'
 import { useDashboardData } from '@/context/DashboardDataContext'
 import MessagesTab from './MessagesTab'
 import NeedsBoardTab from './NeedsBoardTab'
 import NeedsAttentionPanel from './NeedsAttentionPanel'
+import BehaviorInbox from './BehaviorInbox'
 
-type SubTab = 'alerts' | 'messages' | 'needs'
+type SubTab = 'alerts' | 'messages' | 'needs' | 'checkins'
 
 interface MessagesAndAlertsTabProps {
   onNavigate?: (tab: string) => void
@@ -24,6 +25,7 @@ export default function MessagesAndAlertsTab({ onNavigate }: MessagesAndAlertsTa
     { id: 'alerts', label: 'Alerts', icon: Bell },
     { id: 'messages', label: 'Messages', icon: MessageCircle, badge: msgCount },
     { id: 'needs', label: 'Needs Board', icon: ShoppingCart },
+    { id: 'checkins', label: 'Family Check-Ins', icon: Heart },
   ]
 
   return (
@@ -55,6 +57,7 @@ export default function MessagesAndAlertsTab({ onNavigate }: MessagesAndAlertsTa
       {subTab === 'alerts' && <NeedsAttentionPanel onNavigate={onNavigate || (() => {})} />}
       {subTab === 'messages' && <MessagesTab />}
       {subTab === 'needs' && <NeedsBoardTab />}
+      {subTab === 'checkins' && <BehaviorInbox />}
     </div>
   )
 }
