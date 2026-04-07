@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Calculator, Send, SkipForward, Loader2, Star, Trophy, CheckCircle2, XCircle } from 'lucide-react'
+import SpeakerButton from '../SpeakerButton'
 
 interface MathBuddyProps {
   kidName: string
@@ -17,6 +18,7 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [sessionId, setSessionId] = useState('')
+  const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set())
 
   const loadNextSkill = async () => {
     setLoading(true)
@@ -32,8 +34,11 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
       const pRes = await fetch(`/api/learning-engine?action=math_placement_problems&skill_id=${data.skill_id}&level=2nd-3rd`)
       const pData = await pRes.json()
       if (pData.problems?.length > 0) {
-        const randomIdx = Math.floor(Math.random() * pData.problems.length)
-        setProblem(pData.problems[randomIdx])
+        // Exclude already-answered problems
+        const available = pData.problems.filter((p: any) => !answeredIds.has(p.id))
+        const pool = available.length > 0 ? available : pData.problems // fallback if all answered
+        const randomIdx = Math.floor(Math.random() * pool.length)
+        setProblem(pool[randomIdx])
       } else {
         setProblem(null)
       }
@@ -63,6 +68,7 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
       })
       const data = await res.json()
       setFeedback(data)
+      if (problem?.id) setAnsweredIds(prev => new Set(prev).add(problem.id))
       if (data.stars_earned && onStarsEarned) onStarsEarned(data.stars_earned)
     } catch (e) {
       console.error('Scoring error:', e)
@@ -104,7 +110,10 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
       {/* Problem */}
       {problem ? (
         <div className="bg-white rounded-lg border shadow-sm p-5">
-          <p className="text-lg font-medium text-gray-900 mb-4">{problem.problem_text}</p>
+          <div className="flex items-start gap-2 mb-4">
+            <p className="text-lg font-medium text-gray-900 flex-1">{problem.problem_text}</p>
+            <SpeakerButton text={problem.problem_text} size="md" />
+          </div>
 
           {problem.answer_type === 'multiple_choice' && problem.choices ? (
             <div className="space-y-2 mb-4">

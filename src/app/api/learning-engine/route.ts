@@ -340,7 +340,9 @@ export async function POST(request: NextRequest) {
         const before = progress[0]?.current_mastery || 0
         const attempted = (progress[0]?.questions_attempted || 0) + 1
         const correct = (progress[0]?.questions_correct || 0) + (score === 'detailed' || score === 'adequate' ? 1 : 0)
-        const newMastery = Math.max(before, Math.min(100, Math.round((correct / attempted) * 100)))
+        // Mastery builds gradually: requires minimum 5 attempts before reaching high mastery
+        const effectiveAttempts = Math.max(attempted, 5)
+        const newMastery = Math.max(before, Math.min(100, Math.round((correct / effectiveAttempts) * 100)))
         const streak = score === 'detailed' || score === 'adequate' ? (progress[0]?.streak || 0) + 1 : 0
         const longestStreak = Math.max(progress[0]?.longest_streak || 0, streak)
 
@@ -363,15 +365,14 @@ export async function POST(request: NextRequest) {
           [kid, skill_id, passage_id || null, (passage_text || '').substring(0, 1000), question || null, kid_response, score, feedback, points, before, newMastery, newMastery - before, session_id || null]
         ).catch(e => console.error('Book buddy log failed:', e.message))
 
-        // Calculate stars: +1 base, +3 detailed/adequate, +5 streak bonus (5+), +10 milestone
-        let starsEarned = 1
-        if (score === 'detailed' || score === 'adequate') starsEarned += 3
-        if (streak >= 5 && streak % 5 === 0) starsEarned += 5
+        // Star awards: reasonable amounts (1-5 base, milestone bonuses capped at 25)
+        let starsEarned = (score === 'detailed' || score === 'adequate') ? 3 : 1
+        if (streak >= 5 && streak % 5 === 0) starsEarned += 2
         const oldMilestone = getMilestone(before)
         const newMilestoneObj = getMilestone(newMastery)
         let milestoneReached: string | null = null
         if (newMilestoneObj.name !== oldMilestone.name && newMastery > before) {
-          starsEarned += newMilestoneObj.stars
+          starsEarned += Math.min(25, Math.round(newMilestoneObj.stars / 10))
           milestoneReached = newMilestoneObj.name
         }
 
@@ -400,7 +401,10 @@ export async function POST(request: NextRequest) {
         const before = progress[0]?.current_mastery || 0
         const attempted = (progress[0]?.questions_attempted || 0) + 1
         const correct = (progress[0]?.questions_correct || 0) + (is_correct ? 1 : 0)
-        const newMastery = Math.max(before, Math.min(100, Math.round((correct / attempted) * 100)))
+        // Mastery builds gradually: requires minimum 5 attempts before reaching high mastery
+        // Formula: (correct/max(attempted, 5)) * 100, capped, never decreases
+        const effectiveAttempts = Math.max(attempted, 5)
+        const newMastery = Math.max(before, Math.min(100, Math.round((correct / effectiveAttempts) * 100)))
         const streak = is_correct ? (progress[0]?.streak || 0) + 1 : 0
         const longestStreak = Math.max(progress[0]?.longest_streak || 0, streak)
 
@@ -421,14 +425,16 @@ export async function POST(request: NextRequest) {
           [kid, skill_id, problem_id || null, (problem_text || '').substring(0, 1000), kid_answer, correct_answer, is_correct, is_partial, feedback, points, before, newMastery, newMastery - before, session_id || null]
         ).catch(e => console.error('Math buddy log failed:', e.message))
 
-        let starsEarned = 1
-        if (is_correct) starsEarned += 3
-        if (streak >= 5 && streak % 5 === 0) starsEarned += 5
+        // Star awards: reasonable amounts (2-5 base, milestone one-time bonuses capped)
+        let starsEarned = is_correct ? 3 : 1
+        if (streak >= 5 && streak % 5 === 0) starsEarned += 2
         const oldMs = getMilestone(before)
         const newMs = getMilestone(newMastery)
         let milestoneReached: string | null = null
         if (newMs.name !== oldMs.name && newMastery > before) {
-          starsEarned += newMs.stars
+          // Milestone bonuses: 5-25 stars (one-time per tier), not 50-300
+          const milestoneBonus = Math.min(25, Math.round(newMs.stars / 10))
+          starsEarned += milestoneBonus
           milestoneReached = newMs.name
         }
 
