@@ -6,7 +6,7 @@ import {
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
-  User, Heart, Thermometer, X, Shuffle, Dices, Sparkles,
+  User, Heart, X, Shuffle, Dices, Sparkles,
   ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
@@ -682,39 +682,35 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         {/* Mom's Availability */}
         <MomAvailabilityBadge status={lolaStatus.status} note={lolaStatus.note} />
 
-        {/* Sick Day Button */}
+        {/* KID-UX-6: "Not feeling good?" — prominent, first visible element */}
         <div className="relative">
           {sickSubmitted ? (
-            <div className="flex items-center gap-2 text-gray-400 text-sm bg-gray-50 rounded-lg px-4 py-2 border">
-              <Thermometer className="w-4 h-4" />
-              <span>Mom has been notified</span>
+            <div className="flex items-center gap-2 text-green-700 text-sm bg-green-50 rounded-lg px-4 py-3 border border-green-200">
+              <span className="text-lg">{'\u2705'}</span>
+              <span className="font-medium">Mom has been notified. Take it easy.</span>
             </div>
           ) : sickConfirmOpen ? (
-            <div className="bg-white rounded-lg border shadow-sm p-4">
-              <p className="text-sm font-medium text-gray-800 mb-3">Tell Mom you&apos;re sick today?</p>
+            <div className="bg-rose-50 rounded-lg border border-rose-200 shadow-sm p-4">
+              <p className="text-sm font-medium text-rose-800 mb-3">{'\uD83E\uDE7A'} Tell Mom you&apos;re not feeling well?</p>
               <div className="flex gap-2">
-                <button
-                  onClick={handleSickDay}
-                  disabled={sickSubmitting}
-                  className="bg-rose-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-600 disabled:opacity-50"
-                >
+                <button onClick={handleSickDay} disabled={sickSubmitting}
+                  className="bg-rose-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-600 disabled:opacity-50">
                   {sickSubmitting ? 'Sending...' : 'Yes, tell Mom'}
                 </button>
-                <button
-                  onClick={() => setSickConfirmOpen(false)}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200"
-                >
+                <button onClick={() => setSickConfirmOpen(false)}
+                  className="bg-white text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 border">
                   Never mind
                 </button>
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setSickConfirmOpen(true)}
-              className="flex items-center gap-2 text-sm text-gray-500 bg-white rounded-lg px-4 py-2 border hover:bg-gray-50 transition-colors"
-            >
-              <Thermometer className="w-4 h-4" />
-              <span>I&apos;m not feeling well</span>
+            <button onClick={() => setSickConfirmOpen(true)}
+              className="w-full flex items-center gap-3 bg-gradient-to-r from-rose-50 to-orange-50 border-2 border-rose-200 rounded-lg px-4 py-3 hover:border-rose-300 transition-colors">
+              <span className="text-2xl">{'\uD83E\uDE7A'}</span>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-rose-700">Not feeling good?</p>
+                <p className="text-xs text-rose-500">Tap here to let Mom know</p>
+              </div>
             </button>
           )}
         </div>
