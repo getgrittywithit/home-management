@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Send, Plus, Trash2, X, MessageCircle, Megaphone, CheckCircle2
 } from 'lucide-react'
+import { useDashboardData } from '@/context/DashboardDataContext'
 
 interface Message {
   id: string
@@ -38,6 +39,7 @@ const KID_COLORS: Record<string, string> = {
 const ALL_KIDS = ['all', 'zoey', 'kaylee', 'amos', 'ellie', 'wyatt', 'hannah']
 
 export default function MessagesTab() {
+  const { refresh: refreshDashboard } = useDashboardData()
   const [messages, setMessages] = useState<Message[]>([])
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -81,7 +83,7 @@ export default function MessagesTab() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'mark_read', ids: unreadIds })
-        }).catch(() => {})
+        }).then(() => refreshDashboard()).catch(() => {})
       }
     }
   }
@@ -93,6 +95,7 @@ export default function MessagesTab() {
       body: JSON.stringify({ action: 'mark_resolved', id })
     })
     setMessages(prev => prev.map(m => m.id === id ? { ...m, resolved: true, resolved_at: new Date().toISOString(), read_at: m.read_at || new Date().toISOString() } : m))
+    refreshDashboard() // Update badge counts
   }
 
   const sendReply = async (id: string) => {

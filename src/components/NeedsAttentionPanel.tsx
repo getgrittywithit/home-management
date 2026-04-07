@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   AlertTriangle, Thermometer, MessageSquare, Clock, MapPin,
-  Calendar, Gift, ChevronRight, X, CheckCircle2
+  Calendar, Gift, X, CheckCircle2
 } from 'lucide-react'
 import { useDashboardData } from '@/context/DashboardDataContext'
 
@@ -21,6 +21,7 @@ interface NeedsAttentionPanelProps {
 
 export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelProps) {
   const [dismissed, setDismissed] = useState(false)
+  const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set())
   const ctx = useDashboardData()
 
   if (!ctx.loaded) return null
@@ -102,7 +103,12 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
     })
   }
 
-  if (flags.length === 0 || dismissed) {
+  const visibleFlags = flags.filter((_, i) => !dismissedItems.has(`${flags[i]?.type}-${i}`))
+  const dismissItem = (type: string, idx: number) => {
+    setDismissedItems(prev => new Set(prev).add(`${type}-${idx}`))
+  }
+
+  if (visibleFlags.length === 0 || dismissed) {
     return (
       <div className="text-center text-gray-400 py-8">
         <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-400" />
@@ -117,7 +123,7 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-600" />
           <span className="text-sm font-semibold text-amber-900">
-            {flags.length} item{flags.length > 1 ? 's' : ''} need{flags.length === 1 ? 's' : ''} attention
+            {visibleFlags.length} item{visibleFlags.length > 1 ? 's' : ''} need{visibleFlags.length === 1 ? 's' : ''} attention
           </span>
         </div>
         <button onClick={() => setDismissed(true)} className="p-1 hover:bg-amber-100 rounded">
@@ -125,17 +131,18 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
-        {flags.map((flag, i) => (
-          <button
-            key={`${flag.type}-${i}`}
-            onClick={() => onNavigate(flag.tabId)}
-            className="inline-flex items-center gap-1.5 bg-white border border-amber-200 rounded-full px-3 py-1.5 text-xs text-amber-900 hover:bg-amber-100 transition-colors"
-          >
-            <span className="text-amber-600">{flag.icon}</span>
-            <span>{flag.label}</span>
-            {flag.time && <span className="text-amber-500 ml-0.5">{flag.time}</span>}
-            <ChevronRight className="w-3 h-3 text-amber-400" />
-          </button>
+        {visibleFlags.map((flag, i) => (
+          <div key={`${flag.type}-${i}`} className="inline-flex items-center gap-1.5 bg-white border border-amber-200 rounded-full pl-3 pr-1 py-1 text-xs text-amber-900">
+            <button onClick={() => onNavigate(flag.tabId)} className="inline-flex items-center gap-1.5 hover:text-amber-700">
+              <span className="text-amber-600">{flag.icon}</span>
+              <span>{flag.label}</span>
+              {flag.time && <span className="text-amber-500 ml-0.5">{flag.time}</span>}
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); dismissItem(flag.type, i) }}
+              className="p-0.5 hover:bg-amber-100 rounded-full ml-1" title="Dismiss">
+              <X className="w-3 h-3 text-amber-400" />
+            </button>
+          </div>
         ))}
       </div>
     </div>
