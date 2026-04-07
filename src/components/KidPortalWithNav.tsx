@@ -223,6 +223,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
 
   // Star award popup for digi-pet
   const [starPopup, setStarPopup] = useState<{ amount: number; key: number } | null>(null)
+  const [balanceRefreshKey, setBalanceRefreshKey] = useState(0)
 
   // Onboarding state
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null)
@@ -1251,6 +1252,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           kidName={profile.first_name || profile.name}
           onStarEarned={(amount) => {
             setStarPopup({ amount, key: Date.now() })
+            setBalanceRefreshKey(k => k + 1)
             setTimeout(() => setStarPopup(null), 2200)
           }}
         />
@@ -1366,6 +1368,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
                                   if (result?.amount && !result.already_awarded) {
                                     const total = (result.amount || 0) + (result.bonus_stars || 0)
                                     setStarPopup({ amount: total, key: Date.now() })
+                                    setBalanceRefreshKey(k => k + 1)
                                     setTimeout(() => setStarPopup(null), 2200)
                                   }
                                 } catch { /* ignore star errors */ }
@@ -1911,7 +1914,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         </div>
         <div className="flex items-center gap-1">
           <NotificationBell role="kid" kidName={(profile?.first_name || '').toLowerCase()} onNavigate={(tab) => { setActiveTab(tab as TabId); setSidebarOpen(false) }} />
-          <StarBalanceHeader childName={profile.first_name || ''} />
+          <StarBalanceHeader childName={profile.first_name || ''} refreshKey={balanceRefreshKey} />
         </div>
       </div>
 
@@ -1934,7 +1937,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
               <div className="font-semibold">{profile.first_name}</div>
             </div>
             <NotificationBell role="kid" kidName={(profile?.first_name || '').toLowerCase()} onNavigate={(tab) => setActiveTab(tab as TabId)} />
-            <StarBalanceHeader childName={profile.first_name || ''} />
+            <StarBalanceHeader childName={profile.first_name || ''} refreshKey={balanceRefreshKey} />
           </div>
         </div>
 

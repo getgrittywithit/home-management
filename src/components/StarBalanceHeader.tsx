@@ -5,26 +5,25 @@ import { Star, Gem } from 'lucide-react'
 
 interface StarBalanceHeaderProps {
   childName: string
+  refreshKey?: number
 }
 
-export default function StarBalanceHeader({ childName }: StarBalanceHeaderProps) {
+export default function StarBalanceHeader({ childName, refreshKey }: StarBalanceHeaderProps) {
   const [stars, setStars] = useState<number | null>(null)
   const [gems, setGems] = useState<number | null>(null)
   const kidKey = childName.toLowerCase()
 
   useEffect(() => {
     if (!kidKey) return
-    // Fetch star balance from existing endpoint
     fetch(`/api/kids/points?action=get_balance&child=${kidKey}`)
       .then(r => r.json())
       .then(data => setStars(data.balance?.current_points ?? 0))
       .catch(() => {})
-    // Fetch gem balance from economy API
     fetch(`/api/economy?action=get_balances&kid_name=${kidKey}`)
       .then(r => r.json())
       .then(data => setGems(data.balances?.gem_balance ?? 0))
       .catch(() => setGems(0))
-  }, [kidKey])
+  }, [kidKey, refreshKey])
 
   if (stars === null) return null
 

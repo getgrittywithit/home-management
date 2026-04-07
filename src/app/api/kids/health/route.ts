@@ -11,12 +11,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'child parameter required' }, { status: 400 })
     }
 
-    // Fetch providers from the health_providers table (kids or shared)
+    // Fetch providers for this kid (kid_name match or shared providers with no kid_name set)
     const providers = await query(
       `SELECT id, name, specialty, practice_name, phone, address
        FROM health_providers
-       WHERE member_group IN ('kids', 'both')
-       ORDER BY name`
+       WHERE member_group IN ('kids', 'both') AND (kid_name = $1 OR kid_name IS NULL)
+       ORDER BY name`,
+      [child]
     )
 
     // Also check health_profiles for this kid's primary doctor (fallback source)

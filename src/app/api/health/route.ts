@@ -22,11 +22,17 @@ export async function GET(request: NextRequest) {
     )
     const insurancePlan = insurancePlanResult[0] || null
 
-    // Fetch health providers
-    const providersResult = await query(
-      `SELECT * FROM health_providers WHERE member_group = $1 OR member_group = 'both' ORDER BY name`,
-      [group]
-    )
+    // Fetch health providers (filter by kid_name if provided, otherwise all for group)
+    const kidFilter = searchParams.get('kid_name')?.toLowerCase()
+    const providersResult = kidFilter
+      ? await query(
+          `SELECT * FROM health_providers WHERE (member_group = $1 OR member_group = 'both') AND (kid_name = $2 OR kid_name IS NULL) ORDER BY name`,
+          [group, kidFilter]
+        )
+      : await query(
+          `SELECT * FROM health_providers WHERE member_group = $1 OR member_group = 'both' ORDER BY name`,
+          [group]
+        )
 
     // Fetch health profiles
     const profilesResult = await query(

@@ -353,6 +353,15 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
         } catch { /* toggle failed */ }
       }
 
+      // Sync to daily checklist so both views stay consistent
+      try {
+        await fetch('/api/kids/checklist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'toggle', child: kid, eventId: task.id, eventSummary: task.label }),
+        })
+      } catch { /* checklist sync failed */ }
+
       onStarEarned?.(task.stars, task.source)
     }
 
