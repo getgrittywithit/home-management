@@ -89,7 +89,7 @@ export default function DigiPetTab({ childName }: DigiPetTabProps) {
     }
   }, [kidKey])
 
-  useEffect(() => { loadPet() }, [loadPet])
+  useEffect(() => { loadPet(); loadShop() }, [loadPet, loadShop])
 
   const isSetupNeeded = pet && pet.pet_type === 'dog' && pet.pet_name === 'My Pet'
 

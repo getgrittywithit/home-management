@@ -63,8 +63,14 @@ export default function JourneyMap({ kidName, subject, onSelectSkill }: JourneyM
 
   if (skills.length === 0) {
     return (
-      <div className="bg-white rounded-lg border shadow-sm p-6 text-center text-gray-400">
-        <p>No progress yet. Take a placement quiz or start practicing!</p>
+      <div className="bg-white rounded-lg border shadow-sm p-8 text-center">
+        <p className="text-2xl mb-2">{subject === 'elar' ? '\uD83D\uDCD6' : '\uD83D\uDD22'}</p>
+        <p className="text-gray-600 font-medium mb-1">No progress yet!</p>
+        <p className="text-sm text-gray-400 mb-4">Start practicing to build your {subject === 'elar' ? 'reading' : 'math'} skills.</p>
+        <button onClick={() => onSelectSkill?.('start')}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600">
+          Start Practicing
+        </button>
       </div>
     )
   }

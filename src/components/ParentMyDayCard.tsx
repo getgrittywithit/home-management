@@ -51,8 +51,9 @@ export default function ParentMyDayCard({ onNavigate }: ParentMyDayCardProps) {
     const dayName = DAY_NAMES[dow]
     const briefing: string[] = []
 
-    // Meds (Amos & Wyatt need AM Focalin on weekdays)
-    if (dow >= 1 && dow <= 5) {
+    // Meds (only show before 9am or if it's a reminder that hasn't been handled)
+    const chicagoHour = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' })).getHours()
+    if (dow >= 1 && dow <= 5 && chicagoHour < 9) {
       briefing.push('\uD83D\uDC8A Meds: Amos & Wyatt need AM Focalin')
     }
 

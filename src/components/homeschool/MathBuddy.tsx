@@ -69,6 +69,10 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
       const data = await res.json()
       setFeedback(data)
       if (problem?.id) setAnsweredIds(prev => new Set(prev).add(problem.id))
+      // Update progress bar from scoring response
+      if (data.mastery_after !== undefined && skill) {
+        setSkill((prev: any) => prev ? { ...prev, current_mastery: data.mastery_after } : prev)
+      }
       if (data.stars_earned && onStarsEarned) onStarsEarned(data.stars_earned)
     } catch (e) {
       console.error('Scoring error:', e)

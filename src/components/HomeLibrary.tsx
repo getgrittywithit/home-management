@@ -404,7 +404,7 @@ function MyBooksSection({ kidName }: { kidName: string }) {
 export function KidLibraryView({ kidName }: { kidName: string }) {
   const [items, setItems] = useState<LibraryItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterType, setFilterType] = useState<string | null>(null)
+  const [filterType, setFilterType] = useState<string | null>('book')
   const [filterSubject, setFilterSubject] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showBuddy, setShowBuddy] = useState(false)
