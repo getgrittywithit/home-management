@@ -1,10 +1,25 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Family Ops - Greenhouse Playbook',
-  description: 'Complete family management system for organizing 8 family members',
+  title: 'Family Ops',
+  description: 'Moses Family Household Management System',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Family Ops',
+  },
 }
+
+export const viewport: Viewport = {
+  themeColor: '#3b82f6',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+}
+
+import OfflineBanner from '@/components/OfflineBanner'
 
 export default function RootLayout({
   children,
@@ -13,7 +28,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+      </head>
+      <body>
+        <OfflineBanner />
+        {children}
+      </body>
     </html>
   )
 }

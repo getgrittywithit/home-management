@@ -60,3 +60,8 @@ check-profile-columns.js
 !tailwind.config.js
 !postcss.config.js
 !next.config.js
+# PWA generated files
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
