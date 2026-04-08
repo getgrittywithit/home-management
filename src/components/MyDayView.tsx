@@ -97,17 +97,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const fetchTasks = useCallback(async () => {
     const allTasks: DayTask[] = []
 
-    // Fetch today's completed task IDs from checklist (single source of truth)
-    let completedIds = new Set<string>()
-    try {
-      const clRes = await fetch(`/api/kids/checklist?child=${kid}`)
-      const clData = await clRes.json()
-      for (const item of (clData.items || clData.checklist || [])) {
-        if (item.completed) completedIds.add(item.id || item.event_id || item.title)
-      }
-    } catch { /* no checklist data */ }
-
-    // Fetch task instructions
+    // Fetch task instructions for "How to do this" steps
     let instructionMap: Record<string, string[]> = {}
     try {
       const instrRes = await fetch('/api/homeschool?action=get_task_instructions')
@@ -117,7 +107,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       }
     } catch { /* no instructions available */ }
 
-    // 1. Homeschool tasks (school block)
+    // 1. Homeschool tasks (school block) — from homeschool API
     try {
       const res = await fetch(`/api/homeschool?action=get_todays_tasks&kid_name=${kid}`)
       const data = await res.json()
@@ -136,176 +126,66 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       }
     } catch { /* no school tasks */ }
 
-    // 2. Zone chores (morning + afternoon)
+    // 2. ALL daily tasks from checklist API (single source of truth)
     try {
-      const res = await fetch(`/api/kids/zone-tasks?kid_name=${kid}`)
-      const data = await res.json()
-      const zoneName = data.zone_name || ''
-      const zoneKey = zoneName.toLowerCase().replace(/[^a-z]/g, '_').replace(/_+/g, '_')
-      const zoneSteps = instructionMap[`zone:${zoneKey}`] || [`Complete your ${zoneName} zone tasks`]
-      if (zoneName) {
+      const clRes = await fetch(`/api/kids/checklist?child=${kid}`)
+      const clData = await clRes.json()
+
+      // Map time to timeBlock
+      const getTimeBlock = (time: string | undefined, _cat: string): 'morning' | 'school' | 'afternoon' | 'evening' => {
+        if (!time) return 'morning'
+        const hour = parseInt(time) || 0
+        if (time.toLowerCase().includes('pm') && hour !== 12) return hour >= 5 ? 'evening' : 'afternoon'
+        if (time.includes('After') || time.includes('after')) return 'evening'
+        if (hour >= 17 || time.includes('8:00 PM') || time.includes('8:30 PM') || time.includes('8:15 PM')) return 'evening'
+        if (hour >= 12 || time.includes('12:') || time.includes('3:')) return 'afternoon'
+        return 'morning'
+      }
+
+      const getSource = (_cat: string, id: string): string => {
+        if (id.startsWith('zone-')) return 'zone'
+        if (id.startsWith('belle-')) return 'belle'
+        if (id.startsWith('dishes-') || id.startsWith('dinner-')) return 'dishes'
+        if (id.startsWith('med-')) return 'daily_care'
+        if (id.startsWith('hygiene-') || id.startsWith('skincare-')) return 'daily_care'
+        if (id.startsWith('laundry-')) return 'habit'
+        return 'habit'
+      }
+
+      const getStars = (_cat: string, id: string): number => {
+        if (id.startsWith('zone-')) return 5
+        if (id.startsWith('belle-')) return 3
+        if (id.startsWith('dishes-')) return 3
+        if (id.startsWith('dinner-')) return 3
+        if (id.startsWith('med-')) return 2
+        if (id.startsWith('laundry-')) return 3
+        return 2
+      }
+
+      for (const item of [...(clData.required || []), ...(clData.dailyCare || [])]) {
+        // Skip items already added from school tasks
+        if (allTasks.some(t => t.id === item.id)) continue
+        const tb = getTimeBlock(item.time, item.category)
+        const source = getSource(item.category, item.id)
+        // Look up instruction steps
+        const catKey = item.category || ''
+        const idBase = item.id.replace(/-\d{4}-\d{2}-\d{2}$/, '')
+        const steps = instructionMap[`${catKey}:${idBase}`] || (item.description ? [item.description] : [])
+
         allTasks.push({
-          id: 'zone-morning',
-          label: `Morning Zone: ${zoneName}`,
-          steps: zoneSteps,
-          stars: 8,
-          completed: false,
-          source: 'zone',
-          timeBlock: 'morning',
-        })
-        allTasks.push({
-          id: 'zone-afternoon',
-          label: `Afternoon Zone: ${zoneName}`,
-          steps: ['Re-check your zone area', 'Touch up anything that needs it', 'Make sure it stays clean'],
-          stars: 8,
-          completed: false,
-          source: 'zone',
-          timeBlock: 'afternoon',
+          id: item.id,
+          label: item.title,
+          description: item.description || undefined,
+          steps,
+          stars: item.points || getStars(item.category, item.id),
+          completed: item.completed || false,
+          source,
+          timeBlock: tb,
         })
       }
-    } catch { /* no zone data */ }
+    } catch { /* checklist API failed */ }
 
-    // 3. Static morning tasks
-    allTasks.push({
-      id: 'make-bed',
-      label: 'Make bed',
-      steps: instructionMap['habit:make_bed'] || ['Pull up sheets', 'Straighten comforter', 'Arrange pillows'],
-      stars: 2,
-      completed: false,
-      source: 'habit',
-      timeBlock: 'morning',
-    })
-
-    if (hasMeds) {
-      allTasks.push({
-        id: 'med-am',
-        label: 'Morning Focalin',
-        steps: instructionMap['habit:morning_focalin'] || ['Take with breakfast, not on empty stomach'],
-        stars: 2,
-        completed: false,
-        source: 'daily_care',
-        timeBlock: 'morning',
-      })
-    }
-
-    if (isBelleDay) {
-      allTasks.push({
-        id: 'belle-am',
-        label: 'Belle: AM Feed + Walk',
-        steps: instructionMap['belle:am_feed_walk'] || ['Fresh water', '1 scoop food', 'Walk — leash + bags'],
-        stars: 6,
-        completed: false,
-        source: 'belle',
-        timeBlock: 'morning',
-      })
-    }
-
-    if (isDishDay) {
-      allTasks.push({
-        id: 'dishes-morning',
-        label: 'Morning Dishes Helper',
-        steps: instructionMap['dishes:morning_dishes'] || ['Clear dishes to sink', 'Wipe table', 'Load dishwasher'],
-        stars: 3,
-        completed: false,
-        source: 'dishes',
-        timeBlock: 'morning',
-      })
-    }
-
-    // 4. Afternoon tasks
-    allTasks.push({
-      id: 'dishes-lunch',
-      label: 'Lunch Dishes',
-      steps: instructionMap['dishes:lunch_dishes'] || ['Wash 5 items', 'Dry and put away', 'Wipe counters'],
-      stars: 3,
-      completed: false,
-      source: 'dishes',
-      timeBlock: 'afternoon',
-    })
-
-    if (['amos', 'ellie', 'wyatt', 'hannah'].includes(kid) && isWeekday) {
-      allTasks.push({
-        id: 'school-room-clean',
-        label: 'School Room Group Clean',
-        steps: instructionMap['habit:school_room_clean'] || ['Put away materials', 'Wipe desk', 'Push in chairs'],
-        stars: 3,
-        completed: false,
-        source: 'habit',
-        timeBlock: 'afternoon',
-      })
-    }
-
-    // 5. Evening tasks
-    if (isBelleDay) {
-      allTasks.push({
-        id: 'belle-pm-feed',
-        label: 'Belle: PM Feed',
-        steps: instructionMap['belle:pm_feed'] || ['1 scoop food at 5pm', 'Check water'],
-        stars: 3,
-        completed: false,
-        source: 'belle',
-        timeBlock: 'evening',
-      })
-      allTasks.push({
-        id: 'belle-pm-walk',
-        label: 'Belle: PM Walk',
-        steps: instructionMap['belle:pm_walk'] || ['Walk at 6:30pm', 'Leash + poop bags'],
-        stars: 3,
-        completed: false,
-        source: 'belle',
-        timeBlock: 'evening',
-      })
-    }
-
-    allTasks.push({
-      id: 'evening-tidy',
-      label: 'Evening Tidy & Reset',
-      steps: instructionMap['habit:evening_tidy'] || ['Pick up items', 'Shoes by door', 'Bag ready for tomorrow'],
-      stars: 3,
-      completed: false,
-      source: 'habit',
-      timeBlock: 'evening',
-    })
-
-    if (hasMeds) {
-      allTasks.push({
-        id: 'med-pm',
-        label: 'Evening Clonidine',
-        steps: instructionMap['habit:evening_clonidine'] || ['Take at bedtime with water'],
-        stars: 2,
-        completed: false,
-        source: 'daily_care',
-        timeBlock: 'evening',
-      })
-    }
-
-    allTasks.push({
-      id: 'dental-pm',
-      label: 'Brush + Floss',
-      steps: instructionMap['habit:brush_teeth_pm'] || ['2 minutes, all 4 quadrants', 'Floss', 'Rinse'],
-      stars: 1,
-      completed: false,
-      source: 'habit',
-      timeBlock: 'evening',
-    })
-
-    // Load completions from checklist
-    try {
-      const today = now.toLocaleDateString('en-CA')
-      const res = await fetch(`/api/kids/checklist?child=${kid}&date=${today}`)
-      const data = await res.json()
-      const completedIds = new Set((data.items || []).filter((i: any) => i.completed).map((i: any) => i.id))
-      for (const t of allTasks) {
-        if (completedIds.has(t.id)) t.completed = true
-      }
-    } catch { /* no checklist data */ }
-
-    // Apply saved completion state from checklist DB
-    const tasksWithState = allTasks.map(t => ({
-      ...t,
-      completed: completedIds.has(t.id) || completedIds.has(t.label) || t.completed,
-    }))
-    setTasks(tasksWithState)
+    setTasks(allTasks)
     setLoading(false)
 
     // Check if all school tasks are done
@@ -337,25 +217,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       setStarPopups(prev => [...prev, { amount: task.stars, key }])
       setTimeout(() => setStarPopups(prev => prev.filter(p => p.key !== key)), 2000)
 
-      // Award stars
-      try {
-        const taskType = task.source === 'zone' ? 'zone_chore' :
-          task.source === 'belle' ? 'belle_care' :
-          task.source === 'school' ? 'lesson' :
-          task.source === 'daily_care' ? 'med_am' :
-          'daily_chore'
-
-        await fetch('/api/digi-pet', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'award_task_stars',
-            kid_name: kid,
-            task_type: taskType,
-            source_ref: `myday-${task.id}-${now.toLocaleDateString('en-CA')}`,
-          }),
-        })
-      } catch { /* star award failed */ }
+      // Stars are awarded by the checklist toggle API (below) — no separate digi-pet call needed
 
       // For school tasks, also toggle in homeschool system
       if (task.source === 'school' && task.sourceId) {
