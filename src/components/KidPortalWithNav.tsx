@@ -1808,6 +1808,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
               previewMode={previewMode}
               onStarEarned={(amount) => {
                 setStarPopup({ amount, key: Date.now() })
+                setBalanceRefreshKey(k => k + 1)
                 setTimeout(() => setStarPopup(null), 2200)
               }}
             />

@@ -253,7 +253,8 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
 
   const totalDone = stats.requiredDone + stats.dailyCareDone + stats.earnMoneyDone
   const totalAll = stats.requiredTotal + stats.dailyCareTotal + stats.earnMoneyTotal
-  const earnedPoints = earnMoney.filter(c => c.completed).reduce((sum, c) => sum + (c.points || 0), 0)
+  // earnedPoints used for earn-money chore tracking (future use)
+  const _earnedPoints = earnMoney.filter(c => c.completed).reduce((sum, c) => sum + (c.points || 0), 0)
 
   return (
     <div className="space-y-6 relative">
@@ -309,8 +310,8 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
           <div className="text-xs text-gray-500">Daily Care</div>
         </div>
         <div className="bg-white p-3 rounded-lg border text-center">
-          <div className="text-xl font-bold text-emerald-600">{earnedPoints} pts</div>
-          <div className="text-xs text-gray-500">Earned</div>
+          <div className="text-xl font-bold text-emerald-600">{totalDone * 2} {'\u2B50'}</div>
+          <div className="text-xs text-gray-500">Today</div>
         </div>
       </div>
 
