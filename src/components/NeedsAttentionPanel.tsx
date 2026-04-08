@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   AlertTriangle, Thermometer, MessageSquare, Clock, MapPin,
   Calendar, Gift, X, CheckCircle2
@@ -22,6 +22,18 @@ interface NeedsAttentionPanelProps {
 export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelProps) {
   const [dismissed, setDismissed] = useState(false)
   const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set())
+
+  // Load persisted dismissals from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('familyops_dismissed_alerts')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        setDismissedItems(new Set(parsed.items || []))
+        if (parsed.allDismissed) setDismissed(true)
+      }
+    } catch { /* ignore */ }
+  }, [])
   const ctx = useDashboardData()
 
   if (!ctx.loaded) return null
@@ -105,7 +117,12 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
 
   const visibleFlags = flags.filter((_, i) => !dismissedItems.has(`${flags[i]?.type}-${i}`))
   const dismissItem = (type: string, idx: number) => {
-    setDismissedItems(prev => new Set(prev).add(`${type}-${idx}`))
+    const key = `${type}-${idx}`
+    setDismissedItems(prev => {
+      const next = new Set(prev).add(key)
+      try { localStorage.setItem('familyops_dismissed_alerts', JSON.stringify({ items: Array.from(next), allDismissed: false })) } catch {}
+      return next
+    })
   }
 
   if (visibleFlags.length === 0 || dismissed) {
@@ -126,7 +143,7 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
             {visibleFlags.length} item{visibleFlags.length > 1 ? 's' : ''} need{visibleFlags.length === 1 ? 's' : ''} attention
           </span>
         </div>
-        <button onClick={() => setDismissed(true)} className="p-1 hover:bg-amber-100 rounded">
+        <button onClick={() => { setDismissed(true); try { localStorage.setItem('familyops_dismissed_alerts', JSON.stringify({ items: Array.from(dismissedItems), allDismissed: true })) } catch {} }} className="p-1 hover:bg-amber-100 rounded">
           <X className="w-4 h-4 text-amber-500" />
         </button>
       </div>

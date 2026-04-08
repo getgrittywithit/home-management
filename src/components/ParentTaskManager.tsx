@@ -273,7 +273,7 @@ export default function ParentTaskManager() {
     <div className="space-y-4">
       {/* Kid selector */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Daily Task Manager</h3>
+        <h3 className="text-lg font-semibold">Today&apos;s Plan</h3>
         <button
           onClick={() => { setFormData(EMPTY_FORM); setShowForm(true) }}
           className="bg-teal-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-teal-700 flex items-center gap-1"

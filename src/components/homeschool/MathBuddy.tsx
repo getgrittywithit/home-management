@@ -74,6 +74,8 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
         setSkill((prev: any) => prev ? { ...prev, current_mastery: data.mastery_after } : prev)
       }
       if (data.stars_earned && onStarsEarned) onStarsEarned(data.stars_earned)
+      // Auto-advance to next problem after 3 seconds
+      setTimeout(() => loadNextSkill(), 3000)
     } catch (e) {
       console.error('Scoring error:', e)
     }

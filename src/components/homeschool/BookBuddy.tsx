@@ -17,6 +17,7 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
   const [submitting, setSubmitting] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [questionsInSession, setQuestionsInSession] = useState(0)
+  const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set())
 
   const loadNextSkill = async () => {
     setLoading(true)
@@ -28,12 +29,14 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
       setSkill(data)
       setSessionId(data.session_id || `elar-${Date.now()}`)
 
-      // Load a passage for this skill
+      // Load a passage for this skill, avoiding already-seen passages
       const pRes = await fetch(`/api/learning-engine?action=elar_placement_passages&skill_id=${data.skill_id}&level=2nd-3rd`)
       const pData = await pRes.json()
       if (pData.passages?.length > 0) {
-        const randomIdx = Math.floor(Math.random() * pData.passages.length)
-        setPassage(pData.passages[randomIdx])
+        const available = pData.passages.filter((p: any) => !answeredIds.has(p.id))
+        const pool = available.length > 0 ? available : pData.passages
+        const randomIdx = Math.floor(Math.random() * pool.length)
+        setPassage(pool[randomIdx])
       } else {
         setPassage(null)
       }
@@ -63,7 +66,10 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
       const data = await res.json()
       setFeedback(data)
       setQuestionsInSession(prev => prev + 1)
+      if (passage?.id) setAnsweredIds(prev => new Set(prev).add(passage.id))
       if (data.stars_earned && onStarsEarned) onStarsEarned(data.stars_earned)
+      // Auto-advance to next passage after 3 seconds
+      setTimeout(() => handleNext(), 3000)
     } catch (e) {
       console.error('Scoring error:', e)
     }

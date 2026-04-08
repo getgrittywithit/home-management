@@ -35,15 +35,18 @@ export default function KidProgressDashboard({ kidName }: KidProgressDashboardPr
     // Mood trends (last 30 days)
     const moodRes = await fetch(`/api/kids/mood?action=get_mood_history&kid=${kid}&days=30`).then(r => r.json()).catch(() => ({}))
     const history = moodRes.history || []
-    if (history.length > 0) {
-      const avg = history.reduce((s: number, m: any) => s + (m.mood || 0), 0) / history.length
-      // Compare first half vs second half
-      const half = Math.floor(history.length / 2)
-      const firstHalf = history.slice(half)
-      const secondHalf = history.slice(0, half)
-      const firstAvg = firstHalf.length > 0 ? firstHalf.reduce((s: number, m: any) => s + (m.mood || 0), 0) / firstHalf.length : 0
-      const secondAvg = secondHalf.length > 0 ? secondHalf.reduce((s: number, m: any) => s + (m.mood || 0), 0) / secondHalf.length : 0
-      setMoods({ avg: avg.toFixed(1), trend: secondAvg > firstAvg ? 'up' : secondAvg < firstAvg ? 'down' : 'stable', entries: history.length })
+    const validMoods = history.filter((m: any) => typeof m.mood === 'number' && !isNaN(m.mood) && m.mood > 0)
+    if (validMoods.length > 0) {
+      const avg = validMoods.reduce((s: number, m: any) => s + m.mood, 0) / validMoods.length
+      const avgStr = isNaN(avg) ? null : avg.toFixed(1)
+      if (avgStr) {
+        const half = Math.floor(validMoods.length / 2)
+        const firstHalf = validMoods.slice(half)
+        const secondHalf = validMoods.slice(0, half)
+        const firstAvg = firstHalf.length > 0 ? firstHalf.reduce((s: number, m: any) => s + m.mood, 0) / firstHalf.length : 0
+        const secondAvg = secondHalf.length > 0 ? secondHalf.reduce((s: number, m: any) => s + m.mood, 0) / secondHalf.length : 0
+        setMoods({ avg: avgStr, trend: secondAvg > firstAvg ? 'up' : secondAvg < firstAvg ? 'down' : 'stable', entries: validMoods.length })
+      }
     }
 
     // Task completion trend
@@ -123,13 +126,13 @@ export default function KidProgressDashboard({ kidName }: KidProgressDashboardPr
         {/* Mood */}
         <div className="bg-white rounded-lg border p-4">
           <p className="text-xs font-medium text-gray-500 uppercase mb-1">Mood (30d)</p>
-          {moods ? (
+          {moods && moods.avg ? (
             <div className="flex items-center gap-2">
               <p className="text-2xl font-bold text-gray-900">{moods.avg}/5</p>
               <TrendIcon dir={moods.trend} />
             </div>
           ) : (
-            <p className="text-sm text-gray-400">No data</p>
+            <p className="text-sm text-gray-400">&mdash;/5 <span className="text-xs">No mood data yet</span></p>
           )}
         </div>
 

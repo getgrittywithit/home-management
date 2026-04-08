@@ -191,6 +191,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    case 'log_homeschool_day': {
+      const { kid_name, date, day_type, instruction_hours, notes } = body
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      const kid = kid_name.toLowerCase()
+      const logDate = date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      try {
+        await db.query(
+          `INSERT INTO school_attendance (kid_name, absence_date, status, school_type, source, notes)
+           VALUES ($1, $2::date, $3, 'homeschool', 'manual', $4)
+           ON CONFLICT (kid_name, absence_date) DO UPDATE SET status = $3, notes = $4`,
+          [kid, logDate, day_type || 'present', notes || null]
+        )
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        console.error('log_homeschool_day error:', error)
+        return NextResponse.json({ error: 'Failed' }, { status: 500 })
+      }
+    }
+
     case 'complete_makeup': {
       const { makeup_id } = body
       if (!makeup_id) return NextResponse.json({ error: 'makeup_id required' }, { status: 400 })

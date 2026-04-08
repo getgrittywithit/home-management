@@ -25,10 +25,12 @@ const ELAR_SKILLS = [
 
 function getSkillsForWorkbook(wbName: string) {
   const lower = wbName.toLowerCase()
-  if (lower.includes('elar') || lower.includes('reading') || lower.includes('language') || lower.includes('writing') || lower.includes('phonics') || lower.includes('spelling')) {
-    return ELAR_SKILLS
-  }
-  return MATH_SKILLS
+  const isElar = lower.includes('elar') || lower.includes('reading') || lower.includes('language') || lower.includes('writing') || lower.includes('phonics') || lower.includes('spelling') || lower.includes('comprehension') || lower.includes('vocabulary') || lower.includes('grammar') || lower.includes('literacy')
+  const isMath = lower.includes('math') || lower.includes('saxon') || lower.includes('arithmetic') || lower.includes('algebra') || lower.includes('geometry') || lower.includes('calculation')
+  if (isElar && !isMath) return ELAR_SKILLS
+  if (isMath && !isElar) return MATH_SKILLS
+  // If unclear or both, show all skills with headers
+  return [...ELAR_SKILLS, ...MATH_SKILLS]
 }
 
 export default function WorkbookTracker({ kidName }: { kidName: string }) {
@@ -36,7 +38,7 @@ export default function WorkbookTracker({ kidName }: { kidName: string }) {
   const [skillSummary, setSkillSummary] = useState<any[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
-  const [logForm, setLogForm] = useState<{ wb: string; page: string; skills: string[]; notes: string } | null>(null)
+  const [logForm, setLogForm] = useState<{ wb: string; pageStart: string; pageEnd: string; skills: string[]; notes: string } | null>(null)
   const [view, setView] = useState<'workbooks' | 'skills'>('workbooks')
 
   const fetchData = () => {
@@ -56,10 +58,14 @@ export default function WorkbookTracker({ kidName }: { kidName: string }) {
   }
 
   const handleLogPage = async () => {
-    if (!logForm || !logForm.page) return
+    if (!logForm || !logForm.pageStart) return
+    const start = parseInt(logForm.pageStart)
+    const end = logForm.pageEnd ? parseInt(logForm.pageEnd) : start
+    const pagesCount = end - start + 1
     await fetch('/api/learning-engine', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'log_workbook_page', kid_name: kidName, workbook_name: logForm.wb,
-        page_number: parseInt(logForm.page), skill_tags: logForm.skills, notes: logForm.notes || undefined }) })
+        page_number: start, pages_start: start, pages_end: end, pages_count: pagesCount,
+        skill_tags: logForm.skills, notes: logForm.notes || undefined }) })
     setLogForm(null)
     fetchData()
   }
@@ -116,8 +122,8 @@ export default function WorkbookTracker({ kidName }: { kidName: string }) {
                   <h4 className="font-medium text-gray-800 text-sm">{wb}</h4>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">{completed} pages done</span>
-                    <button onClick={() => setLogForm({ wb, page: '', skills: [], notes: '' })}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Log Page</button>
+                    <button onClick={() => setLogForm({ wb, pageStart: '', pageEnd: '', skills: [], notes: '' })}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium">+ Log Pages</button>
                   </div>
                 </div>
                 {completed > 0 && (
@@ -162,13 +168,20 @@ export default function WorkbookTracker({ kidName }: { kidName: string }) {
       {/* Log Page Form */}
       {logForm && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-          <h4 className="font-medium text-gray-800 text-sm">Log Page — {logForm.wb}</h4>
-          <div className="flex gap-2">
-            <input type="number" value={logForm.page} onChange={e => setLogForm(f => f ? { ...f, page: e.target.value } : f)}
-              placeholder="Page #" min={1} className="border rounded px-2 py-1.5 text-sm w-24" />
-            <input type="text" value={logForm.notes} onChange={e => setLogForm(f => f ? { ...f, notes: e.target.value } : f)}
-              placeholder="Notes (optional)" className="border rounded px-2 py-1.5 text-sm flex-1" />
+          <h4 className="font-medium text-gray-800 text-sm">Log Pages — {logForm.wb}</h4>
+          <div className="flex gap-2 items-center">
+            <span className="text-xs text-gray-500">pp.</span>
+            <input type="number" value={logForm.pageStart} onChange={e => setLogForm(f => f ? { ...f, pageStart: e.target.value } : f)}
+              placeholder="Start" min={1} className="border rounded px-2 py-1.5 text-sm w-20" />
+            <span className="text-xs text-gray-400">to</span>
+            <input type="number" value={logForm.pageEnd} onChange={e => setLogForm(f => f ? { ...f, pageEnd: e.target.value } : f)}
+              placeholder="End" min={1} className="border rounded px-2 py-1.5 text-sm w-20" />
+            {logForm.pageStart && logForm.pageEnd && parseInt(logForm.pageEnd) >= parseInt(logForm.pageStart) && (
+              <span className="text-xs text-blue-600 font-medium">{parseInt(logForm.pageEnd) - parseInt(logForm.pageStart) + 1} pages</span>
+            )}
           </div>
+          <input type="text" value={logForm.notes} onChange={e => setLogForm(f => f ? { ...f, notes: e.target.value } : f)}
+            placeholder="Notes (optional)" className="border rounded px-2 py-1.5 text-sm w-full" />
           <div>
             <p className="text-xs text-gray-600 mb-1.5">Skill Tags:</p>
             <div className="flex flex-wrap gap-1.5">
@@ -177,13 +190,13 @@ export default function WorkbookTracker({ kidName }: { kidName: string }) {
                   className={`px-2 py-1 rounded text-xs font-medium transition ${
                     logForm.skills.includes(skill.id) ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}>
-                  {skill.id}
+                  {skill.name}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleLogPage} disabled={!logForm.page}
+            <button onClick={handleLogPage} disabled={!logForm.pageStart}
               className="flex-1 bg-blue-500 text-white py-1.5 rounded text-sm font-medium hover:bg-blue-600 disabled:opacity-50">
               <Check className="w-3 h-3 inline mr-1" /> Mark Complete
             </button>
