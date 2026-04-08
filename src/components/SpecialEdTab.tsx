@@ -1174,32 +1174,88 @@ export default function SpecialEdTab({ preSelectedKid, embedded }: SpecialEdTabP
                   </div>
                 )}
 
-                {/* Placeholder for full health conditions */}
-                <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  <Heart className="w-6 h-6 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">Detailed health conditions tracking</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Add diagnoses, allergies, medications, and other health conditions.
-                    Data from the Health tab is shared here.
-                  </p>
-                </div>
+                {/* Active diagnoses — auto-populated from kid profiles */}
+                {(() => {
+                  const KID_DIAGNOSES: Record<string, string[]> = {
+                    amos: ['adhd', 'autism', 'dyslexia', 'dyscalculia', 'speech_delay', 'apd', 'hearing', 'color_vision'],
+                    kaylee: ['learning_delay', 'speech_delay'],
+                    wyatt: ['adhd', 'speech_services', 'color_vision'],
+                    hannah: ['sensory', 'speech_services'],
+                    ellie: [],
+                    zoey: [],
+                  }
+                  const KID_MEDS: Record<string, string[]> = {
+                    amos: ['Focalin AM (⏸️ paused)', 'Clonidine PM (⏸️ paused)'],
+                    wyatt: ['Focalin AM (⏸️ paused)', 'Clonidine PM (⏸️ paused)'],
+                  }
+                  const KID_SENSORY: Record<string, string> = {
+                    amos: 'APD, bilateral hearing loss (high-freq), color vision deficiency. Does NOT wear glasses.',
+                    hannah: 'Auditory sensitivity to loud noises. Uses ear protectors.',
+                    wyatt: 'Color vision deficiency (shifted hues).',
+                  }
+                  const diagnoses = KID_DIAGNOSES[selectedKid || ''] || []
+                  const meds = KID_MEDS[selectedKid || ''] || []
+                  const sensory = KID_SENSORY[selectedKid || ''] || ''
+                  return (
+                    <>
+                      <div className="border rounded-lg p-3">
+                        <p className="text-xs font-medium text-gray-500 mb-2">Diagnoses & Conditions</p>
+                        {diagnoses.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {diagnoses.map(d => {
+                              const pill = DIAGNOSIS_PILLS[d]
+                              return pill ? (
+                                <span key={d} className={`text-xs font-medium px-2.5 py-1 rounded-full ${pill.color}`}>
+                                  {pill.label}
+                                </span>
+                              ) : null
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">No diagnoses on file</p>
+                        )}
+                      </div>
+                      {meds.length > 0 && (
+                        <div className="border rounded-lg p-3">
+                          <p className="text-xs font-medium text-gray-500 mb-1.5">Medications</p>
+                          {meds.map((m, i) => (
+                            <p key={i} className="text-xs text-gray-700">💊 {m}</p>
+                          ))}
+                        </div>
+                      )}
+                      {sensory && (
+                        <div className="border rounded-lg p-3 bg-amber-50">
+                          <p className="text-xs font-medium text-amber-700 mb-1">Sensory Profile</p>
+                          <p className="text-xs text-amber-800">{sensory}</p>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
 
-                {/* Diagnosis reference */}
+                {/* All diagnosis badges (click to see what's available) */}
                 <div className="border rounded-lg p-3">
                   <button
                     onClick={() => setShowFormerProviders(!showFormerProviders)}
                     className="flex items-center justify-between w-full text-left"
                   >
-                    <span className="text-xs font-medium text-gray-500">Diagnosis Badge Reference</span>
+                    <span className="text-xs font-medium text-gray-500">All Available Diagnosis Badges</span>
                     {showFormerProviders ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
                   </button>
                   {showFormerProviders && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {Object.entries(DIAGNOSIS_PILLS).map(([key, val]) => (
-                        <span key={key} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${val.color}`}>
-                          {val.label}
-                        </span>
-                      ))}
+                      {Object.entries(DIAGNOSIS_PILLS).map(([key, val]) => {
+                        const kidDiags = (() => {
+                          const map: Record<string, string[]> = { amos: ['adhd','autism','dyslexia','dyscalculia','speech_delay','apd','hearing','color_vision'], kaylee: ['learning_delay','speech_delay'], wyatt: ['adhd','speech_services','color_vision'], hannah: ['sensory','speech_services'] }
+                          return map[selectedKid || ''] || []
+                        })()
+                        const isActive = kidDiags.includes(key)
+                        return (
+                          <span key={key} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isActive ? val.color + ' ring-2 ring-offset-1 ring-blue-400' : 'bg-gray-100 text-gray-400'}`}>
+                            {val.label}
+                          </span>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -1213,36 +1269,46 @@ export default function SpecialEdTab({ preSelectedKid, embedded }: SpecialEdTabP
                   <span className="text-sm font-semibold text-gray-700">Education History</span>
                 </div>
 
-                {/* School enrollment timeline */}
+                {/* School enrollment timeline — per kid */}
                 <div className="border rounded-lg p-3">
                   <p className="text-xs font-medium text-gray-500 mb-2">School Enrollment</p>
                   <div className="relative pl-4 border-l-2 border-purple-200 space-y-3">
-                    {KID_SCHOOL_TYPE[selectedKid] === 'public' ? (
-                      <>
-                        <div className="relative">
-                          <div className="absolute -left-[21px] w-3 h-3 bg-purple-500 rounded-full border-2 border-white" />
+                    {(() => {
+                      const ENROLLMENT: Record<string, { school: string; dates: string; current: boolean }[]> = {
+                        amos: [
+                          { school: 'Homeschool', dates: 'November 2025 — Present', current: true },
+                          { school: 'Boerne ISD (Public School)', dates: 'Until November 2025', current: false },
+                        ],
+                        zoey: [
+                          { school: 'Champion High School (Boerne ISD)', dates: '2024 — Present', current: true },
+                        ],
+                        kaylee: [
+                          { school: 'Boerne Middle School North (BMSN)', dates: '2024 — Present', current: true },
+                        ],
+                        ellie: [
+                          { school: 'Homeschool', dates: '2025 — Present', current: true },
+                          { school: 'Herff Elementary (Boerne ISD)', dates: 'Until 2025', current: false },
+                        ],
+                        wyatt: [
+                          { school: 'Homeschool', dates: '2025 — Present', current: true },
+                          { school: 'Herff Elementary (Boerne ISD)', dates: 'Until 2025', current: false },
+                        ],
+                        hannah: [
+                          { school: 'Homeschool', dates: '2025 — Present', current: true },
+                        ],
+                      }
+                      return (ENROLLMENT[selectedKid || ''] || []).map((e, i) => (
+                        <div key={i} className="relative">
+                          <div className={`absolute -left-[21px] w-3 h-3 rounded-full border-2 border-white ${e.current ? 'bg-purple-500' : 'bg-gray-300'}`} />
                           <div>
-                            <p className="text-sm font-medium text-gray-800">Boerne ISD — Current</p>
-                            <p className="text-xs text-gray-500">2025 - Present</p>
+                            <p className={`text-sm font-medium ${e.current ? 'text-gray-800' : 'text-gray-500'}`}>
+                              {e.school} {e.current && '— Current'}
+                            </p>
+                            <p className="text-xs text-gray-400">{e.dates}</p>
                           </div>
                         </div>
-                        <div className="relative">
-                          <div className="absolute -left-[21px] w-3 h-3 bg-gray-300 rounded-full border-2 border-white" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-600">Previously Homeschooled</p>
-                            <p className="text-xs text-gray-400">Before 2025</p>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="relative">
-                        <div className="absolute -left-[21px] w-3 h-3 bg-purple-500 rounded-full border-2 border-white" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">Homeschool — Current</p>
-                          <p className="text-xs text-gray-500">Ongoing</p>
-                        </div>
-                      </div>
-                    )}
+                      ))
+                    })()}
                   </div>
                 </div>
 

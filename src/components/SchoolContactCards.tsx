@@ -4,13 +4,18 @@ import { useState, useEffect } from 'react'
 import { UserPlus, Pencil, Trash2, Phone, Mail, X } from 'lucide-react'
 
 const ROLES = [
-  { value: 'attendance_secretary', label: 'Attendance Secretary', color: 'bg-gray-100 text-gray-700' },
-  { value: 'ard_coordinator', label: 'ARD Coordinator', color: 'bg-blue-100 text-blue-700' },
   { value: '504_facilitator', label: '504 Facilitator', color: 'bg-purple-100 text-purple-700' },
-  { value: 'speech_therapist', label: 'Speech Therapist', color: 'bg-teal-100 text-teal-700' },
-  { value: 'counselor', label: 'Counselor', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'principal', label: 'Principal', color: 'bg-amber-100 text-amber-700' },
+  { value: 'ard_coordinator', label: 'ARD Coordinator', color: 'bg-blue-100 text-blue-700' },
   { value: 'special_ed_teacher', label: 'Special Ed Teacher', color: 'bg-green-100 text-green-700' },
+  { value: 'speech_therapist', label: 'Speech Therapist (SLP)', color: 'bg-teal-100 text-teal-700' },
+  { value: 'ot_therapist', label: 'Occupational Therapist (OT)', color: 'bg-cyan-100 text-cyan-700' },
+  { value: 'diagnostician', label: 'Diagnostician', color: 'bg-orange-100 text-orange-700' },
+  { value: 'psychologist', label: 'Psychologist', color: 'bg-indigo-100 text-indigo-700' },
+  { value: 'counselor', label: 'School Counselor', color: 'bg-indigo-100 text-indigo-700' },
+  { value: 'behavior_specialist', label: 'Behavior Specialist', color: 'bg-rose-100 text-rose-700' },
+  { value: 'registrar', label: 'Registrar', color: 'bg-gray-200 text-gray-700' },
+  { value: 'principal', label: 'Principal', color: 'bg-amber-100 text-amber-700' },
+  { value: 'attendance_secretary', label: 'Attendance Secretary', color: 'bg-gray-100 text-gray-700' },
   { value: 'other', label: 'Other', color: 'bg-gray-100 text-gray-600' },
 ]
 
