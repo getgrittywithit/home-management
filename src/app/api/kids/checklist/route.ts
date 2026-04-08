@@ -379,6 +379,17 @@ export async function GET(request: NextRequest) {
     }
     const kidMeds = MEDICATION_MAP[child]
     if (kidMeds) {
+      // Ensure paused_medications table exists + seed initial pauses (insurance denial)
+      await db.query(`CREATE TABLE IF NOT EXISTS paused_medications (id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, med_key TEXT NOT NULL, med_label TEXT, is_paused BOOLEAN DEFAULT true, paused_at TIMESTAMPTZ DEFAULT NOW(), resumed_at TIMESTAMPTZ, pause_reason TEXT, UNIQUE(kid_name, med_key))`).catch(() => {})
+      // Auto-pause Amos + Wyatt meds (insurance denial — one-time seed)
+      for (const k of ['amos', 'wyatt']) {
+        for (const m of [{ key: 'am', label: 'Focalin (morning dose)' }, { key: 'pm', label: 'Clonidine (evening dose)' }]) {
+          await db.query(
+            `INSERT INTO paused_medications (kid_name, med_key, med_label, is_paused, pause_reason) VALUES ($1, $2, $3, true, 'Insurance denial, awaiting re-approval') ON CONFLICT (kid_name, med_key) DO NOTHING`,
+            [k, m.key, m.label]
+          ).catch(() => {})
+        }
+      }
       // Check for paused medications
       const pausedMeds = await db.query(
         `SELECT med_key FROM paused_medications WHERE kid_name = $1 AND is_paused = true`, [child]
