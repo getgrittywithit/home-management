@@ -22,7 +22,28 @@ async function ensureTables() {
 }
 
 let ready = false
-async function init() { if (!ready) { await ensureTables(); ready = true } }
+async function init() {
+  if (!ready) {
+    await ensureTables()
+    // Seed default sender rules for Boerne ISD + common providers
+    const defaultRules = [
+      { pattern: '%boerneisd%', name: 'Boerne ISD', category: 'school', priority: 'normal' },
+      { pattern: '%@boerneisd.net', name: 'Boerne ISD Staff', category: 'school', priority: 'normal' },
+      { pattern: '%@psisatx.com', name: 'Psychosomatic Institute', category: 'medical', priority: 'normal' },
+      { pattern: '%stonebridgealliance%', name: 'Stonebridge Behavioral', category: 'medical', priority: 'normal' },
+      { pattern: '%noreply@google.com', name: 'Google Notifications', category: 'subscriptions', priority: 'low' },
+      { pattern: '%tritonhandyman%', name: 'Triton Handyman', category: 'triton', priority: 'normal' },
+    ]
+    for (const rule of defaultRules) {
+      await db.query(
+        `INSERT INTO email_sender_rules (sender_pattern, sender_name, default_category, default_priority)
+         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+        [rule.pattern, rule.name, rule.category, rule.priority]
+      ).catch(() => {})
+    }
+    ready = true
+  }
+}
 
 // ── Helpers ──
 

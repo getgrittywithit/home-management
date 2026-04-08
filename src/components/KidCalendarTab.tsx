@@ -8,12 +8,13 @@ export default function KidCalendarTab({ childName }: { childName: string }) {
   const [events, setEvents] = useState<CalEvent[]>([])
   const [loaded, setLoaded] = useState(false)
 
+  const kid = childName.toLowerCase()
   useEffect(() => {
-    fetch('/api/kids/calendar?days=30')
+    fetch(`/api/kids/calendar?days=30&kid_name=${kid}`)
       .then(r => r.json())
       .then(data => { setEvents(data.events || []); setLoaded(true) })
       .catch(() => setLoaded(true))
-  }, [])
+  }, [kid])
 
   if (!loaded) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" /></div>
 
@@ -30,13 +31,14 @@ export default function KidCalendarTab({ childName }: { childName: string }) {
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-6 rounded-lg">
-        <h1 className="text-2xl font-bold">Family Calendar</h1>
-        <p className="text-purple-200">Next 30 days</p>
+        <h1 className="text-2xl font-bold">{childName}&apos;s Calendar</h1>
+        <p className="text-purple-200">Next 30 days — appointments, events &amp; family calendar</p>
       </div>
 
       {events.length === 0 ? (
         <div className="bg-white p-6 rounded-lg border text-center text-gray-400">
-          <p>Nothing on the family calendar coming up</p>
+          <p>No upcoming events on your calendar</p>
+          <p className="text-xs mt-1">Ask Mom to add your Google Calendar ID in settings</p>
         </div>
       ) : (
         <div className="space-y-4">
