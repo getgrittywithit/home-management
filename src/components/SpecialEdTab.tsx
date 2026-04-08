@@ -692,9 +692,9 @@ export default function SpecialEdTab({ preSelectedKid, embedded }: SpecialEdTabP
                   : 'border-gray-200 bg-white hover:border-purple-200 hover:bg-purple-25'
               }`}
             >
-              {/* Warning dot */}
+              {/* Warning dot — missing accommodations or goals on active plan */}
               {hasWarning && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-amber-400 rounded-full" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-amber-400 rounded-full" title="Missing accommodations or goals on active plan" />
               )}
 
               {/* Avatar */}

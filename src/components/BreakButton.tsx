@@ -27,7 +27,7 @@ export default function BreakButton({ childName }: { childName: string }) {
     <>
       <button
         onClick={flagBreak}
-        className="fixed bottom-[4.5rem] left-4 md:left-auto md:right-6 z-40 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium shadow-md hover:bg-green-200 transition-colors border border-green-200"
+        className="fixed bottom-[4.5rem] left-4 md:left-auto md:right-[4.5rem] z-40 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium shadow-md hover:bg-green-200 transition-colors border border-green-200"
       >
         🌿 I Need a Break
       </button>
