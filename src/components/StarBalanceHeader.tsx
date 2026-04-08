@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Star, Gem } from 'lucide-react'
 
 interface StarBalanceHeaderProps {
@@ -12,17 +12,24 @@ export default function StarBalanceHeader({ childName, refreshKey }: StarBalance
   const [stars, setStars] = useState<number | null>(null)
   const [gems, setGems] = useState<number | null>(null)
   const kidKey = childName.toLowerCase()
+  const lastFetch = useRef(0)
 
   useEffect(() => {
     if (!kidKey) return
-    fetch(`/api/kids/points?action=get_balance&child=${kidKey}`)
-      .then(r => r.json())
-      .then(data => setStars(data.balance?.current_points ?? 0))
-      .catch(() => {})
+    // Debounce: skip if fetched within last 500ms (prevents re-render loops)
+    const now = Date.now()
+    if (now - lastFetch.current < 500) return
+    lastFetch.current = now
+
+    // Single source of truth: /api/economy returns both stars and gems
     fetch(`/api/economy?action=get_balances&kid_name=${kidKey}`)
       .then(r => r.json())
-      .then(data => setGems(data.balances?.gem_balance ?? 0))
-      .catch(() => setGems(0))
+      .then(data => {
+        const b = data.balances || {}
+        setStars(b.stars_balance ?? 0)
+        setGems(b.gem_balance ?? 0)
+      })
+      .catch(() => { setStars(0); setGems(0) })
   }, [kidKey, refreshKey])
 
   if (stars === null) return null
