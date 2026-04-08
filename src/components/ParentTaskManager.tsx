@@ -62,6 +62,21 @@ export default function ParentTaskManager() {
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [morningPlan, setMorningPlan] = useState('')
+  const [reflection, setReflection] = useState('')
+  const [dayTags, setDayTags] = useState<string[]>([])
+  const [notesSaving, setNotesSaving] = useState(false)
+  const [notesLoaded, setNotesLoaded] = useState(false)
+
+  const DAY_TAGS = [
+    { id: 'great_day', label: 'Great Day', emoji: '✅' },
+    { id: 'struggled', label: 'Struggled', emoji: '⚠️' },
+    { id: 'breakthrough', label: 'Breakthrough', emoji: '🎯' },
+    { id: 'light_day', label: 'Light Day', emoji: '🏖️' },
+    { id: 'sick_day', label: 'Sick Day', emoji: '🤒' },
+    { id: 'field_trip', label: 'Field Trip', emoji: '🚗' },
+    { id: 'testing_day', label: 'Testing Day', emoji: '📝' },
+  ]
 
   const fetchTasks = useCallback(async () => {
     setLoading(true)
@@ -77,6 +92,21 @@ export default function ParentTaskManager() {
   }, [selectedKid])
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
+
+  // Fetch lesson notes for selected kid
+  useEffect(() => {
+    const kid = selectedKid.toLowerCase()
+    setNotesLoaded(false)
+    fetch(`/api/lesson-notes?action=get_today&kid_name=${kid}`)
+      .then(r => r.json())
+      .then(data => {
+        setMorningPlan(data.note?.morning_plan || '')
+        setReflection(data.note?.reflection || '')
+        setDayTags(data.note?.day_tags || [])
+        setNotesLoaded(true)
+      })
+      .catch(() => setNotesLoaded(true))
+  }, [selectedKid])
 
   const handleSave = async () => {
     if (!formData.task_label.trim()) return
@@ -101,6 +131,19 @@ export default function ParentTaskManager() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const saveNotes = async () => {
+    setNotesSaving(true)
+    await fetch('/api/lesson-notes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_note', kid_name: selectedKid.toLowerCase(), morning_plan: morningPlan || null, reflection: reflection || null, day_tags: dayTags }),
+    }).catch(() => {})
+    setNotesSaving(false)
+  }
+
+  const toggleDayTag = (tagId: string) => {
+    setDayTags(prev => prev.includes(tagId) ? prev.filter(t => t !== tagId) : [...prev, tagId])
   }
 
   const handleDelete = async (taskId: string) => {
@@ -297,6 +340,38 @@ export default function ParentTaskManager() {
           </button>
         ))}
       </div>
+
+      {/* Lesson Notes */}
+      {notesLoaded && (
+        <div className="bg-amber-50 rounded-lg border border-amber-200 p-4 space-y-3">
+          <h4 className="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+            📝 Lesson Notes — {selectedKid}
+          </h4>
+          <div>
+            <label className="text-xs text-amber-700 font-medium">Morning Plan (visible to kid)</label>
+            <textarea value={morningPlan} onChange={e => setMorningPlan(e.target.value)} onBlur={saveNotes}
+              rows={2} placeholder="What's the plan for today? Focus areas, activities, adjustments..."
+              className="w-full mt-1 border border-amber-200 rounded px-3 py-1.5 text-sm resize-none bg-white" />
+          </div>
+          <div>
+            <label className="text-xs text-amber-700 font-medium">Reflection (parent only — kid can&apos;t see)</label>
+            <textarea value={reflection} onChange={e => setReflection(e.target.value)} onBlur={saveNotes}
+              rows={2} placeholder="How did it go? What to adjust tomorrow?"
+              className="w-full mt-1 border border-amber-200 rounded px-3 py-1.5 text-sm resize-none bg-white" />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {DAY_TAGS.map(tag => (
+              <button key={tag.id} onClick={() => { toggleDayTag(tag.id); setTimeout(saveNotes, 100) }}
+                className={`px-2 py-1 rounded text-xs font-medium transition ${
+                  dayTags.includes(tag.id) ? 'bg-amber-500 text-white' : 'bg-white text-gray-600 border border-amber-200 hover:border-amber-400'
+                }`}>
+                {tag.emoji} {tag.label}
+              </button>
+            ))}
+          </div>
+          {notesSaving && <p className="text-xs text-amber-500">Saving...</p>}
+        </div>
+      )}
 
       {/* Tasks grouped by subject */}
       {loading ? (

@@ -66,7 +66,7 @@ export default function ReadingProgressDashboard() {
           )
         })}
         {kids.filter(k => k.current_book || k.books_finished > 0 || k.week_sessions > 0).length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-4">No reading data yet. Kids will see progress here once they start logging.</p>
+          <p className="text-center text-sm text-gray-400 py-4">Not started — tap Book Buddy to begin reading sessions</p>
         )}
       </div>
     </div>

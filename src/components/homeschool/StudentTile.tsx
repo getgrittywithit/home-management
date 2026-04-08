@@ -34,7 +34,7 @@ export default function StudentTile({ student, onClick, selected, taskData }: {
             <span className={`font-medium ${progress === 100 ? 'text-green-600' : c.text}`}>
               {completedTasks}/{totalTasks} done
             </span>
-            <span className="text-gray-500">{focusMins} min</span>
+            <span className="text-gray-500">{focusMins > 0 ? `${focusMins} min` : ''}</span>
           </div>
           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -47,7 +47,7 @@ export default function StudentTile({ student, onClick, selected, taskData }: {
             />
           </div>
         </div>
-      ) : (
+      ) : student.subjects.length > 0 ? (
         <>
           <div className="space-y-0.5 mb-2">
             {student.subjects.slice(0, 4).map(sub => (
@@ -61,9 +61,11 @@ export default function StudentTile({ student, onClick, selected, taskData }: {
             <span className={`font-medium ${c.text}`}>
               {student.subjects.filter(s => s.status === 'done').length}/{student.subjects.length} done
             </span>
-            <span className="text-gray-500">{student.focus_sessions} focus</span>
+            <span className="text-gray-500">{student.focus_sessions > 0 ? `${student.focus_sessions} focus` : ''}</span>
           </div>
         </>
+      ) : (
+        <p className="text-xs text-gray-400 italic mb-2">Not started — set up tasks in Daily Plan</p>
       )}
 
       {student.concern_flags.length > 0 && (

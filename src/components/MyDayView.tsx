@@ -89,6 +89,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const [mealRefreshKey, setMealRefreshKey] = useState(0)
   const [expandedInstructions, setExpandedInstructions] = useState<Set<string>>(new Set())
   const [weeklyGoal, setWeeklyGoal] = useState<{ target: number; earned: number } | null>(null)
+  const [lessonNote, setLessonNote] = useState<string | null>(null)
 
   const kid = kidName.toLowerCase()
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
@@ -213,6 +214,13 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
         setAnnouncement(msgData.announcements[0].message)
       }
     } catch { /* no announcements */ }
+
+    // Fetch mom's lesson note for today
+    try {
+      const noteRes = await fetch(`/api/lesson-notes?action=get_morning_plan&kid_name=${kid}`)
+      const noteData = await noteRes.json()
+      setLessonNote(noteData.morning_plan || null)
+    } catch { /* no note */ }
 
     // Fetch weekly star goal
     try {
@@ -364,6 +372,19 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
             <div>
               <p className="text-sm font-semibold text-amber-900">Message from Mom</p>
               <p className="text-sm text-amber-800 mt-1">{announcement}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mom's Lesson Note */}
+      {lessonNote && (
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">📝</span>
+            <div>
+              <p className="text-sm font-semibold text-purple-900">Mom&apos;s Note for Today</p>
+              <p className="text-sm text-purple-800 mt-1">{lessonNote}</p>
             </div>
           </div>
         </div>

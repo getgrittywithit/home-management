@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { DollarSign, ChevronRight, Lock, CheckCircle2, Star } from 'lucide-react'
+import { DollarSign, ChevronRight, Lock, CheckCircle2, Star, Camera, Send } from 'lucide-react'
 
 interface FinancialProgress {
   kid_name: string
@@ -53,6 +53,11 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
   const [loading, setLoading] = useState(true)
   const [expanding, setExpanding] = useState(false)
   const [advanceLoading, setAdvanceLoading] = useState(false)
+  const [completions, setCompletions] = useState<Record<string, boolean>>({})
+  const [showWork, setShowWork] = useState<string | null>(null)
+  const [workText, setWorkText] = useState('')
+  const [workPhotos, setWorkPhotos] = useState<string[]>([])
+  const [submittingWork, setSubmittingWork] = useState(false)
 
   const kid = kidName.toLowerCase()
 
@@ -63,6 +68,12 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
         const json = await res.json()
         setProgress(json.progress)
         setActivities(json.activities || [])
+        // Fetch completion status from new API
+        const compRes = await fetch(`/api/financial-literacy?action=get_progress&kid_name=${kid}`)
+        const compJson = await compRes.json()
+        const compMap: Record<string, boolean> = {}
+        for (const a of (compJson.activities || [])) compMap[a.activity_id] = true
+        setCompletions(compMap)
       } catch (err) {
         console.error('Failed to load financial literacy:', err)
       } finally {
@@ -71,6 +82,35 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
     }
     load()
   }, [kid])
+
+  const handleCompleteActivity = async (activityId: string) => {
+    if (!workText.trim() && workPhotos.length === 0) return // require evidence
+    setSubmittingWork(true)
+    try {
+      await fetch('/api/financial-literacy', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'complete_activity', kid_name: kid, level: progress?.current_level || 1, activity_id: activityId, answer_text: workText.trim() || null, photos: workPhotos }),
+      })
+      setCompletions(prev => ({ ...prev, [activityId]: true }))
+      setShowWork(null)
+      setWorkText('')
+      setWorkPhotos([])
+      onStarEarned?.(3, 'financial_literacy')
+    } catch { /* ignore */ }
+    setSubmittingWork(false)
+  }
+
+  const handleAddWorkPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || workPhotos.length >= 3) return
+    const reader = new FileReader()
+    reader.onload = () => { if (reader.result) setWorkPhotos(prev => [...prev, reader.result as string]) }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const completedCount = activities.filter(a => completions[a.id]).length
+  const allComplete = activities.length > 0 && completedCount === activities.length
 
   const handleAdvanceLevel = async () => {
     if (!progress) return
@@ -142,11 +182,12 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
           {isParent && currentLevel < 6 && (
             <button
               onClick={handleAdvanceLevel}
-              disabled={advanceLoading}
+              disabled={advanceLoading || !allComplete}
+              title={!allComplete ? `Complete all activities first (${completedCount}/${activities.length})` : ''}
               className="bg-white/20 hover:bg-white/30 text-white text-sm px-3 py-1.5 rounded-lg font-medium disabled:opacity-50 flex items-center gap-1"
             >
               <ChevronRight className="w-4 h-4" />
-              {advanceLoading ? 'Advancing...' : 'Advance Level'}
+              {advanceLoading ? 'Advancing...' : !allComplete ? `${completedCount}/${activities.length} done` : 'Advance Level'}
             </button>
           )}
         </div>
@@ -221,21 +262,61 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
           {levelIcon} Level {currentLevel} Activities
         </h4>
         <div className="space-y-2">
-          {activities.map((activity) => (
-            <div
-              key={activity.id}
-              className="rounded-lg border border-gray-100 p-3 hover:border-emerald-200 hover:bg-emerald-50/50 transition-colors"
-            >
-              <h5 className="font-medium text-sm text-gray-900">{activity.title}</h5>
-              <p className="text-xs text-gray-500 mt-0.5">{activity.description}</p>
-              <div className="flex gap-3 mt-1.5 text-xs text-gray-400">
-                <span>~{activity.duration_min} min</span>
-                {activity.materials.length > 0 && (
-                  <span>Need: {activity.materials.slice(0, 3).join(', ')}</span>
+          {activities.map((activity) => {
+            const isDone = completions[activity.id]
+            const isExpanded = showWork === activity.id
+            return (
+              <div key={activity.id}
+                className={`rounded-lg border p-3 transition-colors ${isDone ? 'border-green-200 bg-green-50/50' : 'border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/50'}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h5 className="font-medium text-sm text-gray-900 flex items-center gap-1.5">
+                      {isDone && <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />}
+                      {activity.title}
+                    </h5>
+                    <p className="text-xs text-gray-500 mt-0.5">{activity.description}</p>
+                    <div className="flex gap-3 mt-1.5 text-xs text-gray-400">
+                      <span>~{activity.duration_min} min</span>
+                      {activity.materials.length > 0 && <span>Need: {activity.materials.slice(0, 3).join(', ')}</span>}
+                      {isDone && <span className="text-green-600 font-medium">+3 gems</span>}
+                    </div>
+                  </div>
+                  {!isDone && !isParent && (
+                    <button onClick={() => { setShowWork(isExpanded ? null : activity.id); setWorkText(''); setWorkPhotos([]) }}
+                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium px-2 py-1 rounded hover:bg-emerald-50">
+                      {isExpanded ? 'Cancel' : 'Show My Work'}
+                    </button>
+                  )}
+                </div>
+                {/* Show My Work form */}
+                {isExpanded && !isDone && (
+                  <div className="mt-3 pt-3 border-t space-y-2">
+                    <textarea value={workText} onChange={e => setWorkText(e.target.value)}
+                      placeholder="Describe what you did or learned..."
+                      rows={2} className="w-full border rounded px-2 py-1.5 text-sm resize-none" />
+                    <div className="flex items-center gap-2">
+                      {workPhotos.map((p, i) => (
+                        <div key={i} className="w-12 h-12 rounded border overflow-hidden">
+                          <img src={p} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                      {workPhotos.length < 3 && (
+                        <label className="flex items-center gap-1 px-2 py-1 rounded border border-dashed text-xs text-gray-500 cursor-pointer hover:border-emerald-300">
+                          <Camera className="w-3 h-3" /> Photo
+                          <input type="file" accept="image/*" capture="environment" onChange={handleAddWorkPhoto} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+                    <button onClick={() => handleCompleteActivity(activity.id)}
+                      disabled={submittingWork || (!workText.trim() && workPhotos.length === 0)}
+                      className="w-full bg-emerald-500 text-white py-1.5 rounded text-sm font-medium hover:bg-emerald-600 disabled:opacity-50 flex items-center justify-center gap-1">
+                      <Send className="w-3 h-3" /> {submittingWork ? 'Saving...' : 'Mark Complete (+3 gems)'}
+                    </button>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            )
+          })}
           {activities.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-4">
               No activities found for this level.
@@ -245,7 +326,7 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
 
         {currentLevel < 6 && (
           <p className="text-xs text-gray-400 mt-3 text-center">
-            Complete these activities, then {isParent ? 'tap Advance Level' : 'ask Mom'} to move to Level {currentLevel + 1}! (+10 stars)
+            Complete these activities, then {isParent ? 'tap Advance Level' : 'ask Mom'} to move to Level {currentLevel + 1}! (+10 gems)
           </p>
         )}
         {currentLevel >= 6 && (

@@ -708,6 +708,9 @@ export function ParentLibraryAdmin() {
   const [showScanner, setShowScanner] = useState(false)
   const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([])
   const [showPending, setShowPending] = useState(false)
+  const [titleSearch, setTitleSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
   const [discoveryMode, setDiscoveryMode] = useState(false)
 
   // Add form state
@@ -817,6 +820,40 @@ export function ParentLibraryAdmin() {
     } catch (err) {
       console.error('Barcode lookup failed:', err)
     }
+  }
+
+  const handleTitleSearch = async () => {
+    if (!titleSearch.trim() || titleSearch.trim().length < 2) return
+    setSearching(true)
+    setSearchResults([])
+    try {
+      const query = encodeURIComponent(titleSearch.trim())
+      const res = await fetch(`https://openlibrary.org/search.json?q=${query}&limit=8&fields=key,title,author_name,first_publish_year,isbn,cover_i,number_of_pages_median,subject`)
+      const json = await res.json()
+      const results = (json.docs || []).map((doc: any) => ({
+        title: doc.title,
+        author: doc.author_name?.[0] || '',
+        year: doc.first_publish_year || '',
+        isbn: doc.isbn?.[0] || '',
+        cover_id: doc.cover_i,
+        pages: doc.number_of_pages_median || null,
+        subjects: (doc.subject || []).slice(0, 5),
+      }))
+      setSearchResults(results)
+    } catch { setSearchResults([]) }
+    setSearching(false)
+  }
+
+  const selectSearchResult = (result: any) => {
+    setFormData(prev => ({
+      ...prev,
+      title: result.title || prev.title,
+      author_or_publisher: result.author || prev.author_or_publisher,
+      isbn: result.isbn || prev.isbn,
+      description: result.cover_id ? `Cover: https://covers.openlibrary.org/b/id/${result.cover_id}-M.jpg` : prev.description,
+    }))
+    setSearchResults([])
+    setTitleSearch('')
   }
 
   const handleSave = async () => {
@@ -965,6 +1002,43 @@ export function ParentLibraryAdmin() {
                 onClose={() => setShowScanner(false)}
               />
             )}
+          </div>
+        )}
+
+        {/* Title / Author Search */}
+        {!editingItem && (
+          <div className="bg-emerald-50 rounded-lg p-3">
+            <p className="text-sm text-emerald-700 mb-2 font-medium">Search by Title or Author</p>
+            <div className="flex gap-2">
+              <input type="text" value={titleSearch}
+                onChange={e => setTitleSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleTitleSearch()}
+                placeholder='Type a title or author name (e.g., "Land of Stories")'
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              <button onClick={handleTitleSearch} disabled={searching || titleSearch.trim().length < 2}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1">
+                <Search className="w-4 h-4" /> {searching ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+            {searchResults.length > 0 && (
+              <div className="mt-2 border rounded-lg bg-white max-h-64 overflow-y-auto divide-y">
+                {searchResults.map((r, i) => (
+                  <button key={i} onClick={() => selectSearchResult(r)}
+                    className="w-full text-left px-3 py-2 hover:bg-emerald-50 flex items-center gap-3 text-sm">
+                    {r.cover_id ? (
+                      <img src={`https://covers.openlibrary.org/b/id/${r.cover_id}-S.jpg`} alt="" className="w-8 h-12 object-cover rounded flex-shrink-0" />
+                    ) : (
+                      <div className="w-8 h-12 bg-gray-200 rounded flex-shrink-0 flex items-center justify-center text-xs text-gray-400">?</div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{r.title}</p>
+                      <p className="text-xs text-gray-500">{r.author}{r.year ? ` (${r.year})` : ''}{r.isbn ? ` — ISBN: ${r.isbn}` : ''}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {searching && <p className="text-xs text-gray-400 mt-2">Searching Open Library...</p>}
           </div>
         )}
 
