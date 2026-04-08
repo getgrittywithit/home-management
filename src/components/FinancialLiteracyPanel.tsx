@@ -69,8 +69,8 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
         const compJson = await compRes.json()
         const currentLevel = compJson.current_level || 1
 
-        // Get activities for this level from old API
-        const res = await fetch(`/api/homeschool?action=get_financial_level&kid_name=${kid}`)
+        // Get activities for the CORRECT level (pass level explicitly)
+        const res = await fetch(`/api/homeschool?action=get_financial_level&kid_name=${kid}&level=${currentLevel}`)
         const json = await res.json()
         // Override the level from the new API (source of truth)
         setProgress({ ...(json.progress || {}), kid_name: kid, current_level: currentLevel } as any)

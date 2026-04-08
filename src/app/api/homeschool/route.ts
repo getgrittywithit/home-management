@@ -570,23 +570,26 @@ export async function GET(request: NextRequest) {
     case 'get_financial_level': {
       const kidName = searchParams.get('kid_name')
       if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      const explicitLevel = searchParams.get('level')
 
       try {
         const rows = await db.query(
           `SELECT * FROM financial_literacy_progress WHERE kid_name = $1`,
           [kidName.toLowerCase()]
         )
-        if (!rows[0]) return NextResponse.json({ progress: null })
 
-        // Also get activities for the current level
+        // Use explicit level param if provided, otherwise fall back to DB value
+        const levelToUse = explicitLevel ? parseInt(explicitLevel) : (rows[0]?.current_level || 1)
+
+        // Get activities for the determined level
         const activities = await db.query(
           `SELECT * FROM enrichment_activities
            WHERE subject = 'financial_literacy' AND financial_level = $1 AND active = TRUE
            ORDER BY title`,
-          [rows[0].current_level]
+          [levelToUse]
         )
 
-        return NextResponse.json({ progress: rows[0], activities })
+        return NextResponse.json({ progress: rows[0] || null, activities })
       } catch (error) {
         console.error('get_financial_level error:', error)
         return NextResponse.json({ error: 'Failed to load financial level' }, { status: 500 })
