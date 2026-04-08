@@ -21,21 +21,24 @@ export default function GoalsTab({ childName }: { childName: string }) {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/kids/points?action=get_goals&child=${childKey}`).then(r => r.json()),
-      fetch(`/api/kids/points?action=get_balance&child=${childKey}`).then(r => r.json()),
+      fetch(`/api/stars?action=get_savings_goals&kid_name=${childKey}`).then(r => r.json()),
+      fetch(`/api/stars?action=get_balance&kid_name=${childKey}`).then(r => r.json()),
     ]).then(([goalData, balData]) => {
-      setKidGoals(goalData.kidGoals || [])
-      setFamilyGoals(goalData.familyGoals || [])
-      setBalance(balData.balance?.current_points || 0)
+      const goals = (goalData.goals || []).map((g: any) => ({
+        id: g.id, goal_name: g.goal_name, target_points: g.target_stars, current_points: g.current_balance ?? 0,
+      }))
+      setKidGoals(goals)
+      setFamilyGoals([])
+      setBalance(balData.balance ?? 0)
       setLoaded(true)
     }).catch(() => setLoaded(true))
   }, [childKey])
 
   const addGoal = async () => {
     if (!goalName.trim() || !goalTarget) return
-    await fetch('/api/kids/points', {
+    await fetch('/api/stars', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'add_goal', child: childKey, goal_name: goalName.trim(), target_points: parseInt(goalTarget) })
+      body: JSON.stringify({ action: 'create_savings_goal', kid_name: childKey, goal_name: goalName.trim(), target_stars: parseInt(goalTarget) })
     })
     setKidGoals(prev => [...prev, { id: Date.now(), goal_name: goalName.trim(), target_points: parseInt(goalTarget), current_points: 0 }])
     setGoalName(''); setGoalTarget(''); setShowAdd(false)

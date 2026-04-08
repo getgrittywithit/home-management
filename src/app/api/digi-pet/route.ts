@@ -382,11 +382,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unknown task_type' }, { status: 400 })
       }
 
-      // Add stars
+      // Add stars + update weekly tracking
       await db.query(
-        `UPDATE digi_pets SET stars_balance = stars_balance + $1, last_activity_at = NOW() WHERE kid_name = $2`,
+        `UPDATE digi_pets SET stars_balance = stars_balance + $1, weekly_stars = COALESCE(weekly_stars, 0) + $1, last_activity_at = NOW() WHERE kid_name = $2`,
         [amount, kid_name]
       )
+
+      // Update weekly star goal
+      const d = new Date()
+      const dayOfWeek = d.getDay()
+      d.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+      const monday = d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      await db.query(
+        `INSERT INTO weekly_star_goals (kid_name, week_start, earned_stars) VALUES ($1, $2, $3)
+         ON CONFLICT (kid_name, week_start) DO UPDATE SET earned_stars = weekly_star_goals.earned_stars + $3`,
+        [kid_name, monday, amount]
+      ).catch(() => {})
 
       // Insert log
       await db.query(
@@ -398,12 +409,12 @@ export async function POST(request: NextRequest) {
       const pet = await ensurePet(kid_name)
       const lastActivity = pet.last_activity_at ? new Date(pet.last_activity_at).toISOString().slice(0, 10) : null
       const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-      const today = new Date().toISOString().slice(0, 10)
+      const todayISO = new Date().toISOString().slice(0, 10)
 
       let newStreak = pet.streak_days
       if (lastActivity === yesterday) {
         newStreak = pet.streak_days + 1
-      } else if (lastActivity !== today) {
+      } else if (lastActivity !== todayISO) {
         newStreak = 1
       }
 
@@ -446,6 +457,35 @@ export async function POST(request: NextRequest) {
         balance: updatedPet.stars_balance,
         streak_days: newStreak,
       })
+    }
+
+    // Reverse stars when a task is unchecked
+    if (action === 'reverse_task_stars') {
+      const { kid_name, source_ref } = body
+      if (!kid_name || !source_ref) return NextResponse.json({ error: 'kid_name and source_ref required' }, { status: 400 })
+
+      const existing = await db.query(
+        `SELECT id, amount FROM digi_pet_star_log WHERE kid_name = $1 AND source_ref = $2`,
+        [kid_name, source_ref]
+      )
+      if (existing.length === 0) return NextResponse.json({ already_reversed: true })
+
+      const totalReversed = existing.reduce((sum: number, r: any) => sum + r.amount, 0)
+
+      // Delete the log entries
+      await db.query(
+        `DELETE FROM digi_pet_star_log WHERE kid_name = $1 AND source_ref = $2`,
+        [kid_name, source_ref]
+      )
+
+      // Deduct from balance (floor at 0)
+      await db.query(
+        `UPDATE digi_pets SET stars_balance = GREATEST(0, stars_balance - $1) WHERE kid_name = $2`,
+        [totalReversed, kid_name]
+      )
+
+      const updatedPet = (await db.query(`SELECT stars_balance FROM digi_pets WHERE kid_name = $1`, [kid_name]))[0]
+      return NextResponse.json({ success: true, reversed: totalReversed, balance: updatedPet?.stars_balance ?? 0 })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

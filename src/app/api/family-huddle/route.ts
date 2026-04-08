@@ -517,8 +517,9 @@ export async function POST(req: NextRequest) {
         const exclude = recent[0]?.game_type || ''
 
         const available = GAME_TYPES.filter(t => t !== exclude)
-        // Pick 3 (or all if only 3 available)
-        const shuffled = available.sort(() => Math.random() - 0.5).slice(0, 3)
+        // Show all available options (put excluded last if requested)
+        const shuffled = [...available.sort(() => Math.random() - 0.5)]
+        if (exclude && GAME_TYPES.includes(exclude)) shuffled.push(exclude)
         const options = shuffled.map(t => ({
           game_type: t,
           display_name: GAME_DISPLAY[t].name,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageCircle, Send, X, Check } from 'lucide-react'
+import { MessageCircle, Send, X, Check, Camera, Trash2 } from 'lucide-react'
 
 const SIBLINGS = ['Amos', 'Zoey', 'Kaylee', 'Ellie', 'Wyatt', 'Hannah']
 const INVOLVED_OPTIONS = [
@@ -42,11 +42,23 @@ export default function KidReportForm({ kidName, onClose }: KidReportFormProps) 
   const [feeling, setFeeling] = useState('')
   const [when, setWhen] = useState('just_now')
   const [goodBad, setGoodBad] = useState<'good' | 'bad' | 'neutral'>('bad')
+  const [photos, setPhotos] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   const toggleInvolved = (id: string) => {
     setInvolved(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const handleAddPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || photos.length >= 3) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (reader.result) setPhotos(prev => [...prev, reader.result as string])
+    }
+    reader.readAsDataURL(file)
+    e.target.value = '' // allow re-selecting same file
   }
 
   const handleSubmit = async () => {
@@ -62,6 +74,7 @@ export default function KidReportForm({ kidName, onClose }: KidReportFormProps) 
         when_happened: when,
         feeling,
         good_bad_neutral: goodBad,
+        photos,
       }),
     }).catch(() => {})
     setSubmitting(false)
@@ -170,6 +183,33 @@ export default function KidReportForm({ kidName, onClose }: KidReportFormProps) 
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Photos */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1.5">
+              Photos <span className="font-normal text-gray-400">(optional, up to 3)</span>
+            </label>
+            {photos.length > 0 && (
+              <div className="flex gap-2 mb-2">
+                {photos.map((photo, i) => (
+                  <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border">
+                    <img src={photo} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                    <button onClick={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {photos.length < 3 && (
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:border-indigo-300 hover:text-indigo-500 cursor-pointer w-fit">
+                <Camera className="w-4 h-4" />
+                {photos.length === 0 ? 'Add a photo' : 'Add another'}
+                <input type="file" accept="image/*" capture="environment" onChange={handleAddPhoto} className="hidden" />
+              </label>
+            )}
           </div>
 
           {/* Submit */}

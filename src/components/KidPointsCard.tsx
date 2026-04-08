@@ -47,15 +47,30 @@ export default function KidPointsCard({ childName }: { childName: string }) {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/kids/points?action=get_balance&child=${childKey}`).then(r => r.json()),
-      fetch(`/api/kids/points?action=get_goals&child=${childKey}`).then(r => r.json()),
-      fetch(`/api/kids/points?action=get_history&child=${childKey}`).then(r => r.json()),
+      fetch(`/api/stars?action=get_balance&kid_name=${childKey}`).then(r => r.json()),
+      fetch(`/api/stars?action=get_savings_goals&kid_name=${childKey}`).then(r => r.json()),
+      fetch(`/api/stars?action=get_kid_history&kid_name=${childKey}&limit=20`).then(r => r.json()),
     ]).then(([balData, goalData, histData]) => {
-      setBalance(balData.balance || balance)
-      setSettings(balData.settings || settings)
-      setKidGoals(goalData.kidGoals || [])
-      setFamilyGoals(goalData.familyGoals || [])
-      const hist = histData.history || []
+      setBalance({
+        current_points: balData.balance ?? 0,
+        total_earned_all_time: balData.lifetime_earned ?? 0,
+        last_payout_date: null,
+      })
+      const goals = (goalData.goals || []).map((g: any) => ({
+        id: g.id,
+        goal_name: g.goal_name,
+        target_points: g.target_stars,
+        current_points: g.current_balance ?? 0,
+      }))
+      setKidGoals(goals)
+      setFamilyGoals([])
+      const hist = (histData.history || []).map((h: any) => ({
+        id: h.id,
+        transaction_type: h.amount >= 0 ? 'earned' as const : 'deducted' as const,
+        points: Math.abs(h.amount),
+        reason: h.note || h.source || '',
+        logged_date: h.created_at,
+      }))
       setHistory(hist)
       // Calculate this week's earnings
       const now = new Date()
@@ -83,10 +98,10 @@ export default function KidPointsCard({ childName }: { childName: string }) {
 
   const addGoal = async () => {
     if (!goalName.trim() || !goalTarget) return
-    await fetch('/api/kids/points', {
+    await fetch('/api/stars', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'add_goal', child: childKey, goal_name: goalName.trim(), target_points: parseInt(goalTarget) })
+      body: JSON.stringify({ action: 'create_savings_goal', kid_name: childKey, goal_name: goalName.trim(), target_stars: parseInt(goalTarget) })
     })
     setKidGoals(prev => [...prev, { id: Date.now(), goal_name: goalName.trim(), target_points: parseInt(goalTarget), current_points: 0 }])
     setGoalName('')

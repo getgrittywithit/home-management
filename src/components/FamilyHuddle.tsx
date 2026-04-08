@@ -13,6 +13,8 @@ const KID_EMOJIS: Record<string, string> = {
 }
 const HOST_ROTATION = ['amos', 'kaylee', 'hannah', 'ellie', 'wyatt', 'zoey']
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+// Decode HTML entities that might be stored as literal text in DB
+const decodeEntities = (s: string) => s ? s.replace(/&bull;/g, '•').replace(/&mdash;/g, '—').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'") : ''
 const STATUS_BADGES: Record<string, { label: string; color: string }> = {
   pending: { label: 'Pending', color: 'bg-gray-100 text-gray-600' },
   in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-700' },
@@ -249,7 +251,7 @@ export default function FamilyHuddle() {
                   {new Date(h.huddle_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   {' \u2014 '} Host: {cap(h.host_kid)} {KID_EMOJIS[h.host_kid] || ''}
                 </p>
-                {h.icebreaker_question && <p className="text-xs text-gray-500 italic mt-0.5">&quot;{h.icebreaker_question}&quot;</p>}
+                {h.icebreaker_question && <p className="text-xs text-gray-500 italic mt-0.5">&quot;{decodeEntities(h.icebreaker_question)}&quot;</p>}
               </div>
               <div className="flex items-center gap-2">
                 {h.mode && <span className="text-xs text-gray-400">{h.mode === 'quick' ? 'Quick' : 'Full'}</span>}
@@ -315,7 +317,7 @@ export default function FamilyHuddle() {
                 <span className={`text-xs px-2 py-0.5 rounded-full ${CAT_COLORS[huddle.icebreaker_category] || 'bg-gray-100 text-gray-600'}`}>
                   {huddle.icebreaker_category?.replace(/_/g, ' ')}
                 </span>
-                <p className="text-lg font-semibold text-gray-900 mt-2">{huddle.icebreaker_question}</p>
+                <p className="text-lg font-semibold text-gray-900 mt-2">{decodeEntities(huddle.icebreaker_question || '')}</p>
               </div>
               <button onClick={handleReshuffle} className="p-2 hover:bg-white/50 rounded-lg transition" title="New question">
                 <Shuffle className="w-4 h-4 text-purple-600" />
@@ -372,7 +374,7 @@ export default function FamilyHuddle() {
               <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-1">
                 <ClipboardList className="w-4 h-4 text-green-600" /> Zone Recap
               </h3>
-              <p className="text-xs text-gray-500 mb-3">{agenda.zone_recap.week_label}</p>
+              <p className="text-xs text-gray-500 mb-3">{agenda.zone_recap.week_label || 'This week'}</p>
               <div className="space-y-2">
                 {agenda.zone_recap.assignments?.map((a: any) => (
                   <div key={a.kid} className="flex items-center gap-3">
@@ -467,7 +469,7 @@ export default function FamilyHuddle() {
                     ))}
                     <div className="bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
                       <span className="text-gray-500">Sat &amp; Sun: </span>
-                      <span className="font-bold text-green-800">{agenda.belle_this_week.weekend_owner}</span>
+                      <span className="font-bold text-green-800">{agenda.belle_this_week.weekend_owner || 'TBD'}</span>
                     </div>
                   </div>
                   {agenda.belle_this_week.grooming && (agenda.belle_this_week.grooming.bath || agenda.belle_this_week.grooming.nails) && (

@@ -135,34 +135,32 @@ export default function StarRewardsTab({ childName }: StarRewardsTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Balance Header */}
+      {/* Balance Header — Stars (earned) + Gems (spendable) */}
       {balanceData && (
-        <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 text-white p-6 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <Star className="w-8 h-8 fill-white/80" />
-                <span className="text-4xl font-black">{balanceData.available}</span>
-                <span className="text-amber-100 text-lg font-medium">stars</span>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-gradient-to-r from-amber-400 to-yellow-400 text-white p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-1">
+              <Star className="w-6 h-6 fill-white/80" />
+              <span className="text-3xl font-black">{balanceData.balance}</span>
+            </div>
+            <p className="text-amber-100 text-xs">Stars (responsibility)</p>
+            <p className="text-amber-100 text-[10px] mt-1">Today: +{balanceData.today_earned}</p>
+            {balanceData.streak_days > 0 && (
+              <div className="flex items-center gap-1 mt-1.5">
+                <Flame className="w-3.5 h-3.5 text-orange-200" />
+                <span className="text-xs font-bold">{balanceData.streak_days}d streak</span>
               </div>
-              {balanceData.held > 0 && (
-                <p className="text-amber-100 text-sm">
-                  ({balanceData.held} held for pending requests)
-                </p>
-              )}
-              <p className="text-amber-100 text-xs mt-1">
-                Today: +{balanceData.today_earned} | Lifetime: {balanceData.lifetime_earned}
-              </p>
+            )}
+          </div>
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-6 h-6 text-purple-200" />
+              <span className="text-3xl font-black">{balanceData.available}</span>
             </div>
-            <div className="text-right">
-              {balanceData.streak_days > 0 && (
-                <div className="flex items-center gap-1 bg-white/20 rounded-full px-3 py-1.5 mb-2">
-                  <Flame className="w-5 h-5 text-orange-200" />
-                  <span className="text-lg font-bold">{balanceData.streak_days}</span>
-                  <span className="text-xs text-amber-100">day streak</span>
-                </div>
-              )}
-            </div>
+            <p className="text-purple-200 text-xs">Gems (spendable)</p>
+            {balanceData.held > 0 && (
+              <p className="text-purple-200 text-[10px] mt-1">{balanceData.held} held for requests</p>
+            )}
           </div>
         </div>
       )}

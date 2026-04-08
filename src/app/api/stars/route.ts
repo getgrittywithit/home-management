@@ -60,8 +60,9 @@ export async function GET(req: NextRequest) {
   try {
     // ── get_balance ──
     if (action === 'get_balance') {
-      const pets = await db.query(`SELECT stars_balance, streak_days FROM digi_pets WHERE kid_name = $1`, [kid])
+      const pets = await db.query(`SELECT stars_balance, gem_balance, streak_days FROM digi_pets WHERE kid_name = $1`, [kid])
       const balance = pets[0]?.stars_balance ?? 0
+      const gemBalance = pets[0]?.gem_balance ?? 0
       const streak = pets[0]?.streak_days ?? 0
 
       const heldRows = await db.query(
@@ -84,8 +85,9 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         balance,
+        gem_balance: gemBalance,
         held,
-        available: balance - held,
+        available: gemBalance - held, // "available" now = spendable gems
         streak_days: streak,
         lifetime_earned,
         today_earned,
@@ -94,9 +96,9 @@ export async function GET(req: NextRequest) {
 
     // ── get_store ──
     if (action === 'get_store') {
-      // Get available balance
-      const pets = await db.query(`SELECT stars_balance FROM digi_pets WHERE kid_name = $1`, [kid])
-      const balance = pets[0]?.stars_balance ?? 0
+      // Get available gem balance (Rewards Store uses gems)
+      const pets = await db.query(`SELECT gem_balance FROM digi_pets WHERE kid_name = $1`, [kid])
+      const balance = pets[0]?.gem_balance ?? 0
       const heldRows = await db.query(
         `SELECT COALESCE(SUM(stars_held), 0) AS held FROM reward_redemptions_v2 WHERE kid_name = $1 AND status = 'pending'`,
         [kid]
@@ -234,9 +236,9 @@ export async function POST(req: NextRequest) {
       if (!items[0]) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
       const item = items[0]
 
-      // Check available balance
-      const pets = await db.query(`SELECT stars_balance FROM digi_pets WHERE kid_name = $1`, [kid_name])
-      const balance = pets[0]?.stars_balance ?? 0
+      // Check available gem balance (Rewards Store spends gems)
+      const pets = await db.query(`SELECT gem_balance FROM digi_pets WHERE kid_name = $1`, [kid_name])
+      const balance = pets[0]?.gem_balance ?? 0
       const heldRows = await db.query(
         `SELECT COALESCE(SUM(stars_held), 0) AS held FROM reward_redemptions_v2 WHERE kid_name = $1 AND status = 'pending'`,
         [kid_name]
@@ -244,7 +246,7 @@ export async function POST(req: NextRequest) {
       const available = balance - Number(heldRows[0]?.held ?? 0)
 
       if (available < item.star_cost) {
-        return NextResponse.json({ error: 'Not enough stars', available, cost: item.star_cost }, { status: 400 })
+        return NextResponse.json({ error: 'Not enough gems', available, cost: item.star_cost }, { status: 400 })
       }
 
       // Insert redemption (held, not deducted)
@@ -278,19 +280,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Redemption already resolved' }, { status: 400 })
       }
 
-      // Deduct from balance
+      // Deduct gems from balance
       await db.query(
-        `UPDATE digi_pets SET stars_balance = stars_balance - $1 WHERE kid_name = $2`,
+        `UPDATE digi_pets SET gem_balance = GREATEST(0, gem_balance - $1) WHERE kid_name = $2`,
         [redemption.stars_held, redemption.kid_name]
       )
 
-      // Insert negative star log entry
+      // Insert gem transaction log
       const itemRows = await db.query(`SELECT name FROM reward_store_items WHERE id = $1`, [redemption.item_id])
       const itemName = itemRows[0]?.name || 'Reward'
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO gem_transactions (kid_name, amount, source_type, description) VALUES ($1, $2, $3, $4)`,
         [redemption.kid_name, -redemption.stars_held, 'reward_store', `Redeemed: ${itemName}`]
-      )
+      ).catch(() => {
+        // Fallback to star log if gem_transactions doesn't exist yet
+        db.query(
+          `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, $3, $4)`,
+          [redemption.kid_name, -redemption.stars_held, 'reward_store', `Redeemed: ${itemName}`]
+        ).catch(() => {})
+      })
 
       // Update status
       await db.query(

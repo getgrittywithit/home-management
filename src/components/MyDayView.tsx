@@ -8,6 +8,7 @@ import KidMealPicker from './KidMealPicker'
 import WeeklyMealCalendar from './WeeklyMealCalendar'
 import GroceryDeadlineBar from './GroceryDeadlineBar'
 import GroceryRequestBox from './GroceryRequestBox'
+import { isOnline, queueAction, cacheData } from '@/lib/offline-store'
 
 // ============================================================================
 // Types
@@ -62,6 +63,17 @@ const BLOCK_LABELS: Record<string, string> = {
   evening: 'EVENING',
 }
 
+// Map task source/id to digi-pet task_type for star awards
+function getDigiPetTaskType(task: DayTask): string | null {
+  if (task.id.startsWith('med-am-')) return 'med_am'
+  if (task.id.startsWith('med-pm-')) return 'med_pm'
+  if (task.source === 'zone') return 'zone_chore'
+  if (task.source === 'dishes') return 'daily_chore'
+  if (task.source === 'belle') return 'belle_care'
+  if (task.source === 'school') return 'lesson'
+  return null
+}
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -76,6 +88,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const [schoolDone, setSchoolDone] = useState(false)
   const [mealRefreshKey, setMealRefreshKey] = useState(0)
   const [expandedInstructions, setExpandedInstructions] = useState<Set<string>>(new Set())
+  const [weeklyGoal, setWeeklyGoal] = useState<{ target: number; earned: number } | null>(null)
 
   const kid = kidName.toLowerCase()
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
@@ -200,6 +213,13 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
         setAnnouncement(msgData.announcements[0].message)
       }
     } catch { /* no announcements */ }
+
+    // Fetch weekly star goal
+    try {
+      const goalRes = await fetch(`/api/economy?action=get_weekly_goal&kid_name=${kid}`)
+      const goalData = await goalRes.json()
+      if (goalData.goal) setWeeklyGoal({ target: goalData.goal.target_stars || 50, earned: goalData.goal.earned_stars || 0 })
+    } catch { /* no goal data */ }
   }, [kid, isBelleDay, isDishDay, hasMeds, now])
 
   useEffect(() => { fetchTasks() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -211,36 +231,67 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t))
 
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    const sourceRef = `checklist-${task.id}-${today}`
+    const taskType = getDigiPetTaskType(task)
+    const online = isOnline()
+
+    // Build the actions to perform
+    const checklistBody = { action: 'toggle', child: kid, eventId: task.id, eventSummary: task.label }
+    const starAwardBody = taskType ? { action: 'award_task_stars', kid_name: kid, task_type: taskType, source_ref: sourceRef } : null
+    const starReverseBody = taskType ? { action: 'reverse_task_stars', kid_name: kid, source_ref: sourceRef } : null
+
     if (!task.completed) {
       // Show star popup
       const key = Date.now()
       setStarPopups(prev => [...prev, { amount: task.stars, key }])
       setTimeout(() => setStarPopups(prev => prev.filter(p => p.key !== key)), 2000)
 
-      // Stars are awarded by the checklist toggle API (below) — no separate digi-pet call needed
-
-      // For school tasks, also toggle in homeschool system
-      if (task.source === 'school' && task.sourceId) {
-        try {
-          await fetch('/api/homeschool', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'toggle_task', task_id: task.sourceId, kid_name: kid }),
-          })
-        } catch { /* toggle failed */ }
+      if (online) {
+        // Award stars via digi-pet
+        if (starAwardBody) {
+          try {
+            await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starAwardBody) })
+          } catch { /* star award failed */ }
+        }
+        // For school tasks, also toggle in homeschool system
+        if (task.source === 'school' && task.sourceId) {
+          try {
+            await fetch('/api/homeschool', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle_task', task_id: task.sourceId, kid_name: kid }) })
+          } catch { /* toggle failed */ }
+        }
+      } else {
+        // Offline — queue the actions
+        if (starAwardBody) queueAction('/api/digi-pet', 'POST', starAwardBody)
+        if (task.source === 'school' && task.sourceId) {
+          queueAction('/api/homeschool', 'POST', { action: 'toggle_task', task_id: task.sourceId, kid_name: kid })
+        }
       }
-
       onStarEarned?.(task.stars, task.source)
+    } else {
+      // Unchecking — reverse star transaction
+      if (online) {
+        if (starReverseBody) {
+          try {
+            await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starReverseBody) })
+          } catch { /* star reversal failed */ }
+        }
+      } else {
+        if (starReverseBody) queueAction('/api/digi-pet', 'POST', starReverseBody)
+      }
+      onStarEarned?.(0, task.source) // trigger nav bar refresh
     }
 
     // Always sync to daily checklist (both check and uncheck)
-    try {
-      await fetch('/api/kids/checklist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle', child: kid, eventId: task.id, eventSummary: task.label }),
-      })
-    } catch { /* checklist sync failed */ }
+    if (online) {
+      try {
+        await fetch('/api/kids/checklist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(checklistBody) })
+      } catch { /* checklist sync failed */ }
+    } else {
+      queueAction('/api/kids/checklist', 'POST', checklistBody)
+      // Cache the optimistic state locally
+      cacheData(`checklist_${kid}`, tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t))
+    }
 
     // Check school completion
     const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t)
@@ -346,6 +397,27 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
           </div>
         </div>
       </div>
+
+      {/* Weekly Star Goal */}
+      {weeklyGoal && (
+        <div className="bg-white rounded-xl border shadow-sm p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /> Weekly Star Goal
+            </span>
+            <span className="text-sm font-bold text-amber-600">
+              {weeklyGoal.earned}/{weeklyGoal.target}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div className={`h-full rounded-full transition-all ${weeklyGoal.earned >= weeklyGoal.target ? 'bg-green-500' : 'bg-amber-400'}`}
+              style={{ width: `${Math.min(100, Math.round((weeklyGoal.earned / weeklyGoal.target) * 100))}%` }} />
+          </div>
+          {weeklyGoal.earned >= weeklyGoal.target && (
+            <p className="text-xs text-green-600 font-medium mt-1.5">Goal met! Keep it up!</p>
+          )}
+        </div>
+      )}
 
       {/* Time blocks */}
       {blocks.map(block => {

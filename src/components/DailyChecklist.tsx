@@ -52,6 +52,7 @@ interface ChecklistItem {
 
 interface DailyChecklistProps {
   childName: string
+  onStarEarned?: (amount: number) => void
 }
 
 const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string }> = {
@@ -133,7 +134,7 @@ function isExpandableItem(item: ChecklistItem): boolean {
     titleLower.includes('laundry day')
 }
 
-export default function DailyChecklist({ childName }: DailyChecklistProps) {
+export default function DailyChecklist({ childName, onStarEarned }: DailyChecklistProps) {
   const [required, setRequired] = useState<ChecklistItem[]>([])
   const [dailyCare, setDailyCare] = useState<ChecklistItem[]>([])
   const [earnMoney, setEarnMoney] = useState<ChecklistItem[]>([])
@@ -218,13 +219,28 @@ export default function DailyChecklist({ childName }: DailyChecklistProps) {
           setTimeout(() => setPointsToast({ show: false, amount: 0, balance: 0 }), 2500)
         }
       } catch {}
-      // Award digi-pet stars on task completion
+      // Award digi-pet stars on task completion, reverse on uncheck
       if (newCompleted) {
         const result = await awardTaskStars(childKey, item)
         if (result && result.amount && !result.already_awarded) {
           const total = (result.amount || 0) + (result.bonus_stars || 0)
           setStarPopup({ amount: total, key: Date.now() })
           setTimeout(() => setStarPopup(null), 2200)
+          onStarEarned?.(total)
+        }
+      } else {
+        // Reverse stars on uncheck
+        const taskType = getStarTaskType(item)
+        if (taskType) {
+          const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+          try {
+            await fetch('/api/digi-pet', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'reverse_task_stars', kid_name: childKey, source_ref: `checklist-${item.id}-${today}` }),
+            })
+            onStarEarned?.(0) // trigger nav bar refresh
+          } catch { /* reversal failed */ }
         }
       }
     } catch (err) {

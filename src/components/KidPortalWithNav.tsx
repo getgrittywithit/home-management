@@ -56,6 +56,8 @@ import PositiveReportButton from './PositiveReportButton'
 import NotificationBell from './NotificationBell'
 import HuddlePreSubmit from './huddle/HuddlePreSubmit'
 import { TalkToParentsButton } from './KidReportForm'
+import HydrationTracker from './HydrationTracker'
+import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
 interface KidPortalProps {
@@ -1812,6 +1814,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
                 setTimeout(() => setStarPopup(null), 2200)
               }}
             />
+            <HydrationTracker kidName={profile.first_name || profile.name} />
+            <WorkLogCard kidName={profile.first_name || profile.name} />
           </div>
         )
       case 'dashboard':
@@ -1838,7 +1842,11 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           </div>
         )
       case 'checklist':
-        return <DailyChecklist childName={profile.first_name || profile.name} />
+        return <DailyChecklist childName={profile.first_name || profile.name} onStarEarned={(amount) => {
+          if (amount > 0) setStarPopup({ amount, key: Date.now() })
+          setBalanceRefreshKey(k => k + 1)
+          if (amount > 0) setTimeout(() => setStarPopup(null), 2200)
+        }} />
       case 'calendar':
         return <KidCalendarTab childName={profile.first_name || profile.name} />
       case 'achievements':
