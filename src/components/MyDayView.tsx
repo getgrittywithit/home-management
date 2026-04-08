@@ -97,6 +97,16 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const fetchTasks = useCallback(async () => {
     const allTasks: DayTask[] = []
 
+    // Fetch today's completed task IDs from checklist (single source of truth)
+    let completedIds = new Set<string>()
+    try {
+      const clRes = await fetch(`/api/kids/checklist?child=${kid}`)
+      const clData = await clRes.json()
+      for (const item of (clData.items || clData.checklist || [])) {
+        if (item.completed) completedIds.add(item.id || item.event_id || item.title)
+      }
+    } catch { /* no checklist data */ }
+
     // Fetch task instructions
     let instructionMap: Record<string, string[]> = {}
     try {
@@ -290,7 +300,12 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       }
     } catch { /* no checklist data */ }
 
-    setTasks(allTasks)
+    // Apply saved completion state from checklist DB
+    const tasksWithState = allTasks.map(t => ({
+      ...t,
+      completed: completedIds.has(t.id) || completedIds.has(t.label) || t.completed,
+    }))
+    setTasks(tasksWithState)
     setLoading(false)
 
     // Check if all school tasks are done
@@ -353,17 +368,17 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
         } catch { /* toggle failed */ }
       }
 
-      // Sync to daily checklist so both views stay consistent
-      try {
-        await fetch('/api/kids/checklist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'toggle', child: kid, eventId: task.id, eventSummary: task.label }),
-        })
-      } catch { /* checklist sync failed */ }
-
       onStarEarned?.(task.stars, task.source)
     }
+
+    // Always sync to daily checklist (both check and uncheck)
+    try {
+      await fetch('/api/kids/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle', child: kid, eventId: task.id, eventSummary: task.label }),
+      })
+    } catch { /* checklist sync failed */ }
 
     // Check school completion
     const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t)
