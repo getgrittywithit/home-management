@@ -77,7 +77,10 @@ export default function HomeschoolEnrichment({ students }: Props) {
         <>
           <ParentEnrichmentSummary />
           <div className="grid gap-4 md:grid-cols-2">
-            {students.map(s => <FinancialLiteracyPanel key={s.id} kidName={s.name} isParent={true} />)}
+            {/* Show FL cards for ALL 6 kids (homeschool + public school) */}
+            {[...students.map(s => s.name), ...['Zoey', 'Kaylee'].filter(k => !students.some(s => s.name === k))].map(name => (
+              <FinancialLiteracyPanel key={name} kidName={name} isParent={true} />
+            ))}
           </div>
         </>
       ) : (

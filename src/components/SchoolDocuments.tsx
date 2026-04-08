@@ -174,7 +174,7 @@ export default function SchoolDocuments({ kid, filterTypes }: SchoolDocumentsPro
             </div>
             <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
               {doc.academic_year && <span>{doc.academic_year}</span>}
-              {doc.upload_date && <span>Uploaded {new Date(doc.upload_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
+              {doc.upload_date && <span>Uploaded {(() => { try { const d = new Date(typeof doc.upload_date === 'string' && doc.upload_date.length === 10 ? doc.upload_date + 'T12:00:00' : doc.upload_date); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) } catch { return '' } })()}</span>}
               {doc.file_url && <span className="text-blue-500">📎 File attached</span>}
             </div>
             {doc.summary && <p className="text-xs text-gray-400 mt-0.5">{doc.summary}</p>}

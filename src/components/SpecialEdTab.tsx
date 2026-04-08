@@ -729,7 +729,7 @@ export default function SpecialEdTab({ preSelectedKid, embedded }: SpecialEdTabP
 
       {/* ════════════════════ Detail Panel ════════════════════ */}
       {selectedKid && (
-        <div className="border-2 border-purple-200 rounded-lg bg-white overflow-hidden">
+        <div className="border-2 border-purple-200 rounded-lg bg-white">
           {/* Detail header */}
           <div className="bg-purple-50 border-b border-purple-200 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">

@@ -229,7 +229,7 @@ export function TalkToParentsButton({ kidName }: { kidName: string }) {
   return (
     <>
       <button onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-4 md:left-auto md:right-44 z-40 bg-indigo-100 text-indigo-700 px-3 py-2 rounded-full text-xs font-medium shadow-md hover:bg-indigo-200 transition-colors border border-indigo-200 flex items-center gap-1.5">
+        className="fixed bottom-6 left-4 md:left-auto md:right-6 z-40 bg-indigo-100 text-indigo-700 px-3 py-2 rounded-full text-xs font-medium shadow-md hover:bg-indigo-200 transition-colors border border-indigo-200 flex items-center gap-1.5">
         <MessageCircle className="w-3.5 h-3.5" /> Talk to Mom &amp; Dad
       </button>
       {open && <KidReportForm kidName={kidName} onClose={() => setOpen(false)} />}
