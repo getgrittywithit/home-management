@@ -368,8 +368,8 @@ export default function FamilyHuddle() {
             </div>
           )}
 
-          {/* Zone Recap (priority in Full; shows in Quick only if someone is below 30%) */}
-          {agenda?.zone_recap && (mode === 'full' || agenda.zone_recap.assignments?.some((a: any) => a.completion_pct !== null && a.completion_pct < 30)) && (
+          {/* Zone Recap — always shows (critical info for the week) */}
+          {agenda?.zone_recap && (
             <div className="bg-white rounded-lg border shadow-sm p-5">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-1">
                 <ClipboardList className="w-4 h-4 text-green-600" /> Zone Recap
@@ -446,15 +446,14 @@ export default function FamilyHuddle() {
           </div>
 
           {/* ═══ DIVIDER — Full mode only below this line ═══ */}
-          {mode === 'full' && (
-            <>
-              <div className="flex items-center gap-3 py-2">
-                <div className="flex-1 border-t border-gray-300" />
-                <p className="text-xs text-gray-400 italic whitespace-nowrap">Essentials covered &mdash; everything below is bonus family time</p>
-                <div className="flex-1 border-t border-gray-300" />
-              </div>
+          {/* ═══ WEEKLY INFO (always visible) ═══ */}
+          <div className="flex items-center gap-3 py-2">
+            <div className="flex-1 border-t border-gray-300" />
+            <p className="text-xs text-gray-400 italic whitespace-nowrap">Weekly info + bonus family time</p>
+            <div className="flex-1 border-t border-gray-300" />
+          </div>
 
-              {/* Belle Care */}
+          {/* Belle Care */}
               {agenda?.belle_this_week && (
                 <div className="bg-white rounded-lg border shadow-sm p-5">
                   <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-3">
@@ -540,15 +539,13 @@ export default function FamilyHuddle() {
                 )}
               </div>
 
-              {/* Bonus Round */}
-              {agenda?.bonus_type && (
-                <HuddleBonusRound
-                  huddleId={huddle.id}
-                  bonusType={huddle.bonus_type || agenda.bonus_type}
-                  onCreateTodo={(kid, title) => handleCreateTodo(kid, `Goal: ${title}`)}
-                />
-              )}
-            </>
+          {/* Bonus Round */}
+          {agenda?.bonus_type && (
+            <HuddleBonusRound
+              huddleId={huddle.id}
+              bonusType={huddle.bonus_type || agenda.bonus_type}
+              onCreateTodo={(kid, title) => handleCreateTodo(kid, `Goal: ${title}`)}
+            />
           )}
 
           {/* Wrap-Up Notes + Action Items */}

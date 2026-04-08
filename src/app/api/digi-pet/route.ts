@@ -23,8 +23,8 @@ const SHOP_CATALOG: Record<string, { name: string; type: string; cost: number; e
 }
 
 const STAR_AMOUNTS: Record<string, number> = {
-  med_am: 5, med_pm: 5, zone_chore: 8, daily_chore: 5, lesson: 10,
-  belle_care: 6, opp_applying: 15, opp_submitted: 25, reading_log: 8,
+  med_am: 2, med_pm: 2, zone_chore: 5, daily_chore: 3, lesson: 5,
+  belle_care: 3, opp_applying: 15, opp_submitted: 25, reading_log: 8,
   streak_3: 10, streak_7: 25, parent_bonus: 0,
   enrichment_complete: 1, typing_session: 2, typing_pb: 5,
   typing_race_win: 3, typing_accuracy: 3, financial_level_up: 10,
@@ -478,11 +478,21 @@ export async function POST(request: NextRequest) {
         [kid_name, source_ref]
       )
 
-      // Deduct from balance (floor at 0)
+      // Deduct from balance + weekly_stars (floor at 0)
       await db.query(
-        `UPDATE digi_pets SET stars_balance = GREATEST(0, stars_balance - $1) WHERE kid_name = $2`,
+        `UPDATE digi_pets SET stars_balance = GREATEST(0, stars_balance - $1), weekly_stars = GREATEST(0, COALESCE(weekly_stars, 0) - $1) WHERE kid_name = $2`,
         [totalReversed, kid_name]
       )
+
+      // Also deduct from weekly_star_goals
+      const d = new Date()
+      const dayOfWeek = d.getDay()
+      d.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+      const monday = d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+      await db.query(
+        `UPDATE weekly_star_goals SET earned_stars = GREATEST(0, earned_stars - $1) WHERE kid_name = $2 AND week_start = $3`,
+        [totalReversed, kid_name, monday]
+      ).catch(() => {})
 
       const updatedPet = (await db.query(`SELECT stars_balance FROM digi_pets WHERE kid_name = $1`, [kid_name]))[0]
       return NextResponse.json({ success: true, reversed: totalReversed, balance: updatedPet?.stars_balance ?? 0 })

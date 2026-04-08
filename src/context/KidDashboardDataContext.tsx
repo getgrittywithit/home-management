@@ -78,7 +78,7 @@ export function KidDashboardDataProvider({ children, kidName, isHomeschool, isDi
         safeFetch('/api/kids/dashboard?action=get_home_extras', { familyEvents: [], countdownEvents: [], lolaStatus: { status: 'available', note: null } }),
         safeFetch(`/api/kid-profile?action=get_profile&kid_name=${childKey}`, { profile: null }),
         safeFetch('/api/kids/messages?action=get_announcements', { announcements: [] }),
-        safeFetch(`/api/kids/zone-tasks?kid_name=${childKey}`, {}),
+        safeFetch(`/api/kids/zone-tasks?action=get_morning_status&kid=${childKey}`, {}),
         safeFetch(`/api/stars?action=get_balance&kid_name=${childKey}`, {}),
       ])
 
@@ -89,7 +89,7 @@ export function KidDashboardDataProvider({ children, kidName, isHomeschool, isDi
       const batch2Keys = ['pet']
 
       if (isHomeschool) {
-        batch2.push(safeFetch(`/api/homeschool?action=get_todays_tasks&kid_name=${kidName}`, { tasks: [], by_subject: {} }))
+        batch2.push(safeFetch(`/api/homeschool?action=get_todays_tasks&kid_name=${childKey}`, { tasks: [], by_subject: {} }))
         batch2Keys.push('tasks')
         batch2.push(safeFetch('/api/homeschool?action=get_task_instructions', { instructions: [] }))
         batch2Keys.push('instructions')

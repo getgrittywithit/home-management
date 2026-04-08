@@ -424,13 +424,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         })
         .catch(() => setLearningLoaded(true))
 
-      // Fetch Word of the Day from vocab system
-      fetch('/api/vocab?action=get_word_of_the_day')
-        .then(r => r.json())
-        .then(data => {
-          if (data.word) setWordOfTheDay(data.word)
-        })
-        .catch(() => {})
+      // Word of the Day now loaded via KidDashboardDataContext — no separate fetch needed
+      if (kidCtx.wordOfTheDay) setWordOfTheDay(kidCtx.wordOfTheDay)
     }
   }, [profile?.first_name])
 

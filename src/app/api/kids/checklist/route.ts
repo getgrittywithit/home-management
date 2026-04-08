@@ -177,13 +177,19 @@ export async function GET(request: NextRequest) {
         { id: `hygiene-bedtime-${today}`, title: 'Bedtime Routine', description: 'Brush teeth, pajamas', category: 'hygiene', time: '8:30 PM' },
       ]
 
-      // Still include meds
+      // Still include meds (unless paused)
       const MED_KIDS = ['amos', 'wyatt']
       if (MED_KIDS.includes(child)) {
-        const medAm = child === 'amos' ? 'Morning Focalin' : 'Morning Focalin'
-        const medPm = child === 'amos' ? 'Evening Clonidine' : 'Evening Clonidine'
-        dailyCare.push({ id: `med-am-${today}`, title: `💊 ${medAm}`, category: 'hygiene', time: '7:00 AM' })
-        dailyCare.push({ id: `med-pm-${today}`, title: `💊 ${medPm}`, category: 'hygiene', time: '8:00 PM' })
+        const pausedMeds = await db.query(
+          `SELECT med_key FROM paused_medications WHERE kid_name = $1 AND is_paused = true`, [child]
+        ).catch(() => [])
+        const pausedKeys = new Set(pausedMeds.map((p: any) => p.med_key))
+        if (!pausedKeys.has('am')) {
+          dailyCare.push({ id: `med-am-${today}`, title: `💊 Morning Focalin`, category: 'hygiene', time: '7:00 AM' })
+        }
+        if (!pausedKeys.has('pm')) {
+          dailyCare.push({ id: `med-pm-${today}`, title: `💊 Evening Clonidine`, category: 'hygiene', time: '8:00 PM' })
+        }
       }
 
       // Load completion states
@@ -373,13 +379,19 @@ export async function GET(request: NextRequest) {
     }
     const kidMeds = MEDICATION_MAP[child]
     if (kidMeds) {
-      if (kidMeds.am) {
+      // Check for paused medications
+      const pausedMeds = await db.query(
+        `SELECT med_key FROM paused_medications WHERE kid_name = $1 AND is_paused = true`, [child]
+      ).catch(() => [])
+      const pausedKeys = new Set(pausedMeds.map((p: any) => p.med_key))
+
+      if (kidMeds.am && !pausedKeys.has('am')) {
         required.push({
           id: `med-am-${today}`, title: `💊 ${kidMeds.am}`,
           description: 'Take with breakfast', category: 'hygiene', time: '7:30 AM',
         })
       }
-      if (kidMeds.pm) {
+      if (kidMeds.pm && !pausedKeys.has('pm')) {
         required.push({
           id: `med-pm-${today}`, title: `💊 ${kidMeds.pm}`,
           description: 'Take before bed', category: 'hygiene', time: '8:00 PM',

@@ -77,9 +77,10 @@ export async function GET(req: NextRequest) {
       )
       const lifetime_earned = Number(lifetimeRows[0]?.total ?? 0)
 
+      const chicagoToday = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
       const todayRows = await db.query(
-        `SELECT COALESCE(SUM(amount), 0) AS total FROM digi_pet_star_log WHERE kid_name = $1 AND amount > 0 AND created_at::date = CURRENT_DATE`,
-        [kid]
+        `SELECT COALESCE(SUM(amount), 0) AS total FROM digi_pet_star_log WHERE kid_name = $1 AND amount > 0 AND (created_at AT TIME ZONE 'America/Chicago')::date = $2::date`,
+        [kid, chicagoToday]
       )
       const today_earned = Number(todayRows[0]?.total ?? 0)
 
