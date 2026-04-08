@@ -257,6 +257,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   const [activeTab, setActiveTab] = useState('overview')
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
   const [flagPanelOpen, setFlagPanelOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [flagBadgeCount, setFlagBadgeCount] = useState(0)
   const [portalSettingsKid, setPortalSettingsKid] = useState<string | null>(null)
   const router = useRouter()
@@ -466,8 +467,26 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     <DashboardDataProvider>
     <BadgeCountSync setBadgeCounts={setBadgeCounts} setFlagBadgeCount={setFlagBadgeCount} />
     <div className="min-h-screen bg-gray-50 flex">
+      {/* Mobile header bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b flex items-center justify-between px-4 py-2">
+        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 rounded-lg">
+          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
+          </svg>
+        </button>
+        <span className="text-sm font-bold text-gray-900">Family Ops</span>
+        <NotificationBell onNavigate={(tab) => { setActiveTab(tab); setSidebarOpen(false) }} badgeCount={flagBadgeCount} onFlagClick={() => setFlagPanelOpen(true)} />
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && <div className="md:hidden fixed inset-0 bg-black/30 z-40" onClick={() => setSidebarOpen(false)} />}
+
       {/* Left Navigation */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col overflow-visible">
+      <div className={`w-64 bg-white border-r border-gray-200 flex flex-col overflow-visible
+        md:relative md:translate-x-0
+        fixed top-0 left-0 h-full z-50 transition-transform duration-200
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
         {/* Header */}
         <div className="p-6 border-b border-gray-200 overflow-visible relative z-50">
           <div className="flex items-center gap-3">
@@ -478,7 +497,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
               <div className="font-bold text-lg">Family Ops</div>
               <div className="text-sm text-gray-600">Parent Dashboard</div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-1">
               <NotificationBell onNavigate={(tab) => { setActiveTab(tab); setFlagPanelOpen(false) }} badgeCount={flagBadgeCount} onFlagClick={() => setFlagPanelOpen(true)} />
             </div>
           </div>
@@ -500,7 +519,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
                   </div>
                 )}
                 <button
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => { setActiveTab(tab.id); setSidebarOpen(false) }}
                   className={`
                     w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors text-sm
                     ${isActive
@@ -531,7 +550,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       </div>
 
       {/* Main Content */}
-      <div className="flex-1">
+      <div className="flex-1 pt-14 md:pt-0">
         <div className={activeTab === 'overview' ? '' : 'p-6'}>
           <div className={activeTab === 'overview' ? '' : 'max-w-6xl mx-auto'}>
             {renderActiveTab()}
