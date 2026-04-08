@@ -41,6 +41,8 @@ interface FormData {
   stars_value: number
   sort_order: number
   recurrence_days: string[]
+  assigned_pages: string
+  total_pages: string
 }
 
 const EMPTY_FORM: FormData = {
@@ -51,6 +53,8 @@ const EMPTY_FORM: FormData = {
   stars_value: 2,
   sort_order: 0,
   recurrence_days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+  assigned_pages: '',
+  total_pages: '',
 }
 
 export default function ParentTaskManager() {
@@ -170,6 +174,8 @@ export default function ParentTaskManager() {
       stars_value: task.stars_value,
       sort_order: task.sort_order,
       recurrence_days: task.recurrence_days || ['mon', 'tue', 'wed', 'thu', 'fri'],
+      assigned_pages: (task as any).assigned_pages || '',
+      total_pages: (task as any).total_pages?.toString() || '',
     })
     setShowForm(true)
   }
@@ -268,6 +274,24 @@ export default function ParentTaskManager() {
                 className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
                 min="0"
               />
+            </div>
+          </div>
+
+          {/* Page Tracking (for workbook tasks) */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Assigned Pages</label>
+              <input type="text" value={formData.assigned_pages}
+                onChange={e => setFormData(p => ({ ...p, assigned_pages: e.target.value }))}
+                placeholder="e.g., pp. 24-28"
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Total Pages in Workbook</label>
+              <input type="number" value={formData.total_pages}
+                onChange={e => setFormData(p => ({ ...p, total_pages: e.target.value }))}
+                placeholder="e.g., 180"
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" min="0" />
             </div>
           </div>
 

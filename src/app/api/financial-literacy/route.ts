@@ -13,15 +13,15 @@ async function ensureTables() {
       gems_earned INTEGER DEFAULT 3,
       UNIQUE(kid_name, level, activity_id)
     )
-  `)
+  `).catch(() => {})
   await db.query(`
     CREATE TABLE IF NOT EXISTS financial_literacy_photos (
       id SERIAL PRIMARY KEY,
-      progress_id INTEGER NOT NULL REFERENCES financial_literacy_progress(id),
+      progress_id INTEGER NOT NULL,
       photo_url TEXT NOT NULL,
       uploaded_at TIMESTAMPTZ DEFAULT NOW()
     )
-  `)
+  `).catch(() => {})
   await db.query(`
     CREATE TABLE IF NOT EXISTS financial_literacy_levels (
       kid_name TEXT PRIMARY KEY,
@@ -29,7 +29,7 @@ async function ensureTables() {
       advanced_at TIMESTAMPTZ,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
-  `)
+  `).catch(() => {})
 }
 
 let ready = false

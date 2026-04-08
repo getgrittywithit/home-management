@@ -1371,20 +1371,23 @@ export async function POST(request: NextRequest) {
     // create_task — parent adds a new task for a kid
     // ------------------------------------------------------------------
     case 'create_task': {
-      const { kid_name, subject, task_label, task_description, duration_min, stars_value, sort_order, recurrence_days } = data
+      const { kid_name, subject, task_label, task_description, duration_min, stars_value, sort_order, recurrence_days, assigned_pages, total_pages } = data
       if (!kid_name || !subject || !task_label) {
         return NextResponse.json({ error: 'kid_name, subject, and task_label required' }, { status: 400 })
       }
 
       try {
+        await db.query(`ALTER TABLE homeschool_tasks ADD COLUMN IF NOT EXISTS assigned_pages TEXT`).catch(() => {})
+        await db.query(`ALTER TABLE homeschool_tasks ADD COLUMN IF NOT EXISTS total_pages INTEGER`).catch(() => {})
         const result = await db.query(
-          `INSERT INTO homeschool_tasks (kid_name, subject, task_label, task_description, duration_min, stars_value, sort_order, recurrence_days)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `INSERT INTO homeschool_tasks (kid_name, subject, task_label, task_description, duration_min, stars_value, sort_order, recurrence_days, assigned_pages, total_pages)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            RETURNING *`,
           [
             kid_name, subject, task_label, task_description || null,
             duration_min || 15, stars_value || 1, sort_order || 0,
             recurrence_days || ['mon','tue','wed','thu','fri'],
+            assigned_pages || null, total_pages ? parseInt(total_pages) : null,
           ]
         )
         return NextResponse.json({ task: result[0] }, { status: 201 })

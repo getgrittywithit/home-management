@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
         const level = searchParams.get('level') || '2nd-3rd'
         if (!skillId) return NextResponse.json({ error: 'skill_id required' }, { status: 400 })
         const rows = await db.query(
-          `SELECT id, skill_id, math_level, problem_text, answer_type, choices, age_appropriate_context
+          `SELECT id, skill_id, math_level, problem_text, answer, answer_type, choices, age_appropriate_context
            FROM math_placement_problems WHERE skill_id = $1 AND math_level = $2 ORDER BY problem_number LIMIT 4`,
           [skillId, level]
         ).catch(() => [])

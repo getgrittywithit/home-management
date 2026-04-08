@@ -62,7 +62,7 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
           action: 'math_buddy_score',
           kid_name: kidName, skill_id: skill.skill_id,
           problem_id: problem?.id, kid_answer: kidAnswer,
-          correct_answer: problem?.answer || '', problem_text: problem?.problem_text,
+          correct_answer: problem?.answer || problem?.correct_answer || '', problem_text: problem?.problem_text,
           session_id: sessionId,
         }),
       })
