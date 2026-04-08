@@ -64,13 +64,19 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`/api/homeschool?action=get_financial_level&kid_name=${kid}`)
-        const json = await res.json()
-        setProgress(json.progress)
-        setActivities(json.activities || [])
-        // Fetch completion status from new API
+        // Get level from new financial-literacy API (defaults to 1)
         const compRes = await fetch(`/api/financial-literacy?action=get_progress&kid_name=${kid}`)
         const compJson = await compRes.json()
+        const currentLevel = compJson.current_level || 1
+
+        // Get activities for this level from old API
+        const res = await fetch(`/api/homeschool?action=get_financial_level&kid_name=${kid}`)
+        const json = await res.json()
+        // Override the level from the new API (source of truth)
+        setProgress({ ...(json.progress || {}), kid_name: kid, current_level: currentLevel } as any)
+        setActivities(json.activities || [])
+
+        // Map completions
         const compMap: Record<string, boolean> = {}
         for (const a of (compJson.activities || [])) compMap[a.activity_id] = true
         setCompletions(compMap)
@@ -172,7 +178,7 @@ export default function FinancialLiteracyPanel({ kidName, isParent, onStarEarned
             <div>
               <h3 className="font-semibold flex items-center gap-2">
                 <DollarSign className="w-4 h-4" />
-                Financial Literacy
+                {kidName} — Financial Literacy
               </h3>
               <p className="text-sm text-emerald-100">
                 Level {currentLevel} — {levelName}

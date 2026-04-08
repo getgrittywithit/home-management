@@ -68,8 +68,9 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
       setQuestionsInSession(prev => prev + 1)
       if (passage?.id) setAnsweredIds(prev => new Set(prev).add(passage.id))
       if (data.stars_earned && onStarsEarned) onStarsEarned(data.stars_earned)
-      // Auto-advance to next passage after 3 seconds
-      setTimeout(() => handleNext(), 3000)
+      // Auto-advance: 3s for good answers, 6s for weak (kids need time to read feedback)
+      const delay = (data.score === 'detailed' || data.score === 'adequate') ? 3000 : 6000
+      setTimeout(() => handleNext(), delay)
     } catch (e) {
       console.error('Scoring error:', e)
     }

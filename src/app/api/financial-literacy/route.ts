@@ -33,7 +33,20 @@ async function ensureTables() {
 }
 
 let ready = false
-async function init() { if (!ready) { await ensureTables(); ready = true } }
+async function init() {
+  if (!ready) {
+    try { await ensureTables() } catch { /* tables may already exist */ }
+    // EDU-FIX-5: Reset all kids to Level 1 (override stale levels from old system)
+    const kids = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+    for (const kid of kids) {
+      await db.query(
+        `INSERT INTO financial_literacy_levels (kid_name, current_level) VALUES ($1, 1)
+         ON CONFLICT (kid_name) DO UPDATE SET current_level = 1 WHERE financial_literacy_levels.updated_at < '2026-04-09'`, [kid]
+      ).catch(() => {})
+    }
+    ready = true
+  }
+}
 
 export async function GET(req: NextRequest) {
   await init()
