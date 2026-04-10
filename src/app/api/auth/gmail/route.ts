@@ -21,9 +21,16 @@ export async function GET(req: NextRequest) {
             hint: 'Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REDIRECT_URI environment variables.',
           }, { status: 503 })
         }
-        const url = buildAuthUrl()
+        // Generate CSRF state token
+        const state = crypto.randomUUID()
+        const url = buildAuthUrl(state)
         if (!url) return NextResponse.json({ error: 'Failed to build auth URL' }, { status: 500 })
-        return NextResponse.redirect(url)
+        // Set state in cookie for verification in callback
+        const response = NextResponse.redirect(url)
+        response.cookies.set('gmail_oauth_state', state, {
+          httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600, path: '/',
+        })
+        return response
       }
 
       case 'callback': {

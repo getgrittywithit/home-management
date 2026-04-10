@@ -76,10 +76,28 @@ export default function EmailInbox() {
     setLoading(false)
   }
 
+  const [statusMsg, setStatusMsg] = useState<string | null>(null)
+
   useEffect(() => {
+    // Check URL params for OAuth result
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const connectedEmail = params.get('gmail_connected')
+      const gmailError = params.get('gmail_error')
+      if (connectedEmail) {
+        setStatusMsg(`Connected ${connectedEmail}! Syncing your inbox...`)
+        setTimeout(() => setStatusMsg(null), 5000)
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname)
+      } else if (gmailError) {
+        setStatusMsg(`Gmail connection failed: ${gmailError}. Try again.`)
+        setTimeout(() => setStatusMsg(null), 8000)
+        window.history.replaceState({}, '', window.location.pathname)
+      }
+    }
+
     fetchAccounts().then(isConnected => {
       fetchInbox()
-      // Auto-sync if connected and tab just opened
       if (isConnected) {
         handleSync(true)
       }
@@ -226,6 +244,15 @@ export default function EmailInbox() {
           </button>
         </div>
       </div>
+
+      {/* OAuth status message */}
+      {statusMsg && (
+        <div className={`px-4 py-2.5 rounded-lg text-sm font-medium ${
+          statusMsg.includes('failed') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'
+        }`}>
+          {statusMsg}
+        </div>
+      )}
 
       {/* Connected accounts / Connect button */}
       {connected === false && (

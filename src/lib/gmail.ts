@@ -40,7 +40,7 @@ export function buildAuthUrl(state?: string): string | null {
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify openid email',
+    scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send openid email',
     access_type: 'offline',
     prompt: 'consent',
     ...(state ? { state } : {}),
