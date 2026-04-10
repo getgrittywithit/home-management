@@ -37,6 +37,7 @@ import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
 import AiBuddyChat from './AiBuddyChat'
 import BoardsTab from './parent/BoardsTab'
+import AdvocacyDashboard from './parent/AdvocacyDashboard'
 import LeaderboardCard from './LeaderboardCard'
 import ParentMyDayCard from './ParentMyDayCard'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
@@ -66,6 +67,7 @@ const tabs: Tab[] = [
   // SCHOOL
   { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500', section: 'SCHOOL' },
   { id: 'school', name: 'School', icon: GraduationCap, color: 'bg-orange-500', section: 'SCHOOL' },
+  { id: 'advocacy', name: 'Advocacy', icon: Shield, color: 'bg-indigo-600', section: 'SCHOOL' },
   // HOME
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500', section: 'HOME' },
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600', section: 'HOME' },
@@ -439,6 +441,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           ...child,
           school: child.school.name
         }))} />
+      case 'advocacy':
+        return <AdvocacyDashboard />
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
       case 'belle-care':
