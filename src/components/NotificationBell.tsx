@@ -199,14 +199,22 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick, 
                       {n.link_tab && onNavigate && (
                         <button
                           onClick={() => {
-                            // Map notification link_tab to actual portal tab IDs
-                            const TAB_MAP: Record<string, string> = {
+                            // Map notification link_tab to actual portal tab IDs (role-aware)
+                            const PARENT_TAB_MAP: Record<string, string> = {
                               'food-meals': 'food-inventory', 'pets': 'belle-care',
-                              'achievements': 'stars-rewards', 'requests': 'messages-alerts',
-                              'chores': 'chores', 'health': 'health', 'my-day': 'my-day',
-                              'messages-alerts': 'messages-alerts', 'kids-checklist': 'kids-checklist',
+                              'achievements': 'stars-rewards', 'requests': 'messages-alerts:messages',
+                              'chores': 'chores', 'health': 'health', 'my-day': 'overview',
+                              'messages-alerts': 'messages-alerts:messages', 'messages': 'messages-alerts:messages',
+                              'kids-checklist': 'kids-checklist',
                             }
-                            onNavigate(TAB_MAP[n.link_tab!] || n.link_tab!); setOpen(false)
+                            const KID_TAB_MAP: Record<string, string> = {
+                              'messages-alerts': 'requests', 'messages': 'requests',
+                              'requests': 'requests', 'achievements': 'achievements',
+                              'chores': 'checklist', 'health': 'health', 'my-day': 'my-day',
+                              'food-meals': 'my-day', 'checklist': 'checklist',
+                            }
+                            const tabMap = role === 'kid' ? KID_TAB_MAP : PARENT_TAB_MAP
+                            onNavigate(tabMap[n.link_tab!] || n.link_tab!); setOpen(false)
                           }}
                           className="text-xs text-blue-600 hover:text-blue-800"
                         >

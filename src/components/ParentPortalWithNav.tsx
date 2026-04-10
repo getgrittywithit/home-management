@@ -256,7 +256,19 @@ function BadgeCountSync({ setBadgeCounts, setFlagBadgeCount }: {
 }
 
 export default function ParentPortalWithNav({ initialData }: ParentPortalWithNavProps) {
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTabRaw] = useState('overview')
+  const [messageSubTab, setMessageSubTab] = useState<'alerts' | 'messages' | 'needs' | 'checkins' | undefined>(undefined)
+
+  // Wrapper: when navigating to messages-alerts with a subtab hint, set it
+  const setActiveTab = (tab: string) => {
+    if (tab === 'messages-alerts:messages') {
+      setActiveTabRaw('messages-alerts')
+      setMessageSubTab('messages')
+    } else {
+      setActiveTabRaw(tab)
+      if (tab !== 'messages-alerts') setMessageSubTab(undefined)
+    }
+  }
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})
   const [flagPanelOpen, setFlagPanelOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -417,7 +429,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           </div>
         )
       case 'messages-alerts':
-        return <MessagesAndAlertsTab onNavigate={(tab) => setActiveTab(tab)} />
+        return <MessagesAndAlertsTab onNavigate={(tab) => setActiveTab(tab)} defaultSubTab={messageSubTab} />
       case 'kids-checklist':
         return <KidsChecklistOverview />
       case 'homeschool':

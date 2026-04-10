@@ -13,6 +13,15 @@ export async function createNotification({
   target_role?: string
   kid_name?: string | null
 }) {
+  // Deduplicate: skip if a notification with the same source_ref already exists
+  if (source_ref) {
+    const existing = await db.query(
+      `SELECT id FROM notifications WHERE source_ref = $1 AND target_role = $2 LIMIT 1`,
+      [source_ref, target_role]
+    ).catch(() => [])
+    if (existing.length > 0) return
+  }
+
   await db.query(
     `INSERT INTO notifications (target_role, kid_name, title, message, icon, source_type, source_ref, link_tab, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,

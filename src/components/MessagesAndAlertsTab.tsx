@@ -12,10 +12,11 @@ type SubTab = 'alerts' | 'messages' | 'needs' | 'checkins'
 
 interface MessagesAndAlertsTabProps {
   onNavigate?: (tab: string) => void
+  defaultSubTab?: SubTab
 }
 
-export default function MessagesAndAlertsTab({ onNavigate }: MessagesAndAlertsTabProps) {
-  const [subTab, setSubTab] = useState<SubTab>('alerts')
+export default function MessagesAndAlertsTab({ onNavigate, defaultSubTab }: MessagesAndAlertsTabProps) {
+  const [subTab, setSubTab] = useState<SubTab>(defaultSubTab || 'alerts')
   const ctx = useDashboardData()
   const msgCount = ctx.loaded
     ? (ctx.flagsData?.messages || []).reduce((sum: number, m: any) => sum + (m.count || 0), 0)
