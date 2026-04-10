@@ -42,6 +42,12 @@ export default function RootLayout({
               navigator.serviceWorker.register('/sw.js').catch(function() {});
             });
           }
+          // Auto-recover from stale chunk errors after Vercel deploys
+          window.addEventListener('error', function(e) {
+            if (e.message && (e.message.includes('ChunkLoadError') || e.message.includes('Loading chunk'))) {
+              window.location.reload();
+            }
+          });
         `}} />
       </body>
     </html>
