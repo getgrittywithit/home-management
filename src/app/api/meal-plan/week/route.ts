@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
           `SELECT meal_id FROM meal_week_plan WHERE week_start = $1 AND day_of_week = $2`, [week_start, day_of_week]
         ).catch(() => [])
         await db.query(
-          `UPDATE meal_week_plan SET meal_id = $3, original_meal_id = $4, parent_override = true, parent_override_note = $5
+          `UPDATE meal_week_plan SET meal_id = $3, original_meal_id = $4, parent_override = true, parent_override_note = $5, status = 'planned'
            WHERE week_start = $1 AND day_of_week = $2`,
           [week_start, day_of_week, new_meal_id, current[0]?.meal_id || null, note || 'Parent swapped']
         )
@@ -178,6 +178,21 @@ export async function POST(request: NextRequest) {
           `UPDATE meal_week_plan SET meal_id = NULL, status = 'off_night', parent_override = true, parent_override_note = 'Off Night'
            WHERE week_start = $1 AND day_of_week = $2`,
           [week_start, day_of_week]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'restore': {
+        const { week_start, day_of_week } = body
+        if (!week_start || day_of_week === undefined) return NextResponse.json({ error: 'week_start, day_of_week required' }, { status: 400 })
+        // Restore original meal if saved, otherwise just clear off_night status
+        const orig = await db.query(
+          `SELECT original_meal_id FROM meal_week_plan WHERE week_start = $1 AND day_of_week = $2`, [week_start, day_of_week]
+        ).catch(() => [])
+        await db.query(
+          `UPDATE meal_week_plan SET status = 'planned', meal_id = COALESCE($3, meal_id), parent_override = false, parent_override_note = NULL
+           WHERE week_start = $1 AND day_of_week = $2`,
+          [week_start, day_of_week, orig[0]?.original_meal_id || null]
         )
         return NextResponse.json({ success: true })
       }

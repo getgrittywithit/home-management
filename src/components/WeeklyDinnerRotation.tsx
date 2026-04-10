@@ -164,14 +164,20 @@ export default function WeeklyDinnerRotation() {
     fetchWeekData()
   }
 
-  // Parent off night
+  // Parent off night / restore
   const handleOffNight = async (dow: number) => {
     const weekData = viewWeek === currentWeek ? thisWeek : nextWeek
     if (!weekData) return
+    const dayData = weekData.days?.find((d: any) => d.day_of_week === dow)
+    const isCurrentlyOff = dayData?.status === 'off_night'
     await fetch('/api/meal-plan/week', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'parent_off_night', week_start: weekData.week_start, day_of_week: dow }),
+      body: JSON.stringify({
+        action: isCurrentlyOff ? 'restore' : 'parent_off_night',
+        week_start: weekData.week_start,
+        day_of_week: dow,
+      }),
     }).catch(() => {})
     setExpandedDay(null)
     fetchWeekData()

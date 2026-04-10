@@ -20,6 +20,7 @@ export const viewport: Viewport = {
 }
 
 import OfflineBanner from '@/components/OfflineBanner'
+import OfflineFetchInterceptor from '@/components/OfflineFetchInterceptor'
 
 export default function RootLayout({
   children,
@@ -32,6 +33,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body>
+        <OfflineFetchInterceptor />
         <OfflineBanner />
         {children}
         <script dangerouslySetInnerHTML={{ __html: `

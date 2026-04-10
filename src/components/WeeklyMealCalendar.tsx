@@ -61,9 +61,15 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact }: Props
   if (!week) return null
 
   const handleOffNight = async (dow: number) => {
+    const dayData = week.days?.find((d: any) => d.day_of_week === dow)
+    const isCurrentlyOff = dayData?.status === 'off_night'
     await fetch('/api/meal-plan/week', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'parent_off_night', week_start: week.week_start, day_of_week: dow }),
+      body: JSON.stringify({
+        action: isCurrentlyOff ? 'restore' : 'parent_off_night',
+        week_start: week.week_start,
+        day_of_week: dow,
+      }),
     })
     // Refresh
     const data = await fetch('/api/meal-plan/week?action=get_current_and_next').then(r => r.json())
