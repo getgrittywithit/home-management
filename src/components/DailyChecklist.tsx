@@ -15,7 +15,11 @@ function getStarTaskType(item: { id: string; category: string }): string | null 
   if (item.category === 'zone') return 'zone_chore'
   if (item.category === 'dishes') return 'daily_chore'
   if (item.category === 'belle') return 'belle_care'
+  if (item.category === 'pet') return 'pet_care'
+  if (item.category === 'tidy') return 'tidy'
+  if (item.category === 'hygiene') return 'hygiene'
   if (item.category === 'school_clean') return 'lesson'
+  if (item.category === 'parent_task') return 'parent_task'
   return null
 }
 

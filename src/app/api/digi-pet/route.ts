@@ -24,7 +24,8 @@ const SHOP_CATALOG: Record<string, { name: string; type: string; cost: number; e
 
 const STAR_AMOUNTS: Record<string, number> = {
   med_am: 2, med_pm: 2, zone_chore: 5, daily_chore: 3, lesson: 5,
-  belle_care: 3, opp_applying: 15, opp_submitted: 25, reading_log: 8,
+  belle_care: 3, pet_care: 2, tidy: 2, hygiene: 1, parent_task: 2,
+  opp_applying: 15, opp_submitted: 25, reading_log: 8,
   streak_3: 10, streak_7: 25, parent_bonus: 0,
   enrichment_complete: 1, typing_session: 2, typing_pb: 5,
   typing_race_win: 3, typing_accuracy: 3, financial_level_up: 10,
