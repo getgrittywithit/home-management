@@ -26,8 +26,12 @@ function getStarTaskType(item: { id: string; category: string }): string | null 
 // Award digi-pet stars after a task completion
 async function awardTaskStars(kidName: string, item: { id: string; category: string }) {
   const taskType = getStarTaskType(item)
-  if (!taskType) return null
+  if (!taskType) {
+    console.warn('[Stars] No star type for:', item.id, item.category)
+    return null
+  }
   try {
+    console.log('[Stars] Awarding:', kidName, taskType, item.id)
     const res = await fetch('/api/digi-pet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -38,8 +42,11 @@ async function awardTaskStars(kidName: string, item: { id: string; category: str
         source_ref: `checklist-${item.id}-${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })}`,
       }),
     })
-    return await res.json()
-  } catch {
+    const data = await res.json()
+    console.log('[Stars] Award result:', data)
+    return data
+  } catch (err) {
+    console.error('[Stars] Award failed:', err)
     return null
   }
 }
@@ -232,6 +239,7 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
         }
       } catch {}
       // Award digi-pet stars on task completion, reverse on uncheck
+      console.log('[Stars] Toggle:', item.id, 'category:', item.category, 'newCompleted:', newCompleted)
       if (newCompleted) {
         const result = await awardTaskStars(childKey, item)
         if (result && result.amount && !result.already_awarded) {
