@@ -20,7 +20,7 @@ import KidHealthTab from './KidHealthTab'
 import KidPointsCard from './KidPointsCard'
 import KidCommunicationCards from './KidCommunicationCards'
 import KidSchoolNotesCard from './KidSchoolNotesCard'
-import BreakButton from './BreakButton'
+// BreakButton moved to KidRequestsTab (BUTTON-FIX-1)
 import DailyCheckInCard from './DailyCheckInCard'
 import MealFeedbackCard from './MealFeedbackCard'
 import RegulationToolsCard from './RegulationToolsCard'
@@ -55,7 +55,7 @@ import JourneyMap from './JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
 import NotificationBell from './NotificationBell'
 import HuddlePreSubmit from './huddle/HuddlePreSubmit'
-import { TalkToParentsButton } from './KidReportForm'
+// TalkToParentsButton moved to KidRequestsTab (BUTTON-FIX-1)
 import HydrationTracker from './HydrationTracker'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
@@ -1982,11 +1982,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         </div>
       </div>
 
-      {/* Talk to Mom & Dad — visible on all tabs */}
-      <TalkToParentsButton kidName={profile.first_name || ''} />
-
-      {/* Break Button — visible on all tabs */}
-      <BreakButton childName={profile.first_name || ''} />
+      {/* Talk to Mom & Dad + Break Button moved to Requests tab (BUTTON-FIX-1) */}
 
       {/* AI Buddy — floating chat */}
       {!previewMode && (

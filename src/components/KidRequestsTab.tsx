@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { Send, Utensils, Users, Gamepad2, Heart, ShoppingBag, Lock, X } from 'lucide-react'
+import { TalkToParentsButton } from './KidReportForm'
+import BreakButton from './BreakButton'
 
 interface Message {
   id: string; message: string; created_at: string; parent_reply: string | null; reply_at: string | null
@@ -74,6 +76,12 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
       <div className="bg-gradient-to-r from-indigo-500 to-blue-500 text-white p-6 rounded-lg">
         <h1 className="text-2xl font-bold">My Requests</h1>
         <p className="text-indigo-100">Ask for what you need!</p>
+      </div>
+
+      {/* Talk to Mom & I Need a Break — prominently placed */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <TalkToParentsButton kidName={childName} inline />
+        <BreakButton childName={childName} inline />
       </div>
 
       {/* Quick Request Buttons */}

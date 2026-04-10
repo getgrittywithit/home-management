@@ -224,13 +224,18 @@ export default function KidReportForm({ kidName, onClose }: KidReportFormProps) 
 }
 
 // Floating trigger button for kid portal
-export function TalkToParentsButton({ kidName }: { kidName: string }) {
+export function TalkToParentsButton({ kidName, inline }: { kidName: string; inline?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <button onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-4 md:left-auto md:right-[4.5rem] z-40 bg-indigo-100 text-indigo-700 px-3 py-2 rounded-full text-xs font-medium shadow-md hover:bg-indigo-200 transition-colors border border-indigo-200 flex items-center gap-1.5">
-        <MessageCircle className="w-3.5 h-3.5" /> Talk to Mom &amp; Dad
+        className={inline
+          ? "w-full bg-indigo-50 text-indigo-700 px-4 py-4 rounded-xl text-sm font-semibold hover:bg-indigo-100 transition-colors border-2 border-indigo-200 flex items-center gap-3"
+          : "fixed bottom-6 left-4 md:left-auto md:right-[4.5rem] z-40 bg-indigo-100 text-indigo-700 px-3 py-2 rounded-full text-xs font-medium shadow-md hover:bg-indigo-200 transition-colors border border-indigo-200 flex items-center gap-1.5"
+        }>
+        <MessageCircle className={inline ? "w-5 h-5" : "w-3.5 h-3.5"} />
+        {inline ? 'Talk to Mom & Dad' : <>Talk to Mom &amp; Dad</>}
+        {inline && <span className="text-xs font-normal text-indigo-400 ml-auto">Send a message</span>}
       </button>
       {open && <KidReportForm kidName={kidName} onClose={() => setOpen(false)} />}
     </>

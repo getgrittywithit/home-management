@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export default function BreakButton({ childName }: { childName: string }) {
+export default function BreakButton({ childName, inline }: { childName: string; inline?: boolean }) {
   const [status, setStatus] = useState<'idle' | 'sent' | 'already' | 'error'>('idle')
 
   const flagBreak = async () => {
@@ -27,9 +27,13 @@ export default function BreakButton({ childName }: { childName: string }) {
     <>
       <button
         onClick={flagBreak}
-        className="fixed bottom-[4.5rem] left-4 md:left-auto md:right-[4.5rem] z-40 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium shadow-md hover:bg-green-200 transition-colors border border-green-200"
+        className={inline
+          ? "w-full bg-green-50 text-green-700 px-4 py-4 rounded-xl text-sm font-semibold hover:bg-green-100 transition-colors border-2 border-green-200 flex items-center gap-3"
+          : "fixed bottom-[4.5rem] left-4 md:left-auto md:right-[4.5rem] z-40 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium shadow-md hover:bg-green-200 transition-colors border border-green-200"
+        }
       >
-        🌿 I Need a Break
+        🌿 {inline ? 'I Need a Break' : 'I Need a Break'}
+        {inline && <span className="text-xs font-normal text-green-400 ml-auto">Mom will know</span>}
       </button>
 
       {status === 'sent' && (
