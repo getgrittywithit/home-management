@@ -106,11 +106,84 @@ async function ensurePet(kid_name: string) {
   return rows[0]
 }
 
+// Recalculate stars_balance and weekly_stars from the log (single source of truth)
+// This makes the system self-correcting — no desync possible
+async function recalcBalanceFromLog(kid_name: string) {
+  const totalResult = await db.query(
+    `SELECT COALESCE(SUM(amount), 0)::int as total FROM digi_pet_star_log WHERE kid_name = $1`,
+    [kid_name]
+  ).catch(() => [{ total: 0 }])
+
+  // Subtract shop purchases from total to get balance
+  const spentResult = await db.query(
+    `SELECT COALESCE(SUM(cost), 0)::int as spent FROM digi_pet_shop_purchases WHERE kid_name = $1`,
+    [kid_name]
+  ).catch(() => [{ spent: 0 }])
+
+  const balance = Math.max(0, (totalResult[0]?.total || 0) - (spentResult[0]?.spent || 0))
+
+  // Weekly stars: sum log entries from this week's Monday
+  const d = new Date()
+  const dayOfWeek = d.getDay()
+  d.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
+  const monday = d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+
+  const weeklyResult = await db.query(
+    `SELECT COALESCE(SUM(amount), 0)::int as weekly FROM digi_pet_star_log WHERE kid_name = $1 AND created_at >= $2::date`,
+    [kid_name, monday]
+  ).catch(() => [{ weekly: 0 }])
+
+  const weekly = Math.max(0, weeklyResult[0]?.weekly || 0)
+
+  await db.query(
+    `UPDATE digi_pets SET stars_balance = $1, weekly_stars = $2 WHERE kid_name = $3`,
+    [balance, weekly, kid_name]
+  )
+
+  // Also sync weekly_star_goals
+  await db.query(
+    `INSERT INTO weekly_star_goals (kid_name, week_start, earned_stars) VALUES ($1, $2, $3)
+     ON CONFLICT (kid_name, week_start) DO UPDATE SET earned_stars = $3`,
+    [kid_name, monday, weekly]
+  ).catch(() => {})
+
+  return { balance, weekly }
+}
+
 export async function GET(request: NextRequest) {
   try {
     await ensureTables()
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action') || ''
+
+    // Recalculate balance from star log — use to fix desync or audit
+    if (action === 'recalc_balance') {
+      const kid_name = searchParams.get('kid_name') || ''
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      await ensurePet(kid_name)
+      const before = (await db.query(`SELECT stars_balance, weekly_stars FROM digi_pets WHERE kid_name = $1`, [kid_name]))[0]
+      const { balance, weekly } = await recalcBalanceFromLog(kid_name)
+      return NextResponse.json({
+        success: true,
+        kid_name,
+        before: { stars_balance: before?.stars_balance, weekly_stars: before?.weekly_stars },
+        after: { stars_balance: balance, weekly_stars: weekly },
+        corrected: before?.stars_balance !== balance,
+      })
+    }
+
+    // Recalculate ALL kids at once
+    if (action === 'recalc_all') {
+      const kids = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+      const results: any[] = []
+      for (const kid of kids) {
+        await ensurePet(kid)
+        const before = (await db.query(`SELECT stars_balance, weekly_stars FROM digi_pets WHERE kid_name = $1`, [kid]))[0]
+        const { balance, weekly } = await recalcBalanceFromLog(kid)
+        results.push({ kid, before: before?.stars_balance, after: balance, corrected: before?.stars_balance !== balance })
+      }
+      return NextResponse.json({ success: true, results })
+    }
 
     if (action === 'get_pet') {
       const kid_name = searchParams.get('kid_name') || ''
@@ -366,7 +439,7 @@ export async function POST(request: NextRequest) {
       const { kid_name, task_type, source_ref } = body
       if (!kid_name || !task_type) return NextResponse.json({ error: 'kid_name and task_type required' }, { status: 400 })
 
-      // Idempotency check
+      // Idempotency check — prevent double-award for same task on same day
       if (source_ref) {
         const existing = await db.query(
           `SELECT id FROM digi_pet_star_log WHERE kid_name = $1 AND source_ref = $2`,
@@ -382,24 +455,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unknown task_type' }, { status: 400 })
       }
 
-      // Add stars + update weekly tracking
-      await db.query(
-        `UPDATE digi_pets SET stars_balance = stars_balance + $1, weekly_stars = COALESCE(weekly_stars, 0) + $1, last_activity_at = NOW() WHERE kid_name = $2`,
-        [amount, kid_name]
-      )
-
-      // Update weekly star goal
-      const d = new Date()
-      const dayOfWeek = d.getDay()
-      d.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-      const monday = d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      await db.query(
-        `INSERT INTO weekly_star_goals (kid_name, week_start, earned_stars) VALUES ($1, $2, $3)
-         ON CONFLICT (kid_name, week_start) DO UPDATE SET earned_stars = weekly_star_goals.earned_stars + $3`,
-        [kid_name, monday, amount]
-      ).catch(() => {})
-
-      // Insert log
+      // Insert log entry FIRST (this is the source of truth)
       await db.query(
         `INSERT INTO digi_pet_star_log (kid_name, amount, source, source_ref, note) VALUES ($1, $2, $3, $4, $5)`,
         [kid_name, amount, task_type, source_ref || null, `Earned from ${task_type}`]
@@ -418,7 +474,7 @@ export async function POST(request: NextRequest) {
         newStreak = 1
       }
 
-      await db.query(`UPDATE digi_pets SET streak_days = $1 WHERE kid_name = $2`, [newStreak, kid_name])
+      await db.query(`UPDATE digi_pets SET streak_days = $1, last_activity_at = NOW() WHERE kid_name = $2`, [newStreak, kid_name])
 
       // Streak milestones
       let bonusStars = 0
@@ -428,15 +484,13 @@ export async function POST(request: NextRequest) {
           `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, 'streak_3', '3-day streak bonus!')`,
           [kid_name, bonusStars]
         )
-        await db.query(`UPDATE digi_pets SET stars_balance = stars_balance + $1 WHERE kid_name = $2`, [bonusStars, kid_name])
       }
       if (newStreak === 7 && pet.streak_days < 7) {
         bonusStars += STAR_AMOUNTS.streak_7
         await db.query(
           `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, 'streak_7', '7-day streak bonus!')`,
-          [kid_name, bonusStars]
+          [kid_name, STAR_AMOUNTS.streak_7]
         )
-        await db.query(`UPDATE digi_pets SET stars_balance = stars_balance + $1 WHERE kid_name = $2`, [STAR_AMOUNTS.streak_7, kid_name])
       }
 
       // Belle care bonus
@@ -449,12 +503,15 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const updatedPet = (await db.query(`SELECT * FROM digi_pets WHERE kid_name = $1`, [kid_name]))[0]
+      // RECALCULATE balance from log — single source of truth, no desync possible
+      const { balance, weekly } = await recalcBalanceFromLog(kid_name)
+
       return NextResponse.json({
         success: true,
         amount,
         bonus_stars: bonusStars,
-        balance: updatedPet.stars_balance,
+        balance,
+        weekly_stars: weekly,
         streak_days: newStreak,
       })
     }
@@ -464,11 +521,12 @@ export async function POST(request: NextRequest) {
       const { kid_name, source_ref } = body
       if (!kid_name || !source_ref) return NextResponse.json({ error: 'kid_name and source_ref required' }, { status: 400 })
 
+      // Find the log entries to reverse
       const existing = await db.query(
         `SELECT id, amount FROM digi_pet_star_log WHERE kid_name = $1 AND source_ref = $2`,
         [kid_name, source_ref]
       )
-      if (existing.length === 0) return NextResponse.json({ already_reversed: true })
+      if (existing.length === 0) return NextResponse.json({ already_reversed: true, reversed: 0, balance: 0 })
 
       const totalReversed = existing.reduce((sum: number, r: any) => sum + r.amount, 0)
 
@@ -478,24 +536,15 @@ export async function POST(request: NextRequest) {
         [kid_name, source_ref]
       )
 
-      // Deduct from balance + weekly_stars (floor at 0)
-      await db.query(
-        `UPDATE digi_pets SET stars_balance = GREATEST(0, stars_balance - $1), weekly_stars = GREATEST(0, COALESCE(weekly_stars, 0) - $1) WHERE kid_name = $2`,
-        [totalReversed, kid_name]
-      )
+      // RECALCULATE balance from log — single source of truth, no desync possible
+      const { balance, weekly } = await recalcBalanceFromLog(kid_name)
 
-      // Also deduct from weekly_star_goals
-      const d = new Date()
-      const dayOfWeek = d.getDay()
-      d.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
-      const monday = d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      await db.query(
-        `UPDATE weekly_star_goals SET earned_stars = GREATEST(0, earned_stars - $1) WHERE kid_name = $2 AND week_start = $3`,
-        [totalReversed, kid_name, monday]
-      ).catch(() => {})
-
-      const updatedPet = (await db.query(`SELECT stars_balance FROM digi_pets WHERE kid_name = $1`, [kid_name]))[0]
-      return NextResponse.json({ success: true, reversed: totalReversed, balance: updatedPet?.stars_balance ?? 0 })
+      return NextResponse.json({
+        success: true,
+        reversed: totalReversed,
+        balance,
+        weekly_stars: weekly,
+      })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
