@@ -82,9 +82,13 @@ async function ensureTables() {
       source TEXT NOT NULL,
       source_ref TEXT DEFAULT NULL,
       note TEXT DEFAULT NULL,
+      balance_after INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  // Migration: make balance_after nullable/defaulted if it exists as NOT NULL
+  await db.query(`ALTER TABLE digi_pet_star_log ALTER COLUMN balance_after SET DEFAULT 0`).catch(() => {})
+  await db.query(`ALTER TABLE digi_pet_star_log ALTER COLUMN balance_after DROP NOT NULL`).catch(() => {})
   await db.query(`
     CREATE TABLE IF NOT EXISTS digi_pet_shop_purchases (
       id SERIAL PRIMARY KEY,
@@ -337,7 +341,7 @@ export async function POST(request: NextRequest) {
 
       // Record star log (negative)
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, $3, $4, 0)`,
         [kid_name, -item.cost, 'purchase', `Bought ${item.name}`]
       )
 
@@ -397,7 +401,7 @@ export async function POST(request: NextRequest) {
         [amount, kid_name]
       )
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, $3, $4, 0)`,
         [kid_name, amount, source || 'parent_bonus', note || 'Parent bonus']
       )
       const pet = await ensurePet(kid_name)
@@ -418,7 +422,7 @@ export async function POST(request: NextRequest) {
       )
       await db.query(`DELETE FROM digi_pet_accessories WHERE kid_name = $1`, [kid_name])
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, 0, 'system', 'Pet reset — stats restored, accessories removed, stars kept')`,
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, 0, 'system', 'Pet reset — stats restored, accessories removed, stars kept', 0)`,
         [kid_name]
       )
       return NextResponse.json({ success: true })
@@ -457,7 +461,7 @@ export async function POST(request: NextRequest) {
 
       // Insert log entry FIRST (this is the source of truth)
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, amount, source, source_ref, note) VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, source_ref, note, balance_after) VALUES ($1, $2, $3, $4, $5, 0)`,
         [kid_name, amount, task_type, source_ref || null, `Earned from ${task_type}`]
       )
 
@@ -481,14 +485,14 @@ export async function POST(request: NextRequest) {
       if (newStreak === 3 && pet.streak_days < 3) {
         bonusStars = STAR_AMOUNTS.streak_3
         await db.query(
-          `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, 'streak_3', '3-day streak bonus!')`,
+          `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, 'streak_3', '3-day streak bonus!', 0)`,
           [kid_name, bonusStars]
         )
       }
       if (newStreak === 7 && pet.streak_days < 7) {
         bonusStars += STAR_AMOUNTS.streak_7
         await db.query(
-          `INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, $2, 'streak_7', '7-day streak bonus!')`,
+          `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, 'streak_7', '7-day streak bonus!', 0)`,
           [kid_name, STAR_AMOUNTS.streak_7]
         )
       }
