@@ -89,17 +89,42 @@ export async function GET(request: NextRequest) {
           return { required: req, dailyCare: 2 } // Morning + Bedtime routines
         }
 
+        // Also fetch today's individual task details for expanded view
+        const todayRows = await db.query(
+          `SELECT child_name, event_id, event_summary, completed FROM kid_daily_checklist WHERE event_date = $1`,
+          [today]
+        ).catch(() => [])
+
         const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(kid => {
           const kidRows = (rows as any[]).filter((r: any) => r.child_name === kid)
           const req = kidRows.filter((r: any) => !r.event_id.startsWith('hygiene-') && !r.event_id.startsWith('earn-'))
           const care = kidRows.filter((r: any) => r.event_id.startsWith('hygiene-'))
           const earn = kidRows.filter((r: any) => r.event_id.startsWith('earn-'))
           const expected = getExpectedTaskCount(kid)
+
+          // Individual tasks for today (for parent expanded view)
+          const tasks = (todayRows as any[])
+            .filter((r: any) => r.child_name === kid)
+            .map((r: any) => ({
+              id: r.event_id,
+              event_id: r.event_id,
+              summary: r.event_summary || r.event_id.replace(/-/g, ' ').replace(/^\w/, (c: string) => c.toUpperCase()),
+              title: r.event_summary || r.event_id,
+              completed: r.completed,
+              category: r.event_id.startsWith('zone-') ? 'zone' :
+                r.event_id.startsWith('hygiene-') ? 'hygiene' :
+                r.event_id.startsWith('belle-') ? 'belle' :
+                r.event_id.startsWith('earn-') ? 'earn' :
+                r.event_id.startsWith('dishes-') ? 'dishes' :
+                r.event_id.startsWith('med-') ? 'med' : 'task',
+            }))
+
           return {
             name: kid,
             required: { done: req.filter((r: any) => r.completed).length, total: Math.max(req.length, expected.required) },
             dailyCare: { done: care.filter((r: any) => r.completed).length, total: Math.max(care.length, expected.dailyCare) },
             earnMoney: { done: earn.filter((r: any) => r.completed).length, total: earn.length },
+            tasks,
           }
         })
         return NextResponse.json({ weekOf: weekStart, kids })

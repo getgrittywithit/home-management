@@ -106,9 +106,9 @@ export default function KidsChecklistOverview() {
         </div>
       )}
 
-      <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6 rounded-lg">
-        <h1 className="text-2xl font-bold">Kids Daily Tasks</h1>
-        <p className="text-emerald-100">Week of {weekStart} – {weekEnd}</p>
+      <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-4 md:p-6 rounded-lg sticky top-0 z-10">
+        <h1 className="text-xl md:text-2xl font-bold">Kids Daily Tasks</h1>
+        <p className="text-emerald-100 text-sm">Week of {weekStart} – {weekEnd}</p>
       </div>
 
       <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
