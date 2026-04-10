@@ -36,6 +36,7 @@ import StarsAndRewardsTab from './StarsAndRewardsTab'
 import MessagesAndAlertsTab from './MessagesAndAlertsTab'
 import SettingsExpandedTab from './SettingsExpandedTab'
 import AiBuddyChat from './AiBuddyChat'
+import BoardsTab from './parent/BoardsTab'
 import LeaderboardCard from './LeaderboardCard'
 import ParentMyDayCard from './ParentMyDayCard'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
@@ -60,6 +61,7 @@ const tabs: Tab[] = [
   { id: 'messages-alerts', name: 'Messages & Alerts', icon: MessageCircle, color: 'bg-pink-500', section: 'DAILY' },
   { id: 'kids-checklist', name: 'Kids Daily Tasks', icon: CheckSquare, color: 'bg-emerald-600', section: 'DAILY' },
   { id: 'email', name: 'Email', icon: Mail, color: 'bg-indigo-500', section: 'DAILY' },
+  { id: 'boards', name: 'My Tasks', icon: ClipboardList, color: 'bg-violet-600', section: 'DAILY' },
   { id: 'family-huddle', name: 'Family Huddle', icon: Users, color: 'bg-violet-500', section: 'DAILY' },
   // SCHOOL
   { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500', section: 'SCHOOL' },
@@ -431,6 +433,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <PetsTab />
       case 'email':
         return <div className="p-6 max-w-5xl mx-auto"><EmailInbox /></div>
+      case 'boards':
+        return <BoardsTab />
       case 'family-huddle':
         return <FamilyHuddle />
       case 'shopping':

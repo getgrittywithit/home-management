@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { getValidToken, fetchMessages, parseMessageHeaders, getConnectedAccounts } from '@/lib/gmail'
 
 async function ensureTables() {
   await db.query(`CREATE TABLE IF NOT EXISTS email_inbox (
@@ -27,12 +28,39 @@ async function init() {
     await ensureTables()
     // Seed default sender rules for Boerne ISD + common providers
     const defaultRules = [
+      // School — urgent
+      { pattern: '%susan.collentine%', name: 'Susan Collentine (504)', category: 'school', priority: 'urgent' },
+      { pattern: '%donna.gardner%', name: 'Donna Gardner (Registrar)', category: 'school', priority: 'urgent' },
+      // School — normal
       { pattern: '%boerneisd%', name: 'Boerne ISD', category: 'school', priority: 'normal' },
       { pattern: '%@boerneisd.net', name: 'Boerne ISD Staff', category: 'school', priority: 'normal' },
+      { pattern: '%ashlie.dspain%', name: "Ashlie D'Spain (Kaylee BMSN)", category: 'school', priority: 'normal' },
+      { pattern: '%heather.risner%', name: 'Heather Risner (Kaylee BMSN)', category: 'school', priority: 'normal' },
+      { pattern: '%lori.flisowski%', name: 'Lori Flisowski (Shining Stars)', category: 'school', priority: 'normal' },
+      // Medical
       { pattern: '%@psisatx.com', name: 'Psychosomatic Institute', category: 'medical', priority: 'normal' },
       { pattern: '%stonebridgealliance%', name: 'Stonebridge Behavioral', category: 'medical', priority: 'normal' },
-      { pattern: '%noreply@google.com', name: 'Google Notifications', category: 'subscriptions', priority: 'low' },
+      { pattern: '%@cvs.com', name: 'CVS Pharmacy', category: 'medical', priority: 'normal' },
+      // Triton
       { pattern: '%tritonhandyman%', name: 'Triton Handyman', category: 'triton', priority: 'normal' },
+      // Finance
+      { pattern: '%@ally.com', name: 'Ally Bank', category: 'finance', priority: 'normal' },
+      { pattern: '%@e.progressive.com', name: 'Progressive Insurance', category: 'finance', priority: 'low' },
+      // Subscriptions
+      { pattern: '%noreply@google.com', name: 'Google Notifications', category: 'subscriptions', priority: 'low' },
+      { pattern: '%auto-confirm@amazon.com', name: 'Amazon Orders', category: 'subscriptions', priority: 'low' },
+      { pattern: '%@account.netflix.com', name: 'Netflix', category: 'subscriptions', priority: 'low' },
+      { pattern: '%@audible.com', name: 'Audible', category: 'subscriptions', priority: 'low' },
+      // Junk / auto-archive
+      { pattern: '%@em.walmart.com', name: 'Walmart Marketing', category: 'junk', priority: 'low' },
+      { pattern: '%@eg.vrbo.com', name: 'Vrbo Marketing', category: 'junk', priority: 'low' },
+      { pattern: '%@rs.email.nextdoor.com', name: 'Nextdoor', category: 'junk', priority: 'low' },
+      { pattern: '%@m.thedyrt.com', name: 'The Dyrt', category: 'junk', priority: 'low' },
+      { pattern: '%@hostdefense.com', name: 'Host Defense', category: 'junk', priority: 'low' },
+      { pattern: '%@fungi.com', name: 'Fungi Perfecti', category: 'junk', priority: 'low' },
+      { pattern: '%@andianne.com', name: 'Andi Anne Marketing', category: 'junk', priority: 'low' },
+      // Family
+      { pattern: '%@kidsoutandabout.com', name: 'KidsOutAndAbout', category: 'family', priority: 'low' },
     ]
     for (const rule of defaultRules) {
       await db.query(
@@ -170,6 +198,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ rules })
     }
 
+    if (action === 'get_accounts') {
+      const accounts = await getConnectedAccounts().catch(() => [])
+      return NextResponse.json({ accounts })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Email GET error:', error)
@@ -187,14 +220,93 @@ export async function POST(req: NextRequest) {
 
     switch (action) {
       case 'sync_inbox': {
-        // Gmail sync placeholder — requires OAuth token
-        // For now, return status indicating sync is not configured
-        // When Gmail OAuth is set up, this will call Gmail API
-        return NextResponse.json({
-          success: false,
-          message: 'Gmail sync requires OAuth configuration. Add emails manually or configure Gmail API credentials.',
-          hint: 'Set GMAIL_OAUTH_TOKEN in environment variables to enable sync.',
-        })
+        const { account_email, max_results } = body
+
+        // Check for connected accounts
+        const accounts = await getConnectedAccounts().catch(() => [])
+        if (accounts.length === 0) {
+          return NextResponse.json({
+            success: false,
+            connected: false,
+            message: 'No Gmail account connected. Click "Connect Gmail" to get started.',
+          })
+        }
+
+        // Sync from specified account or primary
+        const targetEmail = account_email || undefined
+        let synced = 0
+        let skipped = 0
+
+        try {
+          // Get last sync time to only pull new messages
+          const lastSync = await db.query(
+            `SELECT MAX(received_at) as last FROM email_inbox WHERE gmail_id NOT LIKE 'manual-%'`
+          ).catch(() => [{ last: null }])
+
+          const query = lastSync[0]?.last
+            ? `in:inbox after:${Math.floor(new Date(lastSync[0].last).getTime() / 1000)}`
+            : 'in:inbox'
+
+          const { messages } = await fetchMessages({
+            email: targetEmail,
+            query,
+            maxResults: max_results || 50,
+          })
+
+          for (const msg of messages) {
+            const parsed = parseMessageHeaders(msg)
+
+            // Check if already exists
+            const existing = await db.query(
+              `SELECT id FROM email_inbox WHERE gmail_id = $1`, [parsed.gmailId]
+            ).catch(() => [])
+
+            if (existing.length > 0) { skipped++; continue }
+
+            // Match sender rules
+            const ruleMatch = await matchSenderRule(parsed.from)
+
+            // Insert
+            await db.query(
+              `INSERT INTO email_inbox (gmail_id, thread_id, from_address, from_name, to_address, subject, snippet, received_at, category, priority, labels, has_attachments)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+               ON CONFLICT (gmail_id) DO NOTHING`,
+              [
+                parsed.gmailId, parsed.threadId, parsed.from, parsed.fromName,
+                parsed.to, parsed.subject, parsed.snippet,
+                parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
+                ruleMatch?.category || null, ruleMatch?.priority || 'normal',
+                JSON.stringify(parsed.labels), parsed.hasAttachments,
+              ]
+            )
+
+            // If rule matched, mark triaged
+            if (ruleMatch) {
+              const inserted = await db.query(
+                `SELECT id FROM email_inbox WHERE gmail_id = $1`, [parsed.gmailId]
+              ).catch(() => [])
+              if (inserted[0]) {
+                await db.query(`UPDATE email_inbox SET triaged = TRUE WHERE id = $1`, [inserted[0].id])
+                await db.query(
+                  `INSERT INTO email_triage_results (email_id, category, priority, confidence, suggested_action)
+                   VALUES ($1, $2, $3, 1.0, 'rule_matched')`,
+                  [inserted[0].id, ruleMatch.category, ruleMatch.priority]
+                ).catch(() => {})
+              }
+            }
+
+            synced++
+          }
+
+          return NextResponse.json({ success: true, synced, skipped, total_messages: messages.length })
+        } catch (err) {
+          console.error('Gmail sync error:', err)
+          return NextResponse.json({
+            success: false,
+            connected: true,
+            message: `Sync failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }, { status: 500 })
+        }
       }
 
       case 'add_email': {
