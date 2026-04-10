@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Star, Gem } from 'lucide-react'
 
 interface StarBalanceHeaderProps {
@@ -12,24 +12,22 @@ export default function StarBalanceHeader({ childName, refreshKey }: StarBalance
   const [stars, setStars] = useState<number | null>(null)
   const [gems, setGems] = useState<number | null>(null)
   const kidKey = childName.toLowerCase()
-  const lastFetch = useRef(0)
+
 
   useEffect(() => {
     if (!kidKey) return
-    // Debounce: skip if fetched within last 500ms (prevents re-render loops)
-    const now = Date.now()
-    if (now - lastFetch.current < 500) return
-    lastFetch.current = now
-
-    // Single source of truth: /api/economy returns both stars and gems
-    fetch(`/api/economy?action=get_balances&kid_name=${kidKey}`)
-      .then(r => r.json())
-      .then(data => {
-        const b = data.balances || {}
-        setStars(b.stars_balance ?? 0)
-        setGems(b.gem_balance ?? 0)
-      })
-      .catch(() => { setStars(0); setGems(0) })
+    // Short delay to let DB writes settle, then fetch actual balance
+    const timer = setTimeout(() => {
+      fetch(`/api/economy?action=get_balances&kid_name=${kidKey}`)
+        .then(r => r.json())
+        .then(data => {
+          const b = data.balances || {}
+          setStars(b.stars_balance ?? 0)
+          setGems(b.gem_balance ?? 0)
+        })
+        .catch(() => { setStars(0); setGems(0) })
+    }, 300) // 300ms delay ensures DB write from toggle has landed
+    return () => clearTimeout(timer)
   }, [kidKey, refreshKey])
 
   if (stars === null) return null

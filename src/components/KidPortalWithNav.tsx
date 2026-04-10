@@ -1837,10 +1837,9 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           </div>
         )
       case 'checklist':
-        return <DailyChecklist childName={profile.first_name || profile.name} onStarEarned={(amount) => {
-          if (amount > 0) setStarPopup({ amount, key: Date.now() })
+        return <DailyChecklist childName={profile.first_name || profile.name} onStarEarned={() => {
+          // Always refresh header star count from DB after any star change
           setBalanceRefreshKey(k => k + 1)
-          if (amount > 0) setTimeout(() => setStarPopup(null), 2200)
         }} />
       case 'calendar':
         return <KidCalendarTab childName={profile.first_name || profile.name} />

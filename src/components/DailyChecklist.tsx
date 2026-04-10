@@ -186,7 +186,15 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
     setPrevAllDone(allRequiredDone)
   }, [allRequiredDone, loaded, stats.requiredTotal, childKey, prevAllDone])
 
+  // Debounce: track last toggle time per item to prevent rapid spam
+  const [toggleLock, setToggleLock] = useState<Record<string, number>>({})
+
   const toggle = async (item: ChecklistItem, tier: 'required' | 'dailyCare' | 'earnMoney') => {
+    // Debounce: prevent toggling same item within 500ms
+    const now = Date.now()
+    if (toggleLock[item.id] && now - toggleLock[item.id] < 500) return
+    setToggleLock(prev => ({ ...prev, [item.id]: now }))
+
     // Optimistic update
     const update = (items: ChecklistItem[]) => items.map(i => i.id === item.id ? { ...i, completed: !i.completed } : i)
     if (tier === 'required') {
@@ -227,6 +235,9 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
           setStarPopup({ amount: total, key: Date.now() })
           setTimeout(() => setStarPopup(null), 2200)
           onStarEarned?.(total)
+        } else {
+          // Already awarded or no amount — still refresh header to stay in sync
+          onStarEarned?.(0)
         }
       } else {
         // Reverse stars on uncheck
@@ -234,13 +245,23 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
         if (taskType) {
           const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
           try {
-            await fetch('/api/digi-pet', {
+            const reverseRes = await fetch('/api/digi-pet', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ action: 'reverse_task_stars', kid_name: childKey, source_ref: `checklist-${item.id}-${today}` }),
             })
-            onStarEarned?.(0) // trigger nav bar refresh
-          } catch { /* reversal failed */ }
+            const reverseData = await reverseRes.json()
+            if (reverseData.reversed && reverseData.reversed > 0) {
+              // Show deduction animation
+              setStarPopup({ amount: -reverseData.reversed, key: Date.now() })
+              setTimeout(() => setStarPopup(null), 2200)
+            }
+            // Always refresh header from DB
+            onStarEarned?.(-1)
+          } catch { /* reversal failed — don't show animation */ }
+        } else {
+          // No star task type but still refresh header
+          onStarEarned?.(0)
         }
       }
     } catch (err) {
@@ -605,17 +626,22 @@ function ChecklistRow({ item, onToggle, showPoints }: { item: ChecklistItem; onT
   )
 }
 
-// ── Star award popup animation ──
+// ── Star award/deduction popup animation ──
 function StarPopup({ amount }: { amount: number }) {
+  const isDeduction = amount < 0
   return (
     <div className="fixed top-20 right-6 z-50 pointer-events-none">
       <div
-        className="bg-amber-100 border border-amber-300 text-amber-800 font-bold px-4 py-2 rounded-full shadow-lg text-sm"
+        className={`font-bold px-4 py-2 rounded-full shadow-lg text-sm ${
+          isDeduction
+            ? 'bg-red-100 border border-red-300 text-red-700'
+            : 'bg-amber-100 border border-amber-300 text-amber-800'
+        }`}
         style={{
-          animation: 'starFloat 2s ease-out forwards',
+          animation: isDeduction ? 'starSink 2s ease-out forwards' : 'starFloat 2s ease-out forwards',
         }}
       >
-        +{amount} stars earned
+        {isDeduction ? `${amount} stars` : `+${amount} stars earned`}
       </div>
       <style>{`
         @keyframes starFloat {
@@ -623,6 +649,12 @@ function StarPopup({ amount }: { amount: number }) {
           15% { opacity: 1; transform: translateY(0) scale(1); }
           70% { opacity: 1; transform: translateY(-20px) scale(1); }
           100% { opacity: 0; transform: translateY(-40px) scale(0.9); }
+        }
+        @keyframes starSink {
+          0% { opacity: 0; transform: translateY(-10px) scale(0.8); }
+          15% { opacity: 1; transform: translateY(0) scale(1); }
+          70% { opacity: 1; transform: translateY(20px) scale(1); }
+          100% { opacity: 0; transform: translateY(40px) scale(0.9); }
         }
       `}</style>
     </div>
