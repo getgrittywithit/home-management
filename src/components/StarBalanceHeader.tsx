@@ -26,7 +26,7 @@ export default function StarBalanceHeader({ childName, refreshKey }: StarBalance
           setGems(b.gem_balance ?? 0)
         })
         .catch(() => { setStars(0); setGems(0) })
-    }, 300) // 300ms delay ensures DB write from toggle has landed
+    }, 600) // 600ms delay ensures DB write + recalc from toggle has landed
     return () => clearTimeout(timer)
   }, [kidKey, refreshKey])
 

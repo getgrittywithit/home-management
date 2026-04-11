@@ -494,13 +494,17 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
   }
 
   const toggleDashboardItem = async (eventId: string, summary: string, startTime: string) => {
+    const event = dashboardEvents.find(e => e.id === eventId)
+    const wasCompleted = event?.completed || false
+    const newCompleted = !wasCompleted
+    const childKey = (profile?.first_name || '').toLowerCase()
+
     // Optimistic update
     setDashboardEvents(prev => prev.map(e =>
-      e.id === eventId ? { ...e, completed: !e.completed } : e
+      e.id === eventId ? { ...e, completed: newCompleted } : e
     ))
     setDashboardStats(prev => {
-      const event = dashboardEvents.find(e => e.id === eventId)
-      const delta = event?.completed ? -1 : 1
+      const delta = wasCompleted ? -1 : 1
       return { ...prev, completedEvents: prev.completedEvents + delta }
     })
 
@@ -516,9 +520,59 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           eventStartTime: startTime,
         })
       })
+
+      // Award or reverse digi-pet stars
+      const starTaskType = getDashboardStarType(eventId, event?.category)
+      if (starTaskType) {
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const sourceRef = `checklist-${eventId}-${today}`
+
+        if (newCompleted) {
+          console.log('[Stars] My Day award:', childKey, starTaskType, eventId)
+          try {
+            const res = await fetch('/api/digi-pet', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'award_task_stars', kid_name: childKey, task_type: starTaskType, source_ref: sourceRef }),
+            })
+            const data = await res.json()
+            console.log('[Stars] My Day award result:', data)
+            if (data.amount && !data.already_awarded) {
+              setBalanceRefreshKey(k => k + 1)
+            }
+          } catch (err) { console.error('[Stars] My Day award failed:', err) }
+        } else {
+          console.log('[Stars] My Day reverse:', childKey, sourceRef)
+          try {
+            await fetch('/api/digi-pet', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'reverse_task_stars', kid_name: childKey, source_ref: sourceRef }),
+            })
+            setBalanceRefreshKey(k => k + 1)
+          } catch { /* silent */ }
+        }
+      }
     } catch (error) {
       console.error('Error toggling checklist item:', error)
     }
+  }
+
+  // Map My Day event IDs/categories to star task types
+  function getDashboardStarType(eventId: string, category?: string): string | null {
+    if (eventId.startsWith('med-am-')) return 'med_am'
+    if (eventId.startsWith('med-pm-')) return 'med_pm'
+    if (eventId.startsWith('zone-')) return 'zone_chore'
+    if (eventId.startsWith('dishes-')) return 'daily_chore'
+    if (eventId.startsWith('belle-')) return 'belle_care'
+    if (eventId.startsWith('spike-') || eventId.startsWith('hades-') || eventId.startsWith('midnight-')) return 'pet_care'
+    if (eventId.startsWith('tidy-') || eventId.includes('tidy')) return 'tidy'
+    if (eventId.startsWith('hygiene-') || eventId.startsWith('skincare-')) return 'hygiene'
+    if (eventId.startsWith('school-clean') || eventId.startsWith('schoolroom')) return 'lesson'
+    if (eventId.startsWith('parent-')) return 'parent_task'
+    // Fallback by category
+    if (category === 'chores') return 'daily_chore'
+    if (category === 'routine') return 'hygiene'
+    if (category === 'school') return 'lesson'
+    return null
   }
 
   // Load real schedule data based on child name
