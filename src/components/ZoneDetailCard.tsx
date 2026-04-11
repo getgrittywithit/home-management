@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, Info, Sparkles, Heart, Anchor, Plus } from 'lucide-react'
 import ZonePhotoUpload from './ZonePhotoUpload'
+import SpeakerButton from './SpeakerButton'
 
 interface ZoneTask {
   id: number
@@ -278,6 +279,7 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
                 {s.emoji} {s.item}
               </span>
             ))}
+            <SpeakerButton text={`You'll need: ${zone.supplies.map(s => s.item).join(', ')}`} size="sm" />
           </div>
         </div>
       )}
@@ -367,9 +369,10 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
       <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
         <div className="flex items-start gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-600 flex-1">
             <span className="font-medium">Done means:</span> {zone.done_means}
           </p>
+          <SpeakerButton text={`Done means: ${zone.done_means}`} size="sm" />
         </div>
         <p className="text-xs text-gray-400 italic mt-1">About {estimatedMins} minutes</p>
       </div>
@@ -603,8 +606,11 @@ function TaskRow({ task, onToggle, expanded, onToggleInstructions }: {
               {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
             {expanded && (
-              <div className="mt-2 bg-gray-50 rounded p-3">
-                <ol className="list-decimal list-inside space-y-1.5 text-sm text-gray-700">
+              <div className="mt-2 bg-gray-50 rounded p-3 relative">
+                <div className="absolute top-2 right-2">
+                  <SpeakerButton steps={steps} size="sm" />
+                </div>
+                <ol className="list-decimal list-inside space-y-1.5 text-sm text-gray-700 pr-8">
                   {steps.map((step: string, i: number) => (
                     <li key={i} className="leading-snug">{step}</li>
                   ))}

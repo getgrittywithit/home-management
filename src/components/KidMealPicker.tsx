@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { ChefHat, Check, Clock, Shuffle, Loader2 } from 'lucide-react'
+import HelpDropdown from './HelpDropdown'
+import SpeakerButton from './SpeakerButton'
 
 interface KidMealPickerProps {
   kidName: string
@@ -52,6 +54,20 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
   const myLabel = myMgr ? (weekNum === 1 ? myMgr.label1 : myMgr.label2) : null
   const myEmoji = myMgr?.emoji || '🍽️'
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+  const THEME_HELP: Record<string, string> = {
+    'american-comfort': 'Classic American food — mac and cheese, meatloaf, burgers, casseroles. Comfort food!',
+    'soup-comfort': 'Soup, stew, or crockpot meals. Warm and cozy.',
+    'asian': 'Chinese, Japanese, Thai, or Korean food. Stir fry, noodles, rice bowls.',
+    'bar-night': 'Build-your-own bar! Taco bar, baked potato bar, nacho bar — everyone picks their toppings.',
+    'easy-lazy': 'Quick and simple. Sandwiches, quesadillas, frozen pizza upgrades. Under 20 minutes.',
+    'mexican': 'Tacos, enchiladas, burritos, quesadillas. Mexican and Tex-Mex favorites.',
+    'pizza-italian': 'Pizza (homemade or frozen), pasta, garlic bread. Italian night!',
+    'grill': 'Dad fires up the grill. Burgers, hot dogs, chicken, kebabs.',
+    'experiment': 'Try something NEW. A recipe nobody has made before. Be brave!',
+    'roast-comfort': 'Sunday roast — chicken, pot roast, or pork with all the sides.',
+    'brunch': 'Breakfast for dinner! Pancakes, waffles, eggs, bacon, French toast.',
+  }
 
   const getSeason = () => {
     const month = now.getMonth() + 1
@@ -134,6 +150,19 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
         <span className="text-xs text-orange-600">{myEmoji} {myLabel}</span>
       </div>
 
+      {/* Feature help + theme description */}
+      <HelpDropdown
+        instructions={[
+          "This is YOUR dinner night — you pick what the family eats!",
+          "Tap Shuffle for a random idea, or pick from the list below.",
+          "After you pick, Mom gets a notification to approve it.",
+          "Once approved, your meal goes on the calendar and Mom adds it to the grocery list.",
+          ...(myTheme && THEME_HELP[myTheme] ? [`This week's theme: ${myLabel} — ${THEME_HELP[myTheme]}`] : []),
+        ]}
+        label="How meal picking works"
+        compact
+      />
+
       {/* Shuffle section */}
       {meals.length > 0 && (
         <div className="space-y-2">
@@ -160,11 +189,14 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
       <div className="space-y-1.5">
         <p className="text-xs text-orange-600 font-medium">Or pick from the list:</p>
         {meals.map(meal => (
-          <button key={meal.id} onClick={() => handleSubmit(meal.id)} disabled={previewMode || submitting}
-            className="w-full text-left px-3 py-2 rounded-xl border border-orange-100 bg-white text-sm hover:border-orange-300 disabled:opacity-50">
-            <span className="font-medium">{meal.name}</span>
-            {meal.sides && <span className="text-xs text-gray-500 ml-2">· {meal.sides}</span>}
-          </button>
+          <div key={meal.id} className="flex items-center gap-1">
+            <button onClick={() => handleSubmit(meal.id)} disabled={previewMode || submitting}
+              className="flex-1 text-left px-3 py-2 rounded-xl border border-orange-100 bg-white text-sm hover:border-orange-300 disabled:opacity-50">
+              <span className="font-medium">{meal.name}</span>
+              {meal.sides && <span className="text-xs text-gray-500 ml-2">· {meal.sides}</span>}
+            </button>
+            <SpeakerButton text={`${meal.name}${meal.sides ? '. Sides: ' + meal.sides : ''}`} size="sm" />
+          </div>
         ))}
         {meals.length === 0 && <p className="text-xs text-gray-500 italic">No meals available for this theme.</p>}
       </div>

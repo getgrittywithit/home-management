@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
 import PositiveReportButton from './PositiveReportButton'
+import SpeakerButton from './SpeakerButton'
 import KidMealPicker from './KidMealPicker'
 import WeeklyMealCalendar from './WeeklyMealCalendar'
 import GroceryDeadlineBar from './GroceryDeadlineBar'
@@ -524,9 +525,12 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
                               <span>How to do this</span>
                             </button>
                             {expandedInstructions.has(task.id) && (
-                              <div className="mt-1 space-y-0.5 pl-1 border-l-2 border-blue-100">
+                              <div className="mt-1 space-y-0.5 pl-1 border-l-2 border-blue-100 relative">
+                                <div className="absolute -top-1 right-0">
+                                  <SpeakerButton steps={task.steps} size="sm" />
+                                </div>
                                 {task.steps.map((step, i) => (
-                                  <div key={i} className="text-xs text-gray-600 flex items-start gap-1.5 pl-1">
+                                  <div key={i} className="text-xs text-gray-600 flex items-start gap-1.5 pl-1 pr-7">
                                     <span className="text-blue-300 font-bold mt-px">{i + 1}.</span>
                                     <span>{step}</span>
                                   </div>

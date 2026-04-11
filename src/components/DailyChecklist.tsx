@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import ZoneDetailCard from './ZoneDetailCard'
 import MorningCheckinCard from './MorningCheckinCard'
+import HelpDropdown from './HelpDropdown'
 
 // Map checklist categories/ids to digi-pet star task_types
 function getStarTaskType(item: { id: string; category: string }): string | null {
@@ -59,6 +60,7 @@ interface ChecklistItem {
   time?: string
   points?: number
   completed: boolean
+  instructions?: string[] | null
 }
 
 interface DailyChecklistProps {
@@ -142,7 +144,8 @@ function isExpandableItem(item: ChecklistItem): boolean {
     titleLower.includes('bedtime routine') ||
     titleLower.includes('evening tidy') ||
     titleLower.includes('dinner manager') ||
-    titleLower.includes('laundry day')
+    titleLower.includes('laundry day') ||
+    (item.instructions != null && item.instructions.length > 0)
 }
 
 export default function DailyChecklist({ childName, onStarEarned }: DailyChecklistProps) {
@@ -590,6 +593,13 @@ function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expand
               </span>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* HelpDropdown for items with instructions (non-zone, non-substep) */}
+      {expanded && !zoneKey && !hasSubsteps && item.instructions && item.instructions.length > 0 && (
+        <div className="px-4 pb-3 pl-12">
+          <HelpDropdown instructions={item.instructions} compact />
         </div>
       )}
 

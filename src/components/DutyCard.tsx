@@ -2,8 +2,28 @@
 
 import { useState, useEffect } from 'react'
 import { CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react'
+import HelpDropdown from './HelpDropdown'
+import SpeakerButton from './SpeakerButton'
 
 interface Task { key: string; label: string; emoji: string; completed: boolean; instructions?: string; task_type?: string }
+
+const DUTY_HELP: Record<string, string[]> = {
+  dinner_manager: [
+    "You're the Dinner Manager tonight — you run the kitchen!",
+    'Check the meal plan to see what\'s for dinner',
+    'Get ingredients out and follow the recipe or Mom\'s instructions',
+    'Set the table before food is ready',
+    'Call everyone when it\'s time to eat',
+    'Help clean up after',
+  ],
+  laundry: [
+    'Check the hampers and collect dirty clothes',
+    'Sort by color if needed (darks, lights, towels)',
+    'Start a load in the washer with one scoop of detergent',
+    'When the washer is done, move to the dryer',
+    'Fold and put away when dry',
+  ],
+}
 interface DutyData {
   isMyDay: boolean
   todaysManagers?: string[]
@@ -139,8 +159,11 @@ function SingleDutyCard({ title, emoji, subtitle, data, duty, nameField, bonusTe
         )}
       </div>
       {expandedTask === t.key && t.instructions && (
-        <div className="px-12 pb-3 text-xs text-gray-600 bg-gray-50 whitespace-pre-line">
-          {t.instructions}
+        <div className="px-12 pb-3 text-xs text-gray-600 bg-gray-50 whitespace-pre-line relative">
+          <div className="absolute top-1 right-3">
+            <SpeakerButton text={t.instructions} size="sm" />
+          </div>
+          <span className="pr-8">{t.instructions}</span>
         </div>
       )}
     </div>
@@ -158,6 +181,13 @@ function SingleDutyCard({ title, emoji, subtitle, data, duty, nameField, bonusTe
           {bonusText && !allDone && <p className="text-xs text-violet-600">{bonusText}</p>}
         </div>
       </div>
+
+      {/* Card-level help */}
+      {DUTY_HELP[duty] && (
+        <div className="px-4 pt-2">
+          <HelpDropdown instructions={DUTY_HELP[duty]} label={`How ${title.toLowerCase()} works`} compact />
+        </div>
+      )}
 
       {allDone ? (
         <div className="p-5 text-center">

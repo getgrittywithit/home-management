@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, Circle, Clock, Star, Sparkles } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
 import WorkbookLogModal from './WorkbookLogModal'
+import HelpDropdown from './HelpDropdown'
 
 interface Task {
   id: string
@@ -50,6 +51,46 @@ const SUBJECT_COLORS: Record<string, { bg: string; border: string; header: strin
 }
 
 const DEFAULT_COLORS = { bg: 'bg-gray-50', border: 'border-gray-200', header: 'bg-gray-100 text-gray-800', check: 'text-gray-500' }
+
+// Subject-level help for kids who don't know what to do
+const SUBJECT_HELP: Record<string, string[]> = {
+  Math: [
+    'Open IXL or get your math workbook',
+    'Pick the skill Mom assigned (check your journal or calendar)',
+    'Work for the assigned time',
+    'Screenshot your score or show Mom when done',
+  ],
+  ELAR: [
+    'Get your current book or reading assignment',
+    'Find a quiet spot and read for the assigned time',
+    'When done, write about what you read in your journal',
+  ],
+  Science: [
+    'Check your assignment board or calendar',
+    'Complete the activity or reading for today',
+    "If it's a hands-on project, get your supplies ready first",
+  ],
+  'Social Studies': [
+    'Check your assignment board or calendar',
+    'Complete the activity or reading for today',
+    "If it's a map or research project, get your materials ready first",
+  ],
+  Art: [
+    'Get your art supplies ready',
+    'Follow the project instructions or free draw',
+    'Clean up your workspace when done',
+  ],
+  'Life Skills': [
+    'Check what life skill is scheduled today',
+    'Follow the instructions or ask Mom for help',
+    'Practice makes progress!',
+  ],
+  PE: [
+    'Get outside or find space to move',
+    'Complete the activity for today',
+    'Drink water when you\'re done!',
+  ],
+}
 
 interface HomeschoolTaskBlockProps {
   kidName: string
@@ -299,6 +340,9 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
                   <span className="text-lg">{icon}</span>
                   <span className="font-semibold">{block.subject}</span>
                   <span className="text-xs opacity-70">({block.totalMinutes} min)</span>
+                  {SUBJECT_HELP[block.subject] && (
+                    <HelpDropdown instructions={SUBJECT_HELP[block.subject]} label="Help" compact />
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-medium ${blockDone ? 'text-green-700' : ''}`}>
@@ -335,7 +379,10 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
                         {task.task_label}
                       </span>
                       {task.task_description && !task.completed && (
-                        <p className="text-xs text-gray-500 mt-0.5 truncate">{task.task_description}</p>
+                        <div>
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">{task.task_description}</p>
+                          <HelpDropdown instructions={task.task_description} compact />
+                        </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-gray-400 shrink-0">

@@ -526,13 +526,54 @@ export async function GET(request: NextRequest) {
 
     const addStatus = (items: any[]) => items.map(item => ({ ...item, completed: !!completionMap[item.id] }))
 
-    const requiredWithStatus = addStatus(required)
-    const allRequiredDone = requiredWithStatus.every(t => t.completed)
+    // ── Load task instructions ──
+    let instructionMap: Record<string, string[]> = {}
+    try {
+      const instrRows = await db.query(`SELECT task_source, task_key, steps FROM task_instructions`)
+      for (const row of instrRows) {
+        let steps: string[] = []
+        try {
+          steps = typeof row.steps === 'string' ? JSON.parse(row.steps) : row.steps
+        } catch { steps = [] }
+        if (Array.isArray(steps)) instructionMap[`${row.task_source}:${row.task_key}`] = steps
+      }
+    } catch { /* task_instructions table may not exist */ }
+
+    // Map instructions onto checklist items
+    const addInstructions = (items: any[]) => items.map(item => {
+      const id = item.id || ''
+      const cat = item.category || ''
+      let instructions: string[] | null = null
+
+      // Try ID-based lookup first
+      if (id.startsWith('zone-')) instructions = instructionMap[`zone:${zone?.toLowerCase()}`] || null
+      else if (id.startsWith('dishes-breakfast')) instructions = instructionMap['chore:dishes_breakfast'] || null
+      else if (id.startsWith('dishes-lunch')) instructions = instructionMap['chore:dishes_lunch'] || null
+      else if (id.startsWith('dishes-evening')) instructions = instructionMap['chore:dishes_evening'] || null
+      else if (id.startsWith('dinner-manager')) instructions = instructionMap['duty:dinner_manager_help'] || null
+      else if (id.startsWith('laundry-')) instructions = instructionMap['duty:laundry_help'] || null
+      else if (id.startsWith('belle-am')) instructions = instructionMap['belle:am_feed_walk'] || null
+      else if (id.startsWith('belle-pm')) instructions = instructionMap['belle:pm_feed'] || instructionMap['belle:pm_walk'] || null
+      else if (id.startsWith('pet-hades')) instructions = instructionMap['pet:hades_water'] || null
+      else if (id.startsWith('pet-spike-helper')) instructions = instructionMap['pet:spike_water'] || null
+      else if (id.startsWith('pet-spike')) instructions = instructionMap['pet:spike_feed'] || null
+      else if (id.startsWith('pet-midnight')) instructions = instructionMap['pet:midnight_hay'] || null
+      else if (id.startsWith('hygiene-morning')) instructions = instructionMap['hygiene:morning_routine'] || null
+      else if (id.startsWith('hygiene-bedtime')) instructions = instructionMap['hygiene:bedtime_routine'] || null
+      else if (id.startsWith('evening-tidy') || id.startsWith('tidy-evening')) instructions = instructionMap['routine:evening_tidy'] || null
+      else if (id.startsWith('school-clean')) instructions = instructionMap['zone:school_room'] || null
+      else if (id.startsWith('skincare-')) instructions = instructionMap['hygiene:shower'] || null
+
+      return { ...item, instructions }
+    })
+
+    const requiredWithStatus = addInstructions(addStatus(required))
+    const allRequiredDone = requiredWithStatus.every((t: any) => t.completed)
 
     return NextResponse.json({
       childName: child, date: today, zone,
       required: requiredWithStatus,
-      dailyCare: addStatus(dailyCare),
+      dailyCare: addInstructions(addStatus(dailyCare)),
       earnMoney: addStatus(earnMoneyItems),
       allRequiredDone,
       stats: {

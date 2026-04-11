@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { CheckCircle2, Circle, X } from 'lucide-react'
+import HelpDropdown from './HelpDropdown'
+import SpeakerButton from './SpeakerButton'
 
 const KID_DISPLAY: Record<string, string> = {
   amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', kaylee: 'Kaylee'
@@ -32,6 +34,39 @@ function zoeyGetTodayAssignee(): { name: string; isWeekend: boolean } {
 
 interface Task { key: string; label: string; emoji: string; time: string; completed: boolean }
 interface GroomTask { key: string; label: string; emoji: string; completed: boolean }
+
+const BELLE_TASK_HELP: Record<string, string[]> = {
+  am_feed_walk: [
+    "Get Belle's food from the container in the laundry room",
+    'One scoop in her bowl, fresh water',
+    'Take her outside on leash for a walk around the block',
+    'Pick up after her with a bag',
+  ],
+  pm_feed: [
+    'One scoop of food in her bowl',
+    'Check her water — refill if low',
+  ],
+  pm_walk: [
+    'Take Belle outside for her evening walk',
+    'Same route as morning',
+    'Pick up after her with a bag',
+  ],
+  brush: [
+    'Use the slicker brush from the basket by the door',
+    'Brush her whole body, starting at her back',
+    'Be gentle around her belly',
+  ],
+  bath: [
+    'Use the dog shampoo under the bathroom sink',
+    'Wet her down in the tub, lather up, rinse completely',
+    "Towel dry — she doesn't like the blow dryer",
+  ],
+  nail_trim: [
+    'Use the dog nail clippers from the drawer',
+    "Only trim the white tips — don't cut into the pink quick",
+    "If you're not sure, ask Mom or Dad",
+  ],
+}
 interface IncomingSwap { id: string; requesting_kid: string; swap_type: string; swap_date: string; reason: string }
 
 export default function BelleCareCard({ childName }: { childName: string }) {
@@ -171,6 +206,20 @@ export default function BelleCareCard({ childName }: { childName: string }) {
             </div>
             <span className="text-sm font-bold text-amber-800">{done}/{total}</span>
           </div>
+          {/* Card-level help */}
+          <div className="px-4 pt-2">
+            <HelpDropdown
+              instructions={[
+                "You have Belle today! Here's what each task means.",
+                'AM = morning feed + walk before 8am',
+                'PM = evening feed at 5pm + walk at 6:30pm',
+                "Tap each task for step-by-step instructions",
+              ]}
+              label="How Belle care works"
+              compact
+            />
+          </div>
+
           {allDone ? (
             <div className="p-5 text-center">
               <p className="text-2xl">🐾✨</p>
@@ -179,13 +228,13 @@ export default function BelleCareCard({ childName }: { childName: string }) {
           ) : (
             <div className="divide-y">
               {tasks.map(t => (
-                <TaskRow key={t.key} task={t} onToggle={() => toggleTask(t.key, t.completed)} />
+                <BelleTaskRow key={t.key} task={t} onToggle={() => toggleTask(t.key, t.completed)} />
               ))}
               {grooming.length > 0 && (
                 <>
                   <div className="px-4 py-2 bg-purple-50 text-xs font-medium text-purple-700">Weekend Grooming (due by Sunday midnight)</div>
                   {grooming.map(t => (
-                    <TaskRow key={t.key} task={{ ...t, time: '' }} onToggle={() => toggleGrooming(t.key, t.completed)} />
+                    <BelleTaskRow key={t.key} task={{ ...t, time: '' }} onToggle={() => toggleGrooming(t.key, t.completed)} />
                   ))}
                 </>
               )}
@@ -257,6 +306,25 @@ function TaskRow({ task, onToggle }: { task: { key: string; label: string; emoji
       <span className={`text-sm flex-1 ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>{task.label}</span>
       {task.time && <span className="text-xs text-gray-400">{task.time}</span>}
     </button>
+  )
+}
+
+function BelleTaskRow({ task, onToggle }: { task: { key: string; label: string; emoji: string; time: string; completed: boolean }; onToggle: () => void }) {
+  const helpSteps = BELLE_TASK_HELP[task.key]
+  return (
+    <div>
+      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50">
+        {task.completed ? <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" /> : <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />}
+        <span className="text-base">{task.emoji}</span>
+        <span className={`text-sm flex-1 ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>{task.label}</span>
+        {task.time && <span className="text-xs text-gray-400">{task.time}</span>}
+      </button>
+      {helpSteps && !task.completed && (
+        <div className="px-12 pb-2">
+          <HelpDropdown instructions={helpSteps} compact />
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -1,18 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Volume2, VolumeX } from 'lucide-react'
 
 interface SpeakerButtonProps {
-  text: string
+  text?: string
+  steps?: string[]
+  rate?: number
   className?: string
   size?: 'sm' | 'md'
 }
 
-export default function SpeakerButton({ text, className, size = 'sm' }: SpeakerButtonProps) {
+export default function SpeakerButton({ text, steps, rate = 0.9, className, size = 'sm' }: SpeakerButtonProps) {
   const [speaking, setSpeaking] = useState(false)
 
-  const handleSpeak = () => {
+  // Stop speech on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
+  const handleSpeak = (e: React.MouseEvent) => {
+    e.stopPropagation()
     if (typeof window === 'undefined' || !window.speechSynthesis) return
 
     if (speaking) {
@@ -21,8 +33,15 @@ export default function SpeakerButton({ text, className, size = 'sm' }: SpeakerB
       return
     }
 
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 0.9
+    // Build speech text from steps array or text prop
+    let speechText = text || ''
+    if (steps && steps.length > 0) {
+      speechText = steps.map((s, i) => `Step ${i + 1}: ${s}`).join('. ')
+    }
+    if (!speechText.trim()) return
+
+    const utterance = new SpeechSynthesisUtterance(speechText)
+    utterance.rate = Math.max(0.5, Math.min(1.5, rate))
     utterance.pitch = 1.0
     utterance.onend = () => setSpeaking(false)
     utterance.onerror = () => setSpeaking(false)
