@@ -12,6 +12,13 @@ export default function KidPage({ params }: { params: Promise<{ kidName: string 
   const [status, setStatus] = useState<'loading' | 'enabled' | 'disabled' | 'not_found' | 'ready'>('loading')
   const [kidData, setKidData] = useState<any>(null)
 
+  // Save last-visited portal for PWA home screen shortcuts
+  useEffect(() => {
+    if (!isPreview) {
+      try { localStorage.setItem('familyops-last-portal', `/kid/${kidName}`) } catch { /* ignore */ }
+    }
+  }, [kidName, isPreview])
+
   useEffect(() => {
     // In preview mode, skip portal settings check
     if (isPreview) {

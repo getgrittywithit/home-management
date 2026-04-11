@@ -65,12 +65,25 @@ const BLOCK_LABELS: Record<string, string> = {
 
 // Map task source/id to digi-pet task_type for star awards
 function getDigiPetTaskType(task: DayTask): string | null {
+  // ID-based matching first (most specific)
   if (task.id.startsWith('med-am-')) return 'med_am'
   if (task.id.startsWith('med-pm-')) return 'med_pm'
+  if (task.id.startsWith('zone-')) return 'zone_chore'
+  if (task.id.startsWith('dishes-') || task.id.startsWith('dinner-')) return 'daily_chore'
+  if (task.id.startsWith('belle-')) return 'belle_care'
+  if (task.id.startsWith('spike-') || task.id.startsWith('hades-') || task.id.startsWith('midnight-')) return 'pet_care'
+  if (task.id.startsWith('tidy-') || task.id.includes('tidy')) return 'tidy'
+  if (task.id.startsWith('hygiene-') || task.id.startsWith('skincare-')) return 'hygiene'
+  if (task.id.startsWith('laundry-')) return 'daily_chore'
+  if (task.id.startsWith('school-') || task.id.startsWith('schoolroom-')) return 'lesson'
+  if (task.id.startsWith('parent-')) return 'parent_task'
+  // Fallback by source
   if (task.source === 'zone') return 'zone_chore'
   if (task.source === 'dishes') return 'daily_chore'
   if (task.source === 'belle') return 'belle_care'
   if (task.source === 'school') return 'lesson'
+  if (task.source === 'daily_care') return 'hygiene'
+  if (task.source === 'habit') return 'daily_chore'
   return null
 }
 
@@ -244,6 +257,8 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
     const taskType = getDigiPetTaskType(task)
     const online = isOnline()
 
+    console.log('[Stars] MyDayView toggle:', { id: task.id, source: task.source, taskType, completing: !task.completed })
+
     // Build the actions to perform
     const checklistBody = { action: 'toggle', child: kid, eventId: task.id, eventSummary: task.label }
     const starAwardBody = taskType ? { action: 'award_task_stars', kid_name: kid, task_type: taskType, source_ref: sourceRef } : null
@@ -259,8 +274,11 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
         // Award stars via digi-pet
         if (starAwardBody) {
           try {
-            await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starAwardBody) })
-          } catch { /* star award failed */ }
+            console.log('[Stars] MyDayView award:', kid, taskType, sourceRef)
+            const res = await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starAwardBody) })
+            const data = await res.json()
+            console.log('[Stars] MyDayView award result:', data)
+          } catch (err) { console.error('[Stars] MyDayView award failed:', err) }
         }
         // For school tasks, also toggle in homeschool system
         if (task.source === 'school' && task.sourceId) {
@@ -281,8 +299,9 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       if (online) {
         if (starReverseBody) {
           try {
+            console.log('[Stars] MyDayView reverse:', kid, sourceRef)
             await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starReverseBody) })
-          } catch { /* star reversal failed */ }
+          } catch (err) { console.error('[Stars] MyDayView reverse failed:', err) }
         }
       } else {
         if (starReverseBody) queueAction('/api/digi-pet', 'POST', starReverseBody)

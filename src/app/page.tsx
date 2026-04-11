@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { 
-  Users, Home, Calendar, Droplets, DollarSign, 
+import { useState, useEffect } from 'react'
+import {
+  Users, Home, Calendar, Droplets, DollarSign,
   ChevronRight, Clock, Shield, Activity, Settings
 } from 'lucide-react'
 import Link from 'next/link'
@@ -10,6 +10,18 @@ import { getAllFamilyData } from '@/lib/familyConfig'
 
 export default function HomePage() {
   const [selectedRole, setSelectedRole] = useState<'parent' | 'kid' | null>(null)
+
+  // PWA redirect: if opened as standalone app, go to last-visited portal
+  useEffect(() => {
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches
+      || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+    if (isPWA) {
+      const lastPath = localStorage.getItem('familyops-last-portal')
+      if (lastPath && lastPath !== '/') {
+        window.location.replace(lastPath)
+      }
+    }
+  }, [])
 
   // Get dynamic family data and add customizable icons
   const familyData = getAllFamilyData()
