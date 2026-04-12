@@ -231,8 +231,11 @@ export async function POST(request: NextRequest) {
         } catch {
           return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
         }
-        const parsed = await fetchRecipeUrl(url)
-        return NextResponse.json({ recipe: parsed })
+        const { recipe, error: fetchErr } = await fetchRecipeUrl(url)
+        if (fetchErr) {
+          return NextResponse.json({ recipe, error: fetchErr }, { status: 200 })
+        }
+        return NextResponse.json({ recipe })
       }
 
       case 'import_recipe_csv': {

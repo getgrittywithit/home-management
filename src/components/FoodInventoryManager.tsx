@@ -469,13 +469,15 @@ function MealPlanTab() {
         </button>
       </div>
 
-      <WeeklyMealCalendar isParent />
-
-      <RecipeSuggestions />
-
-      {adminMode && <MealAdminEditor />}
-
-      <MealFeedbackAnalytics />
+      {adminMode ? (
+        <MealAdminEditor />
+      ) : (
+        <>
+          <WeeklyMealCalendar isParent />
+          <RecipeSuggestions />
+          <MealFeedbackAnalytics />
+        </>
+      )}
     </div>
   )
 }

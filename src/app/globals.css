@@ -2,24 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── D51: Print styles (RECIPE-3 weekly + RECIPE-4 recipe) ──────────────── */
+/* ── D51/D53: Print styles (RECIPE-3 weekly + RECIPE-4 recipe) ─────────────
 
-/* Helper class — hidden on screen, shown in print */
+   Two printing modes, each driven by a class toggled on <body> when the
+   user clicks Print:
+
+     body.printing-weekly  → kitchen copy of this week's dinner rotation
+     body.printing-recipe  → kitchen copy of the currently-open RecipeCard
+
+   Cleanup happens in the onafterprint listener, so the class always comes
+   back off even if the print dialog is cancelled.
+*/
+
+/* Helper: hidden on screen, shown in print */
 .meal-calendar-print-only { display: none; }
 
 @media print {
-  /* Force landscape for weekly rotation */
+  /* ── Shared: scrub app chrome ─────────────────────────────────────── */
+  nav, header, footer, aside, .sidebar { display: none !important; }
+
+  /* ── Weekly print ──────────────────────────────────────────────────── */
   @page { size: landscape; margin: 0.5in; }
 
-  /* Hide everything except the active print target */
-  body * { visibility: hidden; }
+  body.printing-weekly * { visibility: hidden; }
+  body.printing-weekly .meal-calendar-container,
+  body.printing-weekly .meal-calendar-container * { visibility: visible; }
+  body.printing-weekly .meal-calendar-container .recipe-card-hide-print { display: none !important; }
+  body.printing-weekly .meal-calendar-container .meal-calendar-print-only { display: block !important; }
 
-  /* When the weekly rotation is printing, show only the print-only block */
-  .meal-calendar-printing,
-  .meal-calendar-printing * { visibility: visible; }
-  .meal-calendar-printing .recipe-card-hide-print { display: none !important; }
-  .meal-calendar-printing .meal-calendar-print-only { display: block !important; }
-  .meal-calendar-printing {
+  body.printing-weekly .meal-calendar-container {
     position: fixed;
     inset: 0;
     width: 100%;
@@ -39,7 +50,7 @@
     color: black !important;
   }
   .meal-calendar-print-sub {
-    font-size: 12pt;
+    font-size: 14pt;
     text-align: center;
     margin: 0 0 16pt 0;
     color: black !important;
@@ -60,21 +71,22 @@
     background: white !important;
   }
   .meal-calendar-print-table th {
-    font-size: 12pt;
+    font-size: 14pt;
     font-weight: bold;
     background: #f0f0f0 !important;
   }
   .meal-calendar-print-footer {
     margin-top: 18pt;
     text-align: right;
-    font-size: 10pt;
-    color: #555 !important;
+    font-size: 11pt;
+    color: #333 !important;
   }
 
-  /* ── RECIPE-4 Recipe card print ── */
-  .recipe-card-overlay,
-  .recipe-card-overlay * { visibility: visible; }
-  .recipe-card-overlay {
+  /* ── Recipe card print ─────────────────────────────────────────────── */
+  body.printing-recipe * { visibility: hidden; }
+  body.printing-recipe .recipe-card-overlay,
+  body.printing-recipe .recipe-card-overlay * { visibility: visible; }
+  body.printing-recipe .recipe-card-overlay {
     position: fixed !important;
     inset: 0 !important;
     background: white !important;
@@ -82,7 +94,7 @@
     align-items: flex-start !important;
     justify-content: flex-start !important;
   }
-  .recipe-card-overlay .recipe-card-print {
+  body.printing-recipe .recipe-card-overlay .recipe-card-print {
     max-width: 7.5in !important;
     max-height: none !important;
     width: 100% !important;
@@ -99,46 +111,47 @@
     display: block !important;
   }
 
-  .recipe-card-print h2 { font-size: 20pt; color: black !important; margin: 0 0 4pt 0; }
-  .recipe-card-print h3 { font-size: 11pt; color: black !important; }
-  .recipe-card-print .recipe-servings-header { font-weight: bold; }
+  body.printing-recipe .recipe-card-print h2 { font-size: 20pt; color: black !important; margin: 0 0 4pt 0; }
+  body.printing-recipe .recipe-card-print h3 { font-size: 12pt; color: black !important; }
+  body.printing-recipe .recipe-card-print .recipe-servings-header { font-weight: bold; }
 
-  /* Hollow checkbox squares */
-  .recipe-card-print .recipe-checkbox-print {
+  /* Hollow checkbox squares replace the interactive boxes */
+  body.printing-recipe .recipe-card-print .recipe-checkbox-print {
     border: none !important;
     background: white !important;
     width: auto !important;
     height: auto !important;
     padding: 0 !important;
-    margin-right: 4pt !important;
+    margin-right: 6pt !important;
     vertical-align: middle;
   }
-  .recipe-card-print .recipe-checkbox-print svg { display: none !important; }
-  .recipe-card-print .recipe-checkbox-print::before {
+  body.printing-recipe .recipe-card-print .recipe-checkbox-print svg { display: none !important; }
+  body.printing-recipe .recipe-card-print .recipe-checkbox-print::before {
     content: "☐";
-    font-size: 14pt;
+    font-size: 16pt;
     color: black !important;
     display: inline-block;
+    line-height: 1;
   }
 
-  /* No strikethrough in print */
-  .recipe-card-print .checked,
-  .recipe-card-print .line-through {
+  /* Always print as a fresh worksheet — strip any on-screen strikethrough */
+  body.printing-recipe .recipe-card-print .checked,
+  body.printing-recipe .recipe-card-print .line-through {
     text-decoration: none !important;
     color: black !important;
   }
 
-  /* Hide interactive UI */
-  .recipe-card-print .multiplier-controls,
-  .recipe-card-print .close-button,
-  .recipe-card-print .recipe-print-btn { display: none !important; }
+  /* Hide interactive UI inside the recipe card */
+  body.printing-recipe .recipe-card-print .multiplier-controls,
+  body.printing-recipe .recipe-card-print .close-button,
+  body.printing-recipe .recipe-card-print .recipe-print-btn { display: none !important; }
 
-  /* Flatten grid to single column */
-  .recipe-card-print .grid { display: block !important; }
-  .recipe-card-print .divide-x > * { border-left: none !important; }
+  /* Flatten the two-column grid to single column */
+  body.printing-recipe .recipe-card-print .grid { display: block !important; }
+  body.printing-recipe .recipe-card-print .divide-x > * { border-left: none !important; }
 
   /* Show the print-only footer */
-  .recipe-card-print .recipe-print-footer {
+  body.printing-recipe .recipe-card-print .recipe-print-footer {
     display: block !important;
     text-align: right;
     font-size: 10pt;
@@ -147,16 +160,13 @@
     border-top: 1px solid #ccc !important;
   }
 
-  .recipe-card-print ul,
-  .recipe-card-print ol,
-  .recipe-card-print li,
-  .recipe-card-print li span {
+  body.printing-recipe .recipe-card-print ul,
+  body.printing-recipe .recipe-card-print ol,
+  body.printing-recipe .recipe-card-print li,
+  body.printing-recipe .recipe-card-print li span {
     color: black !important;
   }
 
-  .recipe-card-print .recipe-ingredient-line,
-  .recipe-card-print .recipe-step-line { page-break-inside: avoid; }
-
-  /* Hide app chrome */
-  nav, header, footer, aside, .sidebar { display: none !important; }
+  body.printing-recipe .recipe-card-print .recipe-ingredient-line,
+  body.printing-recipe .recipe-card-print .recipe-step-line { page-break-inside: avoid; }
 }

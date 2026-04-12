@@ -47,7 +47,7 @@ interface Props {
   onSaved?: () => void
 }
 
-const DEPARTMENTS = ['Meat', 'Frozen', 'Pantry', 'Produce', 'Dairy', 'Bakery', 'Other'] as const
+const DEPARTMENTS = ['Meat', 'Frozen', 'Pantry', 'Produce', 'Dairy', 'Bakery', 'Spices', 'Canned', 'Other'] as const
 const STEP_GROUPS: { value: StepGroup; label: string }[] = [
   { value: 'prep', label: 'Prep' },
   { value: 'cook', label: 'Cook' },
@@ -152,6 +152,7 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
       })
       if (!res.ok) throw new Error('Fetch failed')
       const data = await res.json()
+      if (data.error) throw new Error(data.error)
       const parsed = data.recipe
       if (!parsed.name && parsed.ingredients.length === 0 && parsed.steps.length === 0) {
         throw new Error("Couldn't find a recipe on that page — paste the text manually instead.")

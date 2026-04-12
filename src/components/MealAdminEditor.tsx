@@ -102,7 +102,7 @@ interface Ingredient {
   notes: string | null
 }
 
-const DEPARTMENTS = ['Meat', 'Frozen', 'Pantry', 'Produce', 'Dairy', 'Bakery', 'Other'] as const
+const DEPARTMENTS = ['Meat', 'Frozen', 'Pantry', 'Produce', 'Dairy', 'Bakery', 'Spices', 'Canned', 'Other'] as const
 const STORE_OPTIONS = ['either', 'walmart', 'heb'] as const
 
 const DEPT_COLORS: Record<string, string> = {
@@ -112,6 +112,8 @@ const DEPT_COLORS: Record<string, string> = {
   Produce: 'bg-green-100 text-green-700',
   Dairy: 'bg-blue-100 text-blue-700',
   Bakery: 'bg-yellow-100 text-yellow-700',
+  Spices: 'bg-orange-100 text-orange-700',
+  Canned: 'bg-stone-100 text-stone-700',
   Other: 'bg-gray-100 text-gray-700',
 }
 

@@ -37,7 +37,7 @@ interface AvailableMeal {
 }
 
 interface Props {
-  kidName?: string
+  kidName?: string  // Reserved for future kid-specific filtering
   isParent?: boolean
   compact?: boolean
   onViewRecipe?: (mealId: string) => void
@@ -55,7 +55,7 @@ const THEME_LABEL: Record<string, string> = {
   'roast-comfort': 'Roast', 'brunch': 'Brunch', 'mexican': 'Mexican',
 }
 
-export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewRecipe }: Props) {
+export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: Props) {
   const [thisWeek, setThisWeek] = useState<WeekData | null>(null)
   const [nextWeek, setNextWeek] = useState<WeekData | null>(null)
   const [viewing, setViewing] = useState<'this' | 'next'>('this')
@@ -67,7 +67,6 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
   const [swapMeals, setSwapMeals] = useState<AvailableMeal[]>([])
   const [loadingSwap, setLoadingSwap] = useState(false)
   const [openRecipe, setOpenRecipe] = useState<{ mealId: string; dayLabel: string } | null>(null)
-  const [printing, setPrinting] = useState(false)
 
   const loadWeeks = useCallback(() => {
     fetch('/api/meal-plan/week?action=get_current_and_next')
@@ -164,8 +163,18 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
 
   const expandedDay = expandedDow != null ? week.days.find(d => d.day_of_week === expandedDow) : null
 
+  const handlePrintWeek = () => {
+    document.body.classList.add('printing-weekly')
+    const cleanup = () => {
+      document.body.classList.remove('printing-weekly')
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    setTimeout(() => window.print(), 50)
+  }
+
   return (
-    <div className={`bg-white rounded-lg border shadow-sm overflow-hidden meal-calendar-container ${printing ? 'meal-calendar-printing' : ''}`}>
+    <div className="bg-white rounded-lg border shadow-sm overflow-hidden meal-calendar-container">
       {/* Header */}
       <div className="px-4 py-3 border-b bg-gradient-to-r from-orange-50 to-amber-50 flex items-center justify-between recipe-card-hide-print">
         <div className="flex items-center gap-2">
@@ -332,13 +341,7 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
       {/* Print This Week */}
       <div className="px-4 py-2 border-t bg-white text-center recipe-card-hide-print">
         <button
-          onClick={() => {
-            setPrinting(true)
-            setTimeout(() => {
-              window.print()
-              setPrinting(false)
-            }, 50)
-          }}
+          onClick={handlePrintWeek}
           className="text-xs text-gray-600 hover:text-gray-900 font-medium inline-flex items-center gap-1"
         >
           <Printer className="w-3.5 h-3.5" />

@@ -60,13 +60,22 @@ const UNIT_WORDS = new Set([
   'gallon', 'gallons', 'gal',
 ])
 
+// Order matters: first match wins. Put more-specific patterns (Spices,
+// Canned) above the generic Pantry sweep so "chili powder" lands in Spices,
+// not Pantry.
 const DEPT_KEYWORDS: Array<[RegExp, string]> = [
   [/\b(beef|chicken|pork|turkey|lamb|sausage|bacon|ham|ground|steak|brisket|shrimp|fish|salmon|tuna)\b/i, 'Meat'],
-  [/\b(milk|cream|cheese|butter|yogurt|sour cream|cream cheese|egg|eggs|parmesan|mozzarella|cheddar)\b/i, 'Dairy'],
-  [/\b(lettuce|tomato|onion|garlic|potato|carrot|celery|pepper|bell pepper|broccoli|cucumber|spinach|kale|avocado|lemon|lime|cilantro|parsley|mushroom)\b/i, 'Produce'],
-  [/\b(bread|bun|buns|tortilla|tortillas|taco shell|shells|pita|biscuit|roll|rolls|bagel)\b/i, 'Bakery'],
+  [/\b(shredded cheese|cream cheese|sour cream|heavy cream|half[- ]and[- ]half|cheese|butter|yogurt|milk|parmesan|mozzarella|cheddar|feta|egg|eggs)\b/i, 'Dairy'],
+  // Spices / seasonings — must come before Pantry's generic 'salt|seasoning' catch
+  [/\b(chili powder|cumin|paprika|oregano|basil|thyme|rosemary|garlic powder|onion powder|cayenne|cinnamon|nutmeg|bay leaf|bay leaves|italian seasoning|taco seasoning|ranch seasoning|red pepper flakes|black pepper|white pepper|turmeric|coriander|ginger powder|dried\s+\w+|ground\s+(?:cumin|coriander|cinnamon|nutmeg|pepper))\b/i, 'Spices'],
+  // Canned goods — before Pantry so "diced tomatoes" doesn't fall through
+  [/\b(diced tomatoes|crushed tomatoes|tomato sauce|tomato paste|canned\s+\w+|coconut milk|chicken broth|beef broth|vegetable broth|broth|stock|enchilada sauce|refried beans|black beans|pinto beans|kidney beans|green chiles|chipotle)\b/i, 'Canned'],
+  // Fresh produce
+  [/\b(yellow onion|red onion|green onion|onion|garlic|bell pepper|jalape[ñn]o|jalapeno|cilantro|parsley|lime|lemon|lettuce|romaine|spinach|kale|avocado|potato|potatoes|sweet potato|carrot|celery|broccoli|cucumber|tomato|tomatoes|mushroom|zucchini|squash|corn on the cob|fresh\s+\w+)\b/i, 'Produce'],
+  [/\b(bread|bun|buns|tortilla|tortillas|taco shell|taco shells|shells|pita|biscuit|roll|rolls|bagel)\b/i, 'Bakery'],
   [/\b(frozen|ice cream)\b/i, 'Frozen'],
-  [/\b(rice|pasta|flour|sugar|salt|oil|olive oil|vinegar|sauce|seasoning|spice|beans|canned|broth|stock|soy sauce|ketchup|mustard|mayo|peanut butter|jam|jelly|cereal)\b/i, 'Pantry'],
+  // Pantry catch-all — goes last
+  [/\b(rice|pasta|flour|sugar|salt|oil|olive oil|vinegar|sauce|seasoning|beans|broth|stock|soy sauce|ketchup|mustard|mayo|peanut butter|jam|jelly|cereal)\b/i, 'Pantry'],
 ]
 
 function guessDepartment(name: string): string {
@@ -163,18 +172,24 @@ export function parseRecipeText(raw: string): ParsedRecipe {
 
   for (const line of nonEmpty) {
     if (line === name) continue
-    if (/prep\s*time|cook\s*time|serves?|servings?|yield/i.test(line) && line.length < 40) continue
-    // Section headings
-    if (/^ingredient/i.test(line)) { inSteps = false; continue }
-    if (/^(step|instruction|direction|method)/i.test(line)) { inSteps = true; continue }
 
-    // Numbered step
+    // Numbered step — check FIRST so "5. Serve with toppings" isn't swallowed
+    // by the metadata filter (which matches "serves?")
     const numMatch = line.match(/^(\d+)[.)]\s+(.+)$/)
     if (numMatch) {
       inSteps = true
       steps.push({ order: parseInt(numMatch[1]), text: numMatch[2], group: 'cook' })
       continue
     }
+
+    // Metadata lines we skip (prep time, cook time, servings, yield).
+    // Anchor at start so "Serve with toppings" in a non-numbered line
+    // isn't falsely caught.
+    if (/^(prep\s*time|cook\s*time|serves|servings|yield)\b[:\s]/i.test(line) && line.length < 40) continue
+
+    // Section headings
+    if (/^ingredient/i.test(line)) { inSteps = false; continue }
+    if (/^(step|instruction|direction|method)/i.test(line)) { inSteps = true; continue }
 
     if (!inSteps) {
       // Treat as ingredient if it has a quantity pattern OR starts with a bullet
@@ -251,59 +266,124 @@ function asStringArray(val: any): string[] {
   return []
 }
 
-// Walk a JSON-LD blob looking for a Recipe node
-function findRecipeNode(node: any): any {
-  if (!node) return null
+// Walk a JSON-LD blob looking for a Recipe node. Handles:
+// - top-level { "@type": "Recipe", ... }
+// - top-level { "@type": ["Recipe", ...], ... }
+// - { "@graph": [ ... ] }
+// - arrays of nodes
+// - nested objects where Recipe is buried a few levels deep
+function findRecipeNode(node: any, depth = 0): any {
+  if (!node || depth > 6) return null
   if (Array.isArray(node)) {
     for (const item of node) {
-      const found = findRecipeNode(item)
+      const found = findRecipeNode(item, depth + 1)
       if (found) return found
     }
     return null
   }
   if (typeof node !== 'object') return null
   const type = node['@type']
-  if (type === 'Recipe' || (Array.isArray(type) && type.includes('Recipe'))) return node
-  if (node['@graph']) return findRecipeNode(node['@graph'])
+  if (type === 'Recipe') return node
+  if (Array.isArray(type) && type.includes('Recipe')) return node
+  if (node['@graph']) {
+    const found = findRecipeNode(node['@graph'], depth + 1)
+    if (found) return found
+  }
+  // Some sites nest under mainEntity or itemListElement
+  for (const key of ['mainEntity', 'mainEntityOfPage', 'itemListElement']) {
+    if (node[key]) {
+      const found = findRecipeNode(node[key], depth + 1)
+      if (found) return found
+    }
+  }
   return null
 }
 
-export async function fetchRecipeUrl(url: string): Promise<ParsedRecipe> {
+// Decode common HTML entities that leak into JSON-LD blocks on some sites.
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+}
+
+export interface FetchRecipeResult {
+  recipe: ParsedRecipe
+  error: string | null
+}
+
+export async function fetchRecipeUrl(url: string): Promise<FetchRecipeResult> {
   const empty: ParsedRecipe = { name: null, ingredients: [], steps: [], prep_time_min: null, cook_time_min: null, servings: null, source: url }
+  let res: Response
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 MosesFamilyHub/1.0 (recipe importer)' },
+    res = await fetch(url, {
+      headers: {
+        // Browser-like UA so allrecipes and friends don't block the request.
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
       redirect: 'follow',
     })
-    if (!res.ok) return empty
-    const html = await res.text()
+  } catch (e: any) {
+    return { recipe: empty, error: `Couldn't reach that URL — ${e?.message || 'network error'}` }
+  }
 
-    // Extract JSON-LD script blocks
-    const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
-    let match
-    let recipe: any = null
-    while ((match = scriptRegex.exec(html)) !== null) {
+  if (!res.ok) {
+    if (res.status === 403 || res.status === 401 || res.status === 429) {
+      return { recipe: empty, error: 'This site blocked automated access — try Paste Recipe instead.' }
+    }
+    return { recipe: empty, error: `Couldn't load that page (HTTP ${res.status}).` }
+  }
+
+  const rawHtml = await res.text()
+  const html = decodeHtmlEntities(rawHtml)
+
+  // Extract JSON-LD script blocks
+  const scriptRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let match
+  let recipe: any = null
+  while ((match = scriptRegex.exec(html)) !== null) {
+    const jsonStr = match[1].trim()
+    try {
+      const parsed = JSON.parse(jsonStr)
+      recipe = findRecipeNode(parsed)
+      if (recipe) break
+    } catch {
+      // Some sites concatenate multiple JSON objects or leak HTML comments.
+      // Try to recover by stripping HTML comments and retrying.
       try {
-        const parsed = JSON.parse(match[1])
+        const cleaned = jsonStr.replace(/<!--[\s\S]*?-->/g, '').trim()
+        const parsed = JSON.parse(cleaned)
         recipe = findRecipeNode(parsed)
         if (recipe) break
       } catch {
-        // Skip invalid JSON blocks
+        // Skip invalid block
       }
     }
+  }
 
-    if (!recipe) return empty
+  if (!recipe) {
+    return { recipe: empty, error: "Couldn't find a recipe on that page — try Paste Recipe instead." }
+  }
 
-    const ingredients: ParsedIngredient[] = asStringArray(recipe.recipeIngredient).map(parseIngredientLine)
+  const ingredients: ParsedIngredient[] = asStringArray(recipe.recipeIngredient).map(parseIngredientLine)
 
-    const stepTexts = asStringArray(recipe.recipeInstructions)
-    const steps: ParsedStep[] = stepTexts.map((text, i) => ({
-      order: i + 1,
-      text: text.trim(),
-      group: detectStepGroup(text, i + 1, stepTexts.length),
-    }))
+  const stepTexts = asStringArray(recipe.recipeInstructions)
+  const steps: ParsedStep[] = stepTexts.map((text, i) => ({
+    order: i + 1,
+    text: text.trim(),
+    group: detectStepGroup(text, i + 1, stepTexts.length),
+  }))
 
-    return {
+  return {
+    recipe: {
       name: recipe.name || null,
       ingredients,
       steps,
@@ -311,9 +391,8 @@ export async function fetchRecipeUrl(url: string): Promise<ParsedRecipe> {
       cook_time_min: isoDurationToMinutes(recipe.cookTime),
       servings: extractServings(recipe.recipeYield),
       source: url,
-    }
-  } catch {
-    return empty
+    },
+    error: null,
   }
 }
 

@@ -193,7 +193,13 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
   }
 
   const handlePrint = () => {
-    window.print()
+    document.body.classList.add('printing-recipe')
+    const cleanup = () => {
+      document.body.classList.remove('printing-recipe')
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+    setTimeout(() => window.print(), 50)
   }
 
   if (loading) {
@@ -352,22 +358,25 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
                         const checked = checkedIng.has(ing.id)
                         return (
                           <li key={ing.id} className="flex items-start gap-2 recipe-ingredient-line">
-                            <button
-                              onClick={() => toggleIng(ing.id)}
-                              disabled={mode !== 'full'}
-                              className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 rounded transition-colors recipe-checkbox-print ${
-                                checked
-                                  ? 'bg-orange-500 border-orange-500'
-                                  : 'border-gray-300 hover:border-orange-400'
-                              } ${mode !== 'full' ? 'cursor-default' : 'cursor-pointer'}`}
-                              aria-label={checked ? 'Uncheck' : 'Check'}
-                            >
-                              {checked && (
-                                <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              )}
-                            </button>
+                            {mode === 'full' ? (
+                              <button
+                                onClick={() => toggleIng(ing.id)}
+                                className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 rounded transition-colors recipe-checkbox-print cursor-pointer ${
+                                  checked
+                                    ? 'bg-orange-500 border-orange-500'
+                                    : 'border-gray-300 hover:border-orange-400'
+                                }`}
+                                aria-label={checked ? 'Uncheck' : 'Check'}
+                              >
+                                {checked && (
+                                  <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            ) : (
+                              <span className="mt-1.5 flex-shrink-0 text-orange-400" aria-hidden>•</span>
+                            )}
                             <span className={`text-sm flex-1 ${checked ? 'line-through text-gray-400 checked' : 'text-gray-800'}`}>
                               {ing.scaledQty != null && <span className="font-semibold">{formatQuantity(ing.scaledQty)} </span>}
                               {ing.unit && <span>{ing.unit} </span>}
@@ -399,22 +408,23 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
                             const checked = checkedStep.has(step.order)
                             return (
                               <li key={step.order} className="flex items-start gap-2 recipe-step-line">
-                                <button
-                                  onClick={() => toggleStep(step.order)}
-                                  disabled={mode !== 'full'}
-                                  className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 rounded transition-colors recipe-checkbox-print ${
-                                    checked
-                                      ? 'bg-orange-500 border-orange-500'
-                                      : 'border-gray-300 hover:border-orange-400'
-                                  } ${mode !== 'full' ? 'cursor-default' : 'cursor-pointer'}`}
-                                  aria-label={checked ? 'Uncheck' : 'Check'}
-                                >
-                                  {checked && (
-                                    <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  )}
-                                </button>
+                                {mode === 'full' ? (
+                                  <button
+                                    onClick={() => toggleStep(step.order)}
+                                    className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 rounded transition-colors recipe-checkbox-print cursor-pointer ${
+                                      checked
+                                        ? 'bg-orange-500 border-orange-500'
+                                        : 'border-gray-300 hover:border-orange-400'
+                                    }`}
+                                    aria-label={checked ? 'Uncheck' : 'Check'}
+                                  >
+                                    {checked && (
+                                      <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                ) : null}
                                 <span className={`text-sm flex-1 leading-relaxed ${checked ? 'line-through text-gray-400 checked' : 'text-gray-800'}`}>
                                   <span className="font-bold text-gray-500 mr-1">{step.order}.</span>
                                   {step.text}
