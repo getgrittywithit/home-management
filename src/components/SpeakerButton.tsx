@@ -43,9 +43,26 @@ export default function SpeakerButton({ text, steps, rate = 0.9, className, size
     const utterance = new SpeechSynthesisUtterance(speechText)
     utterance.rate = Math.max(0.5, Math.min(1.5, rate))
     utterance.pitch = 1.0
+    utterance.lang = 'en-US'
+
+    // iOS Safari PWA fallback: explicitly pick an English voice
+    try {
+      const voices = window.speechSynthesis.getVoices()
+      if (voices && voices.length > 0) {
+        const englishVoice =
+          voices.find(v => v.lang === 'en-US' && v.default) ||
+          voices.find(v => v.lang === 'en-US') ||
+          voices.find(v => v.lang?.startsWith('en')) ||
+          voices[0]
+        if (englishVoice) utterance.voice = englishVoice
+      }
+    } catch { /* voice selection failed — use default */ }
+
     utterance.onend = () => setSpeaking(false)
     utterance.onerror = () => setSpeaking(false)
     setSpeaking(true)
+    // iOS Safari sometimes needs a tick before speak() works in standalone mode
+    window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utterance)
   }
 
