@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, ChefHat, ChevronDown, ChevronUp, Clock, Users, BookOpen, Printer } from 'lucide-react'
+import { Loader2, ChefHat, ChevronUp, Clock, Users, BookOpen, Printer } from 'lucide-react'
+import RecipeCard from './RecipeCard'
 
 interface DayPlan {
   day_of_week: number
@@ -40,7 +41,6 @@ interface Props {
   isParent?: boolean
   compact?: boolean
   onViewRecipe?: (mealId: string) => void
-  onPrintWeek?: (weekStart: string) => void
 }
 
 const THEME_EMOJI: Record<string, string> = {
@@ -55,7 +55,7 @@ const THEME_LABEL: Record<string, string> = {
   'roast-comfort': 'Roast', 'brunch': 'Brunch', 'mexican': 'Mexican',
 }
 
-export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewRecipe, onPrintWeek }: Props) {
+export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewRecipe }: Props) {
   const [thisWeek, setThisWeek] = useState<WeekData | null>(null)
   const [nextWeek, setNextWeek] = useState<WeekData | null>(null)
   const [viewing, setViewing] = useState<'this' | 'next'>('this')
@@ -66,6 +66,8 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
   const [recipeMeta, setRecipeMeta] = useState<Record<string, RecipeMeta>>({})
   const [swapMeals, setSwapMeals] = useState<AvailableMeal[]>([])
   const [loadingSwap, setLoadingSwap] = useState(false)
+  const [openRecipe, setOpenRecipe] = useState<{ mealId: string; dayLabel: string } | null>(null)
+  const [printing, setPrinting] = useState(false)
 
   const loadWeeks = useCallback(() => {
     fetch('/api/meal-plan/week?action=get_current_and_next')
@@ -163,9 +165,9 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
   const expandedDay = expandedDow != null ? week.days.find(d => d.day_of_week === expandedDow) : null
 
   return (
-    <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+    <div className={`bg-white rounded-lg border shadow-sm overflow-hidden meal-calendar-container ${printing ? 'meal-calendar-printing' : ''}`}>
       {/* Header */}
-      <div className="px-4 py-3 border-b bg-gradient-to-r from-orange-50 to-amber-50 flex items-center justify-between">
+      <div className="px-4 py-3 border-b bg-gradient-to-r from-orange-50 to-amber-50 flex items-center justify-between recipe-card-hide-print">
         <div className="flex items-center gap-2">
           <ChefHat className="w-5 h-5 text-orange-600" />
           <h3 className="font-bold text-gray-900 text-sm">Dinner Rotation</h3>
@@ -180,7 +182,7 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
       </div>
 
       {/* 7-day grid */}
-      <div className="grid grid-cols-7 divide-x text-center">
+      <div className="grid grid-cols-7 divide-x text-center recipe-card-hide-print">
         {week.days.map((day) => {
           const isToday = viewing === 'this' && day.day_of_week === todayDow
           const isOffNight = day.status === 'off_night'
@@ -224,7 +226,7 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
 
       {/* Expanded day detail panel */}
       {expandedDay && (
-        <div className="border-t border-gray-100 bg-gray-50 px-4 py-3 space-y-2">
+        <div className="border-t border-gray-100 bg-gray-50 px-4 py-3 space-y-2 recipe-card-hide-print">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-gray-900">
               {expandedDay.day_name} — {THEME_EMOJI[expandedDay.theme] || '🍽️'} {THEME_LABEL[expandedDay.theme] || ''}
@@ -262,9 +264,12 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
           )}
 
           <div className="flex flex-wrap gap-2 pt-1">
-            {expandedDay.meal_id && onViewRecipe && (
+            {expandedDay.meal_id && (
               <button
-                onClick={() => onViewRecipe(expandedDay.meal_id!)}
+                onClick={() => {
+                  if (onViewRecipe) onViewRecipe(expandedDay.meal_id!)
+                  else setOpenRecipe({ mealId: expandedDay.meal_id!, dayLabel: expandedDay.day_name })
+                }}
                 className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 flex items-center gap-1"
               >
                 <BookOpen className="w-3.5 h-3.5" />
@@ -310,7 +315,7 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
 
       {/* Pick status (parent, next week) */}
       {isParent && viewing === 'next' && (
-        <div className="px-4 py-2 border-t bg-gray-50 text-xs text-gray-600">
+        <div className="px-4 py-2 border-t bg-gray-50 text-xs text-gray-600 recipe-card-hide-print">
           {pickStatus.picked === pickStatus.total ? (
             <span className="text-green-600 font-medium">✅ All picks in</span>
           ) : (
@@ -324,24 +329,79 @@ export default function WeeklyMealCalendar({ kidName, isParent, compact, onViewR
         </div>
       )}
 
-      {/* Print This Week (parent only) */}
-      {isParent && onPrintWeek && (
-        <div className="px-4 py-2 border-t bg-white text-center">
-          <button
-            onClick={() => onPrintWeek(week.week_start)}
-            className="text-xs text-gray-600 hover:text-gray-900 font-medium inline-flex items-center gap-1"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Print This Week
-          </button>
-        </div>
-      )}
+      {/* Print This Week */}
+      <div className="px-4 py-2 border-t bg-white text-center recipe-card-hide-print">
+        <button
+          onClick={() => {
+            setPrinting(true)
+            setTimeout(() => {
+              window.print()
+              setPrinting(false)
+            }, 50)
+          }}
+          className="text-xs text-gray-600 hover:text-gray-900 font-medium inline-flex items-center gap-1"
+        >
+          <Printer className="w-3.5 h-3.5" />
+          Print This Week
+        </button>
+      </div>
 
       {/* Today highlight indicator (kid-side, this week) */}
       {!isParent && viewing === 'this' && !compact && (
-        <div className="px-4 py-1.5 border-t text-[10px] text-gray-400 text-center">
+        <div className="px-4 py-1.5 border-t text-[10px] text-gray-400 text-center recipe-card-hide-print">
           Today is highlighted — tap any day to see details
         </div>
+      )}
+
+      {/* Hidden print-only block */}
+      <div className="hidden meal-calendar-print-only">
+        <h1 className="meal-calendar-print-title">
+          Dinner Rotation — Week of {new Date(week.week_start).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+        </h1>
+        <p className="meal-calendar-print-sub">
+          Week {week.week_number} · {(new Date().getMonth() + 1) >= 3 && (new Date().getMonth() + 1) <= 8 ? 'Spring/Summer' : 'Fall/Winter'} Menu
+        </p>
+        <table className="meal-calendar-print-table">
+          <thead>
+            <tr>
+              {week.days.map(day => (
+                <th key={`h-${day.day_of_week}`}>{day.day_name.slice(0, 3).toUpperCase()}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {week.days.map(day => (
+                <td key={`m-${day.day_of_week}`}>{day.manager_display}</td>
+              ))}
+            </tr>
+            <tr>
+              {week.days.map(day => (
+                <td key={`t-${day.day_of_week}`}>{THEME_LABEL[day.theme] || day.theme}</td>
+              ))}
+            </tr>
+            <tr>
+              {week.days.map(day => (
+                <td key={`p-${day.day_of_week}`}>
+                  {day.status === 'off_night' ? 'Off Night' : (day.meal_name || '?')}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        <p className="meal-calendar-print-footer">
+          Moses Family · Printed {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+        </p>
+      </div>
+
+      {/* Recipe card (default internal handler) */}
+      {openRecipe && (
+        <RecipeCard
+          mealId={openRecipe.mealId}
+          mode="full"
+          dayLabel={openRecipe.dayLabel}
+          onClose={() => setOpenRecipe(null)}
+        />
       )}
     </div>
   )

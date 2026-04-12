@@ -1,3 +1,162 @@
 @tailwind base;
-@tailwind components;  
+@tailwind components;
 @tailwind utilities;
+
+/* ── D51: Print styles (RECIPE-3 weekly + RECIPE-4 recipe) ──────────────── */
+
+/* Helper class — hidden on screen, shown in print */
+.meal-calendar-print-only { display: none; }
+
+@media print {
+  /* Force landscape for weekly rotation */
+  @page { size: landscape; margin: 0.5in; }
+
+  /* Hide everything except the active print target */
+  body * { visibility: hidden; }
+
+  /* When the weekly rotation is printing, show only the print-only block */
+  .meal-calendar-printing,
+  .meal-calendar-printing * { visibility: visible; }
+  .meal-calendar-printing .recipe-card-hide-print { display: none !important; }
+  .meal-calendar-printing .meal-calendar-print-only { display: block !important; }
+  .meal-calendar-printing {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: black !important;
+    font-family: Arial, sans-serif;
+    overflow: visible;
+  }
+
+  .meal-calendar-print-title {
+    font-size: 20pt;
+    font-weight: bold;
+    text-align: center;
+    margin: 0 0 4pt 0;
+    color: black !important;
+  }
+  .meal-calendar-print-sub {
+    font-size: 12pt;
+    text-align: center;
+    margin: 0 0 16pt 0;
+    color: black !important;
+  }
+  .meal-calendar-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14pt;
+    color: black !important;
+  }
+  .meal-calendar-print-table th,
+  .meal-calendar-print-table td {
+    border: 1px solid #333;
+    padding: 10pt 6pt;
+    text-align: center;
+    vertical-align: middle;
+    color: black !important;
+    background: white !important;
+  }
+  .meal-calendar-print-table th {
+    font-size: 12pt;
+    font-weight: bold;
+    background: #f0f0f0 !important;
+  }
+  .meal-calendar-print-footer {
+    margin-top: 18pt;
+    text-align: right;
+    font-size: 10pt;
+    color: #555 !important;
+  }
+
+  /* ── RECIPE-4 Recipe card print ── */
+  .recipe-card-overlay,
+  .recipe-card-overlay * { visibility: visible; }
+  .recipe-card-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background: white !important;
+    padding: 0 !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+  .recipe-card-overlay .recipe-card-print {
+    max-width: 7.5in !important;
+    max-height: none !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    color: black !important;
+    font-family: Arial, sans-serif;
+    font-size: 12pt;
+    line-height: 1.8;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .recipe-card-print h2 { font-size: 20pt; color: black !important; margin: 0 0 4pt 0; }
+  .recipe-card-print h3 { font-size: 11pt; color: black !important; }
+  .recipe-card-print .recipe-servings-header { font-weight: bold; }
+
+  /* Hollow checkbox squares */
+  .recipe-card-print .recipe-checkbox-print {
+    border: none !important;
+    background: white !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin-right: 4pt !important;
+    vertical-align: middle;
+  }
+  .recipe-card-print .recipe-checkbox-print svg { display: none !important; }
+  .recipe-card-print .recipe-checkbox-print::before {
+    content: "☐";
+    font-size: 14pt;
+    color: black !important;
+    display: inline-block;
+  }
+
+  /* No strikethrough in print */
+  .recipe-card-print .checked,
+  .recipe-card-print .line-through {
+    text-decoration: none !important;
+    color: black !important;
+  }
+
+  /* Hide interactive UI */
+  .recipe-card-print .multiplier-controls,
+  .recipe-card-print .close-button,
+  .recipe-card-print .recipe-print-btn { display: none !important; }
+
+  /* Flatten grid to single column */
+  .recipe-card-print .grid { display: block !important; }
+  .recipe-card-print .divide-x > * { border-left: none !important; }
+
+  /* Show the print-only footer */
+  .recipe-card-print .recipe-print-footer {
+    display: block !important;
+    text-align: right;
+    font-size: 10pt;
+    color: #555 !important;
+    background: white !important;
+    border-top: 1px solid #ccc !important;
+  }
+
+  .recipe-card-print ul,
+  .recipe-card-print ol,
+  .recipe-card-print li,
+  .recipe-card-print li span {
+    color: black !important;
+  }
+
+  .recipe-card-print .recipe-ingredient-line,
+  .recipe-card-print .recipe-step-line { page-break-inside: avoid; }
+
+  /* Hide app chrome */
+  nav, header, footer, aside, .sidebar { display: none !important; }
+}
