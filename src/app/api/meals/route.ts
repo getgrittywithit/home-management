@@ -56,6 +56,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ingredients: rows })
     }
 
+    if (action === 'get_recipe') {
+      const mealId = searchParams.get('meal_id')
+      if (!mealId) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
+      const mealRows = await db.query(
+        `SELECT id, name, theme, description, prep_time_min, cook_time_min, servings, source, recipe_steps
+         FROM meal_library WHERE id = $1`,
+        [mealId]
+      )
+      if (mealRows.length === 0) return NextResponse.json({ error: 'Meal not found' }, { status: 404 })
+      const ingredients = await db.query(
+        `SELECT id, name, quantity, unit, department, preferred_store, notes
+         FROM meal_ingredients WHERE meal_id = $1 ORDER BY department, name`,
+        [mealId]
+      )
+      return NextResponse.json({ meal: mealRows[0], ingredients })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Meals GET error:', error)
@@ -196,6 +213,25 @@ export async function POST(request: NextRequest) {
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         await db.query('DELETE FROM meal_ingredients WHERE id = $1', [id])
         return NextResponse.json({ success: true })
+      }
+
+      case 'update_recipe': {
+        const { meal_id, recipe_steps, prep_time_min, cook_time_min, servings, source } = body
+        if (!meal_id) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
+        const steps = Array.isArray(recipe_steps) ? recipe_steps : []
+        const rows = await db.query(
+          `UPDATE meal_library
+             SET recipe_steps = $1::jsonb,
+                 prep_time_min = $2,
+                 cook_time_min = $3,
+                 servings = COALESCE($4, servings),
+                 source = $5
+           WHERE id = $6
+           RETURNING id, recipe_steps, prep_time_min, cook_time_min, servings, source`,
+          [JSON.stringify(steps), prep_time_min ?? null, cook_time_min ?? null, servings ?? null, source || null, meal_id]
+        )
+        if (rows.length === 0) return NextResponse.json({ error: 'Meal not found' }, { status: 404 })
+        return NextResponse.json({ meal: rows[0] })
       }
 
       default:

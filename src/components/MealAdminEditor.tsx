@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Plus, Edit3, Eye, EyeOff, Star, Trash2, ChevronDown, ChevronRight,
-  ArrowRightLeft, Save
+  ArrowRightLeft, Save, ArrowUp, ArrowDown, Clock, Users, BookOpen
 } from 'lucide-react'
 
 // ── Theme config ──
@@ -56,6 +56,28 @@ interface Meal {
   active: boolean
   created_at: string
 }
+
+type StepGroup = 'prep' | 'cook' | 'finish'
+
+interface RecipeStep {
+  order: number
+  text: string
+  group: StepGroup
+}
+
+interface RecipeData {
+  prep_time_min: number | null
+  cook_time_min: number | null
+  servings: number
+  source: string
+  recipe_steps: RecipeStep[]
+}
+
+const STEP_GROUPS: { value: StepGroup; label: string; emoji: string }[] = [
+  { value: 'prep', label: 'Prep', emoji: '🔪' },
+  { value: 'cook', label: 'Cook', emoji: '🔥' },
+  { value: 'finish', label: 'Finish', emoji: '🍽️' },
+]
 
 interface SubOption {
   id: string
@@ -161,6 +183,12 @@ export default function MealAdminEditor() {
   const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null)
   const [newIngredient, setNewIngredient] = useState({ name: '', quantity: '', unit: '', department: 'Other', preferred_store: 'either' })
 
+  // Recipe
+  const [recipe, setRecipe] = useState<RecipeData>({ prep_time_min: null, cook_time_min: null, servings: 8, source: '', recipe_steps: [] })
+  const [recipeLoading, setRecipeLoading] = useState(false)
+  const [recipeExpanded, setRecipeExpanded] = useState(false)
+  const [showRecipePreview, setShowRecipePreview] = useState(false)
+
   // Shuffle options
   const [newStarchOption, setNewStarchOption] = useState('')
   const [newVeggieOption, setNewVeggieOption] = useState('')
@@ -227,6 +255,105 @@ export default function MealAdminEditor() {
       .catch(() => setIngredients([]))
       .finally(() => setIngredientsLoading(false))
   }, [drawerMeal?.id, drawerIsNew])
+
+  // Fetch recipe when drawer opens
+  useEffect(() => {
+    if (!drawerMeal?.id || drawerIsNew) {
+      setRecipe({ prep_time_min: null, cook_time_min: null, servings: 8, source: '', recipe_steps: [] })
+      setRecipeExpanded(false)
+      return
+    }
+    setRecipeLoading(true)
+    fetch(`/api/meals?action=get_recipe&meal_id=${drawerMeal.id}`)
+      .then(res => res.json())
+      .then(data => {
+        const m = data.meal || {}
+        const steps: RecipeStep[] = Array.isArray(m.recipe_steps) ? m.recipe_steps : []
+        setRecipe({
+          prep_time_min: m.prep_time_min ?? null,
+          cook_time_min: m.cook_time_min ?? null,
+          servings: m.servings ?? 8,
+          source: m.source || '',
+          recipe_steps: steps
+            .map((s, i) => ({ order: s.order ?? i + 1, text: s.text || '', group: (s.group as StepGroup) || 'cook' }))
+            .sort((a, b) => a.order - b.order),
+        })
+      })
+      .catch(() => setRecipe({ prep_time_min: null, cook_time_min: null, servings: 8, source: '', recipe_steps: [] }))
+      .finally(() => setRecipeLoading(false))
+  }, [drawerMeal?.id, drawerIsNew])
+
+  // ── Recipe helpers ──
+
+  const renumberSteps = (steps: RecipeStep[]): RecipeStep[] =>
+    steps.map((s, i) => ({ ...s, order: i + 1 }))
+
+  const saveRecipe = useCallback(async (next: RecipeData) => {
+    if (!drawerMeal?.id || drawerIsNew) return
+    try {
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_recipe',
+          meal_id: drawerMeal.id,
+          prep_time_min: next.prep_time_min,
+          cook_time_min: next.cook_time_min,
+          servings: next.servings,
+          source: next.source,
+          recipe_steps: next.recipe_steps,
+        }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      addToast('Failed to save recipe', 'error')
+    }
+  }, [drawerMeal?.id, drawerIsNew, addToast])
+
+  const updateRecipeField = <K extends keyof RecipeData>(field: K, value: RecipeData[K]) => {
+    const next = { ...recipe, [field]: value }
+    setRecipe(next)
+    saveRecipe(next)
+  }
+
+  const addStep = () => {
+    const next = {
+      ...recipe,
+      recipe_steps: renumberSteps([...recipe.recipe_steps, { order: recipe.recipe_steps.length + 1, text: '', group: 'cook' as StepGroup }]),
+    }
+    setRecipe(next)
+  }
+
+  const updateStepText = (idx: number, text: string) => {
+    const steps = [...recipe.recipe_steps]
+    steps[idx] = { ...steps[idx], text }
+    setRecipe({ ...recipe, recipe_steps: steps })
+  }
+
+  const updateStepGroup = (idx: number, group: StepGroup) => {
+    const steps = [...recipe.recipe_steps]
+    steps[idx] = { ...steps[idx], group }
+    const next = { ...recipe, recipe_steps: steps }
+    setRecipe(next)
+    saveRecipe(next)
+  }
+
+  const deleteStep = (idx: number) => {
+    if (!confirm('Delete this step?')) return
+    const next = { ...recipe, recipe_steps: renumberSteps(recipe.recipe_steps.filter((_, i) => i !== idx)) }
+    setRecipe(next)
+    saveRecipe(next)
+  }
+
+  const moveStep = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir
+    if (target < 0 || target >= recipe.recipe_steps.length) return
+    const steps = [...recipe.recipe_steps]
+    ;[steps[idx], steps[target]] = [steps[target], steps[idx]]
+    const next = { ...recipe, recipe_steps: renumberSteps(steps) }
+    setRecipe(next)
+    saveRecipe(next)
+  }
 
   // ── Ingredient helpers ──
 
@@ -1320,6 +1447,171 @@ export default function MealAdminEditor() {
                 </div>
               )}
 
+              {/* ── Recipe Section (existing meals only) ── */}
+              {!drawerIsNew && drawerMeal.id && (
+                <div className="border-t pt-4">
+                  <button
+                    onClick={() => setRecipeExpanded(e => !e)}
+                    className="w-full flex items-center justify-between mb-3"
+                  >
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-orange-500" />
+                      Recipe
+                      {recipe.recipe_steps.length > 0 && (
+                        <span className="text-xs font-normal text-gray-500">({recipe.recipe_steps.length} steps)</span>
+                      )}
+                    </h3>
+                    {recipeExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                  </button>
+
+                  {recipeExpanded && (
+                    <>
+                      {recipeLoading ? (
+                        <div className="text-xs text-gray-400 py-2">Loading...</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Prep / Cook / Servings */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wide font-semibold text-gray-500 mb-1">
+                                <Clock className="w-3 h-3 inline mr-0.5" />Prep (min)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={recipe.prep_time_min ?? ''}
+                                onChange={e => setRecipe({ ...recipe, prep_time_min: e.target.value ? parseInt(e.target.value) : null })}
+                                onBlur={() => saveRecipe(recipe)}
+                                className="w-full border rounded px-2 py-1.5 text-sm"
+                                placeholder="20"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wide font-semibold text-gray-500 mb-1">
+                                <Clock className="w-3 h-3 inline mr-0.5" />Cook (min)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={recipe.cook_time_min ?? ''}
+                                onChange={e => setRecipe({ ...recipe, cook_time_min: e.target.value ? parseInt(e.target.value) : null })}
+                                onBlur={() => saveRecipe(recipe)}
+                                className="w-full border rounded px-2 py-1.5 text-sm"
+                                placeholder="15"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wide font-semibold text-gray-500 mb-1">
+                                <Users className="w-3 h-3 inline mr-0.5" />Servings
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={recipe.servings}
+                                onChange={e => setRecipe({ ...recipe, servings: parseInt(e.target.value) || 8 })}
+                                onBlur={() => saveRecipe(recipe)}
+                                className="w-full border rounded px-2 py-1.5 text-sm"
+                                placeholder="8"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Source */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Source</label>
+                            <input
+                              type="text"
+                              value={recipe.source}
+                              onChange={e => setRecipe({ ...recipe, source: e.target.value })}
+                              onBlur={() => saveRecipe(recipe)}
+                              className="w-full border rounded px-3 py-1.5 text-sm"
+                              placeholder="Family recipe, URL, or cookbook"
+                            />
+                          </div>
+
+                          {/* Steps */}
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1.5">Steps</label>
+                            {recipe.recipe_steps.length === 0 ? (
+                              <p className="text-xs text-gray-400 mb-2">No steps yet — add your first one below.</p>
+                            ) : (
+                              <div className="space-y-2 mb-2">
+                                {recipe.recipe_steps.map((step, idx) => (
+                                  <div key={idx} className="flex items-start gap-1.5 bg-gray-50 rounded p-2">
+                                    <span className="text-xs font-bold text-gray-400 mt-2 w-5 text-right flex-shrink-0">{step.order}.</span>
+                                    <div className="flex-1 space-y-1.5">
+                                      <textarea
+                                        value={step.text}
+                                        onChange={e => updateStepText(idx, e.target.value)}
+                                        onBlur={() => saveRecipe(recipe)}
+                                        rows={2}
+                                        className="w-full border rounded px-2 py-1 text-xs resize-none"
+                                        placeholder="One action per step..."
+                                      />
+                                      <select
+                                        value={step.group}
+                                        onChange={e => updateStepGroup(idx, e.target.value as StepGroup)}
+                                        className="border rounded px-1.5 py-0.5 text-[10px] bg-white"
+                                      >
+                                        {STEP_GROUPS.map(g => (
+                                          <option key={g.value} value={g.value}>{g.emoji} {g.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                      <button
+                                        onClick={() => moveStep(idx, -1)}
+                                        disabled={idx === 0}
+                                        className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-30"
+                                        title="Move up"
+                                      >
+                                        <ArrowUp className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => moveStep(idx, 1)}
+                                        disabled={idx === recipe.recipe_steps.length - 1}
+                                        className="p-0.5 text-gray-300 hover:text-gray-600 disabled:opacity-30"
+                                        title="Move down"
+                                      >
+                                        <ArrowDown className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteStep(idx)}
+                                        className="p-0.5 text-gray-300 hover:text-red-500"
+                                        title="Delete step"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <button
+                              onClick={addStep}
+                              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              Add Step
+                            </button>
+                          </div>
+
+                          {/* Preview */}
+                          {recipe.recipe_steps.length > 0 && (
+                            <button
+                              onClick={() => setShowRecipePreview(true)}
+                              className="w-full py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-gray-50"
+                            >
+                              Preview Recipe Card
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* ── Ingredients Section (existing meals only) ── */}
               {!drawerIsNew && drawerMeal.id && (
                 <div className="border-t pt-4">
@@ -1462,6 +1754,68 @@ export default function MealAdminEditor() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Recipe Preview Modal */}
+      {showRecipePreview && drawerMeal && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4"
+          onClick={() => setShowRecipePreview(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white border-b px-5 py-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">{drawerMeal.name}</h3>
+              <button onClick={() => setShowRecipePreview(false)} className="p-1 text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="flex items-center gap-4 text-xs text-gray-600">
+                {recipe.prep_time_min != null && <span><Clock className="w-3 h-3 inline mr-0.5" />Prep: {recipe.prep_time_min}m</span>}
+                {recipe.cook_time_min != null && <span><Clock className="w-3 h-3 inline mr-0.5" />Cook: {recipe.cook_time_min}m</span>}
+                <span><Users className="w-3 h-3 inline mr-0.5" />Serves: {recipe.servings}</span>
+              </div>
+              {recipe.source && <div className="text-xs text-gray-500 italic">Source: {recipe.source}</div>}
+              {drawerMeal.description && <p className="text-sm text-gray-700">{drawerMeal.description}</p>}
+
+              {ingredients.length > 0 && (
+                <div>
+                  <h4 className="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-1.5">Ingredients</h4>
+                  <ul className="text-sm text-gray-800 space-y-0.5">
+                    {ingredients.map(ing => (
+                      <li key={ing.id}>
+                        • {ing.quantity ? `${ing.quantity} ` : ''}{ing.unit ? `${ing.unit} ` : ''}{ing.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {STEP_GROUPS.map(g => {
+                const groupSteps = recipe.recipe_steps.filter(s => s.group === g.value)
+                if (groupSteps.length === 0) return null
+                return (
+                  <div key={g.value}>
+                    <h4 className="text-xs uppercase tracking-wide font-semibold text-gray-500 mb-1.5">
+                      {g.emoji} {g.label}
+                    </h4>
+                    <ol className="text-sm text-gray-800 space-y-1.5">
+                      {groupSteps.map(s => (
+                        <li key={s.order} className="flex gap-2">
+                          <span className="font-bold text-gray-400 w-5 flex-shrink-0">{s.order}.</span>
+                          <span className="flex-1">{s.text}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toasts */}
