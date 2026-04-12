@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Plus, Edit3, Eye, EyeOff, Star, Trash2, ChevronDown, ChevronRight,
-  ArrowRightLeft, Save, ArrowUp, ArrowDown, Clock, Users, BookOpen
+  ArrowRightLeft, Save, ArrowUp, ArrowDown, Clock, Users, BookOpen, Download
 } from 'lucide-react'
+import BulkRecipeImport from './BulkRecipeImport'
 
 // ── Theme config ──
 
@@ -199,6 +200,9 @@ export default function MealAdminEditor() {
   const [bulkSeason, setBulkSeason] = useState('both')
   const [bulkSides, setBulkSides] = useState('')
   const [bulkAdding, setBulkAdding] = useState(false)
+
+  // Bulk import
+  const [showImport, setShowImport] = useState(false)
 
   // ── Toast helpers ──
 
@@ -783,8 +787,15 @@ export default function MealAdminEditor() {
   return (
     <div className="space-y-4">
       {/* Admin banner */}
-      <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 text-sm text-amber-800 font-medium">
-        Admin Mode — changes save automatically
+      <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 flex items-center justify-between">
+        <span className="text-sm text-amber-800 font-medium">Admin Mode — changes save automatically</span>
+        <button
+          onClick={() => setShowImport(true)}
+          className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-semibold hover:bg-orange-600 flex items-center gap-1.5"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Import Recipes
+        </button>
       </div>
 
       {/* Theme sections */}
@@ -1816,6 +1827,14 @@ export default function MealAdminEditor() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bulk recipe import */}
+      {showImport && (
+        <BulkRecipeImport
+          onClose={() => setShowImport(false)}
+          onSaved={fetchAllMeals}
+        />
       )}
 
       {/* Toasts */}

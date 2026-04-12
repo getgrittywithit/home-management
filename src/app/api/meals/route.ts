@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseRecipeText, fetchRecipeUrl, parseCsvBatch, ParsedRecipe } from '@/lib/recipeImport'
 
 export async function GET(request: NextRequest) {
   try {
@@ -213,6 +214,114 @@ export async function POST(request: NextRequest) {
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         await db.query('DELETE FROM meal_ingredients WHERE id = $1', [id])
         return NextResponse.json({ success: true })
+      }
+
+      case 'parse_recipe_text': {
+        const { text } = body
+        if (!text) return NextResponse.json({ error: 'text required' }, { status: 400 })
+        const parsed = parseRecipeText(text)
+        return NextResponse.json({ recipe: parsed })
+      }
+
+      case 'fetch_recipe_url': {
+        const { url } = body
+        if (!url) return NextResponse.json({ error: 'url required' }, { status: 400 })
+        try {
+          new URL(url)
+        } catch {
+          return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+        }
+        const parsed = await fetchRecipeUrl(url)
+        return NextResponse.json({ recipe: parsed })
+      }
+
+      case 'import_recipe_csv': {
+        const { csv } = body
+        if (!csv) return NextResponse.json({ error: 'csv required' }, { status: 400 })
+        const batch = parseCsvBatch(csv)
+        // Match each meal_name to existing meal_library entries
+        const allMeals = await db.query(`SELECT id, name, theme FROM meal_library WHERE active = true`)
+        const matched = batch.map(entry => {
+          const lower = entry.meal_name.toLowerCase().trim()
+          const exact = allMeals.find((m: any) => m.name.toLowerCase().trim() === lower)
+          const partial = exact || allMeals.find((m: any) =>
+            m.name.toLowerCase().includes(lower) || lower.includes(m.name.toLowerCase())
+          )
+          return {
+            meal_name: entry.meal_name,
+            matched_meal_id: partial?.id || null,
+            matched_meal_name: partial?.name || null,
+            recipe: entry.recipe,
+          }
+        })
+        return NextResponse.json({ matches: matched, all_meals: allMeals })
+      }
+
+      case 'save_imported_recipe': {
+        const { meal_id, recipe } = body as { meal_id: string; recipe: ParsedRecipe }
+        if (!meal_id || !recipe) return NextResponse.json({ error: 'meal_id and recipe required' }, { status: 400 })
+
+        const steps = (recipe.steps || [])
+          .filter(s => s.text?.trim())
+          .map((s, i) => ({ order: i + 1, text: s.text.trim(), group: s.group || 'cook' }))
+
+        await db.query(
+          `UPDATE meal_library
+              SET recipe_steps = $1::jsonb,
+                  prep_time_min = COALESCE($2, prep_time_min),
+                  cook_time_min = COALESCE($3, cook_time_min),
+                  servings = COALESCE($4, servings),
+                  source = COALESCE($5, source)
+            WHERE id = $6`,
+          [JSON.stringify(steps), recipe.prep_time_min ?? null, recipe.cook_time_min ?? null, recipe.servings ?? null, recipe.source || null, meal_id]
+        )
+
+        // Replace ingredients entirely
+        await db.query(`DELETE FROM meal_ingredients WHERE meal_id = $1`, [meal_id])
+        for (const ing of (recipe.ingredients || [])) {
+          if (!ing.name?.trim()) continue
+          await db.query(
+            `INSERT INTO meal_ingredients (meal_id, name, quantity, unit, department, preferred_store, notes)
+             VALUES ($1, $2, $3, $4, $5, 'either', $6)`,
+            [meal_id, ing.name.trim(), ing.quantity ?? null, ing.unit || null, ing.department || 'Other', ing.notes || null]
+          )
+        }
+        return NextResponse.json({ success: true, meal_id })
+      }
+
+      case 'save_imported_batch': {
+        const { items } = body as { items: Array<{ meal_id: string; recipe: ParsedRecipe }> }
+        if (!Array.isArray(items) || items.length === 0) {
+          return NextResponse.json({ error: 'items array required' }, { status: 400 })
+        }
+        let saved = 0
+        for (const item of items) {
+          if (!item.meal_id || !item.recipe) continue
+          const steps = (item.recipe.steps || [])
+            .filter(s => s.text?.trim())
+            .map((s, i) => ({ order: i + 1, text: s.text.trim(), group: s.group || 'cook' }))
+          await db.query(
+            `UPDATE meal_library
+                SET recipe_steps = $1::jsonb,
+                    prep_time_min = COALESCE($2, prep_time_min),
+                    cook_time_min = COALESCE($3, cook_time_min),
+                    servings = COALESCE($4, servings),
+                    source = COALESCE($5, source)
+              WHERE id = $6`,
+            [JSON.stringify(steps), item.recipe.prep_time_min ?? null, item.recipe.cook_time_min ?? null, item.recipe.servings ?? null, item.recipe.source || null, item.meal_id]
+          )
+          await db.query(`DELETE FROM meal_ingredients WHERE meal_id = $1`, [item.meal_id])
+          for (const ing of (item.recipe.ingredients || [])) {
+            if (!ing.name?.trim()) continue
+            await db.query(
+              `INSERT INTO meal_ingredients (meal_id, name, quantity, unit, department, preferred_store, notes)
+               VALUES ($1, $2, $3, $4, $5, 'either', $6)`,
+              [item.meal_id, ing.name.trim(), ing.quantity ?? null, ing.unit || null, ing.department || 'Other', ing.notes || null]
+            )
+          }
+          saved++
+        }
+        return NextResponse.json({ success: true, saved })
       }
 
       case 'update_recipe': {

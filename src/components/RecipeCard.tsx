@@ -37,6 +37,9 @@ interface Props {
   mode?: 'full' | 'preview'
   onClose: () => void
   dayLabel?: string
+  onPick?: () => void          // Preview mode: turns footer into Pick / Back
+  pickLabel?: string           // Override the default "Pick This Meal"
+  picking?: boolean            // Shows spinner on pick button
 }
 
 const THEME_EMOJI: Record<string, string> = {
@@ -98,7 +101,7 @@ const MIN_SERVINGS = 4
 const MAX_SERVINGS = 32
 const BASE_DEFAULT = 8
 
-export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel }: Props) {
+export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, onPick, pickLabel, picking }: Props) {
   const [meal, setMeal] = useState<RecipeMeal | null>(null)
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([])
   const [loading, setLoading] = useState(true)
@@ -442,19 +445,40 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel }:
             {meal.source ? <>Source: <span className="font-medium">{meal.source}</span></> : <span className="italic">No source</span>}
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={handlePrint}
-              className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-semibold hover:bg-orange-600 flex items-center gap-1 recipe-print-btn"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              Print
-            </button>
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-white close-button"
-            >
-              Close
-            </button>
+            {onPick ? (
+              <>
+                <button
+                  onClick={onClose}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-white close-button"
+                >
+                  Back to List
+                </button>
+                <button
+                  onClick={onPick}
+                  disabled={picking}
+                  className="px-4 py-1.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {picking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>✓</span>}
+                  {pickLabel || 'Pick This Meal'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handlePrint}
+                  className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-semibold hover:bg-orange-600 flex items-center gap-1 recipe-print-btn"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Print
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 hover:bg-white close-button"
+                >
+                  Close
+                </button>
+              </>
+            )}
           </div>
         </div>
 

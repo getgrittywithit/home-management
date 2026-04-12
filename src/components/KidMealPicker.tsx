@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChefHat, Check, Clock, Shuffle, Loader2 } from 'lucide-react'
+import { ChefHat, Check, Clock, Shuffle } from 'lucide-react'
 import HelpDropdown from './HelpDropdown'
 import SpeakerButton from './SpeakerButton'
+import RecipeCard from './RecipeCard'
 
 interface KidMealPickerProps {
   kidName: string
@@ -31,11 +32,11 @@ function getMonday(d: Date): string {
 
 export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealPickerProps) {
   const [meals, setMeals] = useState<any[]>([])
-  const [shuffled, setShuffled] = useState<any>(null)
   const [submitted, setSubmitted] = useState(false)
   const [existingPick, setExistingPick] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [previewMeal, setPreviewMeal] = useState<{ id: string; name: string } | null>(null)
 
   const kid = kidName.toLowerCase()
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
@@ -97,23 +98,27 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
   const handleShuffle = () => {
     if (meals.length === 0) return
     const random = meals[Math.floor(Math.random() * meals.length)]
-    setShuffled(random)
+    setPreviewMeal({ id: random.id, name: random.name })
   }
 
-  const handleSubmit = async (mealId?: string) => {
-    const id = mealId || shuffled?.id
-    if (!id || previewMode) return
+  const handlePreview = (meal: any) => {
+    setPreviewMeal({ id: meal.id, name: meal.name })
+  }
+
+  const handleConfirmPick = async () => {
+    if (!previewMeal || previewMode) return
     setSubmitting(true)
     await fetch('/api/meal-plan/week', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'kid_pick', kid_name: kid,
-        week_start: nextWeekStart, day_of_week: myDowNum, meal_id: id,
+        week_start: nextWeekStart, day_of_week: myDowNum, meal_id: previewMeal.id,
       }),
     }).catch(() => {})
     setSubmitting(false)
     setSubmitted(true)
+    setPreviewMeal(null)
     onPick?.()
   }
 
@@ -163,34 +168,20 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
         compact
       />
 
-      {/* Shuffle section */}
+      {/* Shuffle */}
       {meals.length > 0 && (
-        <div className="space-y-2">
-          <button onClick={handleShuffle}
-            className="w-full flex items-center justify-center gap-2 bg-orange-100 text-orange-700 py-2.5 rounded-xl font-medium hover:bg-orange-200 transition-colors">
-            <Shuffle className="w-4 h-4" /> Shuffle a Meal
-          </button>
-
-          {shuffled && (
-            <div className="bg-white rounded-xl border-2 border-orange-300 p-3 space-y-2">
-              <p className="font-bold text-gray-900">{myEmoji} {shuffled.name}</p>
-              {shuffled.sides && <p className="text-xs text-gray-500">{shuffled.sides}</p>}
-              <button onClick={() => handleSubmit()} disabled={submitting || previewMode}
-                className="w-full bg-orange-500 text-white py-2 rounded-xl font-medium hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2">
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Pick This Meal
-              </button>
-            </div>
-          )}
-        </div>
+        <button onClick={handleShuffle}
+          className="w-full flex items-center justify-center gap-2 bg-orange-100 text-orange-700 py-2.5 rounded-xl font-medium hover:bg-orange-200 transition-colors">
+          <Shuffle className="w-4 h-4" /> Shuffle a Meal
+        </button>
       )}
 
       {/* Full list */}
       <div className="space-y-1.5">
-        <p className="text-xs text-orange-600 font-medium">Or pick from the list:</p>
+        <p className="text-xs text-orange-600 font-medium">Tap a meal to see the recipe:</p>
         {meals.map(meal => (
           <div key={meal.id} className="flex items-center gap-1">
-            <button onClick={() => handleSubmit(meal.id)} disabled={previewMode || submitting}
+            <button onClick={() => handlePreview(meal)} disabled={previewMode || submitting}
               className="flex-1 text-left px-3 py-2 rounded-xl border border-orange-100 bg-white text-sm hover:border-orange-300 disabled:opacity-50">
               <span className="font-medium">{meal.name}</span>
               {meal.sides && <span className="text-xs text-gray-500 ml-2">· {meal.sides}</span>}
@@ -204,6 +195,17 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
       <p className="text-[10px] text-orange-500 flex items-center gap-1">
         <Clock className="w-3 h-3" /> Pick by deadline so Mom can shop!
       </p>
+
+      {previewMeal && (
+        <RecipeCard
+          mealId={previewMeal.id}
+          mode="preview"
+          dayLabel={dayNames[myDowNum]}
+          onClose={() => setPreviewMeal(null)}
+          onPick={previewMode ? undefined : handleConfirmPick}
+          picking={submitting}
+        />
+      )}
     </div>
   )
 }
