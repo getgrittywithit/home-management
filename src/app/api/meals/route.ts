@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
-import { parseRecipeText, fetchRecipeUrl, parseCsvBatch, ParsedRecipe } from '@/lib/recipeImport'
+import { parseRecipeText, fetchRecipeUrl, parseCsvBatch, extractRecipeFromFrames, ParsedRecipe } from '@/lib/recipeImport'
 
 export async function GET(request: NextRequest) {
   try {
@@ -236,6 +236,36 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ recipe, error: fetchErr }, { status: 200 })
         }
         return NextResponse.json({ recipe })
+      }
+
+      case 'extract_from_video': {
+        const { frames, source } = body as { frames: string[]; source?: string }
+        if (!Array.isArray(frames) || frames.length === 0) {
+          return NextResponse.json({ error: 'frames array required' }, { status: 400 })
+        }
+        if (frames.length > 8) {
+          return NextResponse.json({ error: 'Max 8 frames per request' }, { status: 400 })
+        }
+        const apiKey = process.env.ANTHROPIC_API_KEY
+        if (!apiKey) {
+          return NextResponse.json({
+            error: 'Video import needs ANTHROPIC_API_KEY set in the server environment.',
+          }, { status: 500 })
+        }
+        try {
+          const result = await extractRecipeFromFrames(apiKey, frames, source)
+          if (!result.recipe.name && result.recipe.ingredients.length === 0 && result.recipe.steps.length === 0) {
+            return NextResponse.json({
+              error: "Couldn't find any recipe content in the video. Try a reel with on-screen ingredient text or a clear title card.",
+            }, { status: 200 })
+          }
+          return NextResponse.json(result)
+        } catch (e: any) {
+          console.error('extract_from_video failed:', e)
+          return NextResponse.json({
+            error: e?.message || 'Video extraction failed — try uploading a shorter clip.',
+          }, { status: 500 })
+        }
       }
 
       case 'import_recipe_csv': {

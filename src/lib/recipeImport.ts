@@ -396,6 +396,158 @@ export async function fetchRecipeUrl(url: string): Promise<FetchRecipeResult> {
   }
 }
 
+// ── Video frame → Claude Vision extraction ───────────────────────────────
+//
+// Given a small set of base64-encoded JPEG frames (extracted client-side
+// from a recipe video), ask Claude to read the on-screen text and any
+// visible ingredients, then return a structured recipe. Claude never
+// downloads the video itself — frames go straight into the vision prompt.
+
+export type RecipeTheme =
+  | 'american-comfort' | 'asian' | 'mexican' | 'pizza-italian'
+  | 'soup-comfort' | 'bar-night' | 'easy-lazy' | 'grill'
+  | 'experiment' | 'brunch' | 'roast-comfort'
+
+export type RecipeSeason = 'both' | 'spring-summer' | 'fall-winter'
+
+export interface VideoExtractionResult {
+  recipe: ParsedRecipe
+  suggested_theme: RecipeTheme | null
+  suggested_season: RecipeSeason | null
+  confidence: number
+}
+
+const VIDEO_EXTRACTION_PROMPT = `You are a recipe extraction assistant. Each image is a frame captured from a cooking video (Instagram Reel / TikTok / YouTube Short). Read every piece of visible text and any ingredients/actions shown, then return a structured recipe.
+
+Return ONLY a single JSON object with these exact fields:
+{
+  "name": "Recipe name from on-screen title, or a descriptive guess",
+  "prep_time_min": number or null,
+  "cook_time_min": number or null,
+  "servings": number or null,
+  "ingredients": [
+    { "quantity": number | null, "unit": "cup|tbsp|tsp|lb|oz|...", "name": "ingredient", "department": "Meat|Produce|Dairy|Bakery|Frozen|Canned|Spices|Pantry|Other", "notes": "prep notes or null" }
+  ],
+  "steps": [
+    { "text": "one action per step", "group": "prep" | "cook" | "finish" }
+  ],
+  "suggested_theme": "american-comfort | asian | mexican | pizza-italian | soup-comfort | bar-night | easy-lazy | grill | experiment | brunch | roast-comfort",
+  "suggested_season": "both | spring-summer | fall-winter",
+  "confidence": 0.0 to 1.0
+}
+
+Theme guide:
+- american-comfort: burgers, chicken, mac & cheese, meatloaf, casseroles
+- asian: stir fry, fried rice, noodles, teriyaki, Asian-style bowls
+- mexican: tacos, burritos, enchiladas, quesadillas, Tex-Mex
+- pizza-italian: pizza, pasta, lasagna, alfredo, Italian
+- soup-comfort: soups, stews, chili, crockpot meals
+- bar-night: taco bar, nacho bar, baked potato bar, build-your-own
+- easy-lazy: sandwiches, wraps, 15-min meals
+- grill: grilled meats, BBQ, kabobs
+- experiment: fusion, unusual, complex recipes
+- brunch: pancakes, waffles, eggs, breakfast-for-dinner
+- roast-comfort: roasts, pot roast, Sunday comfort food
+
+Department rules: "chili powder"/"cumin"/"paprika" → Spices. "diced tomatoes"/"tomato paste"/"broth" → Canned. Fresh onion/garlic/lime → Produce. Shredded cheese/sour cream → Dairy. Tortillas/buns → Bakery.
+
+If a field cannot be determined, use null. "confidence" reflects how sure you are the recipe data is correct — 0.8+ when on-screen text is clear, 0.5-0.7 when guessing from visuals, below 0.5 when uncertain.
+
+Return ONLY the JSON. No commentary.`
+
+export async function extractRecipeFromFrames(
+  apiKey: string,
+  frames: string[], // base64 JPEG data (no data: prefix)
+  source?: string | null,
+): Promise<VideoExtractionResult> {
+  const emptyRecipe: ParsedRecipe = { name: null, ingredients: [], steps: [], prep_time_min: null, cook_time_min: null, servings: null, source: source || null }
+
+  if (!frames.length) {
+    return { recipe: emptyRecipe, suggested_theme: null, suggested_season: null, confidence: 0 }
+  }
+
+  const content: any[] = frames.map(b64 => ({
+    type: 'image',
+    source: { type: 'base64', media_type: 'image/jpeg', data: b64 },
+  }))
+  content.push({ type: 'text', text: VIDEO_EXTRACTION_PROMPT })
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content }],
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`Claude vision request failed (${res.status}): ${errText.slice(0, 200)}`)
+  }
+
+  const data = await res.json()
+  const text: string = data.content?.[0]?.text || ''
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    throw new Error("Couldn't find recipe JSON in Claude response")
+  }
+
+  let parsed: any
+  try {
+    parsed = JSON.parse(jsonMatch[0])
+  } catch (e) {
+    throw new Error('Invalid JSON in Claude response')
+  }
+
+  // Normalize into ParsedRecipe shape + clamp fields
+  const ingredients: ParsedIngredient[] = Array.isArray(parsed.ingredients)
+    ? parsed.ingredients.map((ing: any) => ({
+        quantity: typeof ing.quantity === 'number' ? ing.quantity : (ing.quantity ? parseFloat(ing.quantity) || null : null),
+        unit: ing.unit || null,
+        name: (ing.name || '').trim(),
+        department: ing.department || guessDepartment(ing.name || ''),
+        notes: ing.notes || null,
+      })).filter((ing: ParsedIngredient) => ing.name)
+    : []
+
+  const steps: ParsedStep[] = Array.isArray(parsed.steps)
+    ? parsed.steps
+        .filter((s: any) => s && typeof s.text === 'string' && s.text.trim())
+        .map((s: any, i: number) => ({
+          order: i + 1,
+          text: s.text.trim(),
+          group: (s.group === 'prep' || s.group === 'finish') ? s.group : 'cook',
+        }))
+    : []
+
+  const validThemes: RecipeTheme[] = ['american-comfort', 'asian', 'mexican', 'pizza-italian', 'soup-comfort', 'bar-night', 'easy-lazy', 'grill', 'experiment', 'brunch', 'roast-comfort']
+  const theme = validThemes.includes(parsed.suggested_theme) ? parsed.suggested_theme : null
+  const validSeasons: RecipeSeason[] = ['both', 'spring-summer', 'fall-winter']
+  const season = validSeasons.includes(parsed.suggested_season) ? parsed.suggested_season : null
+  const confidence = typeof parsed.confidence === 'number' ? Math.max(0, Math.min(1, parsed.confidence)) : 0.5
+
+  return {
+    recipe: {
+      name: parsed.name || null,
+      ingredients,
+      steps,
+      prep_time_min: typeof parsed.prep_time_min === 'number' ? parsed.prep_time_min : null,
+      cook_time_min: typeof parsed.cook_time_min === 'number' ? parsed.cook_time_min : null,
+      servings: typeof parsed.servings === 'number' ? parsed.servings : null,
+      source: source || null,
+    },
+    suggested_theme: theme,
+    suggested_season: season,
+    confidence,
+  }
+}
+
 // Very small CSV parser — handles quoted fields and embedded commas.
 function parseCsvRow(line: string): string[] {
   const out: string[] = []

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   X, FileText, Link as LinkIcon, Upload, Loader2, ArrowLeft, ArrowRight,
-  Plus, Trash2, ArrowUp, ArrowDown, Check, SkipForward,
+  Plus, Trash2, ArrowUp, ArrowDown, Check, SkipForward, Video, Sparkles,
 } from 'lucide-react'
 
 type StepGroup = 'prep' | 'cook' | 'finish'
@@ -34,6 +34,96 @@ interface ReviewRecipe {
   ingredients: ReviewIngredient[]
   steps: ReviewStep[]
   status: 'pending' | 'saved' | 'skipped'
+  suggested_theme?: string | null
+  suggested_season?: string | null
+  confidence?: number
+  suggestion_dismissed?: boolean
+}
+
+const THEME_INFO: Record<string, { label: string; emoji: string }> = {
+  'american-comfort': { label: 'American Comfort', emoji: '🇺🇸' },
+  'asian':            { label: 'Asian Night',      emoji: '🥡' },
+  'mexican':          { label: 'Mexican Night',    emoji: '🌮' },
+  'pizza-italian':    { label: 'Pizza & Italian',  emoji: '🍕' },
+  'soup-comfort':     { label: 'Soup / Comfort',   emoji: '🍲' },
+  'bar-night':        { label: 'Bar Night',        emoji: '🥗' },
+  'easy-lazy':        { label: 'Easy / Lazy',      emoji: '🥪' },
+  'grill':            { label: 'Grill Night',      emoji: '🔥' },
+  'experiment':       { label: 'Experiment',       emoji: '🔬' },
+  'brunch':           { label: 'Brunch',           emoji: '🍳' },
+  'roast-comfort':    { label: 'Roast / Comfort',  emoji: '🏡' },
+}
+
+const SEASON_LABEL: Record<string, string> = {
+  'both':          '🔄 Both seasons',
+  'spring-summer': '🌸 Spring/Summer',
+  'fall-winter':   '🍂 Fall/Winter',
+}
+
+// Client-side video → base64 JPEG frames. Extracts `count` evenly-spaced
+// frames from the uploaded video file via a hidden <video> element and a
+// canvas. Keeps the server payload small and avoids any ffmpeg dependency.
+async function extractVideoFrames(file: File, count: number, maxWidth = 960): Promise<string[]> {
+  const url = URL.createObjectURL(file)
+  const video = document.createElement('video')
+  video.preload = 'auto'
+  video.muted = true
+  video.playsInline = true
+  video.src = url
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const onLoaded = () => { video.removeEventListener('error', onError); resolve() }
+      const onError = () => { video.removeEventListener('loadedmetadata', onLoaded); reject(new Error('Failed to load video metadata')) }
+      video.addEventListener('loadedmetadata', onLoaded, { once: true })
+      video.addEventListener('error', onError, { once: true })
+    })
+
+    const duration = video.duration
+    if (!isFinite(duration) || duration <= 0) {
+      throw new Error("Couldn't read video duration — try a different file.")
+    }
+    if (duration > 600) {
+      throw new Error('Video is over 10 minutes — try a shorter recipe video.')
+    }
+
+    const w = video.videoWidth
+    const h = video.videoHeight
+    if (!w || !h) throw new Error("Couldn't read video dimensions.")
+
+    const scale = w > maxWidth ? maxWidth / w : 1
+    const cw = Math.round(w * scale)
+    const ch = Math.round(h * scale)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = cw
+    canvas.height = ch
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error("Canvas unavailable in this browser.")
+
+    const frames: string[] = []
+    // Skip the first and last frame — usually blank or branding.
+    const start = Math.min(0.5, duration * 0.05)
+    const end = Math.max(duration - 0.5, duration * 0.95)
+    const step = (end - start) / Math.max(1, count - 1)
+
+    for (let i = 0; i < count; i++) {
+      const t = start + step * i
+      await new Promise<void>((resolve, reject) => {
+        const onSeeked = () => { video.removeEventListener('error', onError); resolve() }
+        const onError = () => { video.removeEventListener('seeked', onSeeked); reject(new Error('Failed to seek video')) }
+        video.addEventListener('seeked', onSeeked, { once: true })
+        video.addEventListener('error', onError, { once: true })
+        video.currentTime = Math.min(Math.max(0, t), duration - 0.05)
+      })
+      ctx.drawImage(video, 0, 0, cw, ch)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.72)
+      frames.push(dataUrl.split(',')[1] || '')
+    }
+    return frames.filter(Boolean)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 interface MealOption {
@@ -58,7 +148,7 @@ let tmpId = 0
 const nextTempId = () => `tmp-${++tmpId}-${Date.now()}`
 
 export default function BulkRecipeImport({ onClose, onSaved }: Props) {
-  const [mode, setMode] = useState<'select' | 'paste' | 'url' | 'csv' | 'review'>('select')
+  const [mode, setMode] = useState<'select' | 'paste' | 'url' | 'csv' | 'video' | 'review'>('select')
   const [pasteText, setPasteText] = useState('')
   const [url, setUrl] = useState('')
   const [csvText, setCsvText] = useState('')
@@ -68,6 +158,12 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
   const [allMeals, setAllMeals] = useState<MealOption[]>([])
   const [recipes, setRecipes] = useState<ReviewRecipe[]>([])
   const [cursor, setCursor] = useState(0)
+
+  // Video import
+  const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [videoUrl, setVideoUrl] = useState('')
+  const [videoStep, setVideoStep] = useState<'idle' | 'frames' | 'extracting' | 'done'>('idle')
+  const videoInputRef = useRef<HTMLInputElement>(null)
 
   // Load meal options on mount (used by match dropdowns)
   useEffect(() => {
@@ -89,7 +185,11 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
     ) || null
   }, [allMeals])
 
-  const toReviewRecipe = useCallback((parsed: any, overrideMatch?: { id: string; name: string } | null): ReviewRecipe => {
+  const toReviewRecipe = useCallback((
+    parsed: any,
+    overrideMatch?: { id: string; name: string } | null,
+    suggestion?: { theme: string | null; season: string | null; confidence: number }
+  ): ReviewRecipe => {
     const match = overrideMatch === undefined ? matchByName(parsed.name) : overrideMatch
     return {
       tempId: nextTempId(),
@@ -113,6 +213,9 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
         group: (s.group as StepGroup) || 'cook',
       })),
       status: 'pending',
+      suggested_theme: suggestion?.theme || null,
+      suggested_season: suggestion?.season || null,
+      confidence: suggestion?.confidence ?? 0,
     }
   }, [matchByName])
 
@@ -165,6 +268,53 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
     } finally {
       setBusy(false)
     }
+  }
+
+  const runVideoExtract = async () => {
+    if (!videoFile) return
+    setBusy(true)
+    setError(null)
+    setVideoStep('frames')
+    try {
+      const frames = await extractVideoFrames(videoFile, 6)
+      if (frames.length === 0) throw new Error("Couldn't capture frames from that video.")
+
+      setVideoStep('extracting')
+      const res = await fetch('/api/meals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract_from_video', frames, source: videoFile.name }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Video extraction failed')
+      if (data.error) throw new Error(data.error)
+
+      const recipe = data.recipe
+      if (!recipe.name && recipe.ingredients.length === 0 && recipe.steps.length === 0) {
+        throw new Error("Couldn't find recipe content in the video. Try a reel with clear on-screen text.")
+      }
+
+      setRecipes([toReviewRecipe(recipe, undefined, {
+        theme: data.suggested_theme,
+        season: data.suggested_season,
+        confidence: data.confidence,
+      })])
+      setCursor(0)
+      setVideoStep('done')
+      setMode('review')
+    } catch (e: any) {
+      setError(e.message || 'Video extraction failed')
+      setVideoStep('idle')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runVideoUrl = () => {
+    // yt-dlp / Instagram scraping doesn't work on Vercel serverless without
+    // extra infrastructure — for now, route URL imports back to the file
+    // upload path with a clear message.
+    setError("Paste the URL into your browser, download the video, then upload the file below. Social media sites block automated downloads.")
   }
 
   const runCsvImport = async () => {
@@ -358,7 +508,7 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
           {mode === 'select' && (
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <ImportModeCard
                 icon={<FileText className="w-6 h-6" />}
                 title="Paste Recipe"
@@ -376,6 +526,12 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
                 title="CSV Batch"
                 desc="Upload multiple recipes at once"
                 onClick={() => setMode('csv')}
+              />
+              <ImportModeCard
+                icon={<Video className="w-6 h-6" />}
+                title="Video / Reel"
+                desc="Upload an Instagram, TikTok, or YouTube recipe video"
+                onClick={() => setMode('video')}
               />
             </div>
           )}
@@ -468,8 +624,165 @@ export default function BulkRecipeImport({ onClose, onSaved }: Props) {
             </div>
           )}
 
+          {mode === 'video' && (
+            <div className="p-6 space-y-4">
+              <button onClick={goBack} className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
+                <ArrowLeft className="w-4 h-4" /> Back
+              </button>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-1.5">
+                  <LinkIcon className="w-4 h-4 text-orange-500" />
+                  Paste a video URL
+                </h3>
+                <p className="text-xs text-gray-500 mb-2">Instagram Reels, TikTok, YouTube Shorts, Facebook Reels.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={videoUrl}
+                    onChange={e => setVideoUrl(e.target.value)}
+                    className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                    placeholder="https://www.instagram.com/reel/..."
+                  />
+                  <button
+                    onClick={runVideoUrl}
+                    disabled={!videoUrl.trim()}
+                    className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    Fetch
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative py-3">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-wider">
+                  <span className="bg-white px-2 text-gray-400">Or upload a video file</span>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-1.5">
+                  <Video className="w-4 h-4 text-orange-500" />
+                  Upload a recipe video
+                </h3>
+                <p className="text-xs text-gray-500 mb-2">Save the reel to your phone, then upload the file here. Max 100MB · .mp4, .mov, .webm.</p>
+                <label
+                  className="block border-2 border-dashed border-orange-300 rounded-xl p-6 text-center cursor-pointer hover:bg-orange-50 transition-colors"
+                  onDragOver={e => { e.preventDefault() }}
+                  onDrop={e => {
+                    e.preventDefault()
+                    const f = e.dataTransfer.files?.[0]
+                    if (f && f.type.startsWith('video/')) {
+                      setVideoFile(f)
+                      setError(null)
+                    }
+                  }}
+                >
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/webm"
+                    className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (!f) return
+                      if (f.size > 100 * 1024 * 1024) {
+                        setError('Video is over 100MB — try a shorter clip.')
+                        return
+                      }
+                      setVideoFile(f)
+                      setError(null)
+                    }}
+                  />
+                  {videoFile ? (
+                    <div>
+                      <Video className="w-8 h-8 text-orange-500 mx-auto mb-1" />
+                      <div className="text-sm font-medium text-gray-900">{videoFile.name}</div>
+                      <div className="text-xs text-gray-500">{(videoFile.size / (1024 * 1024)).toFixed(1)} MB · tap to change</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-1" />
+                      <div className="text-sm text-gray-700">Tap to pick a video · or drag-and-drop</div>
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              {videoStep !== 'idle' && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm space-y-1">
+                  <div className={`flex items-center gap-2 ${videoStep === 'frames' ? 'text-orange-700 font-semibold' : 'text-gray-500'}`}>
+                    {videoStep === 'frames' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 text-green-500" />}
+                    Capturing frames from video...
+                  </div>
+                  <div className={`flex items-center gap-2 ${videoStep === 'extracting' ? 'text-orange-700 font-semibold' : videoStep === 'done' ? 'text-gray-500' : 'text-gray-300'}`}>
+                    {videoStep === 'extracting' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : videoStep === 'done' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <span className="w-3.5 h-3.5" />}
+                    Reading ingredients + steps with AI...
+                  </div>
+                  <div className={`flex items-center gap-2 ${videoStep === 'done' ? 'text-green-700 font-semibold' : 'text-gray-300'}`}>
+                    {videoStep === 'done' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <span className="w-3.5 h-3.5" />}
+                    Done — review your recipe below.
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={runVideoExtract}
+                disabled={!videoFile || busy}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
+              >
+                {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+                Extract Recipe
+              </button>
+            </div>
+          )}
+
           {mode === 'review' && current && (
             <div className="p-5 space-y-4">
+              {/* AI suggestion banner (video import only, confidence >= 0.5) */}
+              {current.suggested_theme
+                && (current.confidence ?? 0) >= 0.5
+                && !current.suggestion_dismissed
+                && THEME_INFO[current.suggested_theme] && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                  <div className="text-sm text-gray-800 flex-1 min-w-0">
+                    <span className="text-xs text-purple-700 font-semibold mr-1">AI suggests:</span>
+                    <span className="mr-2">{THEME_INFO[current.suggested_theme].emoji} {THEME_INFO[current.suggested_theme].label}</span>
+                    {current.suggested_season && (
+                      <span className="text-xs text-gray-600">· {SEASON_LABEL[current.suggested_season] || current.suggested_season}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const firstMatch = allMeals.find(m => m.theme === current.suggested_theme)
+                      if (firstMatch) {
+                        updateCurrent({
+                          matched_meal_id: firstMatch.id,
+                          matched_meal_name: firstMatch.name,
+                          suggestion_dismissed: true,
+                        })
+                      } else {
+                        updateCurrent({ suggestion_dismissed: true })
+                        setError(`No existing meal in the ${THEME_INFO[current.suggested_theme!]?.label} theme to match — create one in the Meal Library first.`)
+                      }
+                    }}
+                    className="px-2 py-1 bg-purple-500 text-white rounded-lg text-xs font-semibold hover:bg-purple-600"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => updateCurrent({ suggestion_dismissed: true })}
+                    className="px-2 py-1 border border-gray-300 rounded-lg text-xs text-gray-700 hover:bg-white"
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
+
               {/* Match + status */}
               <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
                 <div className="flex items-center gap-2">
