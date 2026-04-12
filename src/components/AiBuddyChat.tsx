@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { MessageCircle, Send, X, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Send, X, Loader2, Sparkles } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -14,6 +14,11 @@ interface AiBuddyChatProps {
   displayName?: string
 }
 
+function todayKey() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatProps) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
@@ -23,9 +28,12 @@ export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatP
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const name = displayName || kidName || 'there'
-  const buddyName = role === 'kid' ? 'Buddy' : 'Family Assistant'
-  const buddyIcon = role === 'kid' ? '🐾' : '🏠'
+  const buddyName = role === 'kid' ? 'Daily Helper' : 'Family Assistant'
+  const buddyIcon = role === 'kid' ? <Sparkles className="w-5 h-5" /> : '🏠'
   const limit = role === 'kid' ? 20 : 50
+  const greetingKey = role === 'kid' && kidName
+    ? `aibuddy-greeting-${kidName.toLowerCase()}-${todayKey()}`
+    : null
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -33,13 +41,11 @@ export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatP
     }
   }, [messages])
 
-  const handleSend = async () => {
-    if (!input.trim() || sending) return
-    const userMsg = input.trim()
-    setInput('')
+  const sendMessage = useCallback(async (rawMessage: string) => {
+    const userMsg = rawMessage.trim()
+    if (!userMsg) return
     setMessages(prev => [...prev, { role: 'user', content: userMsg }])
     setSending(true)
-
     try {
       const res = await fetch('/api/ai-buddy', {
         method: 'POST',
@@ -57,7 +63,24 @@ export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatP
       setMessages(prev => [...prev, { role: 'assistant', content: "Something went wrong. Try again!" }])
     }
     setSending(false)
+  }, [role, kidName, conversationId])
+
+  const handleSend = async () => {
+    if (!input.trim() || sending) return
+    const userMsg = input.trim()
+    setInput('')
+    await sendMessage(userMsg)
   }
+
+  // First open of the day: auto-send a morning greeting so the Buddy
+  // responds with a daily rundown instead of showing an empty chat.
+  useEffect(() => {
+    if (!open || role !== 'kid' || !greetingKey || messages.length > 0 || sending) return
+    const alreadyGreeted = typeof window !== 'undefined' && sessionStorage.getItem(greetingKey) === '1'
+    if (alreadyGreeted) return
+    if (typeof window !== 'undefined') sessionStorage.setItem(greetingKey, '1')
+    sendMessage("Good morning! What's my day look like?")
+  }, [open, role, greetingKey, messages.length, sending, sendMessage])
 
   const suggestions = role === 'kid'
     ? ['What do I need to do today?', 'How many stars do I have?', 'What should I read?']
@@ -67,11 +90,11 @@ export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatP
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2 px-4 py-3 md:w-14 md:h-14 md:px-0 md:py-0 md:justify-center text-lg md:text-2xl"
+        className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2 px-4 py-3 md:w-14 md:h-14 md:px-0 md:py-0 md:justify-center"
         title={`Ask ${buddyName}`}
       >
         {buddyIcon}
-        <span className="text-sm font-medium md:hidden">Buddy</span>
+        <span className="text-sm font-medium md:hidden">{buddyName}</span>
       </button>
     )
   }
@@ -80,9 +103,14 @@ export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatP
     <div className="fixed bottom-6 right-6 z-40 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col" style={{ maxHeight: '500px' }}>
       {/* Header */}
       <div className="bg-blue-600 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-        <h3 className="font-semibold flex items-center gap-2">
-          <span>{buddyIcon}</span> {buddyName}
-        </h3>
+        <div>
+          <h3 className="font-semibold flex items-center gap-2">
+            {buddyIcon} {buddyName}
+          </h3>
+          <p className="text-[10px] text-blue-100 mt-0.5">
+            {role === 'kid' ? 'Your daily portal assistant' : 'Family assistant'}
+          </p>
+        </div>
         <button onClick={() => setOpen(false)} className="text-white/80 hover:text-white">
           <X className="w-5 h-5" />
         </button>

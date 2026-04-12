@@ -95,9 +95,24 @@ const KID_AGES: Record<string, number> = {
 const KID_SYSTEM_PROMPT = (kidName: string, grade: string, age?: number, safetyLevel?: string) => {
   const kidAge = age || 10
   const baseRules = `You help ${kidName} navigate their family portal, understand their tasks, find things, and stay encouraged.
-Answer questions using their portal data provided below.
-If you don't know something or it's not in the data, say "That's a great question — send Mom a note from Requests."
-Never share information about other family members, finances, or parent-only settings.
+Answer questions using their portal data AND the household knowledge provided below.
+
+WHEN DATA IS MISSING — read carefully:
+- If you have PARTIAL data (e.g. some tasks but not all), share what you DO know and be honest about the rest.
+- For "how many stars do I need" / "am I done for the day" questions: look at the daily checklist. Each uncompleted item ≈ 1 star. Count the remaining items. The context already tells you "Stars to finish today: N".
+- For questions about routines, zones, Belle care, meals, bedtime, pets: use the HOUSEHOLD KNOWLEDGE block below — it is always true, even when a specific DB query returned nothing.
+- ONLY suggest "send Mom a note from Requests" as a LAST RESORT, when (a) you truly have zero relevant data AND (b) the question isn't about anything in the household system.
+- NEVER say "ask Mom" for: daily checklist, zone chores, Belle care schedule, meal duties, bedtime, pet care. Those live in the data below — use them.
+- For fun, learning, or general knowledge questions: just answer. You don't need portal data for those.
+
+FIRST MESSAGE OF THE DAY:
+When ${kidName} first says "good morning" / "hi" / "hello" / "what's my day look like" / "what do I need to do today", give a brief daily rundown in 4–5 sentences:
+1. Greet them by name and name today's weekday.
+2. Highlight their top 3–5 real items for today — pulled from the data block (checklist remaining, zone, Belle status, meal duty if their night).
+3. Mention their star balance.
+4. Keep it SHORT and close with one friendly nudge ("What do you want to tackle first?").
+
+Never share information about other family members' private data (mood, health, concerns), finances, or parent-only settings.
 Never talk down. ${kidName} is capable and smart. Encourage problem-solving, not dependence.
 
 CRITICAL SAFETY RULES — follow these exactly:
@@ -166,6 +181,41 @@ Celebrate small wins. If they're confused, break things into smaller steps.
 Keep responses short — 2-3 sentences is perfect.`
   }
 }
+
+const HOUSEHOLD_KNOWLEDGE = `
+HOUSEHOLD SYSTEM KNOWLEDGE (always true — use these facts any time a DB query is missing):
+
+ZONE ROTATION (6-week cycle):
+- Zones: Hotspot, Kitchen, Guest Bath, Kids Bath, Pantry, Floors
+- Each kid rotates through all 6 zones over 6 weeks
+- Zone chores happen 3x/day: Morning (before school), Afternoon (after school), Evening (before bed)
+
+BELLE (DOG) CARE SCHEDULE:
+- Weekdays (fixed): Mon=Kaylee, Tue=Amos, Wed=Hannah, Thu=Wyatt, Fri=Ellie (Zoey is excluded)
+- Daily tasks on your day: AM Feed + Walk (7:00am), PM Feed (5:00pm), PM Walk (6:30pm)
+- Weekends: 5-week rotating cycle (Hannah → Wyatt → Amos → Kaylee → Ellie)
+- Grooming: Bath biweekly Saturdays, Nail Trim biweekly Sundays
+
+MEAL ROTATION (2-week cycle):
+- Mon=Kaylee, Tue=Zoey, Wed=Wyatt, Thu=Amos, Fri=Ellie & Hannah, Sat/Sun=Parents
+- Week 1 themes: American Comfort → Asian → Bar Night → Mexican → Pizza & Italian → Grill → Roast/Comfort
+- Week 2 themes: Soup/Comfort → Asian → Easy/Lazy → Mexican → Pizza & Italian → Experiment → Brunch/Light
+- The dinner manager picks a meal from the themed meal list using the Meal Picker
+
+STAR SYSTEM:
+- Kids earn stars for completing checklist items, zone tasks, Belle care, and good behavior
+- Stars are spent in the reward shop
+- Daily goal varies per kid — count remaining checklist items to know how many stars are left to earn today
+
+BEDTIME:
+- 8–9pm = evening routine (hygiene, Belle PM if your day, tidy, meds if applicable)
+- 9pm = all kids in bed — including Amos (17) and Zoey (15)
+
+OTHER PETS:
+- Midnight (bunny): Ellie primary, Hannah + Wyatt helpers. Daily spot clean, feed, hay, water, brush (focus on mane)
+- Hades (snake): Zoey only. Daily water check + visual health. Feeds 2-3 live mice every 7-14 days
+- Spike (bearded dragon): Amos primary, Kaylee + Wyatt helpers. Daily feed + water, spot clean. UVB light critical.
+`
 
 const PARENT_SYSTEM_PROMPT = `You are Lola's family management assistant. The Moses family has 6 kids (Amos 17, Zoey 15, Kaylee 13, Ellie 12, Wyatt 10, Hannah 8), two businesses (Triton Handyman, Grit Collective), homeschool for 4 kids, public school for 2.
 Help Lola with daily task tracking, kid progress summaries, scheduling, meal planning, and any family system question.
@@ -261,6 +311,179 @@ async function getKidContext(kidName: string): Promise<string> {
         return `${c.task_text} (${c.zone_key}) — ${when}`
       })
       parts.push('Recent task completions:\n' + lines.join('\n'))
+    }
+
+    // ── BUDDY-FIX-1: Daily life data the Buddy needs ─────────────────────
+
+    // Profile ID lookup — daily_checklist_items uses child_id (UUID), not kid_name
+    const profile = await db.query(
+      `SELECT id FROM profiles WHERE LOWER(first_name) = LOWER($1) AND role = 'child' LIMIT 1`,
+      [kid]
+    ).catch(() => [])
+    const profileId: string | null = profile[0]?.id || null
+
+    // Daily checklist items (morning routine, chores, hygiene, school tasks)
+    if (profileId) {
+      const checklist = await db.query(
+        `SELECT title, category, completed, priority
+         FROM daily_checklist_items
+         WHERE child_id = $1 AND date = CURRENT_DATE
+         ORDER BY priority ASC, category ASC, title ASC`,
+        [profileId]
+      ).catch(() => [])
+      if (checklist.length > 0) {
+        const done = checklist.filter((c: any) => c.completed).length
+        const total = checklist.length
+        const remaining = total - done
+        parts.push(`Daily checklist: ${done}/${total} done, ${remaining} remaining`)
+        // BUDDY-FIX-4: each checklist item ≈ 1 star, remaining = stars-to-go for "done today"
+        parts.push(`Stars to finish today: ${remaining} (1 per remaining checklist item)`)
+
+        const byCategory: Record<string, any[]> = {}
+        for (const c of checklist) {
+          const cat = c.category || 'Other'
+          if (!byCategory[cat]) byCategory[cat] = []
+          byCategory[cat].push(c)
+        }
+        for (const [cat, items] of Object.entries(byCategory)) {
+          const itemLines = items.map((i: any) => `  - ${i.title}: ${i.completed ? '✅ done' : '⬜ not done'}`)
+          parts.push(`${cat}:\n${itemLines.join('\n')}`)
+        }
+      }
+    }
+
+    // Belle dog care — is today this kid's Belle day?
+    const dayOfWeek = new Date().getDay()  // 0=Sun, 1=Mon...
+    const belleWeekday: Record<number, string> = {
+      1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie',
+    }
+    const todaysBelleKid = belleWeekday[dayOfWeek]
+
+    if (todaysBelleKid === kid) {
+      const belleTasks = await db.query(
+        `SELECT task, completed FROM belle_care_log
+         WHERE care_date = CURRENT_DATE AND kid_name = $1`,
+        [kid]
+      ).catch(() => [])
+      const taskList = ['AM Feed + Walk (7:00am)', 'PM Feed (5:00pm)', 'PM Walk (6:30pm)']
+      const doneSet = new Set(belleTasks.filter((t: any) => t.completed).map((t: any) => t.task))
+      parts.push(`🐕 TODAY IS YOUR BELLE DAY! Tasks:`)
+      for (const t of taskList) {
+        parts.push(`  - ${t}: ${doneSet.has(t) ? '✅ done' : '⬜ not done'}`)
+      }
+    } else if (dayOfWeek >= 1 && dayOfWeek <= 5 && todaysBelleKid) {
+      const cap = todaysBelleKid.charAt(0).toUpperCase() + todaysBelleKid.slice(1)
+      parts.push(`Belle care today: ${cap}'s day`)
+    } else {
+      parts.push(`Belle care today: Weekend rotation (check calendar)`)
+    }
+
+    // Belle grooming on weekends
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      const grooming = await db.query(
+        `SELECT task, completed FROM belle_grooming_log
+         WHERE kid_name = $1 AND due_date = CURRENT_DATE`,
+        [kid]
+      ).catch(() => [])
+      if (grooming.length > 0) {
+        parts.push('Belle grooming today: ' + grooming.map((g: any) =>
+          `${g.task} (${g.completed ? '✅' : '⬜'})`
+        ).join(', '))
+      }
+    }
+
+    // Meal duty — is this kid tonight's dinner manager?
+    const mealDayMap: Record<number, { kid: string; theme_w1: string; theme_w2: string }> = {
+      1: { kid: 'kaylee', theme_w1: 'American Comfort', theme_w2: 'Soup/Comfort/Crockpot' },
+      2: { kid: 'zoey',   theme_w1: 'Asian Night',      theme_w2: 'Asian Night' },
+      3: { kid: 'wyatt',  theme_w1: 'Bar Night',        theme_w2: 'Easy/Lazy Night' },
+      4: { kid: 'amos',   theme_w1: 'Mexican Night',    theme_w2: 'Mexican Night' },
+      5: { kid: 'ellie',  theme_w1: 'Pizza & Italian',  theme_w2: 'Pizza & Italian' }, // Ellie & Hannah share
+      0: { kid: 'parents', theme_w1: 'Roast/Comfort',   theme_w2: 'Brunch/Light' },
+      6: { kid: 'parents', theme_w1: 'Grill Night',     theme_w2: 'Experiment/Big Cook' },
+    }
+    const todayMeal = mealDayMap[dayOfWeek]
+    // Epoch: March 30, 2026 = Week 1 Monday
+    const epochDate = new Date('2026-03-30T00:00:00').getTime()
+    const daysSinceEpoch = Math.floor((Date.now() - epochDate) / 86400000)
+    const weekNumber = Math.floor(daysSinceEpoch / 7) % 2 === 0 ? 1 : 2
+    const theme = weekNumber === 1 ? todayMeal?.theme_w1 : todayMeal?.theme_w2
+
+    const isCookingTonight = todayMeal?.kid === kid || (kid === 'hannah' && dayOfWeek === 5)
+    if (isCookingTonight && theme) {
+      parts.push(`🍳 YOU'RE THE DINNER MANAGER TONIGHT! Theme: ${theme}`)
+      const mealPick = await db.query(
+        `SELECT ml.name as meal_name, wp.status
+         FROM meal_week_plan wp
+         LEFT JOIN meal_library ml ON wp.meal_id = ml.id
+         WHERE wp.kid_name = $1 AND wp.day_of_week = $2
+         ORDER BY wp.week_start DESC LIMIT 1`,
+        [kid, dayOfWeek]
+      ).catch(() => [])
+      if (mealPick[0]?.meal_name) {
+        parts.push(`  Meal picked: ${mealPick[0].meal_name}`)
+      } else {
+        parts.push(`  ⚠️ No meal picked yet — use the Meal Picker to choose!`)
+      }
+    } else if (todayMeal && theme) {
+      const managerName = todayMeal.kid === 'parents'
+        ? 'Mom & Dad'
+        : todayMeal.kid.charAt(0).toUpperCase() + todayMeal.kid.slice(1)
+      parts.push(`Tonight's dinner: ${managerName}'s night (${theme})`)
+    }
+
+    // Zone task details — actual tasks for the assigned zone
+    if (zone[0]?.zone_name) {
+      const zoneTasks = await db.query(
+        `SELECT t.task_text, t.task_type, t.frequency,
+                CASE WHEN r.completed THEN 'done' ELSE 'not done' END as status
+         FROM zone_task_library t
+         LEFT JOIN zone_task_rotation r ON r.task_id = t.id
+           AND r.kid_name = $1 AND r.assigned_date = CURRENT_DATE
+         WHERE t.zone_key = $2 AND t.active = TRUE AND t.deleted_at IS NULL
+         ORDER BY t.task_type, t.sort_order`,
+        [kid, zone[0].zone_name]
+      ).catch(() => [])
+      if (zoneTasks.length > 0) {
+        const anchors = zoneTasks.filter((t: any) => t.task_type === 'anchor')
+        const rotating = zoneTasks.filter((t: any) => t.task_type === 'rotating')
+        if (anchors.length > 0) {
+          parts.push(`Zone tasks (${zone[0].zone_name}) — Daily:\n` +
+            anchors.map((t: any) => `  - ${t.task_text}: ${t.status}`).join('\n'))
+        }
+        if (rotating.length > 0) {
+          parts.push(`Zone tasks (${zone[0].zone_name}) — Rotating:\n` +
+            rotating.map((t: any) => `  - ${t.task_text} (${t.frequency}): ${t.status}`).join('\n'))
+        }
+      }
+    }
+
+    // Family events today
+    if (profileId) {
+      const events = await db.query(
+        `SELECT fe.title, fe.event_type, fe.start_time, captain.first_name as captain_name
+         FROM family_events fe
+         LEFT JOIN profiles captain ON fe.captain_id = captain.id
+         WHERE fe.child_id = $1 AND DATE(fe.start_time) = CURRENT_DATE
+         ORDER BY fe.start_time ASC`,
+        [profileId]
+      ).catch(() => [])
+      if (events.length > 0) {
+        parts.push("Today's events: " + events.map((e: any) => {
+          const time = new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+          return `${e.title || e.event_type} at ${time}`
+        }).join(', '))
+      }
+    }
+
+    // Sick day status
+    const sickDay = await db.query(
+      `SELECT status FROM kid_sick_days
+       WHERE kid_name = $1 AND sick_date = CURRENT_DATE AND status = 'active'`,
+      [kid]
+    ).catch(() => [])
+    if (sickDay[0]) {
+      parts.push('🤒 SICK DAY ACTIVE — reduced task load today. Focus on rest.')
     }
   } catch { /* partial context is fine */ }
 
@@ -409,7 +632,9 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
-        system: `${systemPrompt}\n\nCurrent data:\n${context}`,
+        system: role === 'kid'
+          ? `${systemPrompt}\n\nCurrent data:\n${context}\n${HOUSEHOLD_KNOWLEDGE}`
+          : `${systemPrompt}\n\nCurrent data:\n${context}`,
         messages,
       }),
     })
