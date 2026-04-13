@@ -1,7 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+
+export default function VocabTestPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading…</div>}>
+      <VocabTestPage />
+    </Suspense>
+  )
+}
 
 interface VocabWord {
   id: string
@@ -19,7 +27,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export default function VocabTestPage() {
+function VocabTestPage() {
   const params = useSearchParams()
   const bookId = params.get('book_id') || ''
   const setName = params.get('set_name') || ''

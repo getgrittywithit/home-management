@@ -1,8 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { MathSkill } from '@/lib/mathSpeedTest'
+
+export default function MathTestPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading…</div>}>
+      <MathTestPage />
+    </Suspense>
+  )
+}
 
 interface KidTest {
   kid_name: string
@@ -25,7 +33,7 @@ const SKILL_LABELS: Record<string, string> = {
   mixed: 'Mixed Skills',
 }
 
-export default function MathTestPage() {
+function MathTestPage() {
   const params = useSearchParams()
   // URL format: ?kids=amos:addition:2,wyatt:multiplication:4,...
   const kidsParam = params.get('kids') || ''
