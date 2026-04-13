@@ -47,12 +47,14 @@ export default function FoodInventoryManager() {
   const [activeTab, setActiveTab] = useState<'inventory' | 'meal-plan' | 'bulk-input' | 'shopping' | 'grocery'>('meal-plan')
   const [bulkInput, setBulkInput] = useState('')
   const [apiKeySet] = useState(true)
+  const [inventoryTotals, setInventoryTotals] = useState<{ total: number; inStock: number }>({ total: 0, inStock: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check API key and load data on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       loadInventory()
+      loadInventoryTotals()
     }
   }, [])
 
@@ -62,6 +64,19 @@ export default function FoodInventoryManager() {
       setInventory(items)
     } catch (error) {
       console.error('Error loading inventory:', error)
+    }
+  }
+
+  const loadInventoryTotals = async () => {
+    try {
+      const res = await fetch('/api/inventory?action=category_counts')
+      const data = await res.json()
+      const counts: Array<{ category: string; total: number; low_stock: number }> = data.counts || []
+      const total = counts.reduce((sum, c) => sum + (c.total || 0), 0)
+      const lowStock = counts.reduce((sum, c) => sum + (c.low_stock || 0), 0)
+      setInventoryTotals({ total, inStock: total - lowStock })
+    } catch (error) {
+      console.error('Error loading inventory totals:', error)
     }
   }
 
@@ -196,8 +211,8 @@ export default function FoodInventoryManager() {
             <p className="text-green-100">Meal planning, pantry, and food inventory</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold">{inventory.length}</div>
-            <div className="text-sm text-green-100">Food Items</div>
+            <div className="text-3xl font-bold">{inventoryTotals.total}</div>
+            <div className="text-sm text-green-100">Items · {inventoryTotals.inStock} In Stock</div>
           </div>
         </div>
       </div>
