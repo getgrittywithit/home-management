@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, Utensils, Users, Gamepad2, Heart, ShoppingBag, Lock, X } from 'lucide-react'
-import { TalkToParentsButton } from './KidReportForm'
+import { Send, Utensils, Users, Gamepad2, Heart, ShoppingBag, Lock, MessageCircle } from 'lucide-react'
 import BreakButton from './BreakButton'
+import RequestFormModal, { type RequestKind } from './RequestFormModal'
 
 interface Message {
   id: string; message: string; created_at: string; parent_reply: string | null; reply_at: string | null
@@ -13,11 +13,11 @@ interface PendingRedemption {
   id: number; reward_name: string; coins_spent: number; status: string; created_at: string
 }
 
-const QUICK_REQUESTS = [
-  { label: 'Snack Request', icon: Utensils, color: 'text-green-500', msg: '🍪 Snack request' },
-  { label: 'Friend Over', icon: Users, color: 'text-blue-500', msg: '👋 Can a friend come over?' },
-  { label: 'Screen Time', icon: Gamepad2, color: 'text-purple-500', msg: '🎮 Screen time request' },
-  { label: 'Special Request', icon: Heart, color: 'text-pink-500', msg: '💝 Special request' },
+const QUICK_REQUESTS: Array<{ label: string; icon: typeof Utensils; color: string; kind: RequestKind }> = [
+  { label: 'Snack Request',   icon: Utensils, color: 'text-green-500',  kind: 'snack' },
+  { label: 'Friend Over',     icon: Users,    color: 'text-blue-500',   kind: 'friend_over' },
+  { label: 'Screen Time',     icon: Gamepad2, color: 'text-purple-500', kind: 'screen_time' },
+  { label: 'Special Request', icon: Heart,    color: 'text-pink-500',   kind: 'special' },
 ]
 
 const PERSONAL_NEEDS_ITEMS = [
@@ -33,6 +33,7 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
   const [loaded, setLoaded] = useState(false)
   const [showPersonalNeeds, setShowPersonalNeeds] = useState(false)
   const [personalItem, setPersonalItem] = useState('')
+  const [openRequest, setOpenRequest] = useState<RequestKind | null>(null)
 
   const childKey = childName.toLowerCase()
 
@@ -80,7 +81,14 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
 
       {/* Talk to Mom & I Need a Break — prominently placed */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <TalkToParentsButton kidName={childName} inline />
+        <button
+          onClick={() => setOpenRequest('talk_to_parents')}
+          className="w-full bg-teal-50 text-teal-700 px-4 py-4 rounded-xl text-sm font-semibold hover:bg-teal-100 transition-colors border-2 border-teal-200 flex items-center gap-3"
+        >
+          <MessageCircle className="w-5 h-5" />
+          Talk to Mom &amp; Dad
+          <span className="text-xs font-normal text-teal-400 ml-auto">Send a message</span>
+        </button>
         <BreakButton childName={childName} inline />
       </div>
 
@@ -90,7 +98,7 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
           const Icon = req.icon
           const isSent = sentLabel === req.label
           return (
-            <button key={req.label} onClick={() => !isSent && sendRequest(req.msg, req.label)}
+            <button key={req.label} onClick={() => !isSent && setOpenRequest(req.kind)}
               className={`p-4 rounded-lg border text-center transition-all ${isSent ? 'bg-green-50 border-green-300' : 'bg-white hover:bg-gray-50'}`}>
               {isSent ? (
                 <div className="text-green-600 text-sm font-medium">✓ Sent to Mom!</div>
@@ -104,6 +112,29 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
           )
         })}
       </div>
+
+      {/* Request form modal */}
+      {openRequest && (
+        <RequestFormModal
+          kind={openRequest}
+          kidName={childName}
+          onClose={() => setOpenRequest(null)}
+          onSent={() => {
+            const label = QUICK_REQUESTS.find(r => r.kind === openRequest)?.label
+              || (openRequest === 'talk_to_parents' ? 'talk' : openRequest)
+            setSentLabel(label)
+            setRecent(prev => [{
+              id: String(Date.now()),
+              message: `${label} sent`,
+              created_at: new Date().toISOString(),
+              parent_reply: null,
+              reply_at: null,
+            }, ...prev].slice(0, 3))
+            setOpenRequest(null)
+            setTimeout(() => setSentLabel(null), 3000)
+          }}
+        />
+      )}
 
       {/* Personal Needs (Private) */}
       <div className="bg-white p-4 rounded-lg border">
