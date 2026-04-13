@@ -29,6 +29,8 @@ interface RecipeMeal {
   cook_time_min: number | null
   servings: number
   source: string | null
+  sides: string | null
+  notes: string | null
   recipe_steps: RecipeStep[]
 }
 
@@ -137,6 +139,8 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
           cook_time_min: m.cook_time_min,
           servings: m.servings || BASE_DEFAULT,
           source: m.source,
+          sides: m.sides || null,
+          notes: m.notes || null,
           recipe_steps: steps
             .map((s, i) => ({ order: s.order ?? i + 1, text: s.text || '', group: (s.group as StepGroup) || 'cook' }))
             .sort((a, b) => a.order - b.order),
@@ -332,11 +336,30 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
           {!hasIngredients && !hasSteps ? (
-            <div className="px-5 py-8 text-center text-sm text-gray-500">
-              {meal.description ? (
-                <p className="mb-3">{meal.description}</p>
-              ) : null}
-              <p className="italic">Recipe details coming soon — ask Mom!</p>
+            <div className="px-5 py-6 text-sm text-gray-700 space-y-3">
+              {meal.description && (
+                <p className="text-gray-700">{meal.description}</p>
+              )}
+              <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-orange-700">{themeLabel}</span>
+                  <span className="text-xs text-orange-500">{themeEmoji}</span>
+                </div>
+                <div className="font-bold text-gray-900 text-base">{meal.name}</div>
+                {meal.sides && (
+                  <div className="text-sm">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Sides</span>
+                    <span className="text-gray-700">{meal.sides}</span>
+                  </div>
+                )}
+                {meal.notes && (
+                  <div className="text-sm">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Prep Notes</span>
+                    <span className="text-gray-700">{meal.notes}</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs italic text-gray-400 text-center">Full recipe steps being added — Mom can cook from memory or the box.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">

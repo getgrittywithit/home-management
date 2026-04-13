@@ -358,7 +358,7 @@ export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: 
         </div>
       )}
 
-      {/* Hidden print-only block */}
+      {/* Hidden print-only block — portrait, fridge-friendly */}
       <div className="hidden meal-calendar-print-only">
         <h1 className="meal-calendar-print-title">
           Dinner Rotation — Week of {new Date(week.week_start).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -366,32 +366,24 @@ export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: 
         <p className="meal-calendar-print-sub">
           Week {week.week_number} · {(new Date().getMonth() + 1) >= 3 && (new Date().getMonth() + 1) <= 8 ? 'Spring/Summer' : 'Fall/Winter'} Menu
         </p>
-        <table className="meal-calendar-print-table">
-          <thead>
-            <tr>
-              {week.days.map(day => (
-                <th key={`h-${day.day_of_week}`}>{day.day_name.slice(0, 3).toUpperCase()}</th>
-              ))}
-            </tr>
-          </thead>
+        <table className="meal-calendar-print-table meal-calendar-print-portrait">
           <tbody>
-            <tr>
-              {week.days.map(day => (
-                <td key={`m-${day.day_of_week}`}>{day.manager_display}</td>
-              ))}
-            </tr>
-            <tr>
-              {week.days.map(day => (
-                <td key={`t-${day.day_of_week}`}>{THEME_LABEL[day.theme] || day.theme}</td>
-              ))}
-            </tr>
-            <tr>
-              {week.days.map(day => (
-                <td key={`p-${day.day_of_week}`}>
-                  {day.status === 'off_night' ? 'Off Night' : (day.meal_name || '?')}
+            {week.days.map(day => (
+              <tr key={`row-${day.day_of_week}`}>
+                <td className="mc-print-day">{day.day_name.toUpperCase()}</td>
+                <td className="mc-print-meal">
+                  <div className="mc-print-meal-name">
+                    {day.status === 'off_night' ? 'Off Night' : (day.meal_name || '?')}
+                  </div>
+                  {day.sides && day.status !== 'off_night' && day.meal_name && (
+                    <div className="mc-print-sides">{day.sides}</div>
+                  )}
+                  <div className="mc-print-meta">
+                    {THEME_LABEL[day.theme] || day.theme} · {day.manager_display}
+                  </div>
                 </td>
-              ))}
-            </tr>
+              </tr>
+            ))}
           </tbody>
         </table>
         <p className="meal-calendar-print-footer">

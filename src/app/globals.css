@@ -22,7 +22,7 @@
   nav, header, footer, aside, .sidebar { display: none !important; }
 
   /* ── Weekly print ──────────────────────────────────────────────────── */
-  @page { size: landscape; margin: 0.5in; }
+  @page { size: portrait; margin: 0.4in; }
 
   body.printing-weekly * { visibility: hidden; }
   body.printing-weekly .meal-calendar-container,
@@ -75,10 +75,43 @@
     font-weight: bold;
     background: #f0f0f0 !important;
   }
+
+  /* Portrait fridge layout — one row per day, big meal name */
+  .meal-calendar-print-portrait td {
+    text-align: left;
+    padding: 14pt 10pt;
+  }
+  .meal-calendar-print-portrait .mc-print-day {
+    font-size: 18pt;
+    font-weight: 800;
+    width: 20%;
+    background: #f7f7f7 !important;
+    letter-spacing: 0.5pt;
+  }
+  .meal-calendar-print-portrait .mc-print-meal {
+    width: 80%;
+  }
+  .meal-calendar-print-portrait .mc-print-meal-name {
+    font-size: 20pt;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 2pt;
+  }
+  .meal-calendar-print-portrait .mc-print-sides {
+    font-size: 12pt;
+    color: #444 !important;
+    margin-bottom: 2pt;
+  }
+  .meal-calendar-print-portrait .mc-print-meta {
+    font-size: 10pt;
+    color: #666 !important;
+    font-style: italic;
+  }
+
   .meal-calendar-print-footer {
-    margin-top: 18pt;
+    margin-top: 14pt;
     text-align: right;
-    font-size: 11pt;
+    font-size: 10pt;
     color: #333 !important;
   }
 

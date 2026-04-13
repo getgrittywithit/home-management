@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
       const mealId = searchParams.get('meal_id')
       if (!mealId) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
       const mealRows = await db.query(
-        `SELECT id, name, theme, description, prep_time_min, cook_time_min, servings, source, recipe_steps
+        `SELECT id, name, theme, description, prep_time_min, cook_time_min, servings, source,
+                recipe_steps, sides, notes
          FROM meal_library WHERE id = $1`,
         [mealId]
       )

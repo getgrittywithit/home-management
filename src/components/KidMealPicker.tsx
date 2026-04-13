@@ -97,7 +97,12 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
 
   const handleShuffle = () => {
     if (meals.length === 0) return
-    const random = meals[Math.floor(Math.random() * meals.length)]
+    // Avoid landing on the same meal twice in a row — kids were seeing
+    // the same options cycle through. Exclude the current preview from the pool.
+    const pool = previewMeal && meals.length > 1
+      ? meals.filter(m => m.id !== previewMeal.id)
+      : meals
+    const random = pool[Math.floor(Math.random() * pool.length)]
     setPreviewMeal({ id: random.id, name: random.name })
   }
 
