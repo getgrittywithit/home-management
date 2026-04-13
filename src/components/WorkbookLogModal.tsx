@@ -6,11 +6,12 @@ import { BookOpen, Star, X, Check } from 'lucide-react'
 interface WorkbookLogModalProps {
   kidName: string
   workbookName: string
+  subject?: string  // 'math' | 'elar' | other; drives the skill chip set
   onClose: () => void
   onLogged: () => void
 }
 
-const SKILL_CHIPS = [
+const MATH_SKILL_CHIPS = [
   { id: 'M1', label: '🔢 Number Sense', short: 'Numbers' },
   { id: 'M2', label: '➕ Addition/Subtraction', short: 'Add/Sub' },
   { id: 'M3', label: '✖️ Multiplication/Division', short: 'Mult/Div' },
@@ -22,7 +23,25 @@ const SKILL_CHIPS = [
   { id: 'M12', label: '🧩 Word Problems', short: 'Word Prob' },
 ]
 
-export default function WorkbookLogModal({ kidName, workbookName, onClose, onLogged }: WorkbookLogModalProps) {
+const ELAR_SKILL_CHIPS = [
+  { id: 'E1', label: '📖 Reading', short: 'Reading' },
+  { id: 'E2', label: '✍️ Writing', short: 'Writing' },
+  { id: 'E3', label: '📝 Grammar', short: 'Grammar' },
+  { id: 'E4', label: '💬 Vocabulary', short: 'Vocabulary' },
+  { id: 'E5', label: '🧠 Comprehension', short: 'Comprehension' },
+  { id: 'E6', label: '🔤 Phonics', short: 'Phonics' },
+  { id: 'E7', label: '🔠 Spelling', short: 'Spelling' },
+  { id: 'E8', label: '✨ Creative Writing', short: 'Creative' },
+]
+
+function isElarWorkbook(workbookName: string, subject?: string): boolean {
+  if (subject && ['elar', 'ela', 'english', 'reading', 'language arts'].includes(subject.toLowerCase())) return true
+  const lower = workbookName.toLowerCase()
+  return lower.includes('elar') || lower.includes('reading') || lower.includes('writing') || lower.includes('language')
+}
+
+export default function WorkbookLogModal({ kidName, workbookName, subject, onClose, onLogged }: WorkbookLogModalProps) {
+  const SKILL_CHIPS = isElarWorkbook(workbookName, subject) ? ELAR_SKILL_CHIPS : MATH_SKILL_CHIPS
   const [currentPage, setCurrentPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [dailyTarget, setDailyTarget] = useState(2)

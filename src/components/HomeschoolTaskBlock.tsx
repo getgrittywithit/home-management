@@ -415,6 +415,7 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
         <WorkbookLogModal
           kidName={kidName}
           workbookName={workbookModal.workbookName}
+          subject={workbookModal.task.subject}
           onClose={() => setWorkbookModal(null)}
           onLogged={() => handleWorkbookComplete(workbookModal.task)}
         />

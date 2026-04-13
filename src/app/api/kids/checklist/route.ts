@@ -440,6 +440,26 @@ export async function GET(request: NextRequest) {
         { id: `skincare-am-${today}`, title: '🧴 Morning Skincare Routine', description: 'Wash face, apply moisturizer, sunscreen', category: 'hygiene', time: '7:15 AM' },
         { id: `skincare-pm-${today}`, title: '🧴 Evening Skincare Routine', description: 'Wash face, apply treatment, moisturizer', category: 'hygiene', time: '8:15 PM' },
       )
+
+      // ZONE-7: Plant Patrol — helper role, Mon/Wed/Fri/Sat, 10–15 min
+      // Separate from the zone rotation — Hannah loves plants
+      const HANNAH_PLANT_DAYS: Record<number, string> = {
+        1: 'Front room / plant room / school room',
+        3: 'Kitchen + dining room',
+        5: 'Hallway + entryway + porch',
+        6: 'Master bathroom + master bedroom + backyard',
+      }
+      const todayDow = new Date(today + 'T12:00:00').getDay()
+      const plantArea = HANNAH_PLANT_DAYS[todayDow]
+      if (plantArea) {
+        required.push({
+          id: `plant-patrol-${today}`,
+          title: `🪴 Plant Patrol — ${plantArea}`,
+          description: 'Spend 10–15 min checking plants in this area. Pick up dead leaves, clean up dirt, check if soil looks dry. Tell Mom which plants might need water — never water alone until Mom says you are ready.',
+          category: 'parent_task',
+          time: '3:30 PM',
+        })
+      }
     }
 
     // Also try to pull active meds from DB (student_profiles.active_meds)

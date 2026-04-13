@@ -338,16 +338,18 @@ export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: 
         </div>
       )}
 
-      {/* Print This Week */}
-      <div className="px-4 py-2 border-t bg-white text-center recipe-card-hide-print">
-        <button
-          onClick={handlePrintWeek}
-          className="text-xs text-gray-600 hover:text-gray-900 font-medium inline-flex items-center gap-1"
-        >
-          <Printer className="w-3.5 h-3.5" />
-          Print This Week
-        </button>
-      </div>
+      {/* Print This Week — parent-only */}
+      {isParent && (
+        <div className="px-4 py-2 border-t bg-white text-center recipe-card-hide-print">
+          <button
+            onClick={handlePrintWeek}
+            className="text-xs text-gray-600 hover:text-gray-900 font-medium inline-flex items-center gap-1"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Print This Week
+          </button>
+        </div>
+      )}
 
       {/* Today highlight indicator (kid-side, this week) */}
       {!isParent && viewing === 'this' && !compact && (
