@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
     const dateParam = searchParams.get('date')
 
     // All kids completion overview for the current week
+    // D62 KDT-1..3: Returns 4 buckets (zone, dailyCare, school, petCare) per kid
+    //               plus categorized tasks for the parent detail panel.
     if (action === 'get_all_completion') {
       const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
       const today = now.toLocaleDateString('en-CA')
@@ -62,68 +64,145 @@ export async function GET(request: NextRequest) {
       const weekEnd = sunday.toLocaleDateString('en-CA')
       const isWeekday = dow >= 1 && dow <= 5
       const belleHelper = getBelleHelper(now)
+      const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat']
+      const todayDayKey = DAY_KEYS[dow]
+
+      // Categorize an event_id into one of the 4 column buckets.
+      // zone    — rotating zone chores + dishes/dinner manager/evening tidy/school room clean
+      // care    — personal hygiene, meds, skincare, helper-style tasks (plant patrol)
+      // pet     — animal care (belle, spike, hades, midnight, pet-*)
+      // school  — homeschool tasks (tracked separately in homeschool_task_completions, not here)
+      const categorizeEvent = (eventId: string): 'zone' | 'care' | 'pet' | 'other' => {
+        const e = eventId.toLowerCase()
+        if (e.startsWith('zone-') || e.startsWith('dishes-') || e.startsWith('dinner-')
+          || e.startsWith('schoolroom-') || e.startsWith('school-clean') || e.startsWith('tidy-')
+          || e.startsWith('evening-tidy') || e.startsWith('laundry-')) return 'zone'
+        if (e.startsWith('belle-') || e.startsWith('spike-') || e.startsWith('hades-')
+          || e.startsWith('midnight-') || e.startsWith('pet-')) return 'pet'
+        if (e.startsWith('hygiene-') || e.startsWith('med-') || e.startsWith('skincare-')
+          || e.startsWith('plant-patrol')) return 'care'
+        return 'other'
+      }
 
       try {
-        // Get DB completion rows for the week
+        // Get DB completion rows for the week (for the week-count legacy path)
         const rows = await db.query(
           `SELECT child_name, event_id, completed FROM kid_daily_checklist WHERE event_date >= $1 AND event_date <= $2`,
           [weekStart, weekEnd]
         )
 
-        // Compute expected task counts per kid for TODAY (dynamic generation)
-        const getExpectedTaskCount = (kid: string): { required: number; dailyCare: number } => {
-          let req = 0
-          const zone = getKidZone(kid.charAt(0).toUpperCase() + kid.slice(1))
-          if (zone) req += 2 // morning + afternoon zone chores
-          if (DISHES.breakfast.includes(kid)) req++
-          if (DISHES.lunch.includes(kid)) req++
-          if (DISHES.dinner.includes(kid)) req++
-          if ((DINNER_MANAGER[dow] || []).includes(kid)) req++
-          if (belleHelper === kid) req += 2 // AM + PM belle care
-          if (kid === 'zoey') req++ // Hades
-          if (kid === 'amos') req++ // Spike
-          if (kid === 'kaylee' || kid === 'wyatt') req++ // Spike helper
-          if (kid === 'ellie' || kid === 'hannah') req++ // Midnight
-          req++ // Evening tidy (always)
-          if (HOMESCHOOL_KIDS.includes(kid) && isWeekday) req++ // School room clean
-          return { required: req, dailyCare: 2 } // Morning + Bedtime routines
+        // Expected task counts per kid for TODAY, split across the 4 buckets
+        const getExpected = (kid: string): { zone: number; care: number; pet: number } => {
+          let zone = 0
+          let care = 2 // Morning + Bedtime hygiene always
+          let pet = 0
+          if (getKidZone(kid.charAt(0).toUpperCase() + kid.slice(1))) zone += 2 // zone AM + PM
+          if (DISHES.breakfast.includes(kid)) zone++
+          if (DISHES.lunch.includes(kid)) zone++
+          if (DISHES.dinner.includes(kid)) zone++
+          if ((DINNER_MANAGER[dow] || []).includes(kid)) zone++
+          zone++ // Evening tidy (always)
+          if (HOMESCHOOL_KIDS.includes(kid) && isWeekday) zone++ // School room clean
+          if (belleHelper === kid) pet += 2 // Belle AM + PM
+          if (kid === 'amos') pet++ // Spike primary
+          if (kid === 'kaylee' || kid === 'wyatt') pet++ // Spike helper
+          if (kid === 'ellie') pet++ // Midnight primary
+          if (kid === 'hannah') pet++ // Midnight helper
+          if (kid === 'zoey') pet++ // Hades sole caretaker
+          return { zone, care, pet }
         }
 
-        // Also fetch today's individual task details for expanded view
+        // Fetch today's individual task details for the expanded detail panel
         const todayRows = await db.query(
           `SELECT child_name, event_id, event_summary, completed FROM kid_daily_checklist WHERE event_date = $1`,
           [today]
         ).catch(() => [])
 
+        // KDT-2: school task progress for homeschool kids (today's applicable tasks only)
+        let schoolByKid: Record<string, { done: number; total: number; tasks: any[] }> = {}
+        try {
+          const schoolTaskRows = await db.query(
+            `SELECT t.id, t.kid_name, t.task_label, t.subject, t.duration_min,
+                    CASE WHEN c.id IS NOT NULL THEN true ELSE false END AS completed,
+                    c.completed_at
+             FROM homeschool_tasks t
+             LEFT JOIN homeschool_task_completions c
+               ON c.task_id = t.id AND c.kid_name = t.kid_name AND c.task_date = CURRENT_DATE
+             WHERE t.active = true
+               AND (t.is_recurring = false OR $1 = ANY(t.recurrence_days))
+             ORDER BY t.kid_name, t.subject, t.sort_order`,
+            [todayDayKey]
+          )
+          for (const r of (schoolTaskRows as any[])) {
+            const k = (r.kid_name || '').toLowerCase()
+            if (!schoolByKid[k]) schoolByKid[k] = { done: 0, total: 0, tasks: [] }
+            schoolByKid[k].total++
+            if (r.completed) schoolByKid[k].done++
+            schoolByKid[k].tasks.push({
+              id: r.id,
+              event_id: `hs-${r.id}`,
+              summary: `${r.subject}: ${r.task_label}`,
+              title: r.task_label,
+              completed: !!r.completed,
+              category: 'school',
+              subject: r.subject,
+            })
+          }
+        } catch (e) {
+          console.error('[checklist] school task fetch failed:', e)
+        }
+
         const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(kid => {
           const kidRows = (rows as any[]).filter((r: any) => r.child_name === kid)
-          const req = kidRows.filter((r: any) => !r.event_id.startsWith('hygiene-') && !r.event_id.startsWith('earn-'))
-          const care = kidRows.filter((r: any) => r.event_id.startsWith('hygiene-'))
-          const earn = kidRows.filter((r: any) => r.event_id.startsWith('earn-'))
-          const expected = getExpectedTaskCount(kid)
+          const expected = getExpected(kid)
 
-          // Individual tasks for today (for parent expanded view)
-          const tasks = (todayRows as any[])
-            .filter((r: any) => r.child_name === kid)
-            .map((r: any) => ({
-              id: r.event_id,
-              event_id: r.event_id,
-              summary: r.event_summary || r.event_id.replace(/-/g, ' ').replace(/^\w/, (c: string) => c.toUpperCase()),
-              title: r.event_summary || r.event_id,
-              completed: r.completed,
-              category: r.event_id.startsWith('zone-') ? 'zone' :
-                r.event_id.startsWith('hygiene-') ? 'hygiene' :
-                r.event_id.startsWith('belle-') ? 'belle' :
-                r.event_id.startsWith('earn-') ? 'earn' :
-                r.event_id.startsWith('dishes-') ? 'dishes' :
-                r.event_id.startsWith('med-') ? 'med' : 'task',
-            }))
+          // Bucketed week counts (from kid_daily_checklist rows)
+          const bucketRows = { zone: [] as any[], care: [] as any[], pet: [] as any[] }
+          for (const r of kidRows) {
+            const cat = categorizeEvent(r.event_id)
+            if (cat !== 'other') bucketRows[cat].push(r)
+          }
+
+          // Today's tasks, categorized for the detail panel
+          const todayKidRows = (todayRows as any[]).filter((r: any) => r.child_name === kid)
+          const taskCategoryMap: Record<string, string> = {
+            zone: 'zone', care: 'care', pet: 'pet', other: 'other',
+          }
+          const routineTasks = todayKidRows.map((r: any) => ({
+            id: r.event_id,
+            event_id: r.event_id,
+            summary: r.event_summary || r.event_id.replace(/-/g, ' ').replace(/^\w/, (c: string) => c.toUpperCase()),
+            title: r.event_summary || r.event_id,
+            completed: !!r.completed,
+            category: taskCategoryMap[categorizeEvent(r.event_id)] || 'other',
+          }))
+
+          const schoolEntry = schoolByKid[kid] || { done: 0, total: 0, tasks: [] }
+          const tasks = [...routineTasks, ...schoolEntry.tasks]
 
           return {
             name: kid,
-            required: { done: req.filter((r: any) => r.completed).length, total: Math.max(req.length, expected.required) },
-            dailyCare: { done: care.filter((r: any) => r.completed).length, total: Math.max(care.length, expected.dailyCare) },
-            earnMoney: { done: earn.filter((r: any) => r.completed).length, total: earn.length },
+            zone: {
+              done: bucketRows.zone.filter((r: any) => r.completed).length,
+              total: Math.max(bucketRows.zone.length, expected.zone),
+            },
+            dailyCare: {
+              done: bucketRows.care.filter((r: any) => r.completed).length,
+              total: Math.max(bucketRows.care.length, expected.care),
+            },
+            school: HOMESCHOOL_KIDS.includes(kid)
+              ? { done: schoolEntry.done, total: schoolEntry.total }
+              : { done: 0, total: 0, hidden: true }, // non-homeschool kids render as —
+            petCare: {
+              done: bucketRows.pet.filter((r: any) => r.completed).length,
+              total: Math.max(bucketRows.pet.length, expected.pet),
+            },
+            // Legacy shape for anything still reading the old fields
+            required: {
+              done: bucketRows.zone.filter((r: any) => r.completed).length,
+              total: Math.max(bucketRows.zone.length, expected.zone),
+            },
+            earnMoney: { done: 0, total: 0 },
             tasks,
           }
         })
