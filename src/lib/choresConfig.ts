@@ -326,8 +326,8 @@ export const DAILY_FOCUS = {
   wednesday: 'Desk Day - Bills, Papers, Planning',
   thursday: 'Grocery Planning & Errands',
   friday: 'Car & Bags - Clean out vehicles and bags',
-  saturday: 'Family Zone Hour',
-  sunday: 'Rest & Prep for Week'
+  saturday: 'Zone Deep Clean Day',
+  sunday: 'Zone Deep Clean + Prep for New Week'
 }
 
 // Age-appropriate chore suggestions

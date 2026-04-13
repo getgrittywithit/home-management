@@ -1,5 +1,5 @@
 // 6-Week Zone Rotation Schedule
-// Week 1 started March 15, 2026. Cycle repeats every 6 weeks.
+// Week 1 started March 16, 2026 (Monday). Cycle repeats every 6 weeks. Weeks run Mon–Sun.
 
 const ZONES = ['Hotspot', 'Kitchen', 'Guest Bathroom', 'Kids Bathroom', 'Pantry', 'Floors'] as const
 export type ZoneName = typeof ZONES[number]
@@ -25,8 +25,8 @@ const KID_ROTATIONS: Record<string, ZoneName[]> = {
   Hannah: ['Pantry', 'Floors', 'Hotspot', 'Kitchen', 'Guest Bathroom', 'Kids Bathroom'],
 }
 
-// Week 1 of the rotation cycle started March 15, 2026 (a Sunday)
-const CYCLE_START = new Date(2026, 2, 15) // Month is 0-indexed
+// Week 1 of the rotation cycle started March 16, 2026 (a Monday)
+const CYCLE_START = new Date(2026, 2, 16) // Month is 0-indexed
 
 /**
  * Get the current zone week number (1-6) based on today's date.
@@ -68,7 +68,7 @@ export function getCurrentZoneWeekRange(today: Date = new Date()): { start: Date
   const msPerWeek = 7 * 24 * 60 * 60 * 1000
   const weeksSinceStart = Math.floor((today.getTime() - CYCLE_START.getTime()) / msPerWeek)
   const start = new Date(CYCLE_START.getTime() + weeksSinceStart * msPerWeek)
-  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000) // End of the week (Saturday)
+  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000) // End of the week (Sunday)
   return { start, end }
 }
 

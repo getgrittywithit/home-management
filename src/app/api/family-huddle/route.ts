@@ -18,7 +18,7 @@ const ZONE_OFFSETS: Record<string, number[]> = {
   amos: [0, 1, 2, 3, 4, 5], kaylee: [5, 0, 1, 2, 3, 4], hannah: [4, 5, 0, 1, 2, 3],
   ellie: [3, 4, 5, 0, 1, 2], wyatt: [2, 3, 4, 5, 0, 1], zoey: [1, 2, 3, 4, 5, 0],
 }
-const ZONE_EPOCH = new Date('2026-03-15T12:00:00')
+const ZONE_EPOCH = new Date('2026-03-16T12:00:00')
 
 const LAUNDRY: Record<string, string> = {
   Monday: 'Levi work clothes', Tuesday: 'Lola personal + sheets',

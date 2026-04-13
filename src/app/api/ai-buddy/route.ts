@@ -185,10 +185,11 @@ Keep responses short — 2-3 sentences is perfect.`
 const HOUSEHOLD_KNOWLEDGE = `
 HOUSEHOLD SYSTEM KNOWLEDGE (always true — use these facts any time a DB query is missing):
 
-ZONE ROTATION (6-week cycle):
+ZONE ROTATION (6-week cycle, Monday-start, Mon–Sun weeks):
 - Zones: Hotspot, Kitchen, Guest Bath, Kids Bath, Pantry, Floors
 - Each kid rotates through all 6 zones over 6 weeks
 - Zone chores happen 3x/day: Morning (before school), Afternoon (after school), Evening (before bed)
+- Weekend zone rules: Saturday and Sunday are deep clean days for the CURRENT zone (same zone as Mon–Fri). Monday = zone changeover to the next zone in rotation. The weekend is NOT split between two zones.
 
 BELLE (DOG) CARE SCHEDULE:
 - Weekdays (fixed): Mon=Kaylee, Tue=Amos, Wed=Hannah, Thu=Wyatt, Fri=Ellie (Zoey is excluded)

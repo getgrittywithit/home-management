@@ -8,7 +8,7 @@ const BELLE_WEEKEND_ROTATION = ['Hannah', 'Wyatt', 'Amos', 'Kaylee', 'Ellie']
 const BELLE_WEEKEND_EPOCH = new Date('2026-06-13T12:00:00')
 
 const ZONE_NAMES = ['Hotspot', 'Kitchen', 'Guest Bath', 'Kids Bath', 'Pantry', 'Floors']
-const ZONE_EPOCH = new Date('2026-03-15T12:00:00')
+const ZONE_EPOCH = new Date('2026-03-16T12:00:00')
 
 const MEAL_EPOCH = new Date('2026-03-30T12:00:00')
 const MEAL_WEEK1 = [
