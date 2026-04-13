@@ -48,6 +48,7 @@ import FinancialLiteracyPanel from './FinancialLiteracyPanel'
 import EnrichmentCard from './EnrichmentCard'
 import { KidLibraryView } from './HomeLibrary'
 import HomeschoolTaskBlock from './HomeschoolTaskBlock'
+import VocabPracticeCard from './VocabPracticeCard'
 import MyDayView from './MyDayView'
 import AiBuddyChat from './AiBuddyChat'
 import MyVibe from './kid/MyVibe'
@@ -1297,6 +1298,9 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           <h1 className="text-2xl font-bold">Homeschool</h1>
           <p className="text-teal-100">{profile.grade || ''} · 2025-2026</p>
         </div>
+
+        {/* This Week's Vocab — flashcards + word list */}
+        <VocabPracticeCard kidName={profile.first_name || profile.name} />
 
         {/* Today's Tasks — checkable daily tasks */}
         <HomeschoolTaskBlock

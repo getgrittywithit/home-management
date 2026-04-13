@@ -6,6 +6,8 @@ import StudentProfile from './StudentProfile'
 import type { Subject } from './types'
 import TeacherDashboard from '../TeacherDashboard'
 import OpportunitiesParentPanel from '../OpportunitiesParentPanel'
+import WeeklyFocusBoard from './WeeklyFocusBoard'
+import AssessmentScoreEntry from './AssessmentScoreEntry'
 
 interface Props {
   students: StudentData[]
@@ -37,6 +39,8 @@ export default function HomeschoolOverview({ students, taskProgress, selectedStu
           ))}
         </div>
       </div>
+      <WeeklyFocusBoard />
+      <AssessmentScoreEntry />
       <TeacherDashboard />
       <OpportunitiesParentPanel />
     </div>
