@@ -80,14 +80,14 @@ const CATEGORY_ICONS: Record<string, { icon: React.ReactNode; color: string }> =
   pet: { icon: <Heart className="w-4 h-4" />, color: 'text-pink-600' },
 }
 
-// Map zone names from the 6-week rotation to zone_definitions keys
+// Map zone display names from the 6-week rotation to zone_definitions keys
 const ZONE_NAME_TO_KEY: Record<string, string> = {
-  'hotspot': 'kitchen_zone', // Hotspot is kitchen area
+  'hotspot': 'hotspot',
   'kitchen': 'kitchen_zone',
-  'guest bathroom': 'kids_bathroom', // reuse bathroom tasks
+  'guest bathroom': 'guest_bathroom',
   'kids bathroom': 'kids_bathroom',
-  'pantry': 'kitchen_zone', // pantry tasks overlap kitchen
-  'floors': 'kitchen_zone', // floors tasks overlap kitchen
+  'pantry': 'pantry',
+  'floors': 'floors',
 }
 
 function getZoneKeyForItem(item: ChecklistItem, childName: string, currentZone: string | null): string | null {
