@@ -431,7 +431,14 @@ export async function GET(request: NextRequest) {
 
       try {
         const tasks = await db.query(
-          `SELECT * FROM homeschool_tasks WHERE kid_name = $1 ORDER BY subject, sort_order`,
+          `SELECT t.*,
+                  CASE WHEN c.id IS NOT NULL THEN true ELSE false END AS completed,
+                  c.completed_at AS completed_at
+           FROM homeschool_tasks t
+           LEFT JOIN homeschool_task_completions c
+             ON c.task_id = t.id AND c.kid_name = t.kid_name AND c.task_date = CURRENT_DATE
+           WHERE t.kid_name = $1
+           ORDER BY t.subject, t.sort_order`,
           [kidName]
         )
         return NextResponse.json({ tasks })
@@ -719,15 +726,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Alias for dashboard widget
+    // Alias for dashboard widget — filter by today's day-of-week so counts match kid-side view
     case 'dashboard_summary': {
       try {
+        const days = ['sun','mon','tue','wed','thu','fri','sat']
+        const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+        const dayOfWeek = days[now.getDay()]
         const progress = await db.query(
-          `SELECT t.kid_name, COUNT(t.id)::int AS total_tasks, COUNT(c.id)::int AS completed_tasks
+          `SELECT t.kid_name,
+                  COUNT(t.id)::int AS total_tasks,
+                  COUNT(c.id)::int AS completed_tasks,
+                  COALESCE(SUM(CASE WHEN c.id IS NOT NULL THEN t.duration_min ELSE 0 END), 0)::int AS focus_mins
            FROM homeschool_tasks t
-           LEFT JOIN homeschool_task_completions c ON c.task_id = t.id AND c.task_date = CURRENT_DATE
+           LEFT JOIN homeschool_task_completions c
+             ON c.task_id = t.id AND c.kid_name = t.kid_name AND c.task_date = CURRENT_DATE
            WHERE t.active = true
-           GROUP BY t.kid_name ORDER BY t.kid_name`
+             AND (t.is_recurring = false OR $1 = ANY(t.recurrence_days))
+           GROUP BY t.kid_name
+           ORDER BY t.kid_name`,
+          [dayOfWeek]
         )
         return NextResponse.json({ progress, date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) })
       } catch { return NextResponse.json({ progress: [] }) }

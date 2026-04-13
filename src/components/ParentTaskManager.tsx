@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit3, Trash2, X, Save, Clock, Star, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Edit3, Trash2, X, Save, Clock, Star, ChevronDown, ChevronUp, CheckCircle2, Circle } from 'lucide-react'
 
 interface Task {
   id: string
@@ -15,6 +15,8 @@ interface Task {
   stars_value: number
   sort_order: number
   active: boolean
+  completed?: boolean
+  completed_at?: string | null
 }
 
 const SUBJECTS = ['Math', 'ELAR', 'Science', 'Social Studies', 'Art', 'Life Skills', 'PE']
@@ -418,12 +420,32 @@ export default function ParentTaskManager() {
                 <h4 className="font-medium text-gray-800 text-sm">{subject}</h4>
               </div>
               <div className="divide-y divide-gray-100">
-                {subjectTasks.map(task => (
-                  <div key={task.id} className="px-4 py-3 flex items-center gap-3">
+                {subjectTasks.map(task => {
+                  const doneTime = task.completed_at
+                    ? new Date(task.completed_at).toLocaleTimeString('en-US', {
+                        hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago',
+                      })
+                    : null
+                  return (
+                  <div key={task.id} className={`px-4 py-3 flex items-center gap-3 ${task.completed ? 'bg-green-50/40' : ''}`}>
+                    <div className="flex-shrink-0">
+                      {task.completed ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-gray-300" />
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium ${task.active ? 'text-gray-900' : 'text-gray-400'}`}>
+                      <div className={`text-sm font-medium ${
+                        !task.active ? 'text-gray-400'
+                        : task.completed ? 'text-gray-500 line-through'
+                        : 'text-gray-900'
+                      }`}>
                         {task.task_label}
                         {!task.active && <span className="ml-2 text-xs text-gray-400">(inactive)</span>}
+                        {task.completed && doneTime && (
+                          <span className="ml-2 text-xs text-green-600 font-normal no-underline">Done {doneTime}</span>
+                        )}
                       </div>
                       {task.task_description && (
                         <p className="text-xs text-gray-500 mt-0.5 truncate">{task.task_description}</p>
@@ -474,7 +496,8 @@ export default function ParentTaskManager() {
                       )}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ))}

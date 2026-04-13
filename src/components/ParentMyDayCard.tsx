@@ -51,10 +51,19 @@ export default function ParentMyDayCard({ onNavigate }: ParentMyDayCardProps) {
     const dayName = DAY_NAMES[dow]
     const briefing: string[] = []
 
-    // Meds (only show before 9am or if it's a reminder that hasn't been handled)
+    // Meds (only show before 9am AND only if at least one AM med is NOT paused)
     const chicagoHour = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' })).getHours()
     if (dow >= 1 && dow <= 5 && chicagoHour < 9) {
-      briefing.push('\uD83D\uDC8A Meds: Amos & Wyatt need AM Focalin')
+      try {
+        const pausedRes = await fetch('/api/med-toggle?action=get_all').then(r => r.json())
+        const paused: Array<{ kid_name: string; med_key: string; is_paused: boolean }> = pausedRes.medications || []
+        const isPausedAM = (kid: string) => paused.some(p => p.kid_name === kid && p.med_key === 'am' && p.is_paused)
+        const active = ['amos', 'wyatt'].filter(k => !isPausedAM(k))
+        if (active.length > 0) {
+          const names = active.map(k => k.charAt(0).toUpperCase() + k.slice(1)).join(' & ')
+          briefing.push(`\uD83D\uDC8A Meds: ${names} need AM Focalin`)
+        }
+      } catch { /* silent — skip med line if API fails */ }
     }
 
     // Belle

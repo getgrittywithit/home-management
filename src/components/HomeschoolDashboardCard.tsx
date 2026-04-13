@@ -23,7 +23,7 @@ export default function HomeschoolDashboardCard({ onNavigate }: HomeschoolDashbo
     mascot: ({ amos: '🦉', ellie: '🐱', wyatt: '🐕', hannah: '🐰' } as Record<string, string>)[p.kid_name] || '📚',
     subjects_done: p.completed_tasks || 0,
     subjects_total: p.total_tasks || 0,
-    focus_sessions: 0,
+    focus_sessions: p.focus_mins || 0,
   })) || summary.kids || [
     { name: 'Amos', mascot: '🦉', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
     { name: 'Ellie', mascot: '🐱', subjects_done: 0, subjects_total: 0, focus_sessions: 0 },
@@ -70,7 +70,7 @@ export default function HomeschoolDashboardCard({ onNavigate }: HomeschoolDashbo
                 {kid.subjects_done}/{kid.subjects_total} subjects
               </span>
               <span className="text-xs text-gray-500">
-                {kid.focus_sessions} focus
+                {kid.focus_sessions}m focus
               </span>
               {concern && (
                 <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />

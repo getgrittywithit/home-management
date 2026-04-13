@@ -1163,20 +1163,49 @@ const CHRONIC_MEDS = [
   { member: 'Lola', med_name: 'Amphetamine Salts', dose: '20mg' },
 ]
 
+// Map CHRONIC_MEDS (member + med_name) to paused_medications (kid_name + med_key)
+const MED_PAUSE_KEY: Record<string, { kid: string; key: string }> = {
+  'Amos|Focalin':            { kid: 'amos',  key: 'am' },
+  'Amos|Clonidine':          { kid: 'amos',  key: 'pm' },
+  'Wyatt|Focalin':           { kid: 'wyatt', key: 'am' },
+  'Wyatt|Clonidine':         { kid: 'wyatt', key: 'pm' },
+  'Lola|Amphetamine Salts':  { kid: 'lola',  key: 'am' },
+}
+
+// Map MedAdherenceCalendar (person + medication label) to paused_medications
+const CAL_PAUSE_KEY: Record<string, { kid: string; key: string }> = {
+  'amos|Morning Focalin':    { kid: 'amos',  key: 'am' },
+  'amos|Evening Clonidine':  { kid: 'amos',  key: 'pm' },
+  'wyatt|Morning Focalin':   { kid: 'wyatt', key: 'am' },
+  'wyatt|Evening Clonidine': { kid: 'wyatt', key: 'pm' },
+  'lola|Take Adderall':      { kid: 'lola',  key: 'am' },
+}
+
+interface PausedMed { kid_name: string; med_key: string; is_paused: boolean; pause_reason: string | null }
+
 function AdherenceSection() {
   const [adherenceData, setAdherenceData] = useState<ChronicMed[]>([])
+  const [pausedMeds, setPausedMeds] = useState<PausedMed[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchAdherence = useCallback(async () => {
     try {
-      const res = await fetch('/api/health-hub?action=get_adherence')
-      const data = await res.json()
-      setAdherenceData(data.meds || [])
+      const [adherenceRes, pausedRes] = await Promise.all([
+        fetch('/api/health-hub?action=get_adherence').then(r => r.json()),
+        fetch('/api/med-toggle?action=get_all').then(r => r.json()),
+      ])
+      setAdherenceData(adherenceRes.meds || [])
+      setPausedMeds(pausedRes.medications || [])
     } catch { /* empty */ }
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchAdherence() }, [fetchAdherence])
+
+  const isPaused = (kid: string, key: string): PausedMed | null => {
+    const found = pausedMeds.find(p => p.kid_name === kid && p.med_key === key && p.is_paused)
+    return found || null
+  }
 
   const logDose = async (member: string, med_name: string) => {
     try {
@@ -1265,8 +1294,10 @@ function AdherenceSection() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {mergedMeds.map((med, idx) => {
           const needsRefill = med.pill_count <= 7
+          const pauseKey = MED_PAUSE_KEY[`${med.member}|${med.med_name}`]
+          const paused = pauseKey ? isPaused(pauseKey.kid, pauseKey.key) : null
           return (
-            <div key={idx} className="bg-white border rounded-lg p-4">
+            <div key={idx} className={`bg-white border rounded-lg p-4 ${paused ? 'opacity-75' : ''}`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <MemberAvatar name={med.member} size="sm" />
@@ -1275,7 +1306,9 @@ function AdherenceSection() {
                     <p className="text-xs text-gray-500">{med.dose}</p>
                   </div>
                 </div>
-                {med.streak > 0 && (
+                {paused ? (
+                  <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">⏸️ Paused</span>
+                ) : med.streak > 0 && (
                   <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                     <TrendingUp className="w-3 h-3" />
                     {med.streak}d streak
@@ -1283,46 +1316,73 @@ function AdherenceSection() {
                 )}
               </div>
 
-              {/* Month grid */}
-              {renderMonthGrid(med.adherence)}
+              {paused ? (
+                <div className="bg-gray-50 border border-dashed border-gray-300 rounded p-3 text-center">
+                  <p className="text-xs text-gray-600 font-medium mb-1">Paused — tracking disabled</p>
+                  {paused.pause_reason && (
+                    <p className="text-[11px] text-gray-500">{paused.pause_reason}</p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Month grid */}
+                  {renderMonthGrid(med.adherence)}
 
-              {/* Legend */}
-              <div className="flex gap-2 mt-2 text-xs text-gray-500">
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-400" /> Taken</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> Late</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400" /> Missed</span>
-              </div>
+                  {/* Legend */}
+                  <div className="flex gap-2 mt-2 text-xs text-gray-500">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-400" /> Taken</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> Late</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400" /> Missed</span>
+                  </div>
+                </>
+              )}
 
               {/* Pill count + refill */}
               <div className="flex items-center justify-between mt-3 pt-3 border-t">
                 <div className="text-xs text-gray-500">
                   <Pill className="w-3 h-3 inline mr-1" />
                   {med.pill_count} pills left
-                  {needsRefill && (
+                  {needsRefill && !paused && (
                     <span className="ml-1.5 text-red-600 font-semibold">Refill needed!</span>
                   )}
                 </div>
-                <button onClick={() => logDose(med.member, med.med_name)}
-                  className="text-xs bg-green-600 text-white px-3 py-1 rounded-full hover:bg-green-700 flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Log Dose
-                </button>
+                {!paused && (
+                  <button onClick={() => logDose(med.member, med.med_name)}
+                    className="text-xs bg-green-600 text-white px-3 py-1 rounded-full hover:bg-green-700 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Log Dose
+                  </button>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* MED-1 Adherence Calendars */}
-      <div className="mt-6">
-        <h3 className="font-semibold text-gray-900 mb-3">Monthly Adherence Calendars</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <MedAdherenceCalendar personName="amos" medication="Morning Focalin" />
-          <MedAdherenceCalendar personName="amos" medication="Evening Clonidine" />
-          <MedAdherenceCalendar personName="wyatt" medication="Morning Focalin" />
-          <MedAdherenceCalendar personName="wyatt" medication="Evening Clonidine" />
-          <MedAdherenceCalendar personName="lola" medication="Take Adderall" />
-        </div>
-      </div>
+      {/* MED-1 Adherence Calendars — hidden for paused meds */}
+      {(() => {
+        const calendars: Array<{ person: string; med: string }> = [
+          { person: 'amos',  med: 'Morning Focalin' },
+          { person: 'amos',  med: 'Evening Clonidine' },
+          { person: 'wyatt', med: 'Morning Focalin' },
+          { person: 'wyatt', med: 'Evening Clonidine' },
+          { person: 'lola',  med: 'Take Adderall' },
+        ]
+        const visible = calendars.filter(c => {
+          const key = CAL_PAUSE_KEY[`${c.person}|${c.med}`]
+          return !(key && isPaused(key.kid, key.key))
+        })
+        if (visible.length === 0) return null
+        return (
+          <div className="mt-6">
+            <h3 className="font-semibold text-gray-900 mb-3">Monthly Adherence Calendars</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {visible.map(c => (
+                <MedAdherenceCalendar key={`${c.person}-${c.med}`} personName={c.person} medication={c.med} />
+              ))}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
