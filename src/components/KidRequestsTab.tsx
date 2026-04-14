@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, Utensils, Users, Gamepad2, Heart, ShoppingBag, Lock, MessageCircle } from 'lucide-react'
+import { Send, Utensils, Users, Gamepad2, Heart, ShoppingBag, Lock, MessageCircle, Package, Check, X, Clock } from 'lucide-react'
 import BreakButton from './BreakButton'
 import RequestFormModal, { type RequestKind } from './RequestFormModal'
 
@@ -12,6 +12,20 @@ interface Message {
 interface PendingRedemption {
   id: number; reward_name: string; coins_spent: number; status: string; created_at: string
 }
+
+interface NeedRequest {
+  id: string
+  name: string
+  category: string
+  status: 'active' | 'pending' | 'purchased' | 'denied' | 'cancelled'
+  denied_reason: string | null
+  created_at: string
+}
+
+const NEED_CATEGORIES = [
+  '🎒 School', '🛏️ Bedding', '👕 Clothing', '🚿 Bathroom', '💻 Tech & Electronics',
+  '🎨 Crafts & Art', '🍳 Kitchen', '🐾 Pet Supplies', '📦 Other',
+]
 
 const QUICK_REQUESTS: Array<{ label: string; icon: typeof Utensils; color: string; kind: RequestKind }> = [
   { label: 'Snack Request',   icon: Utensils, color: 'text-green-500',  kind: 'snack' },
@@ -34,8 +48,21 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
   const [showPersonalNeeds, setShowPersonalNeeds] = useState(false)
   const [personalItem, setPersonalItem] = useState('')
   const [openRequest, setOpenRequest] = useState<RequestKind | null>(null)
+  const [showNeedForm, setShowNeedForm] = useState(false)
+  const [needName, setNeedName] = useState('')
+  const [needCategory, setNeedCategory] = useState(NEED_CATEGORIES[0])
+  const [needReason, setNeedReason] = useState('')
+  const [needSaving, setNeedSaving] = useState(false)
+  const [myNeeds, setMyNeeds] = useState<NeedRequest[]>([])
 
   const childKey = childName.toLowerCase()
+
+  const loadMyNeeds = () => {
+    fetch(`/api/household-needs?action=my_requests&kid_name=${childKey}`)
+      .then((r) => r.json())
+      .then((d) => setMyNeeds(d.items || []))
+      .catch(() => {})
+  }
 
   useEffect(() => {
     Promise.all([
@@ -46,7 +73,36 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
       setPendingRewards(rewardData.redemptions || [])
       setLoaded(true)
     }).catch(() => setLoaded(true))
+    loadMyNeeds()
   }, [childKey])
+
+  const submitNeed = async () => {
+    if (!needName.trim()) return
+    setNeedSaving(true)
+    try {
+      // Strip leading emoji from category label
+      const category = needCategory.replace(/^\S+\s+/, '')
+      await fetch('/api/household-needs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          name: needName.trim(),
+          category,
+          notes: needReason || null,
+          requested_by: childKey,
+        }),
+      })
+      setNeedName('')
+      setNeedReason('')
+      setShowNeedForm(false)
+      loadMyNeeds()
+      setSentLabel('need')
+      setTimeout(() => setSentLabel(null), 3000)
+    } finally {
+      setNeedSaving(false)
+    }
+  }
 
   const sendRequest = async (message: string, label: string) => {
     setSentLabel(label)
@@ -135,6 +191,100 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
           }}
         />
       )}
+
+      {/* I Need Something — adds to household needs list */}
+      <div className="bg-white p-4 rounded-lg border">
+        <button
+          onClick={() => setShowNeedForm(!showNeedForm)}
+          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 w-full"
+        >
+          <Package className="w-4 h-4 text-sky-500" />
+          I Need Something
+          <span className="text-xs text-gray-400 ml-auto">
+            {showNeedForm ? 'Close' : 'Ask Mom or Dad to add it'}
+          </span>
+        </button>
+
+        {showNeedForm && (
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-700">What do you need?</label>
+              <input
+                value={needName}
+                onChange={(e) => setNeedName(e.target.value)}
+                placeholder="New pillow, art supplies…"
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-sky-400 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-700">Category</label>
+              <select
+                value={needCategory}
+                onChange={(e) => setNeedCategory(e.target.value)}
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+              >
+                {NEED_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-700">Why? (optional)</label>
+              <textarea
+                value={needReason}
+                onChange={(e) => setNeedReason(e.target.value)}
+                rows={2}
+                placeholder="Mine is falling apart…"
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              />
+            </div>
+            <button
+              onClick={submitNeed}
+              disabled={!needName.trim() || needSaving}
+              className="w-full bg-sky-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-sky-700 disabled:opacity-50"
+            >
+              {needSaving ? 'Sending…' : 'Send to Mom & Dad'}
+            </button>
+          </div>
+        )}
+
+        {sentLabel === 'need' && !showNeedForm && (
+          <p className="text-xs text-green-600 font-medium mt-2">✓ Sent! Mom and Dad will see it.</p>
+        )}
+
+        {/* My recent needs with status */}
+        {myNeeds.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">My recent requests</p>
+            {myNeeds.slice(0, 5).map((n) => {
+              const statusColor =
+                n.status === 'active' ? 'text-green-600 bg-green-50' :
+                n.status === 'pending' ? 'text-amber-600 bg-amber-50' :
+                n.status === 'purchased' ? 'text-blue-600 bg-blue-50' :
+                n.status === 'denied' ? 'text-red-600 bg-red-50' : 'text-gray-500 bg-gray-50'
+              const statusIcon =
+                n.status === 'active' ? <Check className="w-3 h-3" /> :
+                n.status === 'purchased' ? <Check className="w-3 h-3" /> :
+                n.status === 'denied' ? <X className="w-3 h-3" /> :
+                <Clock className="w-3 h-3" />
+              const statusLabel =
+                n.status === 'active' ? 'Approved' :
+                n.status === 'pending' ? 'Waiting' :
+                n.status === 'purchased' ? 'Got it!' :
+                n.status === 'denied' ? 'Not now' : n.status
+              return (
+                <div key={n.id} className="flex items-center gap-2 text-xs">
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-medium ${statusColor}`}>
+                    {statusIcon} {statusLabel}
+                  </span>
+                  <span className="text-gray-700 flex-1 truncate">{n.name}</span>
+                  {n.denied_reason && n.status === 'denied' && (
+                    <span className="text-gray-400 italic text-[10px]">"{n.denied_reason}"</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Personal Needs (Private) */}
       <div className="bg-white p-4 rounded-lg border">

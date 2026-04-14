@@ -17,6 +17,7 @@ import HomeschoolTab from './HomeschoolTab'
 import HomeschoolDashboardCard from './HomeschoolDashboardCard'
 import { ParentLibraryAdmin } from './HomeLibrary'
 import ProfileSwitcher from './ProfileSwitcher'
+import HouseholdNeedsTab from './HouseholdNeedsTab'
 import PetsTab from './PetsTab'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
@@ -47,7 +48,7 @@ import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, CheckSquare, ChefHat, DollarSign, Heart, Star, MessageCircle,
-  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift, Library
+  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift, Library, ShoppingBag
 } from 'lucide-react'
 
 interface Tab {
@@ -76,6 +77,7 @@ const tabs: Tab[] = [
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600', section: 'HOME' },
   { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500', section: 'HOME' },
   { id: 'shopping', name: 'Shopping', icon: ShoppingCart, color: 'bg-rose-500', section: 'HOME' },
+  { id: 'needs-list', name: 'Needs List', icon: ShoppingBag, color: 'bg-sky-500', section: 'HOME' },
   // REWARDS & GROWTH
   { id: 'stars-rewards', name: 'Stars & Rewards', icon: Star, color: 'bg-amber-500', section: 'REWARDS' },
   { id: 'habits', name: 'Habits', icon: Flame, color: 'bg-orange-500', section: 'REWARDS' },
@@ -460,6 +462,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <FamilyHuddle />
       case 'shopping':
         return <ShoppingHelper />
+      case 'needs-list':
+        return <HouseholdNeedsTab />
       case 'gifts':
         return <GiftSuggestions />
       case 'food-inventory':
