@@ -50,6 +50,7 @@ import { KidLibraryView } from './HomeLibrary'
 import HomeschoolTaskBlock from './HomeschoolTaskBlock'
 import VocabPracticeCard from './VocabPracticeCard'
 import MyDayView from './MyDayView'
+import MySchoolDayCard from './homeschool/MySchoolDayCard'
 import AiBuddyChat from './AiBuddyChat'
 import ProfileSwitcher from './ProfileSwitcher'
 import MyVibe from './kid/MyVibe'
@@ -1859,6 +1860,9 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return (
           <div className="space-y-4">
             <HuddlePreSubmit kidName={profile.first_name || profile.name} />
+            {isHomeschool && (
+              <MySchoolDayCard kidName={profile.first_name || profile.name} />
+            )}
             <MyDayView
               kidName={profile.first_name || profile.name}
               previewMode={previewMode}
