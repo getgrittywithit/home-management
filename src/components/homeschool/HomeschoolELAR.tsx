@@ -9,6 +9,8 @@ import { ParentLibraryAdmin } from '../HomeLibrary'
 import BookBuddy from './BookBuddy'
 import JourneyMap from './JourneyMap'
 import VocabMixer from './VocabMixer'
+import PlacementQuiz from './PlacementQuiz'
+import { Sparkles } from 'lucide-react'
 
 interface Props {
   students: StudentData[]
@@ -20,6 +22,7 @@ type ElarView = 'overview' | 'book-buddy' | 'journey-map' | 'books' | 'vocab' | 
 export default function HomeschoolELAR({ students, familyBook }: Props) {
   const [view, setView] = useState<ElarView>('overview')
   const [selectedKid, setSelectedKid] = useState(students[0]?.name || 'Amos')
+  const [showPlacement, setShowPlacement] = useState(false)
 
   const VIEWS: { id: ElarView; label: string }[] = [
     { id: 'overview', label: 'Overview' },
@@ -47,18 +50,34 @@ export default function HomeschoolELAR({ students, familyBook }: Props) {
 
       {/* Kid selector for buddy/journey views — ALL kids, not just homeschool */}
       {(view === 'book-buddy' || view === 'journey-map') && (
-        <div className="flex gap-2 overflow-x-auto">
-          {[...students, { id: 'zoey', name: 'Zoey', mascot: '🌟' }, { id: 'kaylee', name: 'Kaylee', mascot: '🎭' }]
-            .filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i) // dedupe
-            .map(s => (
-            <button key={s.id} onClick={() => setSelectedKid(s.name)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${
-                selectedKid === s.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}>
-              {s.mascot} {s.name}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex gap-2 overflow-x-auto">
+            {[...students, { id: 'zoey', name: 'Zoey', mascot: '🌟' }, { id: 'kaylee', name: 'Kaylee', mascot: '🎭' }]
+              .filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i) // dedupe
+              .map(s => (
+              <button key={s.id} onClick={() => setSelectedKid(s.name)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${
+                  selectedKid === s.name ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}>
+                {s.mascot} {s.name}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowPlacement(true)}
+            className="ml-auto inline-flex items-center gap-1 text-xs bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-lg hover:bg-indigo-200 font-medium"
+          >
+            <Sparkles className="w-3 h-3" /> Start Placement Quiz
+          </button>
         </div>
+      )}
+
+      {showPlacement && (
+        <PlacementQuiz
+          kidName={selectedKid}
+          subject="elar"
+          onClose={() => setShowPlacement(false)}
+        />
       )}
 
       {view === 'overview' && <ReadingProgressDashboard />}

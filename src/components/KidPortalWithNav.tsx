@@ -1309,6 +1309,9 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           <p className="text-teal-100">{profile.grade || ''} · 2025-2026</p>
         </div>
 
+        {/* D71 WIRE-5: Full daily plan (D67 loop) — richer than My Day summary */}
+        <MySchoolDayCard kidName={profile.first_name || profile.name} />
+
         {/* This Week's Vocab — flashcards + word list */}
         <VocabPracticeCard kidName={profile.first_name || profile.name} />
 

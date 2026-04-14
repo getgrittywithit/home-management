@@ -13,8 +13,9 @@ import HomeschoolEnrichment from './homeschool/HomeschoolEnrichment'
 import HomeschoolRecords from './homeschool/HomeschoolRecords'
 import HomeschoolPortfolio from './homeschool/HomeschoolPortfolio'
 import UnitsView from './homeschool/UnitsView'
+import AttendanceLogger from './homeschool/AttendanceLogger'
 
-type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'enrichment' | 'records' | 'portfolio' | 'units'
+type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units'
 
 const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
@@ -23,6 +24,7 @@ const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'math', label: 'Math', icon: '🔢' },
   { id: 'enrichment', label: 'Enrichment', icon: '🎯' },
   { id: 'records', label: 'Records', icon: '📁' },
+  { id: 'attendance', label: 'Attendance', icon: '✅' },
   { id: 'portfolio', label: 'Portfolio', icon: '🎨' },
   { id: 'units', label: 'Unit Studies', icon: '🔬' },
 ]
@@ -81,6 +83,8 @@ export default function HomeschoolTab() {
         return <HomeschoolEnrichment students={students} />
       case 'records':
         return <HomeschoolRecords />
+      case 'attendance':
+        return <AttendanceLogger />
       case 'portfolio':
         return <HomeschoolPortfolio />
       case 'units':

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { BookOpen, Check, Clock, Play, HelpCircle, MessageSquare, X, Link as LinkIcon, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { BookOpen, Check, Clock, Play, Pause, HelpCircle, MessageSquare, X, Link as LinkIcon, Loader2, Timer } from 'lucide-react'
 
 interface DailyTask {
   id: string
@@ -53,6 +53,8 @@ export default function MySchoolDayCard({ kidName }: { kidName: string }) {
   const [helpDialogFor, setHelpDialogFor] = useState<DailyTask | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [timerFor, setTimerFor] = useState<DailyTask | null>(null)
+  const [dailyFocusMin, setDailyFocusMin] = useState<number>(0)
 
   const kidKey = kidName.toLowerCase()
 
@@ -69,7 +71,17 @@ export default function MySchoolDayCard({ kidName }: { kidName: string }) {
     }
   }, [kidKey])
 
+  const loadDailyFocus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/focus-timer?action=get_today&kid_name=${kidKey}`)
+      const json = await res.json()
+      const total = (json.today || []).reduce((s: number, r: any) => s + (r.total_seconds || 0), 0)
+      setDailyFocusMin(Math.floor(total / 60))
+    } catch { /* silent */ }
+  }, [kidKey])
+
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadDailyFocus() }, [loadDailyFocus])
 
   const flashToast = (msg: string) => {
     setToast(msg)
@@ -91,16 +103,47 @@ export default function MySchoolDayCard({ kidName }: { kidName: string }) {
   }
 
   const startFocusTimer = async (task: DailyTask) => {
-    // Mark in_progress + open focus timer (legacy /api/homeschool start_focus_session is
-    // tied to student_id/subject_id. For now we mark the task in_progress; full focus
-    // timer integration lands in Phase C.)
+    // Mark task in_progress and open the count-up timer modal.
     await fetch('/api/homeschool/daily', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'toggle_task', id: task.id, target_status: 'in_progress' }),
     })
-    flashToast('Timer started')
+    setTimerFor(task)
     load()
+  }
+
+  const handleTimerComplete = async (task: DailyTask, durationSeconds: number) => {
+    // Log the session (gives gems), update the task's time_spent_min, and mark complete
+    const minutes = Math.max(1, Math.floor(durationSeconds / 60))
+    await Promise.all([
+      fetch('/api/focus-timer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'log_session',
+          kid_name: kidKey,
+          task_id: task.id,
+          subject: task.subject_name,
+          duration_seconds: durationSeconds,
+        }),
+      }),
+      fetch('/api/homeschool/daily', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_task',
+          id: task.id,
+          status: 'completed',
+          time_spent_min: minutes,
+          completed_at: new Date().toISOString(),
+        }),
+      }),
+    ])
+    setTimerFor(null)
+    flashToast(`✓ ${task.subject_name} done — ${minutes}m logged`)
+    load()
+    loadDailyFocus()
   }
 
   if (loading) {
@@ -146,6 +189,13 @@ export default function MySchoolDayCard({ kidName }: { kidName: string }) {
           <h2 className="text-lg font-bold text-teal-900">My School Day</h2>
           <span className="text-xs text-teal-600 ml-auto">{todayLabel()}</span>
         </div>
+        {dailyFocusMin > 0 && (
+          <div className="flex items-center gap-1 text-[11px] text-teal-700 mb-1 font-medium">
+            <Timer className="w-3 h-3" />
+            {Math.floor(dailyFocusMin / 60) > 0 && `${Math.floor(dailyFocusMin / 60)}h `}
+            {dailyFocusMin % 60}m of focus today
+          </div>
+        )}
         <div className="flex items-center gap-2 text-xs text-gray-700 mb-1.5">
           <span className="font-semibold">{done} of {total} done</span>
           {!finished && minutesLeft > 0 && (
@@ -325,6 +375,105 @@ export default function MySchoolDayCard({ kidName }: { kidName: string }) {
           onSent={() => { setHelpDialogFor(null); load() }}
         />
       )}
+
+      {/* Focus timer modal — D71 WIRE-1 */}
+      {timerFor && (
+        <FocusTimerModal
+          task={timerFor}
+          onClose={() => setTimerFor(null)}
+          onComplete={(secs) => handleTimerComplete(timerFor, secs)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================================
+// Focus Timer Modal — count-up stopwatch with pause + done
+// ============================================================================
+function FocusTimerModal({
+  task, onClose, onComplete,
+}: {
+  task: DailyTask
+  onClose: () => void
+  onComplete: (durationSeconds: number) => void
+}) {
+  const [seconds, setSeconds] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (paused) {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = null
+      return
+    }
+    intervalRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [paused])
+
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  const planned = task.duration_min || 30
+  const pctOfPlanned = Math.min(100, Math.round((seconds / (planned * 60)) * 100))
+  const gemsEarned = seconds >= 1800 ? 2 : seconds >= 900 ? 1 : 0
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">{task.subject_icon}</span>
+            <div className="min-w-0">
+              <div className="font-bold text-gray-900">{task.subject_name}</div>
+              <div className="text-[11px] text-gray-500 truncate">{task.title}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-400">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 text-center">
+          <div className="text-6xl font-bold text-teal-700 tabular-nums mb-2">
+            {mins}:{secs.toString().padStart(2, '0')}
+          </div>
+          <div className="text-xs text-gray-500 mb-4">
+            {planned}m planned · {pctOfPlanned}% of goal
+          </div>
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
+            <div
+              className={`h-full transition-all ${pctOfPlanned >= 100 ? 'bg-green-500' : 'bg-gradient-to-r from-teal-400 to-blue-400'}`}
+              style={{ width: `${pctOfPlanned}%` }}
+            />
+          </div>
+          {gemsEarned > 0 && (
+            <div className="text-xs text-amber-600 font-semibold mb-3">
+              💎 {gemsEarned} gem{gemsEarned > 1 ? 's' : ''} earned so far
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPaused((p) => !p)}
+              className={`flex-1 py-2 rounded-lg font-semibold text-sm ${
+                paused ? 'bg-teal-600 text-white hover:bg-teal-700' : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+              }`}
+            >
+              {paused ? <><Play className="w-4 h-4 inline-block mr-1" /> Resume</> : <><Pause className="w-4 h-4 inline-block mr-1" /> Pause</>}
+            </button>
+            <button
+              onClick={() => onComplete(seconds)}
+              disabled={seconds < 10}
+              className="flex-1 bg-green-600 text-white py-2 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-50"
+            >
+              <Check className="w-4 h-4 inline-block mr-1" /> Done
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2">
+            {seconds < 10 ? 'Focus for at least 10 seconds to finish' : 'Great focus! Tap Done when finished'}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

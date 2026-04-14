@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FileText, Plus, X, Award, ClipboardList, Download } from 'lucide-react'
+import { createPDF, addHeader, addFooter, addSectionTitle, addKeyValue, addTable } from '@/lib/pdf/generate'
 
 const KIDS = [
   { id: 'amos', label: 'Amos', grade: '10th' },
@@ -70,6 +71,50 @@ export default function HomeschoolRecords() {
   })
 
   const totalCredits = grades.reduce((sum, g) => sum + (Number(g.credits) || 0), 0)
+
+  const exportPdf = () => {
+    const info = KIDS.find((k) => k.id === selectedKid)
+    const doc = createPDF({
+      title: `${info?.label || selectedKid} — Academic Transcript`,
+      subtitle: `${info?.grade || ''} · 2025-2026`,
+    })
+    let y = addHeader(doc, `${info?.label || selectedKid} — Academic Transcript`, info?.grade || '')
+    y += 2
+
+    y = addKeyValue(doc, 'Student', info?.label || selectedKid, y)
+    y = addKeyValue(doc, 'Grade', info?.grade || '—', y)
+    y = addKeyValue(doc, 'Total Credits', `${totalCredits}`, y)
+    y = addKeyValue(doc, 'Generated', new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), y)
+    y += 3
+
+    for (const [period, periodGrades] of Object.entries(gradesByPeriod)) {
+      y = addSectionTitle(doc, period, y, '📚')
+      const rows = (periodGrades as any[]).map((g) => [
+        g.subject,
+        g.grade || '—',
+        g.percentage != null ? `${g.percentage}%` : '—',
+        `${Number(g.credits || 0)} cr`,
+        g.notes || '',
+      ])
+      y = addTable(doc, ['Subject', 'Grade', 'Percentage', 'Credits', 'Notes'], rows, y, [45, 25, 30, 25, 60])
+      y += 4
+    }
+
+    if (testScores.length > 0) {
+      y = addSectionTitle(doc, 'Test Scores', y, '📝')
+      const rows = testScores.map((t) => [
+        t.test_name,
+        t.subject || '—',
+        t.score || '—',
+        t.percentile != null ? `${t.percentile}%ile` : '—',
+        t.date_taken || '—',
+      ])
+      y = addTable(doc, ['Test', 'Subject', 'Score', 'Percentile', 'Date'], rows, y, [50, 35, 25, 30, 35])
+    }
+
+    addFooter(doc, `Family Hub — Generated ${new Date().toISOString().slice(0, 10)}`)
+    doc.save(`${(info?.label || selectedKid).toLowerCase()}-transcript-${new Date().toISOString().slice(0, 10)}.pdf`)
+  }
 
   return (
     <div className="space-y-6">
@@ -207,17 +252,27 @@ export default function HomeschoolRecords() {
           </div>
 
           {/* Transcript Link */}
-          {selectedKid === 'amos' && (
-            <div className="bg-amber-50 rounded-lg border border-amber-200 p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-amber-900">Transcript for Amos (10th Grade)</p>
-                <p className="text-xs text-amber-700 mt-0.5">{totalCredits} credits recorded across {grades.length} course entries</p>
-              </div>
-              <button className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white rounded text-sm font-medium hover:bg-amber-600">
-                <Download className="w-4 h-4" /> Export PDF
-              </button>
+          <div className={`rounded-lg border p-4 flex items-center justify-between ${
+            selectedKid === 'amos' ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div>
+              <p className={`text-sm font-semibold ${selectedKid === 'amos' ? 'text-amber-900' : 'text-gray-800'}`}>
+                {selectedKid === 'amos' ? 'Transcript' : 'Academic Report'} for {kidInfo?.label} ({kidInfo?.grade})
+              </p>
+              <p className={`text-xs mt-0.5 ${selectedKid === 'amos' ? 'text-amber-700' : 'text-gray-500'}`}>
+                {totalCredits} credit{totalCredits !== 1 ? 's' : ''} · {grades.length} course entr{grades.length === 1 ? 'y' : 'ies'} · {testScores.length} test score{testScores.length !== 1 ? 's' : ''}
+              </p>
             </div>
-          )}
+            <button
+              onClick={exportPdf}
+              disabled={grades.length === 0 && testScores.length === 0}
+              className={`flex items-center gap-1 px-3 py-1.5 text-white rounded text-sm font-medium disabled:opacity-50 ${
+                selectedKid === 'amos' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-500 hover:bg-blue-600'
+              }`}
+            >
+              <Download className="w-4 h-4" /> Export PDF
+            </button>
+          </div>
         </>
       )}
     </div>
