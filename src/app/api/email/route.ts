@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
-import { getValidToken, fetchMessages, parseMessageHeaders, getConnectedAccounts } from '@/lib/gmail'
+import {
+  getValidToken, fetchMessages, parseMessageHeaders, getConnectedAccounts,
+  getAllActiveAccounts, updateLastSync,
+} from '@/lib/gmail'
 
 async function ensureTables() {
   await db.query(`CREATE TABLE IF NOT EXISTS email_inbox (
@@ -222,7 +225,6 @@ export async function POST(req: NextRequest) {
       case 'sync_inbox': {
         const { account_email, max_results } = body
 
-        // Check for connected accounts
         const accounts = await getConnectedAccounts().catch(() => [])
         if (accounts.length === 0) {
           return NextResponse.json({
@@ -232,81 +234,106 @@ export async function POST(req: NextRequest) {
           })
         }
 
-        // Sync from specified account or primary
-        const targetEmail = account_email || undefined
-        let synced = 0
-        let skipped = 0
+        // If account_email is specified, sync only that one. Otherwise loop all active accounts.
+        const targets = account_email
+          ? [account_email]
+          : await getAllActiveAccounts()
 
-        try {
-          // Get last sync time to only pull new messages
-          const lastSync = await db.query(
-            `SELECT MAX(received_at) as last FROM email_inbox WHERE gmail_id NOT LIKE 'manual-%'`
-          ).catch(() => [{ last: null }])
+        const perAccount: { email: string; synced: number; skipped: number; error?: string }[] = []
+        let totalSynced = 0
+        let totalSkipped = 0
 
-          const query = lastSync[0]?.last
-            ? `in:inbox after:${Math.floor(new Date(lastSync[0].last).getTime() / 1000)}`
-            : 'in:inbox'
+        for (const targetEmail of targets) {
+          let synced = 0
+          let skipped = 0
+          try {
+            // Last sync time for THIS account
+            const lastSync = await db.query(
+              `SELECT MAX(received_at) as last FROM email_inbox WHERE gmail_id NOT LIKE 'manual-%'`
+            ).catch(() => [{ last: null }])
 
-          const { messages } = await fetchMessages({
-            email: targetEmail,
-            query,
-            maxResults: max_results || 50,
-          })
+            const query = lastSync[0]?.last
+              ? `in:inbox after:${Math.floor(new Date(lastSync[0].last).getTime() / 1000)}`
+              : 'in:inbox newer_than:2d'
 
-          for (const msg of messages) {
-            const parsed = parseMessageHeaders(msg)
+            const { messages } = await fetchMessages({
+              email: targetEmail,
+              query,
+              maxResults: max_results || 50,
+            })
 
-            // Check if already exists
-            const existing = await db.query(
-              `SELECT id FROM email_inbox WHERE gmail_id = $1`, [parsed.gmailId]
-            ).catch(() => [])
+            for (const msg of messages) {
+              const parsed = parseMessageHeaders(msg)
 
-            if (existing.length > 0) { skipped++; continue }
-
-            // Match sender rules
-            const ruleMatch = await matchSenderRule(parsed.from)
-
-            // Insert
-            await db.query(
-              `INSERT INTO email_inbox (gmail_id, thread_id, from_address, from_name, to_address, subject, snippet, received_at, category, priority, labels, has_attachments)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-               ON CONFLICT (gmail_id) DO NOTHING`,
-              [
-                parsed.gmailId, parsed.threadId, parsed.from, parsed.fromName,
-                parsed.to, parsed.subject, parsed.snippet,
-                parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
-                ruleMatch?.category || null, ruleMatch?.priority || 'normal',
-                JSON.stringify(parsed.labels), parsed.hasAttachments,
-              ]
-            )
-
-            // If rule matched, mark triaged
-            if (ruleMatch) {
-              const inserted = await db.query(
+              const existing = await db.query(
                 `SELECT id FROM email_inbox WHERE gmail_id = $1`, [parsed.gmailId]
               ).catch(() => [])
-              if (inserted[0]) {
-                await db.query(`UPDATE email_inbox SET triaged = TRUE WHERE id = $1`, [inserted[0].id])
-                await db.query(
-                  `INSERT INTO email_triage_results (email_id, category, priority, confidence, suggested_action)
-                   VALUES ($1, $2, $3, 1.0, 'rule_matched')`,
-                  [inserted[0].id, ruleMatch.category, ruleMatch.priority]
-                ).catch(() => {})
+
+              if (existing.length > 0) { skipped++; continue }
+
+              const ruleMatch = await matchSenderRule(parsed.from)
+
+              await db.query(
+                `INSERT INTO email_inbox (gmail_id, thread_id, from_address, from_name, to_address, subject, snippet, received_at, category, priority, labels, has_attachments)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                 ON CONFLICT (gmail_id) DO NOTHING`,
+                [
+                  parsed.gmailId, parsed.threadId, parsed.from, parsed.fromName,
+                  parsed.to, parsed.subject, parsed.snippet,
+                  parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
+                  ruleMatch?.category || null, ruleMatch?.priority || 'normal',
+                  JSON.stringify(parsed.labels), parsed.hasAttachments,
+                ]
+              )
+
+              if (ruleMatch) {
+                const inserted = await db.query(
+                  `SELECT id FROM email_inbox WHERE gmail_id = $1`, [parsed.gmailId]
+                ).catch(() => [])
+                if (inserted[0]) {
+                  await db.query(`UPDATE email_inbox SET triaged = TRUE WHERE id = $1`, [inserted[0].id])
+                  await db.query(
+                    `INSERT INTO email_triage_results (email_id, category, priority, confidence, suggested_action)
+                     VALUES ($1, $2, $3, 1.0, 'rule_matched')`,
+                    [inserted[0].id, ruleMatch.category, ruleMatch.priority]
+                  ).catch(() => {})
+                }
               }
+
+              synced++
             }
 
-            synced++
+            await updateLastSync(targetEmail)
+            totalSynced += synced
+            totalSkipped += skipped
+            perAccount.push({ email: targetEmail, synced, skipped })
+          } catch (err) {
+            console.error(`Gmail sync error for ${targetEmail}:`, err)
+            perAccount.push({
+              email: targetEmail,
+              synced,
+              skipped,
+              error: err instanceof Error ? err.message : 'Unknown error',
+            })
           }
+        }
 
-          return NextResponse.json({ success: true, synced, skipped, total_messages: messages.length })
-        } catch (err) {
-          console.error('Gmail sync error:', err)
+        const allFailed = perAccount.every((a) => a.error && a.synced === 0)
+        if (allFailed && perAccount.length > 0) {
           return NextResponse.json({
             success: false,
             connected: true,
-            message: `Sync failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            accounts: perAccount,
+            message: `Sync failed for all ${perAccount.length} account(s)`,
           }, { status: 500 })
         }
+
+        return NextResponse.json({
+          success: true,
+          synced: totalSynced,
+          skipped: totalSkipped,
+          accounts: perAccount,
+        })
       }
 
       case 'add_email': {

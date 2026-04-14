@@ -6,6 +6,19 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
+// ── Known Accounts (4 configured in Google Cloud test users) ──
+
+const ACCOUNT_LABELS: Record<string, string> = {
+  'mosesfamily2008@gmail.com': 'Lola Primary',
+  'mosestx2008@gmail.com': 'Levi/Shared',
+  'info@tritonhandyman.com': 'Triton',
+  'model.co721@gmail.com': 'Lola Work',
+}
+
+export function getAccountLabel(email: string): string {
+  return ACCOUNT_LABELS[email.toLowerCase()] || email
+}
+
 // ── Table Setup ──
 
 export async function ensureGmailTables() {
@@ -20,14 +33,20 @@ export async function ensureGmailTables() {
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
   )`)
+  // D64 additions — safe to run repeatedly
+  await db.query(`ALTER TABLE gmail_tokens ADD COLUMN IF NOT EXISTS account_label TEXT`)
+  await db.query(`ALTER TABLE gmail_tokens ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`)
+  await db.query(`ALTER TABLE gmail_tokens ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ`)
 }
 
 // ── OAuth Flow ──
 
 export function getOAuthConfig() {
-  const clientId = process.env.GMAIL_CLIENT_ID
-  const clientSecret = process.env.GMAIL_CLIENT_SECRET
-  const redirectUri = process.env.GMAIL_REDIRECT_URI || 'https://family-ops.grittysystems.com/api/auth/gmail/callback'
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GMAIL_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GMAIL_CLIENT_SECRET
+  const redirectUri = process.env.GMAIL_REDIRECT_URI
+    || process.env.GOOGLE_REDIRECT_URI
+    || 'https://family-ops.grittysystems.com/api/auth/callback/google'
   if (!clientId || !clientSecret) return null
   return { clientId, clientSecret, redirectUri }
 }
@@ -104,25 +123,31 @@ export async function refreshAccessToken(refreshToken: string): Promise<{ access
 export async function storeTokens(email: string, tokens: { access_token: string; refresh_token: string; expires_in: number; scope?: string }) {
   await ensureGmailTables()
   const expiry = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+  const label = getAccountLabel(email)
 
-  // Check if any accounts exist
-  const existing = await db.query(`SELECT COUNT(*)::int as c FROM gmail_tokens`).catch(() => [{ c: 0 }])
+  // Check if any active accounts exist
+  const existing = await db.query(`SELECT COUNT(*)::int as c FROM gmail_tokens WHERE is_active = TRUE`).catch(() => [{ c: 0 }])
   const isPrimary = existing[0]?.c === 0
 
   await db.query(
-    `INSERT INTO gmail_tokens (account_email, access_token, refresh_token, token_expiry, scopes, is_primary, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `INSERT INTO gmail_tokens (account_email, access_token, refresh_token, token_expiry, scopes, is_primary, account_label, is_active, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, NOW())
      ON CONFLICT (account_email) DO UPDATE SET
-       access_token = $2, refresh_token = COALESCE(NULLIF($3, ''), gmail_tokens.refresh_token),
-       token_expiry = $4, scopes = $5, updated_at = NOW()`,
-    [email, tokens.access_token, tokens.refresh_token, expiry, tokens.scope || '', isPrimary]
+       access_token = $2,
+       refresh_token = COALESCE(NULLIF($3, ''), gmail_tokens.refresh_token),
+       token_expiry = $4,
+       scopes = $5,
+       account_label = COALESCE(gmail_tokens.account_label, $7),
+       is_active = TRUE,
+       updated_at = NOW()`,
+    [email, tokens.access_token, tokens.refresh_token, expiry, tokens.scope || '', isPrimary, label]
   )
 }
 
 export async function getValidToken(email?: string): Promise<{ token: string; email: string } | null> {
   await ensureGmailTables()
 
-  const where = email ? `WHERE account_email = $1` : `WHERE is_primary = TRUE`
+  const where = email ? `WHERE account_email = $1 AND is_active = TRUE` : `WHERE is_primary = TRUE AND is_active = TRUE`
   const params = email ? [email] : []
   const rows = await db.query(`SELECT * FROM gmail_tokens ${where} LIMIT 1`, params).catch(() => [])
   if (!rows[0]) return null
@@ -148,12 +173,30 @@ export async function getValidToken(email?: string): Promise<{ token: string; em
   return { token: account.access_token, email: account.account_email }
 }
 
-export async function getConnectedAccounts(): Promise<{ email: string; is_primary: boolean; connected_at: string }[]> {
+export async function getConnectedAccounts(): Promise<
+  { email: string; account_label: string | null; is_primary: boolean; is_active: boolean; last_sync_at: string | null; connected_at: string }[]
+> {
   await ensureGmailTables()
   const rows = await db.query(
-    `SELECT account_email as email, is_primary, created_at as connected_at FROM gmail_tokens ORDER BY is_primary DESC, created_at`
+    `SELECT account_email as email, account_label, is_primary, is_active, last_sync_at, created_at as connected_at
+     FROM gmail_tokens WHERE is_active = TRUE ORDER BY is_primary DESC, created_at`
   ).catch(() => [])
   return rows
+}
+
+export async function getAllActiveAccounts(): Promise<string[]> {
+  await ensureGmailTables()
+  const rows = await db.query(
+    `SELECT account_email FROM gmail_tokens WHERE is_active = TRUE ORDER BY is_primary DESC, created_at`
+  ).catch(() => [])
+  return rows.map((r: any) => r.account_email)
+}
+
+export async function updateLastSync(email: string): Promise<void> {
+  await db.query(
+    `UPDATE gmail_tokens SET last_sync_at = NOW() WHERE account_email = $1`,
+    [email]
+  ).catch(() => {})
 }
 
 export async function disconnectAccount(email: string): Promise<boolean> {
@@ -163,7 +206,11 @@ export async function disconnectAccount(email: string): Promise<boolean> {
     // Revoke the token at Google
     await fetch(`${GOOGLE_REVOKE_URL}?token=${rows[0].refresh_token}`, { method: 'POST' }).catch(() => {})
   }
-  await db.query(`DELETE FROM gmail_tokens WHERE account_email = $1`, [email])
+  // Soft-delete: keep the row for audit, mark inactive, clear is_primary
+  await db.query(
+    `UPDATE gmail_tokens SET is_active = FALSE, is_primary = FALSE, updated_at = NOW() WHERE account_email = $1`,
+    [email]
+  )
   return true
 }
 
