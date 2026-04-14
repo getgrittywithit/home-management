@@ -16,11 +16,16 @@ interface LibraryItem {
   isbn: string | null
   upc: string | null
   description: string | null
+  hook?: string | null
   cover_image_url: string | null
   grade_min: number | null
   grade_max: number | null
+  age_range_min?: number | null
+  age_range_max?: number | null
   subject_tags: string[]
   edu_uses: string[]
+  genres?: string[]
+  topics?: string[]
   player_min: number | null
   player_max: number | null
   play_time_min: number | null
@@ -30,11 +35,82 @@ interface LibraryItem {
   accessibility_flags: string[]
   who_uses: string[]
   location_in_home: string | null
+  location_details?: string | null
   condition: string | null
   favorite_flag: boolean
   last_used: string | null
   custom_tags?: string[]
+  // Browse-view extras
+  avg_rating?: string | number | null
+  rating_count?: number
+  review_count?: number
+  kid_read_status?: string | null
 }
+
+interface ReadStatus {
+  kid_name: string
+  status: 'not_started' | 'want_to_read' | 'reading' | 'finished' | 'read_again'
+  started_at?: string | null
+  finished_at?: string | null
+  current_page?: number | null
+  current_chapter?: string | null
+}
+
+interface BookRating {
+  rated_by: string
+  rating: number
+}
+
+interface BookReview {
+  id: string
+  reviewer: string
+  review_text: string
+  favorite_part?: string | null
+  favorite_character?: string | null
+  would_recommend?: boolean | null
+  stars_earned: number
+  created_at: string
+}
+
+interface BookRecommendation {
+  id: string
+  title: string
+  author_or_publisher: string | null
+  cover_image_url: string | null
+  item_type: string
+  score: number
+}
+
+interface BookDetailPayload {
+  item: LibraryItem
+  read_status: ReadStatus[]
+  kid_status: ReadStatus | null
+  ratings: BookRating[]
+  avg_rating: number | null
+  reviews: BookReview[]
+  recommendations: BookRecommendation[]
+}
+
+const READ_STATUS_META: Record<string, { label: string; emoji: string; color: string }> = {
+  not_started: { label: 'Not Started', emoji: '➖', color: 'bg-gray-100 text-gray-600' },
+  want_to_read: { label: 'Want to Read', emoji: '📋', color: 'bg-amber-100 text-amber-700' },
+  reading: { label: 'Currently Reading', emoji: '📖', color: 'bg-blue-100 text-blue-700' },
+  finished: { label: 'Finished', emoji: '✅', color: 'bg-green-100 text-green-700' },
+  read_again: { label: 'Read Again', emoji: '🔄', color: 'bg-purple-100 text-purple-700' },
+}
+
+const GENRE_OPTIONS = [
+  'adventure','animals','fantasy','mystery','humor','historical','science fiction',
+  'realistic fiction','biography','nature','crafts','cooking','space','geography','art','poetry','faith','family',
+]
+const TOPIC_OPTIONS = [
+  'friendship','courage','growing up','nature','survival','problem solving',
+  'kindness','creativity','teamwork','animals','science experiments','world cultures',
+]
+const LOCATION_OPTIONS = [
+  'Bookshelf (living room)','Bookshelf (school room)','Bookshelf (kids\u2019 room)',
+  'Nightstand','Library (checked out)','Lent to a friend','Lost / Can\u2019t find','Digital (Kindle/tablet)',
+]
 
 interface AccessibilityWarning {
   kid_name: string
@@ -123,6 +199,68 @@ function ItemCard({ item, onClick, compact }: { item: LibraryItem; onClick?: () 
               {item.player_min}-{item.player_max || '?'} players
               {item.play_time_min && ` · ${item.play_time_min}-${item.play_time_max || '?'} min`}
             </div>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+// ============================================================================
+// Book Card — rich grid card with cover, rating, read-status badge
+// ============================================================================
+function BookCard({ item, onClick }: { item: LibraryItem; onClick: () => void }) {
+  const avg = item.avg_rating != null ? Number(item.avg_rating) : null
+  const statusMeta = item.kid_read_status ? READ_STATUS_META[item.kid_read_status] : null
+  return (
+    <button
+      onClick={onClick}
+      className="group text-left rounded-lg overflow-hidden bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all"
+    >
+      <div className="relative aspect-[2/3] bg-gray-50 overflow-hidden">
+        {item.cover_image_url ? (
+          <img
+            src={item.cover_image_url}
+            alt={item.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <BookOpen className="w-10 h-10 text-gray-300" />
+          </div>
+        )}
+        {statusMeta && item.kid_read_status !== 'not_started' && (
+          <div className="absolute top-1.5 right-1.5">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shadow-sm ${statusMeta.color}`}>
+              {statusMeta.emoji}
+            </span>
+          </div>
+        )}
+        {item.favorite_flag && (
+          <div className="absolute top-1.5 left-1.5">
+            <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 drop-shadow" />
+          </div>
+        )}
+      </div>
+      <div className="p-2">
+        <h4 className="text-xs font-semibold text-gray-900 line-clamp-2 leading-tight">{item.title}</h4>
+        {item.author_or_publisher && (
+          <p className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">{item.author_or_publisher}</p>
+        )}
+        <div className="flex items-center justify-between mt-1.5">
+          {avg != null ? (
+            <div className="flex items-center gap-0.5">
+              <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+              <span className="text-[10px] text-gray-600 font-medium">{avg}</span>
+              {item.review_count != null && item.review_count > 0 && (
+                <span className="text-[10px] text-gray-400 ml-0.5">· {item.review_count}</span>
+              )}
+            </div>
+          ) : (
+            <span className="text-[10px] text-gray-300">No ratings</span>
+          )}
+          {item.subject_tags && item.subject_tags[0] && (
+            <span className="text-[9px] px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{item.subject_tags[0]}</span>
           )}
         </div>
       </div>
@@ -399,6 +537,529 @@ function MyBooksSection({ kidName }: { kidName: string }) {
 }
 
 // ============================================================================
+// Star Rating — interactive 1..5
+// ============================================================================
+function StarRating({
+  value,
+  onChange,
+  size = 'md',
+  readOnly = false,
+}: {
+  value: number
+  onChange?: (n: number) => void
+  size?: 'sm' | 'md' | 'lg'
+  readOnly?: boolean
+}) {
+  const [hover, setHover] = useState<number | null>(null)
+  const px = size === 'sm' ? 'w-4 h-4' : size === 'lg' ? 'w-7 h-7' : 'w-5 h-5'
+  return (
+    <div className="inline-flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = (hover ?? value) >= n
+        return (
+          <button
+            key={n}
+            type="button"
+            disabled={readOnly}
+            onMouseEnter={() => !readOnly && setHover(n)}
+            onMouseLeave={() => !readOnly && setHover(null)}
+            onClick={() => !readOnly && onChange?.(n)}
+            className={readOnly ? 'cursor-default' : 'cursor-pointer'}
+            aria-label={`${n} star${n > 1 ? 's' : ''}`}
+          >
+            <Star
+              className={`${px} ${filled ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+            />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============================================================================
+// Book Detail View — full redesign (LIB-1..9)
+// ============================================================================
+function BookDetailView({
+  bookId,
+  kidName,
+  onBack,
+  onOpenBook,
+}: {
+  bookId: string
+  kidName: string
+  onBack: () => void
+  onOpenBook: (id: string) => void
+}) {
+  const [detail, setDetail] = useState<BookDetailPayload | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [warnings, setWarnings] = useState<AccessibilityWarning[]>([])
+  const [showReviewForm, setShowReviewForm] = useState(false)
+  const [reviewText, setReviewText] = useState('')
+  const [favoritePart, setFavoritePart] = useState('')
+  const [favoriteCharacter, setFavoriteCharacter] = useState('')
+  const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(null)
+  const [savingReview, setSavingReview] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const loadDetail = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(
+        `/api/library?action=get_book_detail&id=${bookId}&kid_name=${encodeURIComponent(kidName)}`
+      )
+      const json = await res.json()
+      if (json.item) {
+        setDetail(json)
+        // Accessibility warnings
+        if (json.item.accessibility_flags?.length > 0) {
+          try {
+            const w = await fetch('/api/library', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'check_accessibility_match',
+                item_id: json.item.id,
+                kid_names: [kidName],
+              }),
+            })
+            const wJson = await w.json()
+            setWarnings(wJson.warnings || [])
+          } catch { setWarnings([]) }
+        }
+      }
+    } catch (err) {
+      console.error('get_book_detail failed', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [bookId, kidName])
+
+  useEffect(() => { loadDetail() }, [loadDetail])
+
+  const flashToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2200)
+  }
+
+  const setReadStatus = async (status: string) => {
+    try {
+      const res = await fetch('/api/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_read_status', book_id: bookId, kid_name: kidName, status }),
+      })
+      if (res.ok) {
+        flashToast(`Marked as ${READ_STATUS_META[status]?.label || status}`)
+        loadDetail()
+      }
+    } catch (err) {
+      console.error('set_read_status failed', err)
+    }
+  }
+
+  const rate = async (n: number) => {
+    try {
+      const res = await fetch('/api/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rate_book', book_id: bookId, rated_by: kidName, rating: n }),
+      })
+      if (res.ok) {
+        flashToast(`Rated ${n} star${n > 1 ? 's' : ''}`)
+        loadDetail()
+      }
+    } catch (err) {
+      console.error('rate_book failed', err)
+    }
+  }
+
+  const submitReview = async () => {
+    if (reviewText.trim().length < 10) {
+      flashToast('Write at least 10 characters to earn stars')
+      return
+    }
+    setSavingReview(true)
+    try {
+      const res = await fetch('/api/library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add_review',
+          book_id: bookId,
+          reviewer: kidName,
+          review_text: reviewText,
+          favorite_part: favoritePart || null,
+          favorite_character: favoriteCharacter || null,
+          would_recommend: wouldRecommend,
+        }),
+      })
+      if (res.ok) {
+        flashToast('+3 stars earned for your review!')
+        setShowReviewForm(false)
+        setReviewText('')
+        setFavoritePart('')
+        setFavoriteCharacter('')
+        setWouldRecommend(null)
+        loadDetail()
+      }
+    } catch (err) {
+      console.error('add_review failed', err)
+    } finally {
+      setSavingReview(false)
+    }
+  }
+
+  if (loading || !detail) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <button onClick={onBack} className="text-sm text-blue-600 hover:text-blue-800 mb-3">
+          ← Back to library
+        </button>
+        <p className="text-center text-gray-500 py-8">Loading...</p>
+      </div>
+    )
+  }
+
+  const item = detail.item
+  const myRating = detail.ratings.find((r) => r.rated_by === kidName.toLowerCase())?.rating || 0
+  const myStatus = detail.kid_status?.status || 'not_started'
+  const avg = detail.avg_rating != null ? Number(detail.avg_rating) : null
+  const ageLabel = item.age_range_min != null && item.age_range_max != null
+    ? `Ages ${item.age_range_min}–${item.age_range_max}`
+    : item.age_range_min != null ? `Ages ${item.age_range_min}+` : null
+  const gradeLabel = item.grade_min != null && item.grade_max != null
+    ? `Grades ${item.grade_min}–${item.grade_max}`
+    : item.grade_min != null ? `Grade ${item.grade_min}+` : null
+  const whatsItAbout = item.hook || item.description
+
+  return (
+    <div className="space-y-4">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
+          {toast}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <button onClick={onBack} className="text-sm text-blue-600 hover:text-blue-800 mb-4 flex items-center gap-1">
+          ← Back to library
+        </button>
+
+        {/* Header: cover + title/author/badges */}
+        <div className="flex gap-5 mb-5">
+          <div className="shrink-0">
+            {item.cover_image_url ? (
+              <img
+                src={item.cover_image_url}
+                alt={item.title}
+                className="w-32 h-44 object-cover rounded-lg border border-gray-200 shadow-sm"
+              />
+            ) : (
+              <div className="w-32 h-44 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50">
+                <BookOpen className="w-10 h-10 text-gray-300" />
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${TYPE_COLORS[item.item_type]}`}>
+              {TYPE_ICONS[item.item_type]} {item.item_type}
+            </span>
+            <h2 className="text-xl font-bold text-gray-900 mt-1 leading-tight">{item.title}</h2>
+            {item.author_or_publisher && (
+              <p className="text-sm text-gray-500 mt-0.5">by {item.author_or_publisher}</p>
+            )}
+
+            {/* Age / Grade badges */}
+            {(ageLabel || gradeLabel) && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {ageLabel && (
+                  <span className="text-xs px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-full border border-cyan-100">
+                    {ageLabel}
+                  </span>
+                )}
+                {gradeLabel && (
+                  <span className="text-xs px-2 py-0.5 bg-teal-50 text-teal-700 rounded-full border border-teal-100">
+                    {gradeLabel}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Average rating */}
+            <div className="mt-3 flex items-center gap-2">
+              <StarRating value={Math.round(avg || 0)} readOnly size="sm" />
+              <span className="text-xs text-gray-500">
+                {avg != null
+                  ? `${avg} avg · ${detail.ratings.length} rating${detail.ratings.length !== 1 ? 's' : ''}`
+                  : 'No ratings yet'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Accessibility warnings */}
+        {warnings.length > 0 && (
+          <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3">
+            <h4 className="text-sm font-medium text-amber-800 flex items-center gap-1 mb-2">
+              <AlertTriangle className="w-4 h-4" /> Heads up
+            </h4>
+            <ul className="space-y-1">
+              {warnings.map((w, i) => (
+                <li key={i} className="text-xs text-amber-700">{w.tip}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* What's it about? */}
+        {whatsItAbout && (
+          <div className="mb-5">
+            <h4 className="text-sm font-semibold text-gray-900 mb-1">What&apos;s it about?</h4>
+            <p className="text-sm text-gray-700 leading-relaxed">{whatsItAbout}</p>
+          </div>
+        )}
+
+        {/* Read status selector */}
+        <div className="mb-5">
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">My read status</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {(['want_to_read', 'reading', 'finished', 'read_again'] as const).map((s) => {
+              const meta = READ_STATUS_META[s]
+              const active = myStatus === s
+              return (
+                <button
+                  key={s}
+                  onClick={() => setReadStatus(active ? 'not_started' : s)}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-all border-2 ${
+                    active
+                      ? `${meta.color} border-current`
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="text-lg leading-none mb-1">{meta.emoji}</div>
+                  {meta.label}
+                </button>
+              )
+            })}
+          </div>
+          {detail.kid_status?.current_page && (
+            <p className="text-xs text-gray-500 mt-2">
+              On page {detail.kid_status.current_page}
+              {detail.kid_status.current_chapter && ` · ${detail.kid_status.current_chapter}`}
+            </p>
+          )}
+        </div>
+
+        {/* My rating */}
+        <div className="mb-5">
+          <h4 className="text-sm font-semibold text-gray-900 mb-2">Rate this book</h4>
+          <div className="flex items-center gap-3">
+            <StarRating value={myRating} onChange={rate} size="lg" />
+            {myRating > 0 && <span className="text-xs text-gray-500">You rated this {myRating}/5</span>}
+          </div>
+        </div>
+
+        {/* Tag groups */}
+        {(item.subject_tags?.length || item.edu_uses?.length || item.genres?.length || item.topics?.length || item.custom_tags?.length) ? (
+          <div className="mb-5 space-y-2">
+            {item.subject_tags?.length > 0 && (
+              <TagGroup label="Subjects" tags={item.subject_tags} color="bg-blue-50 text-blue-700" />
+            )}
+            {item.edu_uses?.length > 0 && (
+              <TagGroup label="Learning Uses" tags={item.edu_uses} color="bg-green-50 text-green-700" />
+            )}
+            {item.genres && item.genres.length > 0 && (
+              <TagGroup label="Genres" tags={item.genres} color="bg-indigo-50 text-indigo-700" />
+            )}
+            {item.topics && item.topics.length > 0 && (
+              <TagGroup label="Topics" tags={item.topics} color="bg-orange-50 text-orange-700" />
+            )}
+            {item.custom_tags && item.custom_tags.length > 0 && (
+              <TagGroup
+                label="Vibes"
+                tags={item.custom_tags.map((t) => `${VIBE_EMOJI[t] || '\u2728'} ${t}`)}
+                color="bg-purple-50 text-purple-700"
+              />
+            )}
+          </div>
+        ) : null}
+
+        {/* Location */}
+        {item.location_in_home && (
+          <div className="mb-5 flex items-center gap-1.5 text-xs text-gray-500">
+            <span>📍</span>
+            <span>{item.location_in_home}</span>
+            {item.location_details && <span className="text-gray-400">· {item.location_details}</span>}
+          </div>
+        )}
+
+        {/* Reviews */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-900">
+              Reviews {detail.reviews.length > 0 && <span className="text-gray-400">({detail.reviews.length})</span>}
+            </h4>
+            {!showReviewForm && (
+              <button
+                onClick={() => setShowReviewForm(true)}
+                className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium"
+              >
+                ✍️ Leave a review (+3 ⭐)
+              </button>
+            )}
+          </div>
+
+          {showReviewForm && (
+            <div className="mb-4 rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-700">Your review (10+ characters)</label>
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  rows={3}
+                  placeholder="What did you think?"
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">What was your favorite part? (optional)</label>
+                <input
+                  value={favoritePart}
+                  onChange={(e) => setFavoritePart(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700">Who was your favorite character? (optional)</label>
+                <input
+                  value={favoriteCharacter}
+                  onChange={(e) => setFavoriteCharacter(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700 block mb-1">Would you tell a friend to read it?</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setWouldRecommend(true)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border-2 ${
+                      wouldRecommend === true ? 'bg-green-100 text-green-700 border-green-300' : 'bg-white text-gray-600 border-gray-200'
+                    }`}
+                  >
+                    👍 Yes
+                  </button>
+                  <button
+                    onClick={() => setWouldRecommend(false)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border-2 ${
+                      wouldRecommend === false ? 'bg-red-100 text-red-700 border-red-300' : 'bg-white text-gray-600 border-gray-200'
+                    }`}
+                  >
+                    👎 No
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={submitReview}
+                  disabled={savingReview}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {savingReview ? 'Saving...' : 'Save review & earn 3 ⭐'}
+                </button>
+                <button
+                  onClick={() => setShowReviewForm(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {detail.reviews.length === 0 && !showReviewForm && (
+            <p className="text-xs text-gray-400">No reviews yet. Be the first!</p>
+          )}
+
+          <div className="space-y-2">
+            {detail.reviews.map((r) => (
+              <div key={r.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium text-gray-900 capitalize">{r.reviewer}</span>
+                  <span className="text-[10px] text-gray-400">
+                    {new Date(r.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-700">{r.review_text}</p>
+                {(r.favorite_part || r.favorite_character) && (
+                  <div className="mt-1 text-xs text-gray-500 space-y-0.5">
+                    {r.favorite_part && <div><span className="font-medium">Favorite part:</span> {r.favorite_part}</div>}
+                    {r.favorite_character && <div><span className="font-medium">Favorite character:</span> {r.favorite_character}</div>}
+                  </div>
+                )}
+                {r.would_recommend != null && (
+                  <div className="mt-1 text-xs">
+                    {r.would_recommend ? '👍 Would recommend' : '👎 Wouldn\u2019t recommend'}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recommendations */}
+      {detail.recommendations.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <h4 className="text-sm font-semibold text-gray-900 mb-3">You might also like...</h4>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {detail.recommendations.map((rec) => (
+              <button
+                key={rec.id}
+                onClick={() => onOpenBook(rec.id)}
+                className="shrink-0 w-28 text-left hover:opacity-80 transition-opacity"
+              >
+                {rec.cover_image_url ? (
+                  <img
+                    src={rec.cover_image_url}
+                    alt={rec.title}
+                    className="w-28 h-40 object-cover rounded-lg border border-gray-200"
+                  />
+                ) : (
+                  <div className="w-28 h-40 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50">
+                    <BookOpen className="w-8 h-8 text-gray-300" />
+                  </div>
+                )}
+                <p className="text-xs font-medium text-gray-900 mt-1.5 line-clamp-2">{rec.title}</p>
+                {rec.author_or_publisher && (
+                  <p className="text-[10px] text-gray-500 line-clamp-1">{rec.author_or_publisher}</p>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TagGroup({ label, tags, color }: { label: string; tags: string[]; color: string }) {
+  return (
+    <div>
+      <h5 className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-1">{label}</h5>
+      <div className="flex flex-wrap gap-1">
+        {tags.map((tag, i) => (
+          <span key={`${tag}-${i}`} className={`text-xs px-2 py-0.5 rounded ${color}`}>
+            {tag}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
 // Kid Library View
 // ============================================================================
 export function KidLibraryView({ kidName }: { kidName: string }) {
@@ -406,6 +1067,9 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
   const [loading, setLoading] = useState(true)
   const [filterType, setFilterType] = useState<string | null>('book')
   const [filterSubject, setFilterSubject] = useState<string | null>(null)
+  const [filterGenre, setFilterGenre] = useState<string | null>(null)
+  const [filterReadStatus, setFilterReadStatus] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<'title' | 'recent' | 'rating' | 'reviews'>('title')
   const [searchQuery, setSearchQuery] = useState('')
   const [showBuddy, setShowBuddy] = useState(false)
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null)
@@ -414,18 +1078,33 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
   const loadItems = useCallback(async () => {
     setLoading(true)
     try {
-      let url = '/api/library?action=get_all_items'
-      if (filterType) url += `&filter_type=${filterType}`
-      if (filterSubject) url += `&subject=${filterSubject}`
-      const res = await fetch(url)
-      const json = await res.json()
-      setItems(json.items || [])
+      // Books use the browse endpoint (with avg rating + read status per kid)
+      if (filterType === 'book' || !filterType) {
+        const params = new URLSearchParams()
+        params.set('action', 'get_library_browse')
+        params.set('kid_name', kidName)
+        params.set('sort', sortBy)
+        if (filterType) params.set('filter_type', filterType)
+        if (filterSubject) params.set('subject', filterSubject)
+        if (filterGenre) params.set('genre', filterGenre)
+        if (filterReadStatus) params.set('read_status', filterReadStatus)
+        const res = await fetch(`/api/library?${params.toString()}`)
+        const json = await res.json()
+        setItems(json.items || [])
+      } else {
+        let url = '/api/library?action=get_all_items'
+        if (filterType) url += `&filter_type=${filterType}`
+        if (filterSubject) url += `&subject=${filterSubject}`
+        const res = await fetch(url)
+        const json = await res.json()
+        setItems(json.items || [])
+      }
     } catch (err) {
       console.error('Failed to load library:', err)
     } finally {
       setLoading(false)
     }
-  }, [filterType, filterSubject])
+  }, [filterType, filterSubject, filterGenre, filterReadStatus, sortBy, kidName])
 
   useEffect(() => { loadItems() }, [loadItems])
 
@@ -478,6 +1157,29 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
   }
 
   if (selectedItem) {
+    // Game/toy/resource uses the lightweight inline view; books get the full
+    // redesigned detail page with cover, ratings, reviews, recs.
+    if (selectedItem.item_type === 'book') {
+      return (
+        <BookDetailView
+          bookId={selectedItem.id}
+          kidName={kidName}
+          onBack={() => { setSelectedItem(null); setWarnings([]) }}
+          onOpenBook={(id) => {
+            const next = items.find((i) => i.id === id)
+            if (next) setSelectedItem(next)
+            else {
+              // Fetch item from API if not in current list
+              fetch(`/api/library?action=get_item&id=${id}`)
+                .then((r) => r.json())
+                .then((j) => { if (j.item) setSelectedItem(j.item) })
+                .catch(() => {})
+            }
+          }}
+        />
+      )
+    }
+
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-5">
         <button
@@ -654,6 +1356,69 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
         ))}
       </div>
 
+      {/* Genre filter (books only) */}
+      {filterType === 'book' && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <button
+            onClick={() => setFilterGenre(null)}
+            className={`shrink-0 px-2 py-1 rounded text-xs font-medium ${
+              !filterGenre ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            All genres
+          </button>
+          {GENRE_OPTIONS.map((g) => (
+            <button
+              key={g}
+              onClick={() => setFilterGenre(g === filterGenre ? null : g)}
+              className={`shrink-0 px-2 py-1 rounded text-xs font-medium capitalize ${
+                filterGenre === g ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Read status filter + sort (books only) */}
+      {filterType === 'book' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1.5 flex-wrap">
+            {([
+              { key: null, label: 'All books' },
+              { key: 'not_started', label: '📖 Not read yet' },
+              { key: 'reading', label: '📘 Reading now' },
+              { key: 'want_to_read', label: '📋 Want to read' },
+              { key: 'finished', label: '✅ Finished' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.label}
+                onClick={() => setFilterReadStatus(opt.key)}
+                className={`px-2 py-1 rounded text-xs font-medium ${
+                  filterReadStatus === opt.key ? 'bg-blue-100 text-blue-700' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <span className="text-[10px] text-gray-400 uppercase tracking-wide">Sort</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:border-blue-300"
+            >
+              <option value="title">Title A–Z</option>
+              <option value="recent">Recently added</option>
+              <option value="rating">Highest rated</option>
+              <option value="reviews">Most reviewed</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* For You — personalized picks */}
       {!filterType && !filterSubject && !searchQuery && (
         <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-100">
@@ -683,6 +1448,12 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
         <p className="text-center text-gray-500 py-8">Loading library...</p>
       ) : items.length === 0 ? (
         <p className="text-center text-gray-400 py-8">No items found. Try a different filter or ask Buddy!</p>
+      ) : filterType === 'book' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {items.map((item) => (
+            <BookCard key={item.id} item={item} onClick={() => handleSelectItem(item)} />
+          ))}
+        </div>
       ) : (
         <div className="grid gap-2">
           {items.map((item) => (

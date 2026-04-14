@@ -15,6 +15,7 @@ import KidsChecklistOverview from './KidsChecklistOverview'
 import AvailabilityWidget from './AvailabilityWidget'
 import HomeschoolTab from './HomeschoolTab'
 import HomeschoolDashboardCard from './HomeschoolDashboardCard'
+import { ParentLibraryAdmin } from './HomeLibrary'
 import PetsTab from './PetsTab'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
@@ -45,7 +46,7 @@ import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, CheckSquare, ChefHat, DollarSign, Heart, Star, MessageCircle,
-  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift
+  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift, Library
 } from 'lucide-react'
 
 interface Tab {
@@ -68,6 +69,7 @@ const tabs: Tab[] = [
   { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500', section: 'SCHOOL' },
   { id: 'school', name: 'School', icon: GraduationCap, color: 'bg-orange-500', section: 'SCHOOL' },
   { id: 'advocacy', name: 'Advocacy', icon: Shield, color: 'bg-indigo-600', section: 'SCHOOL' },
+  { id: 'library', name: 'Library', icon: Library, color: 'bg-sky-500', section: 'SCHOOL' },
   // HOME
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500', section: 'HOME' },
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600', section: 'HOME' },
@@ -443,6 +445,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         }))} />
       case 'advocacy':
         return <AdvocacyDashboard />
+      case 'library':
+        return <ParentLibraryAdmin />
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
       case 'belle-care':
