@@ -1007,24 +1007,69 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // UPLOAD-1: Bulk add items
+    // UPLOAD-1: Bulk add items — dedups by ISBN or exact (title, author_or_publisher) match
     case 'bulk_add_items': {
       const { items } = data
       if (!Array.isArray(items) || items.length === 0) return NextResponse.json({ error: 'items array required' }, { status: 400 })
       if (items.length > 200) return NextResponse.json({ error: 'Max 200 items per batch' }, { status: 400 })
+
       let added = 0
+      let skipped = 0
+      const skippedItems: { title: string; reason: string }[] = []
+
       for (const item of items) {
         try {
+          // Duplicate check: prefer ISBN match, fall back to case-insensitive title+author
+          let dupe: any[] = []
+          if (item.isbn) {
+            dupe = await db.query(
+              `SELECT id FROM home_library WHERE isbn = $1 AND active = TRUE AND archived = FALSE LIMIT 1`,
+              [item.isbn]
+            ).catch(() => [])
+          }
+          if (dupe.length === 0 && item.title) {
+            dupe = await db.query(
+              `SELECT id FROM home_library
+               WHERE LOWER(title) = LOWER($1)
+                 AND LOWER(COALESCE(author_or_publisher, '')) = LOWER(COALESCE($2, ''))
+                 AND active = TRUE AND archived = FALSE
+               LIMIT 1`,
+              [item.title, item.author_or_publisher || null]
+            ).catch(() => [])
+          }
+          if (dupe.length > 0) {
+            skipped++
+            skippedItems.push({ title: item.title || '(untitled)', reason: 'already in library' })
+            continue
+          }
+
           await db.query(
-            `INSERT INTO home_library (item_type, title, author_or_publisher, isbn, upc, description, subject_tags, location_in_home, condition, custom_tags)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-            [item.item_type || 'book', item.title, item.author_or_publisher || null, item.isbn || null, item.upc || null,
-             item.description || null, item.subject_tags || [], item.location_in_home || null, item.condition || 'good', item.custom_tags || []]
+            `INSERT INTO home_library (
+               item_type, title, author_or_publisher, isbn, upc, description,
+               cover_image_url, subject_tags, location_in_home, condition, custom_tags, who_uses
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+            [
+              item.item_type || 'book',
+              item.title,
+              item.author_or_publisher || null,
+              item.isbn || null,
+              item.upc || null,
+              item.description || null,
+              item.cover_image_url || null,
+              item.subject_tags || [],
+              item.location_in_home || null,
+              item.condition || 'good',
+              item.custom_tags || [],
+              item.who_uses || [],
+            ]
           )
           added++
-        } catch {}
+        } catch (err) {
+          skipped++
+          skippedItems.push({ title: item.title || '(untitled)', reason: 'insert failed' })
+        }
       }
-      return NextResponse.json({ success: true, items_added: added })
+      return NextResponse.json({ success: true, items_added: added, items_skipped: skipped, skipped: skippedItems })
     }
 
     default:

@@ -16,6 +16,7 @@ import AvailabilityWidget from './AvailabilityWidget'
 import HomeschoolTab from './HomeschoolTab'
 import HomeschoolDashboardCard from './HomeschoolDashboardCard'
 import { ParentLibraryAdmin } from './HomeLibrary'
+import ProfileSwitcher from './ProfileSwitcher'
 import PetsTab from './PetsTab'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
@@ -587,6 +588,9 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
 
       {/* AI Family Assistant */}
       <AiBuddyChat role="parent" displayName="Lola" />
+
+      {/* Profile switcher — floating bottom-left */}
+      <ProfileSwitcher currentRole="parent" />
 
       {/* Notification & Flag Center */}
       <FlagCenterPanel open={flagPanelOpen} onClose={() => setFlagPanelOpen(false)} onNavigate={(tab) => { setActiveTab(tab); setFlagPanelOpen(false) }} />

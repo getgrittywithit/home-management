@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { BookOpen, Gamepad2, Puzzle, Search, Plus, Archive, Edit3, Star, AlertTriangle, X, Filter, ChevronDown, Camera, Check } from 'lucide-react'
 import BarcodeScanner from './BarcodeScanner'
 import KidLibrarySubmit from './KidLibrarySubmit'
+import BulkLibraryScanner from './BulkLibraryScanner'
 
 // ============================================================================
 // Types
@@ -1074,6 +1075,7 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
   const [showBuddy, setShowBuddy] = useState(false)
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null)
   const [warnings, setWarnings] = useState<AccessibilityWarning[]>([])
+  const [showBulkScan, setShowBulkScan] = useState(false)
 
   const loadItems = useCallback(async () => {
     setLoading(true)
@@ -1278,19 +1280,35 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
 
   return (
     <div className="space-y-4">
-      {/* Header + Buddy button */}
+      {/* Header + Buddy / Bulk Scan buttons */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-blue-600" />
           Our Library
         </h3>
-        <button
-          onClick={() => setShowBuddy(true)}
-          className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
-        >
-          🦉 Ask Buddy
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBulkScan(true)}
+            className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
+            title="Scan many books at once"
+          >
+            📚 Bulk Scan
+          </button>
+          <button
+            onClick={() => setShowBuddy(true)}
+            className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
+          >
+            🦉 Ask Buddy
+          </button>
+        </div>
       </div>
+
+      {showBulkScan && (
+        <BulkLibraryScanner
+          onClose={() => { setShowBulkScan(false); loadItems() }}
+          onComplete={() => loadItems()}
+        />
+      )}
 
       {/* Kid submission form */}
       <KidLibrarySubmit kidName={kidName} />
@@ -1483,6 +1501,7 @@ export function ParentLibraryAdmin() {
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [discoveryMode, setDiscoveryMode] = useState(false)
+  const [showBulkScan, setShowBulkScan] = useState(false)
 
   // Add form state
   const [formData, setFormData] = useState({
@@ -2086,6 +2105,13 @@ export function ParentLibraryAdmin() {
             Stats
           </button>
           <button
+            onClick={() => setShowBulkScan(true)}
+            className="bg-sky-100 text-sky-800 hover:bg-sky-200 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1"
+            title="Scan many books at once"
+          >
+            <Camera className="w-4 h-4" /> Bulk Scan
+          </button>
+          <button
             onClick={() => { resetForm(); setShowAddForm(true) }}
             className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-1"
           >
@@ -2093,6 +2119,13 @@ export function ParentLibraryAdmin() {
           </button>
         </div>
       </div>
+
+      {showBulkScan && (
+        <BulkLibraryScanner
+          onClose={() => { setShowBulkScan(false); loadItems() }}
+          onComplete={() => loadItems()}
+        />
+      )}
 
       {/* Pending kid submissions */}
       {pendingSubmissions.length > 0 && (

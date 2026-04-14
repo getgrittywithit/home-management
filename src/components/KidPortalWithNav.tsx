@@ -51,6 +51,7 @@ import HomeschoolTaskBlock from './HomeschoolTaskBlock'
 import VocabPracticeCard from './VocabPracticeCard'
 import MyDayView from './MyDayView'
 import AiBuddyChat from './AiBuddyChat'
+import ProfileSwitcher from './ProfileSwitcher'
 import MyVibe from './kid/MyVibe'
 import JourneyMap from './JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
@@ -2047,6 +2048,14 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           role="kid"
           kidName={(profile.first_name || '').toLowerCase()}
           displayName={profile.first_name || ''}
+        />
+      )}
+
+      {/* Profile switcher — floating bottom-left */}
+      {!previewMode && (
+        <ProfileSwitcher
+          currentProfile={profile.first_name || ''}
+          currentRole="kid"
         />
       )}
     </div>
