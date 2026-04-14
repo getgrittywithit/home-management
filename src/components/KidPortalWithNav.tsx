@@ -1062,8 +1062,16 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
                                   onClick={() => {
                                     const sOpts = meal.sides_starch_options!
                                     const vOpts = meal.sides_veggie_options!
-                                    setSelectedStarch(sOpts[Math.floor(Math.random() * sOpts.length)])
-                                    setSelectedVeggie(vOpts[Math.floor(Math.random() * vOpts.length)])
+                                    // Pick a different index than the current selection so taps always change the sides
+                                    const pickDifferent = (opts: string[], current: string | null): string => {
+                                      if (opts.length < 2) return opts[0]
+                                      const curIdx = opts.indexOf(current || '')
+                                      let nextIdx = Math.floor(Math.random() * opts.length)
+                                      if (nextIdx === curIdx) nextIdx = (nextIdx + 1) % opts.length
+                                      return opts[nextIdx]
+                                    }
+                                    setSelectedStarch(pickDifferent(sOpts, selectedStarch))
+                                    setSelectedVeggie(pickDifferent(vOpts, selectedVeggie))
                                   }}
                                   className="w-full mt-2 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
                                 >

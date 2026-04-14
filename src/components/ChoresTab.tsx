@@ -144,21 +144,27 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
                   </button>
 
                   {/* Expandable task detail (read-only) */}
-                  {isExpanded && p.tasks.length > 0 && (
+                  {isExpanded && (
                     <div className="px-4 pb-3 bg-gray-50">
                       <div className="pl-20 space-y-1">
-                        {p.tasks.map((t, i) => (
-                          <div key={i} className="flex items-center gap-2 py-0.5">
-                            {t.completed ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                            ) : (
-                              <Circle className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-                            )}
-                            <span className={`text-xs ${t.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                              {t.task_text}
-                            </span>
-                          </div>
-                        ))}
+                        {p.tasks.length > 0 ? (
+                          p.tasks.map((t, i) => (
+                            <div key={i} className="flex items-center gap-2 py-0.5">
+                              {t.completed ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                              ) : (
+                                <Circle className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                              )}
+                              <span className={`text-xs ${t.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                                {t.task_text}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-400 italic py-1">
+                            No tasks set for {p.zone} today.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
