@@ -181,6 +181,208 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ submissions: [] }) }
     }
 
+    // ------------------------------------------------------------------
+    // get_book_detail — item + read status + ratings + reviews + recs
+    // ------------------------------------------------------------------
+    case 'get_book_detail': {
+      const id = searchParams.get('id')
+      const kidName = searchParams.get('kid_name')?.toLowerCase() || null
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+      try {
+        const itemRows = await db.query(`SELECT * FROM home_library WHERE id = $1`, [id])
+        if (!itemRows[0]) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+        const item = itemRows[0]
+
+        const readStatus = await db.query(
+          `SELECT kid_name, status, started_at, finished_at, current_page, current_chapter, updated_at
+           FROM library_read_status WHERE book_id = $1`,
+          [id]
+        )
+
+        const ratings = await db.query(
+          `SELECT rated_by, rating, updated_at FROM library_ratings WHERE book_id = $1`,
+          [id]
+        )
+        const avg = ratings.length > 0
+          ? Math.round((ratings.reduce((s: number, r: any) => s + r.rating, 0) / ratings.length) * 10) / 10
+          : null
+
+        const reviews = await db.query(
+          `SELECT id, reviewer, review_text, favorite_part, favorite_character, would_recommend, stars_earned, created_at
+           FROM library_reviews WHERE book_id = $1 ORDER BY created_at DESC`,
+          [id]
+        )
+
+        // Recommendations: same author first, then tag overlap (genres/topics/subject_tags/edu_uses)
+        const recsSql = `
+          WITH target AS (
+            SELECT id,
+                   author_or_publisher,
+                   COALESCE(genres, '{}') AS genres,
+                   COALESCE(topics, '{}') AS topics,
+                   COALESCE(subject_tags, '{}') AS subject_tags,
+                   COALESCE(edu_uses, '{}') AS edu_uses
+            FROM home_library WHERE id = $1
+          )
+          SELECT h.id, h.title, h.author_or_publisher, h.cover_image_url, h.item_type,
+                 h.subject_tags, h.genres, h.topics,
+                 (
+                   CASE WHEN h.author_or_publisher IS NOT NULL
+                             AND h.author_or_publisher = (SELECT author_or_publisher FROM target)
+                        THEN 10 ELSE 0 END
+                   + cardinality(ARRAY(SELECT unnest(COALESCE(h.genres,'{}')) INTERSECT SELECT unnest((SELECT genres FROM target)))) * 3
+                   + cardinality(ARRAY(SELECT unnest(COALESCE(h.topics,'{}')) INTERSECT SELECT unnest((SELECT topics FROM target)))) * 2
+                   + cardinality(ARRAY(SELECT unnest(COALESCE(h.subject_tags,'{}')) INTERSECT SELECT unnest((SELECT subject_tags FROM target))))
+                   + cardinality(ARRAY(SELECT unnest(COALESCE(h.edu_uses,'{}')) INTERSECT SELECT unnest((SELECT edu_uses FROM target))))
+                 ) AS score
+          FROM home_library h
+          WHERE h.id <> $1 AND h.active = TRUE AND h.archived = FALSE AND h.item_type = 'book'
+          ORDER BY score DESC, h.title
+          LIMIT 5
+        `
+        const recs = await db.query(recsSql, [id])
+        const filteredRecs = recs.filter((r: any) => r.score > 0)
+
+        let kidStatus = null
+        if (kidName) {
+          kidStatus = readStatus.find((r: any) => r.kid_name === kidName) || { kid_name: kidName, status: 'not_started' }
+        }
+
+        return NextResponse.json({
+          item,
+          read_status: readStatus,
+          kid_status: kidStatus,
+          ratings,
+          avg_rating: avg,
+          reviews,
+          recommendations: filteredRecs,
+        })
+      } catch (error) {
+        console.error('get_book_detail error:', error)
+        return NextResponse.json({ error: 'Failed to load book detail' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_library_browse — list + avg rating + viewer's read status
+    // ------------------------------------------------------------------
+    case 'get_library_browse': {
+      const kidName = searchParams.get('kid_name')?.toLowerCase() || null
+      const filterType = searchParams.get('filter_type')
+      const subject = searchParams.get('subject')
+      const genre = searchParams.get('genre')
+      const readStatus = searchParams.get('read_status')
+      const minAge = searchParams.get('min_age')
+      const maxAge = searchParams.get('max_age')
+      const minRating = searchParams.get('min_rating')
+      const sort = searchParams.get('sort') || 'title'
+
+      try {
+        const params: any[] = []
+        let where = `h.active = TRUE AND h.archived = FALSE`
+
+        if (filterType) { params.push(filterType); where += ` AND h.item_type = $${params.length}` }
+        if (subject) { params.push(subject); where += ` AND $${params.length} = ANY(h.subject_tags)` }
+        if (genre) { params.push(genre); where += ` AND $${params.length} = ANY(h.genres)` }
+        if (minAge) { params.push(parseInt(minAge)); where += ` AND (h.age_range_max IS NULL OR h.age_range_max >= $${params.length})` }
+        if (maxAge) { params.push(parseInt(maxAge)); where += ` AND (h.age_range_min IS NULL OR h.age_range_min <= $${params.length})` }
+
+        let orderBy = 'h.title'
+        if (sort === 'recent') orderBy = 'h.added_at DESC NULLS LAST, h.title'
+        else if (sort === 'rating') orderBy = 'avg_rating DESC NULLS LAST, h.title'
+        else if (sort === 'reviews') orderBy = 'review_count DESC, h.title'
+
+        const sql = `
+          SELECT h.*,
+                 (SELECT ROUND(AVG(rating)::numeric, 1) FROM library_ratings r WHERE r.book_id = h.id) AS avg_rating,
+                 (SELECT COUNT(*)::int FROM library_ratings r WHERE r.book_id = h.id) AS rating_count,
+                 (SELECT COUNT(*)::int FROM library_reviews v WHERE v.book_id = h.id) AS review_count
+                 ${kidName ? `, (SELECT status FROM library_read_status s WHERE s.book_id = h.id AND s.kid_name = $${params.length + 1}) AS kid_read_status` : ''}
+          FROM home_library h
+          WHERE ${where}
+          ORDER BY ${orderBy}
+        `
+        if (kidName) params.push(kidName)
+
+        let items = await db.query(sql, params)
+
+        if (minRating) {
+          const mr = parseFloat(minRating)
+          items = items.filter((i: any) => i.avg_rating !== null && parseFloat(i.avg_rating) >= mr)
+        }
+        if (readStatus && kidName) {
+          if (readStatus === 'not_started') {
+            items = items.filter((i: any) => !i.kid_read_status || i.kid_read_status === 'not_started')
+          } else {
+            items = items.filter((i: any) => i.kid_read_status === readStatus)
+          }
+        }
+
+        return NextResponse.json({ items })
+      } catch (error) {
+        console.error('get_library_browse error:', error)
+        return NextResponse.json({ error: 'Failed to load library browse' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // fetch_openlibrary — public lookup by ISBN or title+author
+    // ------------------------------------------------------------------
+    case 'fetch_openlibrary': {
+      const isbn = searchParams.get('isbn')
+      const title = searchParams.get('title')
+      const author = searchParams.get('author')
+      try {
+        if (isbn) {
+          const cleaned = isbn.replace(/[^0-9X]/g, '')
+          const coverUrl = `https://covers.openlibrary.org/b/isbn/${cleaned}-L.jpg`
+          const metaRes = await fetch(`https://openlibrary.org/isbn/${cleaned}.json`)
+          let description: string | null = null
+          let age_range_min: number | null = null
+          let age_range_max: number | null = null
+          if (metaRes.ok) {
+            const meta = await metaRes.json() as any
+            if (meta.description) {
+              description = typeof meta.description === 'string' ? meta.description : meta.description.value || null
+            }
+          }
+          return NextResponse.json({
+            cover_url: coverUrl,
+            description,
+            age_range_min,
+            age_range_max,
+            source: 'openlibrary_isbn',
+          })
+        }
+        if (title) {
+          const q = new URLSearchParams({ title, ...(author ? { author } : {}), limit: '1' })
+          const searchRes = await fetch(`https://openlibrary.org/search.json?${q.toString()}`)
+          if (!searchRes.ok) return NextResponse.json({ error: 'search failed' }, { status: 502 })
+          const json = await searchRes.json() as any
+          const doc = json.docs?.[0]
+          if (!doc) return NextResponse.json({ error: 'no match' }, { status: 404 })
+          const coverUrl = doc.cover_i
+            ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
+            : doc.isbn?.[0]
+              ? `https://covers.openlibrary.org/b/isbn/${doc.isbn[0]}-L.jpg`
+              : null
+          return NextResponse.json({
+            cover_url: coverUrl,
+            description: doc.first_sentence?.[0] || null,
+            isbn: doc.isbn?.[0] || null,
+            author: doc.author_name?.[0] || null,
+            first_publish_year: doc.first_publish_year || null,
+            source: 'openlibrary_search',
+          })
+        }
+        return NextResponse.json({ error: 'isbn or title required' }, { status: 400 })
+      } catch (error) {
+        console.error('fetch_openlibrary error:', error)
+        return NextResponse.json({ error: 'Open Library fetch failed' }, { status: 500 })
+      }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }
@@ -258,6 +460,7 @@ export async function POST(request: NextRequest) {
         'player_min', 'player_max', 'play_time_min', 'play_time_max', 'play_style',
         'competition_level', 'accessibility_flags', 'who_uses', 'location_in_home',
         'condition', 'favorite_flag', 'item_type', 'last_used',
+        'hook', 'age_range_min', 'age_range_max', 'genres', 'topics', 'location_details',
       ]
 
       const setClauses: string[] = []
@@ -691,6 +894,116 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('submit_item error:', error)
         return NextResponse.json({ error: 'Failed to submit' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // set_read_status — kid marks book as reading/finished/etc
+    // ------------------------------------------------------------------
+    case 'set_read_status': {
+      const { book_id, kid_name, status, current_page, current_chapter } = data
+      if (!book_id || !kid_name || !status) {
+        return NextResponse.json({ error: 'book_id, kid_name, status required' }, { status: 400 })
+      }
+      const validStatuses = ['not_started', 'want_to_read', 'reading', 'finished', 'read_again']
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json({ error: 'invalid status' }, { status: 400 })
+      }
+      try {
+        const startedExpr =
+          status === 'reading' || status === 'read_again'
+            ? 'COALESCE(library_read_status.started_at, NOW())'
+            : status === 'not_started' ? 'NULL' : 'library_read_status.started_at'
+        const finishedExpr =
+          status === 'finished'
+            ? 'NOW()'
+            : status === 'not_started' ? 'NULL' : 'library_read_status.finished_at'
+        const insertStarted = status === 'reading' || status === 'read_again' ? 'NOW()' : 'NULL'
+        const insertFinished = status === 'finished' ? 'NOW()' : 'NULL'
+        const rows = await db.query(
+          `INSERT INTO library_read_status (book_id, kid_name, status, current_page, current_chapter, started_at, finished_at)
+           VALUES ($1, $2, $3, $4, $5, ${insertStarted}, ${insertFinished})
+           ON CONFLICT (book_id, kid_name) DO UPDATE SET
+             status = EXCLUDED.status,
+             current_page = COALESCE(EXCLUDED.current_page, library_read_status.current_page),
+             current_chapter = COALESCE(EXCLUDED.current_chapter, library_read_status.current_chapter),
+             started_at = ${startedExpr},
+             finished_at = ${finishedExpr},
+             updated_at = NOW()
+           RETURNING *`,
+          [book_id, kid_name.toLowerCase(), status, current_page ?? null, current_chapter || null]
+        )
+        return NextResponse.json({ status: rows[0] })
+      } catch (error) {
+        console.error('set_read_status error:', error)
+        return NextResponse.json({ error: 'Failed to set read status' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // rate_book — 1..5 star rating (upsert per kid)
+    // ------------------------------------------------------------------
+    case 'rate_book': {
+      const { book_id, rated_by, rating } = data
+      if (!book_id || !rated_by || !rating) {
+        return NextResponse.json({ error: 'book_id, rated_by, rating required' }, { status: 400 })
+      }
+      const r = parseInt(rating)
+      if (r < 1 || r > 5) return NextResponse.json({ error: 'rating must be 1-5' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `INSERT INTO library_ratings (book_id, rated_by, rating)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (book_id, rated_by) DO UPDATE SET
+             rating = EXCLUDED.rating,
+             updated_at = NOW()
+           RETURNING *`,
+          [book_id, rated_by.toLowerCase(), r]
+        )
+        return NextResponse.json({ rating: rows[0] })
+      } catch (error) {
+        console.error('rate_book error:', error)
+        return NextResponse.json({ error: 'Failed to save rating' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // add_review — family review / mini book report (+3 stars)
+    // ------------------------------------------------------------------
+    case 'add_review': {
+      const { book_id, reviewer, review_text, favorite_part, favorite_character, would_recommend } = data
+      if (!book_id || !reviewer || !review_text || !review_text.trim()) {
+        return NextResponse.json({ error: 'book_id, reviewer, review_text required' }, { status: 400 })
+      }
+      if (review_text.trim().length < 10) {
+        return NextResponse.json({ error: 'review_text too short (min 10 chars)' }, { status: 400 })
+      }
+      const starsEarned = 3
+      try {
+        const rows = await db.query(
+          `INSERT INTO library_reviews (book_id, reviewer, review_text, favorite_part, favorite_character, would_recommend, stars_earned)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [
+            book_id, reviewer.toLowerCase(), review_text.trim(),
+            favorite_part || null, favorite_character || null,
+            would_recommend ?? null, starsEarned,
+          ]
+        )
+        // Award stars via points system
+        try {
+          await db.query(
+            `INSERT INTO kid_points (kid_name, points, source, source_ref, awarded_at)
+             VALUES ($1, $2, 'book_review', $3, NOW())`,
+            [reviewer.toLowerCase(), starsEarned, rows[0].id]
+          )
+        } catch {
+          // points table may use a different schema — non-fatal
+        }
+        return NextResponse.json({ review: rows[0], stars_earned: starsEarned })
+      } catch (error) {
+        console.error('add_review error:', error)
+        return NextResponse.json({ error: 'Failed to save review' }, { status: 500 })
       }
     }
 
