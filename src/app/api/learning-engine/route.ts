@@ -210,11 +210,28 @@ export async function GET(request: NextRequest) {
       case 'elar_placement_passages': {
         const skillId = searchParams.get('skill_id')
         const level = searchParams.get('level') || '2nd-3rd'
+        const interestTag = searchParams.get('interest_tag')?.toLowerCase() || null
         if (!skillId) return NextResponse.json({ error: 'skill_id required' }, { status: 400 })
+
+        // Prefer passages matching the kid's interest_tag, then 'general', then
+        // any other audience (last resort). DISTINCT ON collapses the candidates
+        // per slot so every (skill, level) returns up to 3 passages — one per
+        // passage_number — regardless of tag coverage. This guarantees a kid
+        // without content tagged for them still gets a usable quiz.
         const rows = await db.query(
-          `SELECT id, skill_id, reading_level, passage_text, question, age_appropriate_context
-           FROM elar_placement_passages WHERE skill_id = $1 AND reading_level = $2 ORDER BY passage_number LIMIT 3`,
-          [skillId, level]
+          `SELECT DISTINCT ON (passage_number)
+                  id, skill_id, reading_level, difficulty, passage_number,
+                  passage_text, question, age_appropriate_context, interest_tag
+           FROM elar_placement_passages
+           WHERE skill_id = $1 AND reading_level = $2
+           ORDER BY passage_number,
+             CASE interest_tag
+               WHEN COALESCE($3, 'general') THEN 0
+               WHEN 'general' THEN 1
+               ELSE 2
+             END
+           LIMIT 3`,
+          [skillId, level, interestTag]
         ).catch(() => [])
         return NextResponse.json({ passages: rows })
       }

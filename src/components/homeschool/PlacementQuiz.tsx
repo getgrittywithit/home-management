@@ -88,9 +88,12 @@ export default function PlacementQuiz({
     if (!selectedSkill) return
     setPhase('loading')
     try {
+      // Interest tag = the kid's lowercased name. API falls back to 'general' per-slot
+      // when no audience-specific content exists for this kid.
+      const interestTag = kidKey
       if (subject === 'elar') {
         const res = await fetch(
-          `/api/learning-engine?action=elar_placement_passages&skill_id=${selectedSkill}&level=${level}`
+          `/api/learning-engine?action=elar_placement_passages&skill_id=${selectedSkill}&level=${level}&interest_tag=${encodeURIComponent(interestTag)}`
         )
         const json = await res.json()
         const list: ElarPassage[] = json.passages || []
