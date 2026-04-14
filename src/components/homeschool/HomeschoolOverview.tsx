@@ -8,6 +8,7 @@ import TeacherDashboard from '../TeacherDashboard'
 import OpportunitiesParentPanel from '../OpportunitiesParentPanel'
 import WeeklyFocusBoard from './WeeklyFocusBoard'
 import AssessmentScoreEntry from './AssessmentScoreEntry'
+import SchoolDayLiveCard from './SchoolDayLiveCard'
 
 interface Props {
   students: StudentData[]
@@ -31,6 +32,9 @@ export default function HomeschoolOverview({ students, taskProgress, selectedStu
 
   return (
     <div className="space-y-6">
+      {/* Live School Day status — D69 SCHOOL-5 */}
+      <SchoolDayLiveCard />
+
       <div>
         <h2 className="font-semibold text-gray-900 mb-3 text-lg">Students</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

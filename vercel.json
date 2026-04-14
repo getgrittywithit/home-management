@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/homeschool-auto-populate",
+      "schedule": "0 11 * * *"
+    }
+  ]
+}

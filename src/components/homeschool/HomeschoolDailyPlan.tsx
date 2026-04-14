@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { StudentData } from './types'
 import {
   Plus, X, Edit3, Trash2, Copy, Save, ListPlus, Settings, GripVertical,
-  Archive, Loader2, HelpCircle, MessageSquare,
+  Archive, Loader2, HelpCircle, MessageSquare, Calendar, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 interface Subject {
@@ -75,6 +75,7 @@ export default function HomeschoolDailyPlan(_props: Props) {
   const [editingTask, setEditingTask] = useState<DailyTask | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [replyDialogFor, setReplyDialogFor] = useState<DailyTask | null>(null)
+  const [showTemplateBuilder, setShowTemplateBuilder] = useState(false)
 
   const flashToast = (msg: string) => {
     setToast(msg)
@@ -98,6 +99,23 @@ export default function HomeschoolDailyPlan(_props: Props) {
   }, [activeKid, date])
 
   useEffect(() => { load() }, [load])
+
+  // On-demand auto-populate: if parent opens Daily Plan before the 6am cron,
+  // trigger the same logic immediately so today's template-driven tasks exist.
+  // Fires once per tab mount (not on kid/date change) to avoid hammering the API.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/homeschool/daily', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'auto_populate_today' }),
+    }).then((r) => r.json()).then((json) => {
+      if (cancelled) return
+      const anyCreated = json?.results && Object.values(json.results).some((r: any) => r?.created > 0)
+      if (anyCreated) load()
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyTemplate = async () => {
     if (tasks.length > 0 && !confirm(`Replace today's ${tasks.length} tasks with a fresh template from ${titleCase(activeKid)}'s subjects?`)) return
@@ -222,6 +240,12 @@ export default function HomeschoolDailyPlan(_props: Props) {
               className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
             >
               <Settings className="w-3.5 h-3.5" /> Subjects
+            </button>
+            <button
+              onClick={() => setShowTemplateBuilder(true)}
+              className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+            >
+              <Calendar className="w-3.5 h-3.5" /> Weekly Template
             </button>
             <button
               onClick={copyFromYesterday}
@@ -359,6 +383,16 @@ export default function HomeschoolDailyPlan(_props: Props) {
           subjects={subjects}
           onClose={() => setShowSubjectManager(false)}
           onChanged={load}
+        />
+      )}
+
+      {/* Weekly template builder modal */}
+      {showTemplateBuilder && (
+        <WeeklyTemplateBuilder
+          kidName={activeKid}
+          subjects={subjects}
+          onClose={() => setShowTemplateBuilder(false)}
+          onApplied={(msg) => { flashToast(msg); load() }}
         />
       )}
 
@@ -720,6 +754,359 @@ function ReplyDialog({
             className="flex-1 bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 disabled:opacity-50"
           >
             {sending ? 'Sending…' : 'Send reply'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// Weekly Template Builder — per-kid Mon-Fri editable template
+// ============================================================================
+interface TemplateEntry {
+  id?: string
+  day_of_week: number
+  subject_id: string | null
+  subject_name: string
+  subject_icon: string
+  title: string
+  description: string | null
+  duration_min: number | null
+  resource_url: string | null
+  sort_order: number
+}
+
+const DAYS = [
+  { dow: 1, label: 'Monday' },
+  { dow: 2, label: 'Tuesday' },
+  { dow: 3, label: 'Wednesday' },
+  { dow: 4, label: 'Thursday' },
+  { dow: 5, label: 'Friday' },
+]
+
+function WeeklyTemplateBuilder({
+  kidName, subjects, onClose, onApplied,
+}: {
+  kidName: string
+  subjects: Subject[]
+  onClose: () => void
+  onApplied: (msg: string) => void
+}) {
+  const [entries, setEntries] = useState<TemplateEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [collapsed, setCollapsed] = useState<Record<number, boolean>>({})
+  const [showCopyKid, setShowCopyKid] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/homeschool/daily?action=list_templates&kid_name=${kidName}`)
+      const json = await res.json()
+      setEntries((json.templates || []).map((t: any) => ({
+        id: t.id,
+        day_of_week: t.day_of_week,
+        subject_id: t.subject_id,
+        subject_name: t.subject_name,
+        subject_icon: t.subject_icon || '📚',
+        title: t.title,
+        description: t.description,
+        duration_min: t.duration_min,
+        resource_url: t.resource_url,
+        sort_order: t.sort_order || 0,
+      })))
+    } catch (err) {
+      console.error('list_templates failed', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [kidName])
+
+  useEffect(() => { load() }, [load])
+
+  const entriesByDay = (dow: number) =>
+    entries.filter((e) => e.day_of_week === dow).sort((a, b) => a.sort_order - b.sort_order)
+
+  const addEntry = (dow: number) => {
+    const firstSubject = subjects[0]
+    const existing = entriesByDay(dow)
+    setEntries((prev) => [
+      ...prev,
+      {
+        day_of_week: dow,
+        subject_id: firstSubject?.id || null,
+        subject_name: firstSubject?.subject_name || 'Other',
+        subject_icon: firstSubject?.subject_icon || '📚',
+        title: `${firstSubject?.subject_name || 'Task'} — set assignment`,
+        description: null,
+        duration_min: firstSubject?.default_duration_min ?? null,
+        resource_url: null,
+        sort_order: existing.length + 1,
+      },
+    ])
+  }
+
+  const updateEntry = (idx: number, patch: Partial<TemplateEntry>) => {
+    setEntries((prev) => {
+      const copy = [...prev]
+      const target = copy[idx]
+      if (!target) return prev
+      copy[idx] = { ...target, ...patch }
+      return copy
+    })
+  }
+
+  const removeEntry = (idx: number) => {
+    setEntries((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const copyDay = (srcDow: number, targetDow: number) => {
+    const src = entriesByDay(srcDow)
+    if (src.length === 0) return
+    const targetExisting = entriesByDay(targetDow).length
+    setEntries((prev) => [
+      ...prev.filter((e) => e.day_of_week !== targetDow),
+      ...src.map((e, i) => ({
+        ...e,
+        id: undefined,
+        day_of_week: targetDow,
+        sort_order: i + 1 + targetExisting,
+      })),
+    ])
+  }
+
+  const saveTemplate = async () => {
+    setSaving(true)
+    try {
+      await fetch('/api/homeschool/daily', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save_template',
+          kid_name: kidName,
+          entries: entries.map(({ id: _id, ...rest }) => rest),
+        }),
+      })
+      onApplied(`Saved ${entries.length} template entries`)
+      load()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const applyWeek = async (offset: 0 | 1) => {
+    // Week bounds: Mon of current or next week → Fri
+    const d = new Date()
+    const day = d.getDay()
+    const mondayOffset = day === 0 ? -6 : 1 - day
+    d.setDate(d.getDate() + mondayOffset + offset * 7)
+    const start = d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    const endDate = new Date(d)
+    endDate.setDate(endDate.getDate() + 4)
+    const end = endDate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+
+    // Save first (so template in DB matches UI)
+    await saveTemplate()
+    const res = await fetch('/api/homeschool/daily', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'apply_template_range',
+        kid_name: kidName,
+        start_date: start,
+        end_date: end,
+      }),
+    })
+    const json = await res.json()
+    const created = json.created || 0
+    const skippedCount = (json.skipped_days || []).length
+    onApplied(
+      skippedCount > 0
+        ? `Created ${created} tasks · ${skippedCount} day${skippedCount > 1 ? 's' : ''} skipped (already had tasks)`
+        : `Created ${created} tasks across the week`
+    )
+    onClose()
+  }
+
+  const copyFromKid = async (source: string) => {
+    if (!confirm(`Replace ${titleCase(kidName)}'s template with ${titleCase(source)}'s?`)) return
+    await fetch('/api/homeschool/daily', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'copy_template', source_kid: source, target_kid: kidName }),
+    })
+    setShowCopyKid(false)
+    load()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-teal-600" />
+            <h3 className="font-bold text-gray-900 capitalize">{titleCase(kidName)}'s Weekly Template</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 text-gray-400"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {loading ? (
+            <div className="text-center text-gray-400 py-12"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-100">
+                <button
+                  onClick={() => setShowCopyKid(!showCopyKid)}
+                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+                >
+                  <Copy className="w-3 h-3" /> Copy from another kid
+                </button>
+                {showCopyKid && (
+                  <div className="w-full flex flex-wrap gap-1.5 pt-2">
+                    {HOMESCHOOL_KIDS.filter((k) => k !== kidName).map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => copyFromKid(k)}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-white border border-gray-200 capitalize hover:bg-gray-50"
+                      >
+                        {k}'s template
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {DAYS.map((day) => {
+                const dayEntries = entriesByDay(day.dow)
+                const isCollapsed = collapsed[day.dow]
+                return (
+                  <div key={day.dow} className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100">
+                      <button
+                        onClick={() => setCollapsed((p) => ({ ...p, [day.dow]: !p[day.dow] }))}
+                        className="text-gray-400 hover:text-gray-700"
+                      >
+                        {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                      <span className="text-xs font-bold text-gray-700 uppercase tracking-wide flex-1">
+                        {day.label}
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        {dayEntries.length} task{dayEntries.length !== 1 ? 's' : ''}
+                      </span>
+                      <select
+                        onChange={(e) => {
+                          const src = parseInt(e.target.value)
+                          if (!isNaN(src)) copyDay(src, day.dow)
+                          e.target.value = ''
+                        }}
+                        defaultValue=""
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-gray-200 bg-white"
+                      >
+                        <option value="">Copy from…</option>
+                        {DAYS.filter((d) => d.dow !== day.dow).map((d) => (
+                          <option key={d.dow} value={d.dow}>{d.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => addEntry(day.dow)}
+                        className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded bg-teal-600 text-white hover:bg-teal-700"
+                      >
+                        <Plus className="w-3 h-3" /> Add
+                      </button>
+                    </div>
+                    {!isCollapsed && (
+                      <div className="divide-y divide-gray-100">
+                        {dayEntries.length === 0 && (
+                          <p className="text-xs text-gray-400 italic px-3 py-4 text-center">No tasks — tap Add.</p>
+                        )}
+                        {dayEntries.map((entry) => {
+                          const entryIdx = entries.indexOf(entry)
+                          return (
+                            <div key={entryIdx} className="px-3 py-2.5 flex items-start gap-2">
+                              <GripVertical className="w-3.5 h-3.5 text-gray-300 mt-2" />
+                              <select
+                                value={entry.subject_id || ''}
+                                onChange={(e) => {
+                                  const s = subjects.find((x) => x.id === e.target.value)
+                                  updateEntry(entryIdx, {
+                                    subject_id: e.target.value || null,
+                                    subject_name: s?.subject_name || entry.subject_name,
+                                    subject_icon: s?.subject_icon || entry.subject_icon,
+                                  })
+                                }}
+                                className="w-28 text-xs px-1.5 py-1 border border-gray-200 rounded bg-white"
+                              >
+                                <option value="">—</option>
+                                {subjects.map((s) => (
+                                  <option key={s.id} value={s.id}>{s.subject_icon} {s.subject_name}</option>
+                                ))}
+                              </select>
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <input
+                                  value={entry.title}
+                                  onChange={(e) => updateEntry(entryIdx, { title: e.target.value })}
+                                  placeholder="Task title"
+                                  className="w-full px-2 py-1 border border-gray-200 rounded text-xs"
+                                />
+                                <input
+                                  value={entry.description || ''}
+                                  onChange={(e) => updateEntry(entryIdx, { description: e.target.value })}
+                                  placeholder="Details (optional)"
+                                  className="w-full px-2 py-1 border border-gray-200 rounded text-[11px] text-gray-600"
+                                />
+                              </div>
+                              <input
+                                type="number"
+                                value={entry.duration_min ?? ''}
+                                onChange={(e) => updateEntry(entryIdx, { duration_min: e.target.value ? parseInt(e.target.value) : null })}
+                                placeholder="min"
+                                className="w-12 px-1 py-1 border border-gray-200 rounded text-[11px] text-center"
+                              />
+                              <button
+                                onClick={() => removeEntry(entryIdx)}
+                                className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex flex-wrap gap-2">
+          <button
+            onClick={saveTemplate}
+            disabled={saving || loading}
+            className="inline-flex items-center gap-1 bg-white border border-gray-200 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            <Save className="w-3.5 h-3.5" /> {saving ? 'Saving…' : 'Save template'}
+          </button>
+          <button
+            onClick={() => applyWeek(0)}
+            disabled={saving || loading || entries.length === 0}
+            className="inline-flex items-center gap-1 bg-teal-600 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50"
+          >
+            <ListPlus className="w-3.5 h-3.5" /> Save + Apply to This Week
+          </button>
+          <button
+            onClick={() => applyWeek(1)}
+            disabled={saving || loading || entries.length === 0}
+            className="inline-flex items-center gap-1 bg-teal-500 text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-teal-600 disabled:opacity-50"
+          >
+            <ListPlus className="w-3.5 h-3.5" /> Save + Apply to Next Week
+          </button>
+          <button onClick={onClose} className="ml-auto text-xs text-gray-500 px-3 py-2 rounded-lg hover:bg-gray-100">
+            Close
           </button>
         </div>
       </div>

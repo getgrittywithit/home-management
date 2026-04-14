@@ -86,13 +86,75 @@ export async function GET(req: NextRequest) {
                   COUNT(*) FILTER (WHERE needs_help = TRUE)::int AS needs_help,
                   COALESCE(SUM(duration_min), 0)::int AS total_min,
                   COALESCE(SUM(time_spent_min), 0)::int AS spent_min,
-                  MAX(completed_at) AS last_completed_at
+                  MAX(completed_at) AS last_completed_at,
+                  MAX(started_at) AS last_activity_at
            FROM homeschool_daily_tasks
            WHERE task_date = $1
            GROUP BY kid_name`,
           [date]
         )
-        return NextResponse.json({ date, per_kid: rows })
+
+        // Current task (oldest in_progress, else first pending) for each kid
+        const current = await db.query(
+          `SELECT DISTINCT ON (kid_name) kid_name, id, title, subject_name, subject_icon, status
+           FROM homeschool_daily_tasks
+           WHERE task_date = $1 AND status IN ('in_progress','pending')
+           ORDER BY kid_name,
+             CASE status WHEN 'in_progress' THEN 0 ELSE 1 END,
+             sort_order, created_at`,
+          [date]
+        )
+        const currentByKid: Record<string, any> = {}
+        for (const r of current) currentByKid[r.kid_name] = r
+
+        // Active help request (most recent) per kid
+        const helps = await db.query(
+          `SELECT DISTINCT ON (kid_name) kid_name, id, title, subject_name, subject_icon, help_subject, kid_notes, help_requested_at
+           FROM homeschool_daily_tasks
+           WHERE task_date = $1 AND needs_help = TRUE
+           ORDER BY kid_name, help_requested_at DESC`,
+          [date]
+        )
+        const helpByKid: Record<string, any> = {}
+        for (const r of helps) helpByKid[r.kid_name] = r
+
+        return NextResponse.json({ date, per_kid: rows, current: currentByKid, help: helpByKid })
+      }
+
+      case 'week_summary': {
+        // Rolling 5-day window for the overview's "This Week at a Glance" grid.
+        // Defaults to Mon-Fri of the current week.
+        const start = searchParams.get('start') || (() => {
+          const d = new Date()
+          const day = d.getDay() // 0=Sun..6=Sat
+          const mondayOffset = day === 0 ? -6 : 1 - day
+          d.setDate(d.getDate() + mondayOffset)
+          return d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        })()
+        const rows = await db.query(
+          `SELECT kid_name, task_date::text,
+                  COUNT(*)::int AS total,
+                  COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+                  COUNT(*) FILTER (WHERE needs_help = TRUE)::int AS needs_help
+           FROM homeschool_daily_tasks
+           WHERE task_date >= $1::date AND task_date < ($1::date + INTERVAL '7 days')
+           GROUP BY kid_name, task_date
+           ORDER BY kid_name, task_date`,
+          [start]
+        )
+        return NextResponse.json({ start, rows })
+      }
+
+      case 'list_templates': {
+        const kidName = searchParams.get('kid_name')?.toLowerCase()
+        if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const rows = await db.query(
+          `SELECT * FROM homeschool_templates
+           WHERE kid_name = $1 AND is_active = TRUE
+           ORDER BY day_of_week, sort_order, title`,
+          [kidName]
+        )
+        return NextResponse.json({ templates: rows })
       }
 
       default:
@@ -385,6 +447,221 @@ export async function POST(req: NextRequest) {
           created.push(r[0])
         }
         return NextResponse.json({ tasks: created, created: created.length })
+      }
+
+      // ------------------------------------------------------------------
+      // save_template — bulk upsert a kid's Mon-Fri weekly template
+      // Replaces the existing template for the kid with the incoming one.
+      // Payload: { kid_name, entries: [{ day_of_week, subject_id, title, description, duration_min, resource_url, sort_order }] }
+      // ------------------------------------------------------------------
+      case 'save_template': {
+        const { kid_name, entries } = data
+        if (!kid_name || !Array.isArray(entries)) {
+          return NextResponse.json({ error: 'kid_name and entries[] required' }, { status: 400 })
+        }
+        // Clear existing template (hard delete — simpler than diff-and-merge)
+        await db.query(`DELETE FROM homeschool_templates WHERE kid_name = $1`, [kid_name.toLowerCase()])
+
+        const inserted: any[] = []
+        for (const e of entries) {
+          if (e.day_of_week == null || !e.title) continue
+          let subjectName = e.subject_name || null
+          let subjectIcon = e.subject_icon || '📚'
+          if (e.subject_id && !subjectName) {
+            const s = await db.query(
+              `SELECT subject_name, subject_icon FROM homeschool_subjects WHERE id = $1`,
+              [e.subject_id]
+            ).catch(() => [])
+            if (s[0]) {
+              subjectName = s[0].subject_name
+              subjectIcon = s[0].subject_icon
+            }
+          }
+          if (!subjectName) subjectName = 'Other'
+
+          const r = await db.query(
+            `INSERT INTO homeschool_templates (
+               kid_name, day_of_week, subject_id, subject_name, subject_icon,
+               title, description, duration_min, resource_url, sort_order
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+             RETURNING *`,
+            [
+              kid_name.toLowerCase(),
+              e.day_of_week,
+              e.subject_id || null,
+              subjectName,
+              subjectIcon,
+              e.title,
+              e.description || null,
+              e.duration_min ?? null,
+              e.resource_url || null,
+              e.sort_order ?? 0,
+            ]
+          )
+          inserted.push(r[0])
+        }
+        return NextResponse.json({ templates: inserted, count: inserted.length }, { status: 201 })
+      }
+
+      // ------------------------------------------------------------------
+      // apply_template_range — generate daily tasks for a date range from template
+      // Skips days that already have tasks (won't overwrite manual edits).
+      // Payload: { kid_name, start_date, end_date }
+      // ------------------------------------------------------------------
+      case 'apply_template_range': {
+        const { kid_name, start_date, end_date } = data
+        if (!kid_name || !start_date || !end_date) {
+          return NextResponse.json({ error: 'kid_name, start_date, end_date required' }, { status: 400 })
+        }
+        const kid = kid_name.toLowerCase()
+        const template = await db.query(
+          `SELECT * FROM homeschool_templates WHERE kid_name = $1 AND is_active = TRUE
+           ORDER BY day_of_week, sort_order`,
+          [kid]
+        )
+        if (template.length === 0) return NextResponse.json({ created: 0, skipped: 0, days: [] })
+
+        const byDow: Record<number, any[]> = {}
+        for (const t of template) {
+          if (!byDow[t.day_of_week]) byDow[t.day_of_week] = []
+          byDow[t.day_of_week].push(t)
+        }
+
+        let created = 0
+        const skipped: string[] = []
+        const days: string[] = []
+        const start = new Date(start_date + 'T12:00:00Z')
+        const end = new Date(end_date + 'T12:00:00Z')
+        for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+          const iso = d.toISOString().slice(0, 10)
+          // getDay(): 0=Sun, 1=Mon, ... 6=Sat — matches our day_of_week encoding
+          const dow = d.getUTCDay()
+          const entries = byDow[dow] || []
+          if (entries.length === 0) continue
+
+          // Skip this day if tasks already exist (don't overwrite manual edits)
+          const existing = await db.query(
+            `SELECT 1 FROM homeschool_daily_tasks WHERE kid_name = $1 AND task_date = $2 LIMIT 1`,
+            [kid, iso]
+          )
+          if (existing.length > 0) { skipped.push(iso); continue }
+
+          for (const t of entries) {
+            await db.query(
+              `INSERT INTO homeschool_daily_tasks (
+                 kid_name, subject_id, subject_name, subject_icon, task_date, title, description,
+                 duration_min, sort_order, resource_url
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              [
+                kid, t.subject_id, t.subject_name, t.subject_icon, iso,
+                t.title, t.description, t.duration_min, t.sort_order, t.resource_url,
+              ]
+            )
+            created++
+          }
+          days.push(iso)
+        }
+
+        return NextResponse.json({ created, skipped_days: skipped, days })
+      }
+
+      // ------------------------------------------------------------------
+      // copy_template — duplicate source_kid's template onto target_kid
+      // Keeps existing subject_id mappings NULL (template renders use
+      // denormalized subject_name/icon fields, so this is safe).
+      // Payload: { source_kid, target_kid }
+      // ------------------------------------------------------------------
+      case 'copy_template': {
+        const { source_kid, target_kid } = data
+        if (!source_kid || !target_kid) {
+          return NextResponse.json({ error: 'source_kid and target_kid required' }, { status: 400 })
+        }
+        const src = source_kid.toLowerCase()
+        const tgt = target_kid.toLowerCase()
+        if (src === tgt) return NextResponse.json({ error: 'source and target are the same' }, { status: 400 })
+
+        // Clear target's current template
+        await db.query(`DELETE FROM homeschool_templates WHERE kid_name = $1`, [tgt])
+
+        const rows = await db.query(
+          `INSERT INTO homeschool_templates (
+             kid_name, day_of_week, subject_id, subject_name, subject_icon,
+             title, description, duration_min, resource_url, sort_order
+           )
+           SELECT $2, day_of_week, NULL, subject_name, subject_icon,
+                  title, description, duration_min, resource_url, sort_order
+           FROM homeschool_templates
+           WHERE kid_name = $1 AND is_active = TRUE
+           RETURNING *`,
+          [src, tgt]
+        )
+        return NextResponse.json({ copied: rows.length, templates: rows })
+      }
+
+      // ------------------------------------------------------------------
+      // auto_populate_today — safety net + cron target
+      // For every homeschool kid, if today has no tasks, create them from
+      // their weekday template. Idempotent — won't overwrite existing days.
+      // ------------------------------------------------------------------
+      case 'auto_populate_today': {
+        const iso = todayIso()
+        const d = new Date(iso + 'T12:00:00Z')
+        const dow = d.getUTCDay()
+
+        const kids = ['amos', 'ellie', 'wyatt', 'hannah']
+        const results: Record<string, { created: number; skipped: boolean }> = {}
+        for (const kid of kids) {
+          const existing = await db.query(
+            `SELECT 1 FROM homeschool_daily_tasks WHERE kid_name = $1 AND task_date = $2 LIMIT 1`,
+            [kid, iso]
+          )
+          if (existing.length > 0) { results[kid] = { created: 0, skipped: true }; continue }
+
+          const template = await db.query(
+            `SELECT * FROM homeschool_templates
+             WHERE kid_name = $1 AND day_of_week = $2 AND is_active = TRUE
+             ORDER BY sort_order`,
+            [kid, dow]
+          )
+          if (template.length === 0) { results[kid] = { created: 0, skipped: false }; continue }
+
+          for (const t of template) {
+            await db.query(
+              `INSERT INTO homeschool_daily_tasks (
+                 kid_name, subject_id, subject_name, subject_icon, task_date, title, description,
+                 duration_min, sort_order, resource_url
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              [
+                kid, t.subject_id, t.subject_name, t.subject_icon, iso,
+                t.title, t.description, t.duration_min, t.sort_order, t.resource_url,
+              ]
+            )
+          }
+          results[kid] = { created: template.length, skipped: false }
+        }
+
+        return NextResponse.json({ date: iso, day_of_week: dow, results })
+      }
+
+      // ------------------------------------------------------------------
+      // nudge_kid — send a notification to a kid's portal
+      // ------------------------------------------------------------------
+      case 'nudge_kid': {
+        const { kid_name, message } = data
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const kid = kid_name.toLowerCase()
+        const display = titleCase(kid)
+        await createNotification({
+          title: 'Mom says: time to start school!',
+          message: message || `${display}, time to open your School Day and start your tasks.`,
+          source_type: 'homeschool_nudge',
+          source_ref: `nudge:${kid}:${Date.now()}`,
+          link_tab: 'my-day',
+          icon: '⏰',
+          target_role: 'kid',
+          kid_name: kid,
+        }).catch(() => {})
+        return NextResponse.json({ ok: true })
       }
 
       default:
