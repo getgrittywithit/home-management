@@ -94,14 +94,16 @@ export default function EmailInbox() {
       const params = new URLSearchParams(window.location.search)
       const connectedEmail = params.get('gmail_connected')
       const gmailError = params.get('gmail_error')
+      const gmailErrorDetail = params.get('gmail_error_detail')
       if (connectedEmail) {
         setStatusMsg(`Connected ${connectedEmail}! Syncing your inbox...`)
         setTimeout(() => setStatusMsg(null), 5000)
         // Clean URL
         window.history.replaceState({}, '', window.location.pathname)
       } else if (gmailError) {
-        setStatusMsg(`Gmail connection failed: ${gmailError}. Try again.`)
-        setTimeout(() => setStatusMsg(null), 8000)
+        const detail = gmailErrorDetail ? ` — ${gmailErrorDetail}` : ''
+        setStatusMsg(`Gmail connection failed: ${gmailError}${detail}`)
+        setTimeout(() => setStatusMsg(null), 20000)
         window.history.replaceState({}, '', window.location.pathname)
       }
     }

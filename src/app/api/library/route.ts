@@ -562,30 +562,80 @@ export async function POST(request: NextRequest) {
 
       try {
         if (barcode_type === 'isbn') {
-          // Google Books API (free, no key)
-          const res = await fetch(
-            `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(barcode)}&maxResults=1`
-          )
-          const json = await res.json()
+          // Lookup chain:
+          //   1. OpenLibrary search q=isbn:X (best coverage incl adult fiction; no key)
+          //   2. OpenLibrary search q=isbn:X with full-text fallback
+          //   3. Google Books API q=isbn:X (anonymous — often rate-limited without key)
+          // Last verified working Apr 14 2026. D68b: swapped primary from
+          // Google Books → OpenLibrary after Google returned quota errors.
 
-          if (json.items && json.items.length > 0) {
-            const vol = json.items[0].volumeInfo
-            return NextResponse.json({
-              found: true,
-              item: {
-                item_type: 'book',
-                title: vol.title || '',
-                author_or_publisher: (vol.authors || []).join(', '),
-                isbn: barcode,
-                description: vol.description || '',
-                cover_image_url: vol.imageLinks?.thumbnail || null,
-                grade_min: null,
-                grade_max: null,
-                subject_tags: (vol.categories || []).map((c: string) => c.toLowerCase()),
-              },
-            })
+          // 1. OpenLibrary q=isbn
+          try {
+            const olRes = await fetch(
+              `https://openlibrary.org/search.json?q=isbn:${encodeURIComponent(barcode)}&limit=1`,
+              { headers: { 'User-Agent': 'FamilyHub/1.0 (library-lookup)' } }
+            )
+            if (olRes.ok) {
+              const olJson = await olRes.json() as any
+              const doc = olJson.docs?.[0]
+              if (doc) {
+                const coverUrl = doc.cover_i
+                  ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`
+                  : doc.isbn?.[0]
+                    ? `https://covers.openlibrary.org/b/isbn/${doc.isbn[0]}-L.jpg`
+                    : null
+                return NextResponse.json({
+                  found: true,
+                  source: 'openlibrary_isbn',
+                  item: {
+                    item_type: 'book',
+                    title: doc.title || '',
+                    author_or_publisher: (doc.author_name || []).join(', '),
+                    isbn: barcode,
+                    description: doc.first_sentence?.[0] || '',
+                    cover_image_url: coverUrl,
+                    grade_min: null,
+                    grade_max: null,
+                    subject_tags: (doc.subject || []).slice(0, 5).map((c: string) => c.toLowerCase()),
+                  },
+                })
+              }
+            }
+          } catch (err) {
+            console.error('OpenLibrary lookup failed:', err)
           }
-          return NextResponse.json({ found: false, barcode_type: 'isbn' })
+
+          // 2. Google Books fallback (anonymous quota often exhausted — gracefully skip)
+          try {
+            const gbRes = await fetch(
+              `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(barcode)}&maxResults=1`
+            )
+            if (gbRes.ok) {
+              const gbJson = await gbRes.json() as any
+              if (gbJson.items && gbJson.items.length > 0) {
+                const vol = gbJson.items[0].volumeInfo
+                return NextResponse.json({
+                  found: true,
+                  source: 'google_books',
+                  item: {
+                    item_type: 'book',
+                    title: vol.title || '',
+                    author_or_publisher: (vol.authors || []).join(', '),
+                    isbn: barcode,
+                    description: vol.description || '',
+                    cover_image_url: vol.imageLinks?.thumbnail || null,
+                    grade_min: null,
+                    grade_max: null,
+                    subject_tags: (vol.categories || []).map((c: string) => c.toLowerCase()),
+                  },
+                })
+              }
+            }
+          } catch (err) {
+            console.error('Google Books lookup failed:', err)
+          }
+
+          return NextResponse.json({ found: false, barcode_type: 'isbn', barcode })
         }
 
         // UPC — try Open Food Facts then UPCitemdb

@@ -44,8 +44,10 @@ export async function ensureGmailTables() {
 export function getOAuthConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GMAIL_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GMAIL_CLIENT_SECRET
-  const redirectUri = process.env.GMAIL_REDIRECT_URI
-    || process.env.GOOGLE_REDIRECT_URI
+  // Prefer GOOGLE_REDIRECT_URI so Vercel env cleanup works transparently.
+  // If neither is set, default to the new callback path that matches Google Cloud Console.
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+    || process.env.GMAIL_REDIRECT_URI
     || 'https://family-ops.grittysystems.com/api/auth/callback/google'
   if (!clientId || !clientSecret) return null
   return { clientId, clientSecret, redirectUri }
@@ -72,6 +74,21 @@ export async function exchangeCodeForTokens(code: string) {
   const config = getOAuthConfig()
   if (!config) throw new Error('Gmail OAuth not configured')
 
+  // Log resolved config (without the secret) so Vercel logs show what's being sent
+  console.log('[gmail-oauth] Exchanging code →', {
+    client_id_suffix: config.clientId.slice(-20),
+    redirect_uri: config.redirectUri,
+    code_len: code.length,
+    env_source: {
+      client_id: process.env.GOOGLE_CLIENT_ID ? 'GOOGLE_CLIENT_ID' : 'GMAIL_CLIENT_ID',
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI
+        ? 'GOOGLE_REDIRECT_URI'
+        : process.env.GMAIL_REDIRECT_URI
+          ? 'GMAIL_REDIRECT_URI'
+          : 'hardcoded_default',
+    },
+  })
+
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -85,8 +102,18 @@ export async function exchangeCodeForTokens(code: string) {
   })
 
   if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Token exchange failed: ${err}`)
+    const errBody = await res.text()
+    // Google's error body tells us EXACTLY what's wrong:
+    //   redirect_uri_mismatch — URI doesn't match Cloud Console
+    //   invalid_grant          — code expired or already used
+    //   invalid_client         — client_id/secret wrong
+    console.error('[gmail-oauth] Token exchange failed', {
+      status: res.status,
+      body: errBody,
+      sent_redirect_uri: config.redirectUri,
+      sent_client_id_suffix: config.clientId.slice(-20),
+    })
+    throw new Error(`Token exchange failed: ${errBody}`)
   }
 
   return res.json() as Promise<{

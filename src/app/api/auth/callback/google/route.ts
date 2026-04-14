@@ -25,7 +25,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard?tab=email&gmail_error=state_mismatch', req.url))
     }
 
-    const tokens = await exchangeCodeForTokens(code)
+    let tokens
+    try {
+      tokens = await exchangeCodeForTokens(code)
+    } catch (exchangeErr) {
+      // Surface Google's actual error to the URL so it's visible in the Email tab
+      const msg = exchangeErr instanceof Error ? exchangeErr.message : 'token_exchange_failed'
+      // Extract just the error code from Google's JSON error body when present
+      let shortCode = 'token_exchange_failed'
+      const m = msg.match(/"error"\s*:\s*"([^"]+)"/)
+      if (m) shortCode = m[1]
+      return NextResponse.redirect(
+        new URL(`/dashboard?tab=email&gmail_error=${encodeURIComponent(shortCode)}&gmail_error_detail=${encodeURIComponent(msg.slice(0, 300))}`, req.url)
+      )
+    }
 
     // Extract the connected account email from id_token, or fall back to Gmail profile
     let email = ''
