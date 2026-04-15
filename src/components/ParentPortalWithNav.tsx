@@ -19,6 +19,7 @@ import { ParentLibraryAdmin } from './HomeLibrary'
 import ProfileSwitcher from './ProfileSwitcher'
 import HouseholdNeedsTab from './HouseholdNeedsTab'
 import RecipeImportTab from './RecipeImportTab'
+import QuickActionsBar from './QuickActionsBar'
 import PetsTab from './PetsTab'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
@@ -426,6 +427,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
           <div className="space-y-6 p-6 max-w-6xl mx-auto">
             <NeedsAttentionPanel onNavigate={(tab) => setActiveTab(tab)} />
             <SickAlertBanner />
+            <QuickActionsBar />
             <ParentMyDayCard onNavigate={(tab) => setActiveTab(tab)} />
             <AvailabilityWidget />
             <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />

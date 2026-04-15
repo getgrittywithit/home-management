@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
+import DigiPetMiniWidget from './DigiPetMiniWidget'
 import PositiveReportButton from './PositiveReportButton'
 import SpeakerButton from './SpeakerButton'
 import KidMealPicker from './KidMealPicker'
@@ -439,6 +440,14 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
         </div>
       </div>
 
+      {/* Digi-Pet mini widget — D72 PET-1 */}
+      <DigiPetMiniWidget
+        kidName={kidName}
+        onOpen={() => {
+          try { window.dispatchEvent(new CustomEvent('kid-nav', { detail: { tab: 'digi-pet' } })) } catch { /* ignore */ }
+        }}
+      />
+
       {/* Weekly Star Goal */}
       {weeklyGoal && (
         <div className="bg-white rounded-xl border shadow-sm p-4">
@@ -456,6 +465,16 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
           </div>
           {weeklyGoal.earned >= weeklyGoal.target && (
             <p className="text-xs text-green-600 font-medium mt-1.5">Goal met! Keep it up!</p>
+          )}
+          {weeklyGoal.earned === 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs text-gray-600 font-medium mb-1">💡 Earn stars by completing daily tasks!</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500">
+                <span>🐕 Belle Care <span className="text-amber-600 font-semibold">+3 ⭐</span></span>
+                <span>🧹 Zone Chores <span className="text-amber-600 font-semibold">+5 ⭐</span></span>
+                <span>🌙 Bedtime Routine <span className="text-amber-600 font-semibold">+2 ⭐</span></span>
+              </div>
+            </div>
           )}
         </div>
       )}

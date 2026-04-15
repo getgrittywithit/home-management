@@ -16,9 +16,10 @@ interface Props {
   selectedStudentId: string | null
   onSelectStudent: (id: string | null) => void
   onStartFocus: (student: StudentData, subject: Subject) => void
+  onOpenDailyPlan?: () => void
 }
 
-export default function HomeschoolOverview({ students, taskProgress, selectedStudentId, onSelectStudent, onStartFocus }: Props) {
+export default function HomeschoolOverview({ students, taskProgress, selectedStudentId, onSelectStudent, onStartFocus, onOpenDailyPlan }: Props) {
   const selectedStudent = selectedStudentId ? students.find(s => s.id === selectedStudentId) : null
 
   if (selectedStudent) {
@@ -39,7 +40,13 @@ export default function HomeschoolOverview({ students, taskProgress, selectedStu
         <h2 className="font-semibold text-gray-900 mb-3 text-lg">Students</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {students.map(student => (
-            <StudentTile key={student.id} student={student} taskData={taskProgress[student.id]} onClick={() => onSelectStudent(student.id)} />
+            <StudentTile
+              key={student.id}
+              student={student}
+              taskData={taskProgress[student.id]}
+              onClick={() => onSelectStudent(student.id)}
+              onOpenPlan={onOpenDailyPlan}
+            />
           ))}
         </div>
       </div>

@@ -72,7 +72,9 @@ export default function HomeschoolTab() {
     switch (activeSubTab) {
       case 'overview':
         return <HomeschoolOverview students={students} taskProgress={taskProgress} selectedStudentId={selectedStudentId}
-          onSelectStudent={setSelectedStudentId} onStartFocus={(student, subject) => setFocusSession({ student, subject })} />
+          onSelectStudent={setSelectedStudentId}
+          onStartFocus={(student, subject) => setFocusSession({ student, subject })}
+          onOpenDailyPlan={() => setActiveSubTab('daily-plan')} />
       case 'daily-plan':
         return <HomeschoolDailyPlan students={students} />
       case 'elar':
@@ -91,7 +93,9 @@ export default function HomeschoolTab() {
         return <UnitsView units={units} />
       default:
         return <HomeschoolOverview students={students} taskProgress={taskProgress} selectedStudentId={null}
-          onSelectStudent={setSelectedStudentId} onStartFocus={(student, subject) => setFocusSession({ student, subject })} />
+          onSelectStudent={setSelectedStudentId}
+          onStartFocus={(student, subject) => setFocusSession({ student, subject })}
+          onOpenDailyPlan={() => setActiveSubTab('daily-plan')} />
     }
   }
 

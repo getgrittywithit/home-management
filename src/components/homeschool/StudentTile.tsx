@@ -1,17 +1,42 @@
 'use client'
 
-import { AlertTriangle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, ClipboardList } from 'lucide-react'
 import { StudentData, COLOR_MAP, STATUS_ICON } from './types'
 
-export default function StudentTile({ student, onClick, selected, taskData }: {
+interface YesterdayStats {
+  subjects: number
+  total_min: number
+}
+
+export default function StudentTile({ student, onClick, selected, taskData, onOpenPlan }: {
   student: StudentData; onClick: () => void; selected?: boolean;
   taskData?: { total_tasks: number; completed_tasks: number; focus_mins: number }
+  onOpenPlan?: () => void
 }) {
   const c = COLOR_MAP[student.color] || COLOR_MAP.blue
   const totalTasks = taskData?.total_tasks || 0
   const completedTasks = taskData?.completed_tasks || 0
   const focusMins = taskData?.focus_mins || 0
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+  // Fetch yesterday's stats for the zero-state view (only when nothing's started today)
+  const [yesterday, setYesterday] = useState<YesterdayStats | null>(null)
+  useEffect(() => {
+    if (totalTasks > 0) return // don't bother — kid already started today
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    const iso = d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    fetch(`/api/homeschool/daily?action=daily_summary&date=${iso}`)
+      .then((r) => r.json())
+      .then((j) => {
+        const row = (j.per_kid || []).find((r: any) => r.kid_name?.toLowerCase() === student.name.toLowerCase())
+        if (row && row.completed > 0) {
+          setYesterday({ subjects: row.completed, total_min: row.spent_min || 0 })
+        }
+      })
+      .catch(() => {})
+  }, [student.name, totalTasks])
 
   return (
     <button
@@ -65,7 +90,26 @@ export default function StudentTile({ student, onClick, selected, taskData }: {
           </div>
         </>
       ) : (
-        <p className="text-xs text-gray-400 italic mb-2">Not started — set up tasks in Daily Plan</p>
+        <div className="space-y-1.5 mb-2">
+          <p className="text-xs text-gray-600 font-medium">No lessons started today</p>
+          {onOpenPlan && (
+            <div
+              role="button"
+              onClick={(e) => { e.stopPropagation(); onOpenPlan() }}
+              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded ${c.bg} ${c.text} hover:opacity-90 cursor-pointer`}
+            >
+              <ClipboardList className="w-3 h-3" /> Set Today's Plan →
+            </div>
+          )}
+          {yesterday ? (
+            <p className="text-[10px] text-gray-400">
+              Yesterday: {yesterday.subjects} subject{yesterday.subjects !== 1 ? 's' : ''}
+              {yesterday.total_min > 0 && ` · ${Math.floor(yesterday.total_min / 60) > 0 ? `${Math.floor(yesterday.total_min / 60)}h ` : ''}${yesterday.total_min % 60}m focus`}
+            </p>
+          ) : (
+            <p className="text-[10px] text-gray-400 italic">Start your first lesson to see progress here!</p>
+          )}
+        </div>
       )}
 
       {student.concern_flags.length > 0 && (

@@ -95,6 +95,31 @@ export default function JourneyMap({ kidName, subject }: JourneyMapProps) {
         </div>
       </div>
 
+      {/* Empty-state banner — D72 EMPTY-4 */}
+      {skills.length > 0 && skills.every((s) => (Number(s.mastery_score) || 0) === 0) && (
+        <div className={`rounded-2xl border-2 border-dashed p-5 text-center ${
+          subject === 'elar' ? 'border-purple-200 bg-purple-50/40' : 'border-blue-200 bg-blue-50/40'
+        }`}>
+          <div className="text-3xl mb-2">🌟</div>
+          <h3 className={`font-bold text-base mb-1 ${subject === 'elar' ? 'text-purple-900' : 'text-blue-900'}`}>
+            Your {subject === 'elar' ? 'reading' : 'math'} adventure starts here!
+          </h3>
+          <p className="text-xs text-gray-600 max-w-sm mx-auto mb-3">
+            Complete {subject === 'elar' ? 'Book Buddy' : 'Math Buddy'} sessions to level up your skills.
+            Each skill goes from 0 → 100.
+          </p>
+          <div className={`inline-flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded-lg text-white ${
+            subject === 'elar' ? 'bg-purple-600' : 'bg-blue-600'
+          }`}>
+            {subject === 'elar' ? <BookOpen className="w-3.5 h-3.5" /> : <Calculator className="w-3.5 h-3.5" />}
+            Open {subject === 'elar' ? 'Book Buddy' : 'Math Buddy'}
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2 italic">
+            Switch to the {subject === 'elar' ? 'Book Buddy' : 'Math Buddy'} tab to begin
+          </p>
+        </div>
+      )}
+
       {/* Skills */}
       <div className="space-y-2">
         {skills.map(skill => {
