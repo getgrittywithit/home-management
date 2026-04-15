@@ -7,7 +7,7 @@
 // Successful login redirects to role-appropriate portal.
 // ============================================================================
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Shield, ArrowLeft, Loader2, Eye, EyeOff, Check } from 'lucide-react'
 
@@ -40,6 +40,20 @@ function portalPathFor(account: Account): string {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-400 via-indigo-500 to-purple-600">
+          <Loader2 className="w-8 h-8 text-white animate-spin" />
+        </div>
+      }
+    >
+      <LoginPageInner />
+    </Suspense>
+  )
+}
+
+function LoginPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const nextPath = searchParams.get('next') || null
