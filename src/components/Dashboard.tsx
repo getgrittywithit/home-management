@@ -116,9 +116,11 @@ export default function Dashboard({ initialData }: DashboardProps) {
         <header className="mb-8">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Family Ops Dashboard 🏠
-              </h1>
+              <div className="flex items-center space-x-3 mb-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/favicon.svg" alt="Family Ops" className="w-10 h-10 rounded-xl" />
+                <h1 className="text-3xl font-bold text-gray-900">Family Ops Dashboard</h1>
+              </div>
               <p className="text-gray-600">
                 Greenhouse Playbook - Managing 2 adults + 6 kids with systems that work
               </p>

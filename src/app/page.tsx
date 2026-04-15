@@ -60,9 +60,8 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl">
-                <Home className="w-8 h-8 text-white" />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/favicon.svg" alt="Family Ops" className="w-12 h-12 rounded-xl" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Family Ops</h1>
                 <p className="text-sm text-gray-600">Greenhouse Playbook System</p>

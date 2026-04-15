@@ -527,9 +527,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         {/* Header */}
         <div className="p-6 border-b border-gray-200 overflow-visible relative z-50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Home className="w-6 h-6 text-blue-600" />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/favicon.svg" alt="Family Ops" className="w-10 h-10 rounded-lg" />
             <div className="flex-1">
               <div className="font-bold text-lg">Family Ops</div>
               <div className="text-sm text-gray-600">Parent Dashboard</div>
