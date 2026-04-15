@@ -44,6 +44,7 @@ import SettingsExpandedTab from './SettingsExpandedTab'
 import AiBuddyChat from './AiBuddyChat'
 import BoardsTab from './parent/BoardsTab'
 import AdvocacyDashboard from './parent/AdvocacyDashboard'
+import PrintCenter from './parent/PrintCenter'
 import LeaderboardCard from './LeaderboardCard'
 import ParentMyDayCard from './ParentMyDayCard'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
@@ -51,7 +52,7 @@ import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, CheckSquare, ChefHat, DollarSign, Heart, Star, MessageCircle,
-  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift, Library, ShoppingBag, Upload
+  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift, Library, ShoppingBag, Upload, Printer
 } from 'lucide-react'
 
 interface Tab {
@@ -91,6 +92,7 @@ const tabs: Tab[] = [
   // PLANNING & ADMIN
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500', section: 'PLANNING' },
   { id: 'finance', name: 'Finance', icon: DollarSign, color: 'bg-green-500', section: 'PLANNING' },
+  { id: 'print-center', name: 'Print Center', icon: Printer, color: 'bg-blue-600', section: 'PLANNING' },
   { id: 'settings', name: 'Settings', icon: Settings, color: 'bg-gray-500', section: 'PLANNING' },
 ]
 
@@ -486,6 +488,8 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return renderCalendarTab()
       case 'finance':
         return <FinanceMergedTab />
+      case 'print-center':
+        return <PrintCenter />
       case 'settings':
         return <SettingsExpandedTab />
       case 'family':
