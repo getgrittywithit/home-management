@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronRight, Eye, EyeOff, Flag, Trash2, Edit3,
   ArrowUpRight, ArrowDownRight, Wallet, PiggyBank, BarChart2
 } from 'lucide-react'
+import SnapBudgetCard from './finance/SnapBudgetCard'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number) {
@@ -360,6 +361,9 @@ function GroceriesPanel({ month }: { month: string }) {
 
   return (
     <div className="space-y-6">
+      {/* D75b FIN-SNAP-1 — Smart SNAP analytics layer */}
+      <SnapBudgetCard month={month} />
+
       {/* SNAP vs Cash Tracker */}
       <div className="bg-white border rounded-xl p-5">
         <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
