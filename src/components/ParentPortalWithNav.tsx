@@ -20,6 +20,7 @@ import ProfileSwitcher from './ProfileSwitcher'
 import HouseholdNeedsTab from './HouseholdNeedsTab'
 import RecipeImportTab from './RecipeImportTab'
 import QuickActionsBar from './QuickActionsBar'
+import NotificationPermissionPrompt from './NotificationPermissionPrompt'
 import PetsTab from './PetsTab'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
@@ -425,6 +426,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'overview':
         return (
           <div className="space-y-6 p-6 max-w-6xl mx-auto">
+            <NotificationPermissionPrompt targetRole="parent" />
             <NeedsAttentionPanel onNavigate={(tab) => setActiveTab(tab)} />
             <SickAlertBanner />
             <QuickActionsBar />

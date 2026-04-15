@@ -1,4 +1,5 @@
 import { db } from '@/lib/database'
+import { sendPush, shouldPushForSource, isSilentSource } from '@/lib/push'
 
 export async function createNotification({
   title, message, source_type, source_ref, link_tab, icon,
@@ -27,4 +28,23 @@ export async function createNotification({
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
     [target_role, kid_name || null, title, message, icon || null, source_type, source_ref || null, link_tab || null]
   ).catch(() => {})
+
+  // D73 PUSH-2/3 — fan out to web push for push-enabled source types. Non-blocking
+  // and non-fatal: if push fails, the in-app notification still landed above.
+  if (shouldPushForSource(source_type, target_role)) {
+    try {
+      await sendPush({
+        target_role: target_role === 'kid' ? 'kid' : 'parent',
+        kid_name: kid_name || null,
+        title: `${icon ? icon + ' ' : ''}${title}`,
+        body: message,
+        link_tab: link_tab || null,
+        icon: icon || null,
+        source_ref: source_ref || null,
+        silent: isSilentSource(source_type),
+      })
+    } catch (err) {
+      console.error('[notifications] push fanout failed:', err)
+    }
+  }
 }

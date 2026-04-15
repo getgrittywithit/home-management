@@ -203,3 +203,61 @@ Object.defineProperty(IDBTransaction.prototype, 'done', {
     return this._donePromise
   }
 })
+
+// ============================================================================
+// PUSH NOTIFICATIONS — D73 PUSH-1
+// Receives push events from the web-push server, shows a native notification,
+// and routes the click back to the app at the target link_tab.
+// ============================================================================
+
+self.addEventListener('push', (event) => {
+  let payload = { title: 'Family Ops', body: 'You have a new notification', data: {} }
+  try {
+    if (event.data) payload = event.data.json()
+  } catch (err) {
+    // non-JSON push payload — fall back to text
+    try { payload.body = event.data.text() } catch (_) {}
+  }
+
+  const options = {
+    body: payload.body,
+    icon: payload.icon || '/icon-192.png',
+    badge: payload.badge || '/icon-192.png',
+    tag: payload.tag || undefined,
+    silent: !!payload.silent,
+    data: payload.data || {},
+    requireInteraction: false,
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title || 'Family Ops', options)
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const linkTab = event.notification.data?.link_tab || null
+  const targetUrl = linkTab ? `/dashboard?tab=${encodeURIComponent(linkTab)}` : '/dashboard'
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      // Focus an existing window if one is open
+      for (const client of allClients) {
+        if ('focus' in client) {
+          try {
+            await client.focus()
+            if ('navigate' in client) {
+              try { await client.navigate(targetUrl) } catch (_) {}
+            }
+            return
+          } catch (_) {}
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl)
+      }
+    })()
+  )
+})

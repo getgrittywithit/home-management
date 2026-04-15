@@ -51,6 +51,7 @@ import HomeschoolTaskBlock from './HomeschoolTaskBlock'
 import VocabPracticeCard from './VocabPracticeCard'
 import MyDayView from './MyDayView'
 import MySchoolDayCard from './homeschool/MySchoolDayCard'
+import NotificationPermissionPrompt from './NotificationPermissionPrompt'
 import AiBuddyChat from './AiBuddyChat'
 import ProfileSwitcher from './ProfileSwitcher'
 import MyVibe from './kid/MyVibe'
@@ -1870,6 +1871,10 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
       case 'my-day':
         return (
           <div className="space-y-4">
+            <NotificationPermissionPrompt
+              targetRole="kid"
+              kidName={(profile.first_name || profile.name || '').toLowerCase()}
+            />
             <HuddlePreSubmit kidName={profile.first_name || profile.name} />
             {isHomeschool && (
               <MySchoolDayCard kidName={profile.first_name || profile.name} />
