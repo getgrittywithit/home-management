@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, User, Phone, Printer, Upload, CheckSquare, Shield, Users } from 'lucide-react'
+import { Settings, User, Phone, Printer, Upload, CheckSquare, Shield, ShieldCheck } from 'lucide-react'
 import AboutMeAdminTab from './AboutMeAdminTab'
 import ContactsTab from './ContactsTab'
 import PrintTab from './PrintTab'
@@ -9,9 +9,10 @@ import BulkDocumentProcessor from './BulkDocumentProcessor'
 import TodoTab from './TodoTab'
 import FamilyConfigAdmin from './FamilyConfigAdmin'
 import PortalSettingsPanel from './PortalSettingsPanel'
+import FamilyAccountsPanel from './parent/FamilyAccountsPanel'
 import { getAllFamilyData } from '@/lib/familyConfig'
 
-type SubTab = 'config' | 'aboutme' | 'contacts' | 'print' | 'bulk-docs' | 'todos'
+type SubTab = 'config' | 'accounts' | 'aboutme' | 'contacts' | 'print' | 'bulk-docs' | 'todos'
 
 const familyData = getAllFamilyData()
 const familyChildren = familyData.children.filter(Boolean)
@@ -22,6 +23,7 @@ export default function SettingsExpandedTab() {
 
   const tabs: { id: SubTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'config', label: 'Family Config', icon: Settings },
+    { id: 'accounts', label: 'Accounts', icon: ShieldCheck },
     { id: 'aboutme', label: 'About Me', icon: User },
     { id: 'contacts', label: 'Contacts', icon: Phone },
     { id: 'todos', label: 'Todos', icon: CheckSquare },
@@ -82,6 +84,7 @@ export default function SettingsExpandedTab() {
           <FamilyConfigAdmin />
         </div>
       )}
+      {subTab === 'accounts' && <FamilyAccountsPanel />}
       {subTab === 'aboutme' && <AboutMeAdminTab />}
       {subTab === 'contacts' && <ContactsTab />}
       {subTab === 'todos' && <TodoTab />}
