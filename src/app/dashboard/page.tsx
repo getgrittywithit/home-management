@@ -1,6 +1,8 @@
+import { redirect } from 'next/navigation'
 import ParentPortalWithNav from '@/components/ParentPortalWithNav'
 import { db } from '@/lib/database'
 import { DashboardData } from '@/types'
+import { currentSessionFromCookies } from '@/lib/auth'
 
 // Optimize data fetching with sequential queries to avoid connection pool exhaustion
 async function getDashboardData(): Promise<DashboardData> {
@@ -64,7 +66,11 @@ async function getDashboardData(): Promise<DashboardData> {
 }
 
 export default async function DashboardPage() {
+  const session = await currentSessionFromCookies()
+  if (!session) redirect('/login?next=/dashboard')
+  if (session.role !== 'parent') redirect(`/kids/${session.username}`)
+
   const initialData = await getDashboardData()
-  
+
   return <ParentPortalWithNav initialData={initialData} />
 }

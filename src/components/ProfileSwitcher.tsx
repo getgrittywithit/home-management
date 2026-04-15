@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Home, X, Shield, ArrowLeftRight } from 'lucide-react'
+import { Users, Home, X, Shield, ArrowLeftRight, LogOut } from 'lucide-react'
 import { getAllFamilyData } from '@/lib/familyConfig'
 
 // Matches the kid emojis/gradients used on the landing page so the two
@@ -45,6 +45,19 @@ export default function ProfileSwitcher({ currentProfile, currentRole = 'kid' }:
   const go = (path: string) => {
     setOpen(false)
     router.push(path)
+  }
+
+  // D77 AUTH Stage C — full logout (kills session cookie + redirects to /login)
+  const logOut = async () => {
+    try {
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' }),
+      })
+    } catch { /* ignore */ }
+    setOpen(false)
+    window.location.href = '/login'
   }
 
   const triggerEmoji = currentRole === 'parent'
@@ -169,6 +182,17 @@ export default function ProfileSwitcher({ currentProfile, currentRole = 'kid' }:
                   )
                 })}
               </div>
+            </div>
+
+            {/* Footer — logout */}
+            <div className="border-t border-gray-100 px-5 py-3 flex justify-end">
+              <button
+                onClick={logOut}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Log out
+              </button>
             </div>
           </div>
         </div>

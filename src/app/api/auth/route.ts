@@ -111,12 +111,12 @@ export async function POST(request: NextRequest) {
             if (!pin || !isValidPin(pin)) return NextResponse.json({ error: 'PIN must be 4-6 digits' }, { status: 400 })
             const hash = hashSecret(pin)
             await db.query(`UPDATE family_accounts SET pin_hash = $2, updated_at = NOW() WHERE id = $1`, [account.id, hash])
-            await logCredential(account.id, 'pin', pin, account.id)
+            await logCredential(account.id, 'pin', pin, account.id).catch((e) => console.warn('[auth] logCredential skipped:', e?.message))
           } else {
             if (!password || !isValidPassword(password)) return NextResponse.json({ error: 'Password must be 4-128 chars' }, { status: 400 })
             const hash = hashSecret(password)
             await db.query(`UPDATE family_accounts SET password_hash = $2, updated_at = NOW() WHERE id = $1`, [account.id, hash])
-            await logCredential(account.id, 'password', password, account.id)
+            await logCredential(account.id, 'password', password, account.id).catch((e) => console.warn('[auth] logCredential skipped:', e?.message))
           }
         } else {
           // Verify
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
           `UPDATE family_accounts SET pin_hash = $2, updated_at = NOW() WHERE id = $1`,
           [kid.id, hashSecret(pin)]
         )
-        await logCredential(kid.id, 'pin', pin, parent.id)
+        await logCredential(kid.id, 'pin', pin, parent.id).catch((e) => console.warn('[auth] logCredential skipped:', e?.message))
         return NextResponse.json({ success: true })
       }
 
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
           `UPDATE family_accounts SET password_hash = $2, updated_at = NOW() WHERE id = $1`,
           [target.id, hashSecret(password)]
         )
-        await logCredential(target.id, 'password', password, self.id)
+        await logCredential(target.id, 'password', password, self.id).catch((e) => console.warn('[auth] logCredential skipped:', e?.message))
         return NextResponse.json({ success: true })
       }
 
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
           `UPDATE family_accounts SET pin_hash = $2, updated_at = NOW() WHERE id = $1`,
           [self.id, hashSecret(new_pin)]
         )
-        await logCredential(self.id, 'pin', new_pin, self.id)
+        await logCredential(self.id, 'pin', new_pin, self.id).catch((e) => console.warn('[auth] logCredential skipped:', e?.message))
         return NextResponse.json({ success: true })
       }
 

@@ -1,16 +1,35 @@
 'use client'
 
 import { use, useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import KidPortalWithNav from '@/components/KidPortalWithNav'
 import { Lock, Eye, Loader2 } from 'lucide-react'
 
 export default function KidPage({ params }: { params: Promise<{ kidName: string }> }) {
   const { kidName } = use(params)
+  const router = useRouter()
   const searchParams = useSearchParams()
   const isPreview = searchParams.get('preview') === 'parent'
   const [status, setStatus] = useState<'loading' | 'enabled' | 'disabled' | 'not_found' | 'ready'>('loading')
   const [kidData, setKidData] = useState<any>(null)
+
+  // D77 AUTH Stage C — role enforcement
+  // Kid can only see their own portal. Parents see any kid portal.
+  useEffect(() => {
+    fetch('/api/auth?action=me')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data?.account) {
+          router.replace(`/login?next=/kid/${encodeURIComponent(kidName)}`)
+          return
+        }
+        const me = data.account
+        if (me.role === 'kid' && me.username !== kidName.toLowerCase()) {
+          router.replace(`/kid/${me.username}`)
+        }
+      })
+      .catch(() => { /* allow through on network error */ })
+  }, [kidName, router])
 
   // Save last-visited portal for PWA home screen shortcuts
   useEffect(() => {

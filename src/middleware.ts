@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { COOKIE_NAME } from '@/lib/auth'
 
 // ============================================================================
-// D77 AUTH Stage A — log-only middleware
-// Purpose: observe traffic + read the session cookie so Stage C can flip
-// this to enforcement without any surprise. Does NOT block or redirect.
-// Stage C will swap the log() calls for NextResponse.redirect(...)
+// D77 AUTH Stage C — enforce mode
+// Session is validated inside /api/auth?action=me. Middleware only checks
+// that the cookie exists on protected routes; a stale/bad cookie still
+// lets the page load, and the app-level session check redirects to login
+// if needed. This keeps middleware off the Node runtime.
 // ============================================================================
 
-const PARENT_ROUTES = ['/dashboard']
-const KID_ROUTE_PREFIX = '/kids/'
-const LOG_ONLY = true
+const COOKIE_NAME = 'coral_session' // mirrors src/lib/auth.ts
 
 export const config = {
   matcher: [
-    // Run on protected paths only — keep _next, api, and static assets untouched.
     '/dashboard/:path*',
+    '/kid/:path*',
     '/kids/:path*',
-    '/login',
   ],
 }
 
@@ -25,19 +22,14 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const sessionId = request.cookies.get(COOKIE_NAME)?.value || null
 
-  const needsParent = PARENT_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`))
-  const needsKidOrParent = pathname.startsWith(KID_ROUTE_PREFIX)
-
-  if (LOG_ONLY) {
-    if (needsParent && !sessionId) {
-      console.log(`[auth:warn] ${pathname} hit without session (would redirect to /login)`)
-    }
-    if (needsKidOrParent && !sessionId) {
-      console.log(`[auth:warn] ${pathname} hit without session (would redirect to /login)`)
-    }
-    return NextResponse.next()
+  // Middleware only checks cookie presence. Role-level enforcement lives
+  // in the page itself (server component for /dashboard, client for /kid).
+  if (!sessionId) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set('next', pathname + (request.nextUrl.search || ''))
+    return NextResponse.redirect(url)
   }
 
-  // Stage C will live here.
   return NextResponse.next()
 }
