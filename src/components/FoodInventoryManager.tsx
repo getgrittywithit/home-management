@@ -12,6 +12,7 @@ import GroceryTab from './GroceryTab'
 import RecipeSuggestions from './RecipeSuggestions'
 import MealFeedbackAnalytics from './MealFeedbackAnalytics'
 import WeeklyMealCalendar from './WeeklyMealCalendar'
+import SnapBudgetCard from './finance/SnapBudgetCard'
 import GroceryRequestReview from './GroceryRequestReview'
 import GroceryPDFButtons from './GroceryPDFButtons'
 import InventoryBoard from './InventoryBoard'
@@ -318,6 +319,7 @@ Example:
 
 function MealPlanTab() {
   const [adminMode, setAdminMode] = useState(false)
+  const month = new Date().toISOString().slice(0, 7)
   return (
     <div className="space-y-8">
       <div className="flex justify-end">
@@ -338,6 +340,7 @@ function MealPlanTab() {
         <MealAdminEditor />
       ) : (
         <>
+          <SnapBudgetCard month={month} />
           <WeeklyMealCalendar isParent />
           <RecipeSuggestions />
           <MealFeedbackAnalytics />

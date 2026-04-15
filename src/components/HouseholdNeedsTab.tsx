@@ -26,6 +26,7 @@ interface NeedItem {
   purchased_price: string | number | null
   purchased_where: string | null
   for_person: string | null
+  budget_category_id: string | null
   created_at: string
 }
 
@@ -35,6 +36,14 @@ interface NeedCategory {
   icon: string
   sort_order: number
   is_archived: boolean
+}
+
+interface BudgetCategory {
+  id: string
+  slug: string
+  name: string
+  emoji: string | null
+  funding_source: 'snap' | 'cash' | 'both' | null
 }
 
 const ALL_PEOPLE = ['Family', 'Amos', 'Zoey', 'Kaylee', 'Ellie', 'Wyatt', 'Hannah', 'Lola', 'Levi']
@@ -53,6 +62,7 @@ function titleCase(s: string) {
 export default function HouseholdNeedsTab() {
   const [items, setItems] = useState<NeedItem[]>([])
   const [categories, setCategories] = useState<NeedCategory[]>([])
+  const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([])
   const [history, setHistory] = useState<NeedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [collapsedCats, setCollapsedCats] = useState<Record<string, boolean>>({})
@@ -73,13 +83,15 @@ export default function HouseholdNeedsTab() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [listRes, catRes, histRes] = await Promise.all([
+      const [listRes, catRes, histRes, budgetRes] = await Promise.all([
         fetch('/api/household-needs?action=list').then((r) => r.json()),
         fetch('/api/household-needs?action=categories').then((r) => r.json()),
         fetch('/api/household-needs?action=list&include_history=1').then((r) => r.json()),
+        fetch('/api/finance?action=get_budget_categories').then((r) => r.json()).catch(() => ({ categories: [] })),
       ])
       setItems(listRes.items || [])
       setCategories(catRes.categories || [])
+      setBudgetCategories(budgetRes.categories || [])
       setHistory((histRes.items || []).filter((i: NeedItem) => i.status === 'purchased'))
     } catch (err) {
       console.error('needs load failed', err)
@@ -433,6 +445,7 @@ export default function HouseholdNeedsTab() {
         <NeedItemForm
           item={editing}
           categories={categories}
+          budgetCategories={budgetCategories}
           onClose={() => { setShowAdd(false); setEditing(null) }}
           onSaved={() => { setShowAdd(false); setEditing(null); loadAll() }}
         />
@@ -473,15 +486,17 @@ export default function HouseholdNeedsTab() {
 // ============================================================================
 
 function NeedItemForm({
-  item, categories, onClose, onSaved,
+  item, categories, budgetCategories, onClose, onSaved,
 }: {
   item: NeedItem | null
   categories: NeedCategory[]
+  budgetCategories: BudgetCategory[]
   onClose: () => void
   onSaved: () => void
 }) {
   const [name, setName] = useState(item?.name || '')
   const [category, setCategory] = useState(item?.category || (categories[0]?.name || 'Other'))
+  const [budgetCategoryId, setBudgetCategoryId] = useState(item?.budget_category_id || '')
   const [brand, setBrand] = useState(item?.brand || '')
   const [model, setModel] = useState(item?.model || '')
   const [priceMin, setPriceMin] = useState(item?.price_min != null ? String(item.price_min) : '')
@@ -506,6 +521,7 @@ function NeedItemForm({
       notes: notes || null,
       photo_url: photoUrl || null,
       is_starred: isStarred,
+      budget_category_id: budgetCategoryId || null,
     }
     try {
       if (item) {
@@ -568,6 +584,25 @@ function NeedItemForm({
               </select>
             </div>
           </div>
+          {budgetCategories.length > 0 && (
+            <div>
+              <label className="text-xs font-semibold text-gray-700">
+                Budget category <span className="text-gray-400 font-normal">(optional — counts against this budget when purchased)</span>
+              </label>
+              <select
+                value={budgetCategoryId}
+                onChange={(e) => setBudgetCategoryId(e.target.value)}
+                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+              >
+                <option value="">— None —</option>
+                {budgetCategories.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.emoji ? `${b.emoji} ` : ''}{b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-gray-700">Brand</label>

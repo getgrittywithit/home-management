@@ -9,7 +9,7 @@ import { createNotification } from '@/lib/notifications'
 const ITEM_FIELDS = [
   'category', 'name', 'brand', 'model', 'price_min', 'price_max',
   'notes', 'photo_url', 'is_starred', 'status', 'for_person',
-  'requested_by', 'approved_by', 'denied_reason',
+  'requested_by', 'approved_by', 'denied_reason', 'budget_category_id',
 ]
 
 function titleCase(s: string) {
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       case 'create': {
         const {
           category, name, brand, model, price_min, price_max, notes,
-          photo_url, for_person, requested_by, is_starred,
+          photo_url, for_person, requested_by, is_starred, budget_category_id,
         } = data
         if (!category || !name) {
           return NextResponse.json({ error: 'category and name required' }, { status: 400 })
@@ -172,14 +172,14 @@ export async function POST(req: NextRequest) {
         const rows = await db.query(
           `INSERT INTO household_needs (
              category, name, brand, model, price_min, price_max, notes,
-             photo_url, for_person, requested_by, is_starred, status
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             photo_url, for_person, requested_by, is_starred, status, budget_category_id
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
            RETURNING *`,
           [
             category, name, brand || null, model || null,
             price_min ?? null, price_max ?? null, notes || null,
             photo_url || null, for_person || null, requester,
-            !!is_starred, status,
+            !!is_starred, status, budget_category_id || null,
           ]
         )
 

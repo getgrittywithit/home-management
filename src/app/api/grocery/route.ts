@@ -5,6 +5,12 @@ import {
   createPDF, addHeader, addFooter, addSectionTitle, addKeyValue,
   addTable, addMoodChart, pdfToUint8Array,
 } from '@/lib/pdf/generate'
+import { syncFoodBudget } from '@/lib/budget'
+
+function monthFromDate(dateStr: string): string {
+  // Accept 'YYYY-MM-DD' or ISO — take first 7 chars
+  return (dateStr || '').slice(0, 7) || new Date().toISOString().slice(0, 7)
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -610,6 +616,8 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        await syncFoodBudget(monthFromDate(purchase_date))
+
         return NextResponse.json({ purchase_id: purchase.id, items_imported: importedCount })
       }
 
@@ -637,6 +645,12 @@ export async function POST(request: NextRequest) {
           }
           imported++
         }
+
+        // Recompute budget for every month touched
+        const months = Array.from(
+          new Set((purchases || []).map((p: any) => monthFromDate(p.date)))
+        )
+        for (const m of months) await syncFoodBudget(m as string)
 
         return NextResponse.json({ imported })
       }

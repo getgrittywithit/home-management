@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { syncFoodBudget, recordCategorySpend, currentMonth } from '@/lib/budget'
 
 // ============================================================================
 // GET /api/finance?action=...
@@ -29,12 +30,154 @@ export async function GET(request: NextRequest) {
     case 'get_budget_categories': {
       try {
         const rows = await db.query(
-          `SELECT * FROM budget_categories WHERE active = true ORDER BY sort_order, name`
+          `SELECT * FROM budget_categories WHERE is_active = true ORDER BY sort_order NULLS LAST, name`
         )
         return NextResponse.json({ categories: rows })
       } catch (error: any) {
         if (error?.code === '42P01') return NextResponse.json({ categories: [] })
         console.error('get_budget_categories error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_budget_overview — unified monthly view (D78 FIN-3)
+    // All active categories × this month's actuals + open needs counts.
+    // ------------------------------------------------------------------
+    case 'get_budget_overview': {
+      try {
+        const month = searchParams.get('month') || currentMonth()
+
+        // Always recompute food totals from purchase_history first so
+        // numbers stay in sync with the grocery tab.
+        await syncFoodBudget(month)
+
+        const rows = await db.query(
+          `SELECT
+             bc.id, bc.slug, bc.name, bc.emoji, bc.funding_source, bc.sort_order,
+             bc.monthly_amount, bc.monthly_snap, bc.monthly_cash,
+             COALESCE(bm.budgeted, bc.monthly_amount) AS budgeted,
+             COALESCE(bm.spent_snap, 0)::numeric      AS spent_snap,
+             COALESCE(bm.spent_cash, 0)::numeric      AS spent_cash,
+             (SELECT COUNT(*)::int FROM household_needs hn
+                WHERE hn.budget_category_id = bc.id AND hn.status = 'active') AS open_needs
+           FROM budget_categories bc
+           LEFT JOIN budget_monthly bm
+             ON bm.category_id = bc.id AND bm.month = $1
+           WHERE bc.is_active = true
+           ORDER BY bc.sort_order NULLS LAST, bc.name`,
+          [month]
+        )
+
+        // Aggregates
+        let totalBudget = 0, totalSnap = 0, totalCash = 0, totalSpent = 0
+        const categories = rows.map((r: any) => {
+          const budgeted = parseFloat(r.budgeted || 0) || 0
+          const spentSnap = parseFloat(r.spent_snap || 0) || 0
+          const spentCash = parseFloat(r.spent_cash || 0) || 0
+          const spent = spentSnap + spentCash
+          totalBudget += budgeted
+          totalSnap += spentSnap
+          totalCash += spentCash
+          totalSpent += spent
+          return {
+            id: r.id,
+            slug: r.slug,
+            name: r.name,
+            emoji: r.emoji,
+            funding_source: r.funding_source,
+            sort_order: r.sort_order,
+            monthly_amount: r.monthly_amount ? parseFloat(r.monthly_amount) : null,
+            monthly_snap: r.monthly_snap ? parseFloat(r.monthly_snap) : null,
+            monthly_cash: r.monthly_cash ? parseFloat(r.monthly_cash) : null,
+            budgeted,
+            spent_snap: spentSnap,
+            spent_cash: spentCash,
+            spent,
+            remaining: Math.max(0, budgeted - spent),
+            open_needs: r.open_needs || 0,
+          }
+        })
+
+        return NextResponse.json({
+          month,
+          categories,
+          totals: {
+            budgeted: totalBudget,
+            spent: totalSpent,
+            spent_snap: totalSnap,
+            spent_cash: totalCash,
+            remaining: Math.max(0, totalBudget - totalSpent),
+          },
+        })
+      } catch (error: any) {
+        console.error('get_budget_overview error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_spending_summary — last N months rollup (D78 FIN-3)
+    // ------------------------------------------------------------------
+    case 'get_spending_summary': {
+      try {
+        const months = parseInt(searchParams.get('months') || '6')
+        const rows = await db.query(
+          `SELECT bm.month,
+                  SUM(bm.spent_snap)::numeric AS total_snap,
+                  SUM(bm.spent_cash)::numeric AS total_cash,
+                  SUM(bm.budgeted)::numeric   AS total_budget
+             FROM budget_monthly bm
+            GROUP BY bm.month
+            ORDER BY bm.month DESC
+            LIMIT $1`,
+          [months]
+        )
+        return NextResponse.json({ months: rows })
+      } catch (error: any) {
+        if (error?.code === '42P01') return NextResponse.json({ months: [] })
+        console.error('get_spending_summary error:', error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_category_detail — category + its open needs + recent purchases
+    // ------------------------------------------------------------------
+    case 'get_category_detail': {
+      try {
+        const slug = searchParams.get('slug')
+        if (!slug) return NextResponse.json({ error: 'slug required' }, { status: 400 })
+        const month = searchParams.get('month') || currentMonth()
+
+        const cat = await db.query(
+          `SELECT * FROM budget_categories WHERE slug = $1 LIMIT 1`, [slug]
+        )
+        if (!cat[0]) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+        const bm = await db.query(
+          `SELECT * FROM budget_monthly WHERE category_id = $1 AND month = $2`,
+          [cat[0].id, month]
+        )
+        const needs = await db.query(
+          `SELECT id, name, brand, price_min, price_max, status, for_person,
+                  purchased_at, purchased_price, purchased_where
+             FROM household_needs
+            WHERE budget_category_id = $1
+            ORDER BY
+              CASE status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
+              created_at DESC
+            LIMIT 50`,
+          [cat[0].id]
+        ).catch(() => [])
+
+        return NextResponse.json({
+          category: cat[0],
+          monthly: bm[0] || null,
+          needs,
+        })
+      } catch (error: any) {
+        console.error('get_category_detail error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
     }
@@ -396,6 +539,91 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     switch (action) {
+      // ------------------------------------------------------------------
+      // update_budget — set monthly budget for a category (D78 FIN-3)
+      // ------------------------------------------------------------------
+      case 'update_budget': {
+        try {
+          const { slug, monthly_amount, monthly_snap, monthly_cash } = body
+          if (!slug) return NextResponse.json({ error: 'slug required' }, { status: 400 })
+
+          const rows = await db.query(
+            `UPDATE budget_categories SET
+               monthly_amount = COALESCE($2, monthly_amount),
+               monthly_snap   = COALESCE($3, monthly_snap),
+               monthly_cash   = COALESCE($4, monthly_cash)
+             WHERE slug = $1
+             RETURNING *`,
+            [slug, monthly_amount ?? null, monthly_snap ?? null, monthly_cash ?? null]
+          )
+          if (!rows[0]) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+          // Mirror into current month row so overview reflects the change
+          const month = currentMonth()
+          const newBudget = parseFloat(rows[0].monthly_amount || 0) || 0
+          await db.query(
+            `INSERT INTO budget_monthly (category_id, month, budgeted, spent_snap, spent_cash, updated_at)
+             VALUES ($1, $2, $3, 0, 0, NOW())
+             ON CONFLICT (category_id, month)
+             DO UPDATE SET budgeted = EXCLUDED.budgeted, updated_at = NOW()`,
+            [rows[0].id, month, newBudget]
+          ).catch(() => {})
+
+          // If it's the food category, also mirror snap split into finance_config so SnapBudgetCard stays in sync
+          if (rows[0].slug === 'food' && rows[0].monthly_snap != null) {
+            await db.query(
+              `UPDATE finance_config SET snap_monthly_amount = $1, updated_at = NOW()`,
+              [rows[0].monthly_snap]
+            ).catch(() => {})
+          }
+
+          return NextResponse.json({ category: rows[0] })
+        } catch (error: any) {
+          console.error('update_budget error:', error)
+          return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+      }
+
+      // ------------------------------------------------------------------
+      // mark_purchased — shopping item (household_needs row) bought
+      // Updates the need row + budget_monthly for the category (D78 FIN-3)
+      // ------------------------------------------------------------------
+      case 'mark_purchased': {
+        try {
+          const { id, actual_cost, paid_with, store, month } = body
+          if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+          if (paid_with && !['snap', 'cash'].includes(paid_with)) {
+            return NextResponse.json({ error: 'paid_with must be snap or cash' }, { status: 400 })
+          }
+
+          const rows = await db.query(
+            `UPDATE household_needs SET
+               status          = 'purchased',
+               purchased_at    = NOW(),
+               purchased_price = COALESCE($2, purchased_price),
+               purchased_where = COALESCE($3, purchased_where),
+               updated_at      = NOW()
+             WHERE id = $1
+             RETURNING *`,
+            [id, actual_cost ?? null, store ?? null]
+          )
+          if (!rows[0]) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+          const cost = parseFloat(actual_cost || rows[0].purchased_price || 0) || 0
+          const payment = (paid_with || 'cash') as 'snap' | 'cash'
+          const targetMonth = month || currentMonth()
+
+          if (rows[0].budget_category_id && cost > 0) {
+            await recordCategorySpend(rows[0].budget_category_id, targetMonth, cost, payment)
+          }
+
+          return NextResponse.json({ need: rows[0], spent: cost, paid_with: payment })
+        } catch (error: any) {
+          console.error('mark_purchased error:', error)
+          return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+      }
+
       // ------------------------------------------------------------------
       // update_finance_config
       // ------------------------------------------------------------------

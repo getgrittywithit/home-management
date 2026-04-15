@@ -289,6 +289,17 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   const [portalSettingsKid, setPortalSettingsKid] = useState<string | null>(null)
   const router = useRouter()
 
+  // Global tab navigation escape hatch — any component can
+  // window.dispatchEvent(new CustomEvent('tabChange', { detail: { tab: 'food-inventory' } }))
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.tab && typeof detail.tab === 'string') setActiveTab(detail.tab)
+    }
+    window.addEventListener('tabChange', handler)
+    return () => window.removeEventListener('tabChange', handler)
+  }, [])
+
   // Badge counts derived from DashboardDataContext — no independent API calls
 
   const renderFamilyTab = () => (
