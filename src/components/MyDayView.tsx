@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, Circle, Star, Clock, Sparkles, MessageSquare, Send, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import EnrichmentCard from './EnrichmentCard'
 import DigiPetMiniWidget from './DigiPetMiniWidget'
+import confetti from 'canvas-confetti'
 import PositiveReportButton from './PositiveReportButton'
 import SpeakerButton from './SpeakerButton'
 import KidMealPicker from './KidMealPicker'
@@ -96,6 +97,8 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const [tasks, setTasks] = useState<DayTask[]>([])
   const [loading, setLoading] = useState(true)
   const [starPopups, setStarPopups] = useState<StarPopup[]>([])
+  const [blockCelebration, setBlockCelebration] = useState<{ block: string; message: string; key: number } | null>(null)
+  const [headerBouncing, setHeaderBouncing] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [noteSending, setNoteSending] = useState(false)
   const [noteSent, setNoteSent] = useState(false)
@@ -247,9 +250,36 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
 
   useEffect(() => { fetchTasks() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Celebration messages (rotates) ──
+  const BLOCK_CELEBRATIONS = [
+    'Great job', 'Crushed it', "You're on fire", 'Amazing work',
+    'Way to go', 'Nailed it', 'Legend', 'Superstar',
+  ]
+
+  const fireBlockConfetti = (blockLabel: string) => {
+    // Fire confetti from both sides toward center
+    const message = BLOCK_CELEBRATIONS[Math.floor(Math.random() * BLOCK_CELEBRATIONS.length)]
+    setBlockCelebration({ block: blockLabel, message, key: Date.now() })
+    setTimeout(() => setBlockCelebration(null), 2500)
+
+    try {
+      const end = Date.now() + 800
+      const colors = ['#fbbf24', '#f59e0b', '#34d399', '#60a5fa', '#c084fc']
+      ;(function frame() {
+        confetti({ particleCount: 4, angle: 60, spread: 55, origin: { x: 0, y: 0.7 }, colors })
+        confetti({ particleCount: 4, angle: 120, spread: 55, origin: { x: 1, y: 0.7 }, colors })
+        if (Date.now() < end) requestAnimationFrame(frame)
+      })()
+    } catch { /* confetti optional */ }
+  }
+
   // ── Toggle task ──
   const handleToggle = async (task: DayTask) => {
     if (previewMode) return
+
+    // Snapshot block state BEFORE the toggle so we can detect transition-to-complete
+    const blockBefore = tasks.filter(t => t.timeBlock === task.timeBlock)
+    const wasBlockComplete = blockBefore.length > 0 && blockBefore.every(t => t.completed)
 
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t))
@@ -267,10 +297,22 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
     const starReverseBody = taskType ? { action: 'reverse_task_stars', kid_name: kid, source_ref: sourceRef } : null
 
     if (!task.completed) {
-      // Show star popup
+      // Show star popup + bounce the header counter
       const key = Date.now()
       setStarPopups(prev => [...prev, { amount: task.stars, key }])
       setTimeout(() => setStarPopups(prev => prev.filter(p => p.key !== key)), 2000)
+      setHeaderBouncing(true)
+      setTimeout(() => setHeaderBouncing(false), 500)
+
+      // Detect block completion: was NOT complete, now IS complete with this task
+      const blockAfter = blockBefore.map(t => t.id === task.id ? { ...t, completed: true } : t)
+      const nowBlockComplete = blockAfter.length > 0 && blockAfter.every(t => t.completed)
+      if (!wasBlockComplete && nowBlockComplete) {
+        const blockLabel = task.timeBlock === 'morning' ? 'Morning' :
+          task.timeBlock === 'school' ? 'School' :
+          task.timeBlock === 'afternoon' ? 'Afternoon' : 'Evening'
+        fireBlockConfetti(blockLabel)
+      }
 
       if (online) {
         // Award stars via digi-pet
@@ -374,16 +416,52 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
-      {/* Star popups */}
+      {/* Star popups — upgraded fly-up + scale + fade (D74 ANIM-1) */}
       {starPopups.map(p => (
         <div key={p.key} className="fixed top-20 right-6 z-50 pointer-events-none">
-          <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 font-bold px-4 py-2 rounded-full shadow-lg text-sm flex items-center gap-1"
-            style={{ animation: 'starFloat 2s ease-out forwards' }}>
-            <Star className="w-4 h-4 fill-yellow-500" /> +{p.amount} stars
+          <div className="bg-gradient-to-r from-yellow-200 to-amber-300 border-2 border-yellow-400 text-amber-900 font-bold px-4 py-2 rounded-full shadow-2xl text-sm flex items-center gap-1.5"
+            style={{ animation: 'starFlyUp 1.4s cubic-bezier(0.2, 0.8, 0.3, 1) forwards' }}>
+            <Star className="w-5 h-5 fill-yellow-500 text-yellow-600" /> +{p.amount}
           </div>
         </div>
       ))}
-      <style>{`@keyframes starFloat { 0% { opacity:0; transform:translateY(10px) scale(0.8); } 15% { opacity:1; transform:translateY(0) scale(1); } 70% { opacity:1; transform:translateY(-20px); } 100% { opacity:0; transform:translateY(-40px) scale(0.9); } }`}</style>
+
+      {/* Block celebration banner — D74 ANIM-2 */}
+      {blockCelebration && (
+        <div key={blockCelebration.key} className="fixed inset-x-0 top-24 z-[55] flex justify-center pointer-events-none px-4">
+          <div
+            className="bg-gradient-to-r from-fuchsia-500 via-pink-500 to-amber-400 text-white font-bold px-6 py-3 rounded-2xl shadow-2xl text-center max-w-md"
+            style={{ animation: 'blockCelebrate 2.5s cubic-bezier(0.2, 0.8, 0.3, 1) forwards' }}
+          >
+            <div className="text-lg">🎉 {blockCelebration.message}, {displayName}! 🎉</div>
+            <div className="text-xs font-semibold opacity-90 mt-0.5">{blockCelebration.block} block complete</div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes starFlyUp {
+          0%   { opacity: 0; transform: translate(0, 20px) scale(0.7); }
+          12%  { opacity: 1; transform: translate(0, 0) scale(1.15); }
+          25%  { opacity: 1; transform: translate(0, -8px) scale(1); }
+          75%  { opacity: 1; transform: translate(0, -40px) scale(1); }
+          100% { opacity: 0; transform: translate(0, -80px) scale(0.6); }
+        }
+        @keyframes blockCelebrate {
+          0%   { opacity: 0; transform: translateY(-30px) scale(0.7); }
+          15%  { opacity: 1; transform: translateY(0) scale(1.08); }
+          25%  { opacity: 1; transform: translateY(0) scale(1); }
+          80%  { opacity: 1; transform: translateY(0) scale(1); }
+          100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+        }
+        @keyframes headerBounce {
+          0%, 100% { transform: scale(1); }
+          40%      { transform: scale(1.35); }
+          60%      { transform: scale(0.95); }
+          80%      { transform: scale(1.08); }
+        }
+        .header-bouncing { animation: headerBounce 0.5s ease-out; }
+      `}</style>
 
       {/* Pinned Mom Message — always at top */}
       {announcement && (
@@ -431,7 +509,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
               </div>
             )
           })}
-          <div className="px-3 py-2 rounded-xl text-center bg-yellow-400/20 ml-auto">
+          <div className={`px-3 py-2 rounded-xl text-center bg-yellow-400/20 ml-auto ${headerBouncing ? 'header-bouncing' : ''}`}>
             <div className="text-lg font-bold flex items-center gap-1">
               <Star className="w-4 h-4 fill-white" /> {totalStars}
             </div>
