@@ -10,11 +10,13 @@ export async function GET(req: NextRequest) {
 
   try {
     if (action === 'get_reports') {
+      const includeDismissed = searchParams.get('include_dismissed') === '1'
       let sql = `SELECT * FROM kid_reports`
       const params: any[] = []
       const conditions: string[] = []
       if (kid) { conditions.push(`submitting_kid = $${params.length + 1}`); params.push(kid) }
       if (status) { conditions.push(`status = $${params.length + 1}`); params.push(status) }
+      if (!includeDismissed) conditions.push(`dismissed_at IS NULL`)
       if (conditions.length) sql += ` WHERE ` + conditions.join(' AND ')
       sql += ` ORDER BY created_at DESC LIMIT 50`
       const rows = await db.query(sql, params).catch(() => [])
@@ -83,6 +85,134 @@ export async function POST(req: NextRequest) {
         ).catch(() => {})
       }
       return NextResponse.json({ success: true })
+    }
+
+    // ----------------------------------------------------------------------
+    // D81 — dismiss / undismiss a report (archive from parent feed)
+    // ----------------------------------------------------------------------
+    if (action === 'dismiss_report') {
+      const { id, dismissed_by } = body
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(
+        `UPDATE kid_reports
+            SET dismissed_at = NOW(),
+                dismissed_by = COALESCE($2, 'parent'),
+                status = CASE WHEN status = 'new' THEN 'dismissed' ELSE status END,
+                parent_action = COALESCE(parent_action, 'dismiss')
+          WHERE id = $1`,
+        [id, dismissed_by || null]
+      )
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'undismiss_report') {
+      const { id } = body
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(
+        `UPDATE kid_reports
+            SET dismissed_at = NULL, dismissed_by = NULL
+          WHERE id = $1`,
+        [id]
+      )
+      return NextResponse.json({ success: true })
+    }
+
+    // ----------------------------------------------------------------------
+    // D81 — award stars directly from a check-in card
+    // Updates digi_pets.stars_balance + logs bonus_star_events +
+    // bumps kid_reports.stars_awarded_total + marks parent_action.
+    // ----------------------------------------------------------------------
+    if (action === 'award_stars_from_report') {
+      const { id, kid_name, stars, reason } = body
+      if (!id || !kid_name || !stars || stars <= 0) {
+        return NextResponse.json({ error: 'id, kid_name, stars required' }, { status: 400 })
+      }
+      const kid = String(kid_name).toLowerCase().trim()
+      const amount = Math.min(50, parseInt(stars) || 0)
+
+      // Credit the digi-pet stars balance
+      await db.query(
+        `UPDATE digi_pets SET stars_balance = stars_balance + $1 WHERE kid_name = $2`,
+        [amount, kid]
+      ).catch(() => {})
+
+      // Log a bonus event so kid sees it in their portal
+      await db.query(
+        `INSERT INTO bonus_star_events (kid_name, trigger_type, bonus_amount, message)
+         VALUES ($1, 'parent_praise', $2, $3)`,
+        [kid, amount, reason || 'Caught being kind']
+      ).catch(() => {})
+
+      // Tally on the report + update status
+      await db.query(
+        `UPDATE kid_reports
+            SET stars_awarded_total = stars_awarded_total + $1,
+                status = CASE WHEN status = 'new' THEN 'responded' ELSE status END,
+                parent_action = 'awarded_stars'
+          WHERE id = $2`,
+        [amount, id]
+      )
+
+      // Notify the kid
+      const kidDisplay = kid.charAt(0).toUpperCase() + kid.slice(1)
+      await createNotification({
+        title: `⭐ ${amount} stars for ${kidDisplay}!`,
+        message: reason || 'Parent awarded you stars for a check-in.',
+        source_type: 'behavior_event',
+        icon: '⭐',
+        target_role: 'kid',
+        kid_name: kid,
+      }).catch(() => {})
+
+      return NextResponse.json({ success: true, stars: amount })
+    }
+
+    // ----------------------------------------------------------------------
+    // D81 — quick behavior flag (lighter than the full escalate flow)
+    // Creates a behavior_event + optional star deduction. Parent-only.
+    // ----------------------------------------------------------------------
+    if (action === 'quick_flag_report') {
+      const { id, kid_name, note, star_deduction } = body
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+      const report = (await db.query(`SELECT * FROM kid_reports WHERE id = $1`, [id]).catch(() => []))[0]
+      if (!report) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+
+      const targetKid = (kid_name || report.submitting_kid || '').toLowerCase().trim()
+      if (!targetKid) return NextResponse.json({ error: 'kid_name could not be resolved' }, { status: 400 })
+
+      const deduction = Math.max(0, Math.min(10, parseInt(star_deduction) || 0))
+
+      const event = await db.query(
+        `INSERT INTO behavior_events (reporter_kid, involved_kids, behavior_type, severity_tier, description, parent_note, star_deduction, gem_deduction, source_report_id)
+         VALUES ($1, $2, 'other', 1, $3, $4, $5, 0, $6) RETURNING id`,
+        [
+          report.submitting_kid,
+          JSON.stringify([targetKid]),
+          note || report.what_happened || 'Flagged from check-in',
+          note || null,
+          deduction,
+          id,
+        ]
+      )
+
+      if (deduction > 0) {
+        await db.query(
+          `UPDATE digi_pets SET stars_balance = GREATEST(0, stars_balance - $1) WHERE kid_name = $2`,
+          [deduction, targetKid]
+        ).catch(() => {})
+      }
+
+      await db.query(
+        `UPDATE kid_reports
+            SET status = CASE WHEN status = 'new' THEN 'responded' ELSE status END,
+                parent_action = 'flagged',
+                linked_behavior_event_id = COALESCE(linked_behavior_event_id, $1)
+          WHERE id = $2`,
+        [event[0]?.id || null, id]
+      )
+
+      return NextResponse.json({ success: true, event_id: event[0]?.id })
     }
 
     if (action === 'escalate_to_behavior_event') {
