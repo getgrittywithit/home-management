@@ -19,6 +19,25 @@ const MATH_SKILLS: Record<string, string> = {
   M10: 'Time & Money', M11: 'Graphs & Data Analysis', M12: 'Estimation & Rounding',
 }
 
+const SCIENCE_SKILLS: Record<string, string> = {
+  S1: 'Observation & Classification', S2: 'Scientific Method', S3: 'Life Science',
+  S4: 'Earth Science', S5: 'Physical Science', S6: 'Space Science',
+  S7: 'Environmental Science', S8: 'Health & Human Body',
+}
+
+const HISTORY_SKILLS: Record<string, string> = {
+  H1: 'Civics & Community', H2: 'Geography', H3: 'Economics & Financial Literacy',
+  H4: 'Texas History & Culture', H5: 'US History', H6: 'World Cultures',
+  H7: 'Media Literacy & Current Events', H8: 'Critical Thinking & Real-World',
+}
+
+const SUBJECT_CONFIG: Record<string, { skills: Record<string, string>; progressTable: string; passagesTable: string; responsesTable: string; resultsTable: string; firstSkill: string }> = {
+  elar:    { skills: ELAR_SKILLS,    progressTable: 'kid_elar_progress',    passagesTable: 'elar_placement_passages',    responsesTable: 'book_buddy_responses',     resultsTable: 'elar_placement_results',    firstSkill: 'R1' },
+  math:    { skills: MATH_SKILLS,    progressTable: 'kid_math_progress',    passagesTable: 'math_placement_problems',    responsesTable: 'math_buddy_responses',     resultsTable: 'math_placement_results',    firstSkill: 'M1' },
+  science: { skills: SCIENCE_SKILLS, progressTable: 'kid_science_progress', passagesTable: 'science_placement_passages', responsesTable: 'science_buddy_responses',  resultsTable: 'science_placement_results', firstSkill: 'S1' },
+  history: { skills: HISTORY_SKILLS, progressTable: 'kid_history_progress', passagesTable: 'history_placement_passages', responsesTable: 'history_buddy_responses',  resultsTable: 'history_placement_results', firstSkill: 'H1' },
+}
+
 const MILESTONES = [
   { name: 'Pathfinder', min: 0, max: 15, stars: 50 },
   { name: 'Discoverer', min: 16, max: 35, stars: 75 },
@@ -34,12 +53,14 @@ function getMilestone(mastery: number) {
 }
 
 // 50/30/20 Adaptive Skill Selection
-async function selectNextSkill(kidName: string, subject: 'elar' | 'math'): Promise<{ skillId: string; reason: string }> {
-  const table = subject === 'elar' ? 'kid_elar_progress' : 'kid_math_progress'
+async function selectNextSkill(kidName: string, subject: string): Promise<{ skillId: string; reason: string }> {
+  const cfg = SUBJECT_CONFIG[subject]
+  if (!cfg) return { skillId: 'R1', reason: 'Unknown subject' }
+  const table = cfg.progressTable
   const skills = await db.query(`SELECT skill_id, current_mastery, last_practiced FROM ${table} WHERE kid_name = $1`, [kidName]).catch(() => [])
 
   if (skills.length === 0) {
-    return { skillId: subject === 'elar' ? 'R1' : 'M1', reason: 'No progress yet — starting with first skill' }
+    return { skillId: cfg.firstSkill, reason: 'No progress yet — starting with first skill' }
   }
 
   const rand = Math.random()
@@ -67,7 +88,7 @@ async function selectNextSkill(kidName: string, subject: 'elar' | 'math'): Promi
   // 20%: Challenge Stretch — mastery >= 85, try adjacent skill
   const highMastery = skills.filter((s: any) => s.current_mastery >= 85)
   if (highMastery.length > 0) {
-    const allSkillIds = Object.keys(subject === 'elar' ? ELAR_SKILLS : MATH_SKILLS)
+    const allSkillIds = Object.keys(cfg.skills)
     const practicedIds = new Set(skills.map((s: any) => s.skill_id))
     const unpracticed = allSkillIds.filter(id => !practicedIds.has(id))
     if (unpracticed.length > 0) {
@@ -177,6 +198,21 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ kid_name: kidName, skills: mapped, skill_names: MATH_SKILLS })
       }
 
+      // D80: Science + History journey maps (generic handler)
+      case 'science_journey_map':
+      case 'history_journey_map': {
+        if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const subj = action === 'science_journey_map' ? 'science' : 'history'
+        const cfg = SUBJECT_CONFIG[subj]
+        const jmSkills = await db.query(
+          `SELECT skill_id, skill_name, current_mastery, questions_attempted, questions_correct, streak, longest_streak, last_practiced
+           FROM ${cfg.progressTable} WHERE kid_name = $1 ORDER BY skill_id`,
+          [kidName]
+        ).catch(() => [])
+        const jmMapped = jmSkills.map((s: any) => ({ ...s, milestone: getMilestone(s.current_mastery) }))
+        return NextResponse.json({ kid_name: kidName, skills: jmMapped, skill_names: cfg.skills })
+      }
+
       // Next skill selection (50/30/20)
       case 'next_elar_skill': {
         if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
@@ -203,6 +239,24 @@ export async function GET(request: NextRequest) {
           skill_id: skillId, skill_name: MATH_SKILLS[skillId] || skillId,
           current_mastery: progress[0]?.current_mastery || 0, reason,
           session_id: `math-${kidName}-${Date.now()}`,
+        })
+      }
+
+      // D80: Science + History next skill (generic handler)
+      case 'next_science_skill':
+      case 'next_history_skill': {
+        if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const nsSubj = action === 'next_science_skill' ? 'science' : 'history'
+        const nsCfg = SUBJECT_CONFIG[nsSubj]
+        const { skillId: nsId, reason: nsReason } = await selectNextSkill(kidName, nsSubj)
+        const nsProgress = await db.query(
+          `SELECT current_mastery FROM ${nsCfg.progressTable} WHERE kid_name = $1 AND skill_id = $2`,
+          [kidName, nsId]
+        ).catch(() => [])
+        return NextResponse.json({
+          skill_id: nsId, skill_name: nsCfg.skills[nsId] || nsId,
+          current_mastery: nsProgress[0]?.current_mastery || 0, reason: nsReason,
+          session_id: `${nsSubj}-${kidName}-${Date.now()}`,
         })
       }
 
@@ -251,6 +305,35 @@ export async function GET(request: NextRequest) {
           [skillId, level]
         ).catch(() => [])
         return NextResponse.json({ problems: rows })
+      }
+
+      // D80: Science + History placement passages (same schema as ELAR)
+      case 'science_placement_passages':
+      case 'history_placement_passages': {
+        const ppSubj = action === 'science_placement_passages' ? 'science' : 'history'
+        const ppCfg = SUBJECT_CONFIG[ppSubj]
+        const ppSkillId = searchParams.get('skill_id')
+        const ppLevel = searchParams.get('level') || '2nd-3rd'
+        const ppTag = searchParams.get('interest_tag')?.toLowerCase() || null
+        if (!ppSkillId) return NextResponse.json({ error: 'skill_id required' }, { status: 400 })
+        const ppRows = await db.query(
+          `SELECT DISTINCT ON (passage_number)
+                  id, skill_id, reading_level, difficulty, passage_number,
+                  passage_text, question, answer_key, scoring_rubric,
+                  age_appropriate_context, interest_tag,
+                  encouragement_correct, encouragement_wrong, hint_text, title, vocabulary
+           FROM ${ppCfg.passagesTable}
+           WHERE skill_id = $1 AND reading_level = $2
+           ORDER BY passage_number,
+             CASE interest_tag
+               WHEN COALESCE($3, 'general') THEN 0
+               WHEN 'general' THEN 1
+               ELSE 2
+             END
+           LIMIT 3`,
+          [ppSkillId, ppLevel, ppTag]
+        ).catch(() => [])
+        return NextResponse.json({ passages: ppRows })
       }
 
       // Academic records
@@ -513,6 +596,93 @@ export async function POST(request: NextRequest) {
         )
 
         return NextResponse.json({ success: true, starting_mastery: startingMastery })
+      }
+
+      // D80: Science + History buddy scoring (passage-style, like BookBuddy)
+      case 'science_buddy_score':
+      case 'history_buddy_score': {
+        const bsSubj = action === 'science_buddy_score' ? 'science' : 'history'
+        const bsCfg = SUBJECT_CONFIG[bsSubj]
+        const { kid_name, skill_id, passage_id, kid_response, passage_text, question, session_id } = body
+        if (!kid_name || !skill_id || !kid_response) return NextResponse.json({ error: 'kid_name, skill_id, kid_response required' }, { status: 400 })
+        const bsKid = kid_name.toLowerCase()
+        const bsSkillName = bsCfg.skills[skill_id] || skill_id
+
+        const { score: bsScore, points: bsPoints, feedback: bsFeedback } =
+          await aiScoreElar(passage_text || '', question || '', kid_response, bsSkillName, kid_name)
+
+        const bsProgress = await db.query(
+          `SELECT current_mastery, questions_attempted, questions_correct, streak, longest_streak FROM ${bsCfg.progressTable} WHERE kid_name = $1 AND skill_id = $2`,
+          [bsKid, skill_id]
+        ).catch(() => [])
+        const bsBefore = bsProgress[0]?.current_mastery || 0
+        const bsAttempted = (bsProgress[0]?.questions_attempted || 0) + 1
+        const bsCorrect = (bsProgress[0]?.questions_correct || 0) + (bsScore === 'detailed' || bsScore === 'adequate' ? 1 : 0)
+        const bsEffective = Math.max(bsAttempted, 5)
+        const bsNewMastery = Math.max(bsBefore, Math.min(100, Math.round((bsCorrect / bsEffective) * 100)))
+        const bsStreak = (bsScore === 'detailed' || bsScore === 'adequate') ? (bsProgress[0]?.streak || 0) + 1 : 0
+        const bsLongest = Math.max(bsProgress[0]?.longest_streak || 0, bsStreak)
+
+        await db.query(
+          `INSERT INTO ${bsCfg.progressTable} (kid_name, skill_id, skill_name, current_mastery, questions_attempted, questions_correct, streak, longest_streak, last_practiced, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+           ON CONFLICT (kid_name, skill_id) DO UPDATE SET
+             current_mastery = GREATEST(${bsCfg.progressTable}.current_mastery, $4),
+             questions_attempted = $5, questions_correct = $6, streak = $7,
+             longest_streak = GREATEST(${bsCfg.progressTable}.longest_streak, $8),
+             last_practiced = NOW(), updated_at = NOW()`,
+          [bsKid, skill_id, bsSkillName, bsNewMastery, bsAttempted, bsCorrect, bsStreak, bsLongest]
+        ).catch(e => console.error(`${bsSubj} progress update failed:`, e.message))
+
+        await db.query(
+          `INSERT INTO ${bsCfg.responsesTable} (kid_name, skill_id, passage_id, passage_text, question, kid_response, ai_score, ai_feedback, points_earned, mastery_before, mastery_after, mastery_delta, session_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [bsKid, skill_id, passage_id || null, (passage_text || '').substring(0, 1000), question || null, kid_response, bsScore, bsFeedback, bsPoints, bsBefore, bsNewMastery, bsNewMastery - bsBefore, session_id || null]
+        ).catch(e => console.error(`${bsSubj} buddy log failed:`, e.message))
+
+        let bsStars = (bsScore === 'detailed' || bsScore === 'adequate') ? 3 : 1
+        if (bsStreak >= 5 && bsStreak % 5 === 0) bsStars += 2
+        const bsOldMs = getMilestone(bsBefore)
+        const bsNewMs = getMilestone(bsNewMastery)
+        let bsMilestone: string | null = null
+        if (bsNewMs.name !== bsOldMs.name && bsNewMastery > bsBefore) {
+          bsStars += Math.min(25, Math.round(bsNewMs.stars / 10))
+          bsMilestone = bsNewMs.name
+        }
+
+        return NextResponse.json({
+          score: bsScore, points: bsPoints, feedback: bsFeedback,
+          mastery_before: bsBefore, mastery_after: bsNewMastery, mastery_delta: bsNewMastery - bsBefore,
+          stars_earned: bsStars, milestone_reached: bsMilestone,
+          streak: bsStreak, skill_name: bsSkillName,
+        })
+      }
+
+      // D80: Science + History placement complete (generic)
+      case 'science_placement_complete':
+      case 'history_placement_complete': {
+        const pcSubj = action === 'science_placement_complete' ? 'science' : 'history'
+        const pcCfg = SUBJECT_CONFIG[pcSubj]
+        const { kid_name, skill_id, placed_at_level, total_points, passages_attempted, raw_responses } = body
+        if (!kid_name || !skill_id) return NextResponse.json({ error: 'kid_name and skill_id required' }, { status: 400 })
+        const pcKid = kid_name.toLowerCase()
+        const pcMastery = Math.min(100, Math.round((total_points / 45) * 100))
+
+        await db.query(
+          `INSERT INTO ${pcCfg.resultsTable} (kid_name, skill_id, starting_mastery, placed_at_level, passages_attempted, raw_responses, placement_date)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())
+           ON CONFLICT (kid_name, skill_id) DO UPDATE SET starting_mastery = $3, placed_at_level = $4, passages_attempted = $5, raw_responses = $6, placement_date = NOW()`,
+          [pcKid, skill_id, pcMastery, placed_at_level || null, JSON.stringify(passages_attempted || []), JSON.stringify(raw_responses || [])]
+        )
+
+        await db.query(
+          `INSERT INTO ${pcCfg.progressTable} (kid_name, skill_id, skill_name, current_mastery, last_practiced)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (kid_name, skill_id) DO UPDATE SET current_mastery = GREATEST(${pcCfg.progressTable}.current_mastery, $4), last_practiced = NOW()`,
+          [pcKid, skill_id, pcCfg.skills[skill_id] || skill_id, pcMastery]
+        )
+
+        return NextResponse.json({ success: true, starting_mastery: pcMastery })
       }
 
       // Parent mastery override

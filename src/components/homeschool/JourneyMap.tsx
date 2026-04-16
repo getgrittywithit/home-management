@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 
 interface JourneyMapProps {
   kidName: string
-  subject: 'elar' | 'math'
+  subject: 'elar' | 'math' | 'science' | 'history'
   onSelectSkill?: (skillId: string) => void
 }
 
@@ -46,7 +46,7 @@ export default function JourneyMap({ kidName, subject, onSelectSkill }: JourneyM
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const action = subject === 'elar' ? 'elar_journey_map' : 'math_journey_map'
+    const action = `${subject}_journey_map`
     fetch(`/api/learning-engine?action=${action}&kid_name=${kidName.toLowerCase()}`)
       .then(r => r.json())
       .then(data => {

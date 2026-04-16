@@ -14,19 +14,25 @@ import HomeschoolRecords from './homeschool/HomeschoolRecords'
 import HomeschoolPortfolio from './homeschool/HomeschoolPortfolio'
 import UnitsView from './homeschool/UnitsView'
 import AttendanceLogger from './homeschool/AttendanceLogger'
+import HomeschoolScience from './homeschool/HomeschoolScience'
+import HomeschoolSocialStudies from './homeschool/HomeschoolSocialStudies'
+import TeacherResourceLibrary from './homeschool/TeacherResourceLibrary'
 
-type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units'
+type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources'
 
 const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
   { id: 'daily-plan', label: 'Daily Plan', icon: '📋' },
   { id: 'elar', label: 'ELAR', icon: '📖' },
   { id: 'math', label: 'Math', icon: '🔢' },
+  { id: 'science', label: 'Science', icon: '🔬' },
+  { id: 'history', label: 'Social Studies', icon: '🌍' },
   { id: 'enrichment', label: 'Enrichment', icon: '🎯' },
   { id: 'records', label: 'Records', icon: '📁' },
   { id: 'attendance', label: 'Attendance', icon: '✅' },
   { id: 'portfolio', label: 'Portfolio', icon: '🎨' },
   { id: 'units', label: 'Unit Studies', icon: '🔬' },
+  { id: 'resources', label: 'Resources', icon: '📂' },
 ]
 
 export default function HomeschoolTab() {
@@ -81,6 +87,12 @@ export default function HomeschoolTab() {
         return <HomeschoolELAR students={students} familyBook={family_read_aloud} />
       case 'math':
         return <HomeschoolMath />
+      case 'science':
+        return <HomeschoolScience />
+      case 'history':
+        return <HomeschoolSocialStudies />
+      case 'resources':
+        return <TeacherResourceLibrary />
       case 'enrichment':
         return <HomeschoolEnrichment students={students} />
       case 'records':
