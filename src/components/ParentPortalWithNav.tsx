@@ -300,6 +300,19 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     return () => window.removeEventListener('tabChange', handler)
   }, [])
 
+  // D91: Client-side reminder polling (fires check_reminders every 5 min while app is open)
+  useEffect(() => {
+    const poll = () => {
+      fetch('/api/notifications', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'check_reminders' }),
+      }).catch(() => {})
+    }
+    poll()
+    const interval = setInterval(poll, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Badge counts derived from DashboardDataContext — no independent API calls
 
   const renderFamilyTab = () => (

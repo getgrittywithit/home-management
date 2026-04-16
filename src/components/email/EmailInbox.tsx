@@ -56,12 +56,18 @@ const CATEGORIES = [
   { id: 'noise', label: 'Noise', color: 'bg-gray-300' },
 ]
 
-const BOARD_MAP: Record<string, string> = {
-  school_urgent: 'school', school_normal: 'school', school: 'school',
-  medical: 'medical',
-  triton_lead: 'triton', triton_ops: 'triton', triton: 'triton',
-  household: 'household',
-  finance: 'personal', kids_tech: 'personal', family: 'personal',
+const BOARD_MAP: Record<string, { board: string; column: string }> = {
+  school_urgent: { board: 'school', column: 'inbox' },
+  school_normal: { board: 'school', column: 'inbox' },
+  school: { board: 'school', column: 'inbox' },
+  medical: { board: 'medical', column: 'inbox' },
+  triton_lead: { board: 'triton', column: 'leads' },
+  triton_ops: { board: 'triton', column: 'leads' },
+  triton: { board: 'triton', column: 'leads' },
+  household: { board: 'household', column: 'inbox' },
+  finance: { board: 'personal', column: 'inbox' },
+  kids_tech: { board: 'personal', column: 'inbox' },
+  family: { board: 'personal', column: 'inbox' },
 }
 
 const PRIORITY_DOTS: Record<string, string> = {
@@ -79,6 +85,7 @@ type TaskForm = {
   email: Email | ActionNeededEmail
   title: string
   board: string
+  column_name: string
   notes: string
   due_date: string  // YYYY-MM-DD
   priority: 'urgent' | 'high' | 'normal' | 'low'
@@ -238,7 +245,7 @@ export default function EmailInbox() {
   // D82 Stage E — open pre-filled Create Task modal
   const openCreateTask = (email: Email | ActionNeededEmail, firstActionItem?: string) => {
     const cat = email.category || 'family'
-    const board = BOARD_MAP[cat] || 'personal'
+    const mapping = BOARD_MAP[cat] || { board: 'personal', column: 'inbox' }
     const deadline = (email as ActionNeededEmail).deadline || ''
     const priority = (email.priority === 'urgent' ? 'urgent'
       : email.priority === 'high' ? 'high'
@@ -247,7 +254,8 @@ export default function EmailInbox() {
     setTaskForm({
       email,
       title: firstActionItem || email.subject || 'Email task',
-      board,
+      board: mapping.board,
+      column_name: mapping.column,
       notes: `From: ${email.from_name || email.from_address}\n\n${email.snippet || ''}`,
       due_date: deadline || '',
       priority,
@@ -271,6 +279,7 @@ export default function EmailInbox() {
           category: taskForm.email.category || 'family',
           priority: taskForm.priority,
           board: taskForm.board,
+          column_name: taskForm.column_name,
           due_date: taskForm.due_date || null,
         }),
       })

@@ -71,7 +71,7 @@ export default function ProfileSwitcher({ currentProfile, currentRole = 'kid' }:
       <button
         onClick={() => setOpen(true)}
         aria-label="Switch profile"
-        className="fixed bottom-4 left-4 md:bottom-6 md:left-[272px] z-40 bg-white border border-gray-200 shadow-lg hover:shadow-xl rounded-full pl-2 pr-3 py-2 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+        className="fixed bottom-20 md:bottom-6 left-4 md:left-[272px] z-40 bg-white border border-gray-200 shadow-lg hover:shadow-xl rounded-full pl-2 pr-3 py-2 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
       >
         <span className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-lg">
           {triggerEmoji}

@@ -195,6 +195,17 @@ export default function KidPortalWithNav({ kidData, previewMode }: KidPortalProp
 function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
   const kidCtx = useKidDashboardData()
   const [activeTab, setActiveTab] = useState<TabId>('my-day')
+
+  // D91: Listen for kid-nav events from child components (DigiPet, quick actions, etc.)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.tab) setActiveTab(detail.tab as TabId)
+    }
+    window.addEventListener('kid-nav', handler)
+    return () => window.removeEventListener('kid-nav', handler)
+  }, [])
+
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
   const [showModal, setShowModal] = useState(false)

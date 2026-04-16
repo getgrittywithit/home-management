@@ -90,7 +90,7 @@ export default function AiBuddyChat({ role, kidName, displayName }: AiBuddyChatP
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2 px-4 py-3 md:w-14 md:h-14 md:px-0 md:py-0 md:justify-center"
+        className="fixed bottom-28 md:bottom-6 right-4 md:right-6 z-40 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 flex items-center gap-2 px-4 py-3 md:w-14 md:h-14 md:px-0 md:py-0 md:justify-center"
         title={`Ask ${buddyName}`}
       >
         {buddyIcon}
