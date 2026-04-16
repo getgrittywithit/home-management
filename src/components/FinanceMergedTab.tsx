@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { DollarSign, Wallet, PieChart, CreditCard, Wrench } from 'lucide-react'
+import { DollarSign, Wallet, PieChart, CreditCard, Wrench, Users } from 'lucide-react'
 import FinanceTab from './FinanceTab'
 import MoeMoneyTab from './MoeMoneyTab'
 import BudgetOverviewTab from './finance/BudgetOverviewTab'
 import TransactionsTab from './finance/TransactionsTab'
 import TritonDashboard from './finance/TritonDashboard'
+import TritonCRM from './finance/TritonCRM'
 
-type SubTab = 'budget' | 'transactions' | 'triton' | 'finance' | 'moe-money'
+type SubTab = 'budget' | 'transactions' | 'triton' | 'triton-crm' | 'finance' | 'moe-money'
 
 export default function FinanceMergedTab() {
   const [subTab, setSubTab] = useState<SubTab>('budget')
@@ -19,7 +20,8 @@ export default function FinanceMergedTab() {
         {([
           { id: 'budget' as const, label: 'Budget', icon: PieChart },
           { id: 'transactions' as const, label: 'Transactions', icon: CreditCard },
-          { id: 'triton' as const, label: 'Triton', icon: Wrench },
+          { id: 'triton' as const, label: 'Triton P&L', icon: Wrench },
+          { id: 'triton-crm' as const, label: 'Clients', icon: Users },
           { id: 'finance' as const, label: 'Finance', icon: DollarSign },
           { id: 'moe-money' as const, label: 'Moe-Money', icon: Wallet },
         ]).map(tab => {
@@ -42,6 +44,7 @@ export default function FinanceMergedTab() {
       {subTab === 'budget' && <BudgetOverviewTab />}
       {subTab === 'transactions' && <TransactionsTab />}
       {subTab === 'triton' && <TritonDashboard />}
+      {subTab === 'triton-crm' && <TritonCRM />}
       {subTab === 'finance' && <FinanceTab />}
       {subTab === 'moe-money' && <MoeMoneyTab />}
     </div>
