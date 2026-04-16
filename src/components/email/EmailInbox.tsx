@@ -596,12 +596,12 @@ export default function EmailInbox() {
                   {email.from_name || email.from_address}
                 </span>
 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 truncate">
                   <span className={`text-sm ${!email.read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
                     {email.subject || '(no subject)'}
                   </span>
                   {email.snippet && (
-                    <span className="text-sm text-gray-400 ml-2 truncate">{email.snippet}</span>
+                    <span className="text-sm text-gray-400 ml-2">{email.snippet}</span>
                   )}
                 </div>
 
