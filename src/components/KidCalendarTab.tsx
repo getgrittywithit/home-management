@@ -10,11 +10,35 @@ export default function KidCalendarTab({ childName }: { childName: string }) {
 
   const kid = childName.toLowerCase()
   useEffect(() => {
-    fetch(`/api/kids/calendar?days=30&kid_name=${kid}`)
-      .then(r => r.json())
-      .then(data => { setEvents(data.events || []); setLoaded(true) })
-      .catch(() => setLoaded(true))
-  }, [kid])
+    const today = new Date().toISOString().slice(0, 10)
+    const futureDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+
+    Promise.all([
+      fetch(`/api/kids/calendar?days=30&kid_name=${kid}`).then(r => r.json()).catch(() => ({ events: [] })),
+      fetch(`/api/calendar?action=get_events&start_date=${today}&end_date=${futureDate}`).then(r => r.json()).catch(() => []),
+    ]).then(([kidData, familyEvents]) => {
+      const kidEvents = (kidData.events || []) as CalEvent[]
+      const capName = childName.charAt(0).toUpperCase() + childName.slice(1)
+      const familyFiltered = (Array.isArray(familyEvents) ? familyEvents : [])
+        .filter((e: any) =>
+          e.calendar_name === `Kids: ${capName}` ||
+          e.calendar_name === 'Family (Primary)' ||
+          e.event_type === 'friend_visit'
+        )
+        .map((e: any) => ({
+          id: e.id || `fam-${e.title}-${e.start_time}`,
+          summary: e.title,
+          start: e.start_time,
+          end: e.end_time || e.start_time,
+          location: e.location || null,
+        }))
+      const seenIds = new Set(kidEvents.map(e => e.id))
+      const merged = [...kidEvents, ...familyFiltered.filter((e: CalEvent) => !seenIds.has(e.id))]
+      merged.sort((a, b) => (a.start || '').localeCompare(b.start || ''))
+      setEvents(merged)
+      setLoaded(true)
+    })
+  }, [kid, childName])
 
   if (!loaded) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" /></div>
 

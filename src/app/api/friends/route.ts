@@ -239,6 +239,25 @@ export async function POST(req: NextRequest) {
           kid_name: req.kid_name,
         }).catch(() => {})
 
+        // D85: On approval, create a calendar event on the kid's calendar
+        if (status === 'approved' && req.start_date) {
+          const startStr = req.start_time
+            ? `${req.start_date}T${req.start_time}`
+            : `${req.start_date}T00:00:00`
+          const endStr = req.end_date
+            ? (req.end_time ? `${req.end_date}T${req.end_time}` : `${req.end_date}T23:59:59`)
+            : (req.end_time ? `${req.start_date}T${req.end_time}` : null)
+          const isAllDay = !req.start_time
+
+          const title = `${req.friend_name}'s house${req.visit_type === 'sleepover' ? ' (sleepover)' : req.visit_type === 'weekend' ? ' (weekend)' : req.visit_type === 'extended' ? ' (trip)' : ''}`
+
+          await db.query(
+            `INSERT INTO family_events (title, start_time, end_time, location, all_day, event_type, calendar_name)
+             VALUES ($1, $2, $3, $4, $5, 'friend_visit', $6)`,
+            [title, startStr, endStr, req.address || null, isAllDay, `Kids: ${cap(req.kid_name)}`]
+          ).catch(e => console.warn('[friends] calendar event failed:', e?.message))
+        }
+
         return NextResponse.json({ request: rows[0] })
       }
 

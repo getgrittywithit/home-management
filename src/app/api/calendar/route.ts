@@ -8,6 +8,17 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
 
     switch (action) {
+      case 'list_calendars': {
+        const rows = await db.query(
+          `SELECT id, google_calendar_id, display_name, color_hex, category, member_name,
+                  is_visible_default, sort_order, last_synced_at, is_active
+             FROM calendar_connections
+            WHERE is_active = TRUE
+            ORDER BY sort_order, display_name`
+        ).catch(() => [])
+        return NextResponse.json({ calendars: rows })
+      }
+
       case 'sync':
         const result = await CalendarService.syncCalendarEvents()
         return NextResponse.json(result)
