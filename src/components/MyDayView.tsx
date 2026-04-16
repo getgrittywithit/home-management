@@ -390,14 +390,22 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   // ── Render ──
   if (loading) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-4">
+        {/* Skeleton: greeting */}
+        <div className="rounded-xl p-5 space-y-3">
+          <div className="skeleton h-7 w-48" />
+          <div className="skeleton h-4 w-32" />
+        </div>
+        {/* Skeleton: quick actions grid */}
+        <div className="grid grid-cols-3 gap-3">
+          {[1,2,3].map(i => <div key={i} className="skeleton h-20 rounded-xl" />)}
+        </div>
+        {/* Skeleton: task blocks */}
         {[1,2,3].map(i => (
-          <div key={i} className="rounded-xl border border-gray-200 p-5 animate-pulse">
-            <div className="h-5 bg-gray-200 rounded w-1/3 mb-4" />
-            <div className="space-y-2">
-              <div className="h-4 bg-gray-100 rounded" />
-              <div className="h-4 bg-gray-100 rounded w-3/4" />
-            </div>
+          <div key={i} className="rounded-xl border border-gray-200 p-5 space-y-3">
+            <div className="skeleton h-5 w-1/3" />
+            <div className="skeleton h-4 w-full" />
+            <div className="skeleton h-4 w-3/4" />
           </div>
         ))}
       </div>
@@ -516,6 +524,41 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
             <div className="text-[10px] uppercase tracking-wider opacity-80">Today</div>
           </div>
         </div>
+      </div>
+
+      {/* D88: Quick Actions Grid — contextual cards for mobile home */}
+      <div className="grid grid-cols-3 gap-2">
+        {/* Tasks remaining */}
+        <button
+          onClick={() => { try { window.dispatchEvent(new CustomEvent('kid-nav', { detail: { tab: 'checklist' } })) } catch {} }}
+          className="bg-white rounded-xl border shadow-sm p-3 text-center hover:bg-gray-50 active:scale-95 transition-transform"
+        >
+          <div className="text-2xl">📋</div>
+          <div className="text-xs font-semibold text-gray-900 mt-1">
+            {totalTasks - completedTasks > 0 ? `${totalTasks - completedTasks} tasks` : 'All done!'}
+          </div>
+          <div className="text-[10px] text-gray-500">{completedTasks > 0 ? 'Keep going' : 'Get started'}</div>
+        </button>
+
+        {/* Meal picker */}
+        <button
+          onClick={() => { try { window.dispatchEvent(new CustomEvent('kid-nav', { detail: { tab: 'my-day' } })) } catch {} }}
+          className="bg-white rounded-xl border shadow-sm p-3 text-center hover:bg-gray-50 active:scale-95 transition-transform"
+        >
+          <div className="text-2xl">🍽️</div>
+          <div className="text-xs font-semibold text-gray-900 mt-1">Pick dinner</div>
+          <div className="text-[10px] text-gray-500">See meals</div>
+        </button>
+
+        {/* Note for mom */}
+        <button
+          onClick={() => { const el = document.getElementById('note-for-mom'); el?.scrollIntoView({ behavior: 'smooth' }) }}
+          className="bg-white rounded-xl border shadow-sm p-3 text-center hover:bg-gray-50 active:scale-95 transition-transform"
+        >
+          <div className="text-2xl">📝</div>
+          <div className="text-xs font-semibold text-gray-900 mt-1">Note</div>
+          <div className="text-[10px] text-gray-500">For Mom</div>
+        </button>
       </div>
 
       {/* Digi-Pet mini widget — D72 PET-1 */}
@@ -668,7 +711,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
           Messages
         </h2>
 
-        <div>
+        <div id="note-for-mom">
           <p className="text-sm text-gray-600 mb-2">Leave a Note for Mom</p>
           <div className="flex gap-2">
             <input

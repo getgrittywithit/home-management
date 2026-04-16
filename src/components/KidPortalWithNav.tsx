@@ -2053,14 +2053,46 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         </nav>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 p-6 pt-16 md:pt-6 overflow-y-auto">
+      {/* Main Content — extra bottom padding on mobile for bottom nav */}
+      <div className="flex-1 p-6 pt-16 md:pt-6 pb-24 md:pb-6 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
           {renderActiveTab()}
         </div>
       </div>
 
-      {/* Talk to Mom & Dad + Break Button moved to Requests tab (BUTTON-FIX-1) */}
+      {/* D88: Mobile bottom navigation bar — visible only on phones */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 flex items-stretch"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {[
+          { id: 'my-day' as TabId, icon: '🏠', label: 'Home' },
+          { id: 'checklist' as TabId, icon: '📋', label: 'Tasks' },
+          { id: 'school' as TabId, icon: '📚', label: 'Learn' },
+          { id: 'digi-pet' as TabId, icon: '⭐', label: 'Stars' },
+          { id: 'my-vibe' as TabId, icon: '👤', label: 'Me' },
+        ].map(tab => {
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id)
+                setSidebarOpen(false)
+                try { navigator.vibrate?.(10) } catch { /* ignore */ }
+              }}
+              className={`flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] transition-colors ${
+                isActive
+                  ? 'text-teal-600 bg-teal-50/50'
+                  : 'text-gray-400'
+              }`}
+            >
+              <span className="text-xl leading-none">{tab.icon}</span>
+              <span className={`text-[10px] font-semibold mt-0.5 ${isActive ? 'text-teal-600' : 'text-gray-400'}`}>
+                {tab.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
 
       {/* AI Buddy — floating chat */}
       {!previewMode && (
@@ -2071,7 +2103,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         />
       )}
 
-      {/* Profile switcher — floating bottom-left */}
+      {/* Profile switcher — floating bottom-left, offset above bottom nav on mobile */}
       {!previewMode && (
         <ProfileSwitcher
           currentProfile={profile.first_name || ''}
