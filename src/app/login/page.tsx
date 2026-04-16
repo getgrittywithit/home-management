@@ -197,7 +197,8 @@ function CredentialEntry({
   const isFirstTime = isParent ? !account.has_password : !account.has_pin
 
   const [pin, setPin] = useState('')
-  const [pinConfirm, setPinConfirm] = useState('')
+  const [pinStep, setPinStep] = useState<'enter' | 'confirm'>('enter')
+  const [pinFirstEntry, setPinFirstEntry] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -205,12 +206,34 @@ function CredentialEntry({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const PIN_LENGTH = 4
+
   const onPinDigit = (d: string) => {
     setError(null)
-    if (pin.length >= 6) return
+    if (pin.length >= PIN_LENGTH) return
     setPin(pin + d)
   }
   const onPinBack = () => { setError(null); setPin(pin.slice(0, -1)) }
+
+  // First-time: when 4 digits entered, transition to confirm step
+  useEffect(() => {
+    if (isParent || !isFirstTime || submitting) return
+    if (pin.length === PIN_LENGTH && pinStep === 'enter') {
+      setPinFirstEntry(pin)
+      setPin('')
+      setPinStep('confirm')
+    } else if (pin.length === PIN_LENGTH && pinStep === 'confirm') {
+      if (pin === pinFirstEntry) {
+        handleSubmit()
+      } else {
+        setError('PINs don\'t match — try again')
+        setPin('')
+        setPinFirstEntry('')
+        setPinStep('enter')
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin])
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault()
@@ -220,8 +243,8 @@ function CredentialEntry({
       if (!password || password.length < 4) return setError('Password must be at least 4 characters')
       if (isFirstTime && password !== passwordConfirm) return setError('Passwords do not match')
     } else {
-      if (pin.length < 4) return setError('PIN must be at least 4 digits')
-      if (isFirstTime && pin !== pinConfirm) return setError('PINs do not match')
+      const submitPin = isFirstTime ? (pinStep === 'confirm' ? pin : pinFirstEntry) : pin
+      if (submitPin.length < PIN_LENGTH) return setError(`PIN must be ${PIN_LENGTH} digits`)
     }
 
     setSubmitting(true)
@@ -232,7 +255,7 @@ function CredentialEntry({
         body: JSON.stringify({
           action: 'login',
           username: account.username,
-          pin: isParent ? undefined : pin,
+          pin: isParent ? undefined : (isFirstTime ? pinFirstEntry : pin),
           password: isParent ? password : undefined,
           remember_me: rememberMe,
         }),
@@ -252,10 +275,10 @@ function CredentialEntry({
     }
   }
 
-  // Auto-submit kid PIN on 4 digits if not first-time setup
+  // Auto-submit kid PIN on 4 digits if returning user (not first-time)
   useEffect(() => {
     if (isParent || isFirstTime || submitting) return
-    if (pin.length === 4) {
+    if (pin.length === PIN_LENGTH) {
       handleSubmit()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -338,12 +361,18 @@ function CredentialEntry({
           ) : (
             // Kid PIN pad
             <div className="space-y-3">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                {Array.from({ length: 6 }).map((_, i) => (
+              {/* Step label for first-time setup */}
+              {isFirstTime && (
+                <p className="text-center text-sm font-medium text-gray-600">
+                  {pinStep === 'enter' ? 'Enter a 4-digit PIN' : 'Confirm your PIN'}
+                </p>
+              )}
+              <div className="flex items-center justify-center gap-3 mb-2">
+                {Array.from({ length: PIN_LENGTH }).map((_, i) => (
                   <div
                     key={i}
-                    className={`w-3 h-3 rounded-full border-2 ${
-                      i < pin.length ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300'
+                    className={`w-4 h-4 rounded-full border-2 transition-all ${
+                      i < pin.length ? 'bg-indigo-500 border-indigo-500 scale-110' : 'border-gray-300'
                     }`}
                   />
                 ))}
@@ -382,24 +411,9 @@ function CredentialEntry({
                 </button>
               </div>
               {isFirstTime && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1 mt-2">
-                    Confirm PIN
-                  </label>
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="\d*"
-                    maxLength={6}
-                    value={pinConfirm}
-                    onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, ''))}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-gray-900 text-center text-xl tracking-[0.5em]"
-                    placeholder="••••"
-                  />
-                  <p className="text-[11px] text-gray-500 mt-1">
-                    Mom and Dad keep a backup copy in case you forget.
-                  </p>
-                </div>
+                <p className="text-[11px] text-gray-500 text-center mt-1">
+                  Mom and Dad keep a backup copy in case you forget.
+                </p>
               )}
             </div>
           )}
@@ -419,7 +433,7 @@ function CredentialEntry({
             Remember me on this device
           </label>
 
-          {(isParent || isFirstTime) && (
+          {isParent && (
             <button
               type="submit"
               disabled={submitting}
@@ -434,6 +448,11 @@ function CredentialEntry({
                 </>
               )}
             </button>
+          )}
+          {!isParent && submitting && (
+            <div className="mt-4 flex items-center justify-center gap-2 text-indigo-600">
+              <Loader2 className="w-5 h-5 animate-spin" /> Logging in...
+            </div>
           )}
         </form>
       </div>
