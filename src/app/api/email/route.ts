@@ -4,6 +4,7 @@ import {
   getValidToken, fetchMessages, parseMessageHeaders, getConnectedAccounts,
   getAllActiveAccounts, updateLastSync,
 } from '@/lib/gmail'
+import { triageAndSave, matchSenderRule as matchSenderRuleLib } from '@/lib/emailTriage'
 
 async function ensureTables() {
   await db.query(`CREATE TABLE IF NOT EXISTS email_inbox (
@@ -77,70 +78,14 @@ async function init() {
 }
 
 // ── Helpers ──
+// D82: matchSenderRule + triageWithAI moved to src/lib/emailTriage.ts.
+// This route delegates via triageAndSave() so every rule/AI/heuristic run
+// flows through one path and persists action_items + deadline + urgency.
 
 async function matchSenderRule(fromAddress: string): Promise<{ category: string; priority: string } | null> {
-  const rules = await db.query(`SELECT sender_pattern, default_category, default_priority FROM email_sender_rules`)
-  for (const rule of rules) {
-    const pattern = rule.sender_pattern.replace(/%/g, '.*')
-    if (new RegExp(pattern, 'i').test(fromAddress)) {
-      return { category: rule.default_category, priority: rule.default_priority }
-    }
-  }
-  return null
-}
-
-async function triageWithAI(email: { id: number; from_address: string; from_name: string; subject: string; snippet: string; body_preview: string }) {
-  // AI triage using pattern similar to ai-buddy
-  const categories = ['school', 'medical', 'triton', 'finance', 'family', 'subscriptions', 'junk']
-  const priorities = ['urgent', 'normal', 'low', 'archive']
-
-  // Heuristic triage (fast, no API key needed)
-  const text = `${email.from_address} ${email.from_name || ''} ${email.subject || ''} ${email.snippet || ''}`.toLowerCase()
-
-  let category = 'family'
-  let priority = 'normal'
-  let suggestedAction = 'none'
-
-  if (text.includes('school') || text.includes('isd') || text.includes('teacher') || text.includes('grade') || text.includes('iep') || text.includes('504')) {
-    category = 'school'
-  } else if (text.includes('doctor') || text.includes('appointment') || text.includes('prescription') || text.includes('pharmacy') || text.includes('health') || text.includes('therapy')) {
-    category = 'medical'
-  } else if (text.includes('invoice') || text.includes('estimate') || text.includes('handyman') || text.includes('triton') || text.includes('job') || text.includes('customer')) {
-    category = 'triton'
-  } else if (text.includes('bank') || text.includes('payment') || text.includes('bill') || text.includes('statement') || text.includes('snap') || text.includes('balance')) {
-    category = 'finance'
-  } else if (text.includes('unsubscribe') || text.includes('newsletter') || text.includes('noreply') || text.includes('no-reply') || text.includes('promo') || text.includes('deal')) {
-    category = 'subscriptions'; priority = 'low'
-  } else if (text.includes('spam') || text.includes('winner') || text.includes('claim your') || text.includes('act now')) {
-    category = 'junk'; priority = 'archive'
-  }
-
-  if (text.includes('urgent') || text.includes('asap') || text.includes('immediately') || text.includes('today')) {
-    priority = 'urgent'
-  }
-
-  if (text.includes('reply') || text.includes('respond') || text.includes('get back') || text.includes('let me know')) {
-    suggestedAction = 'reply_needed'
-  } else if (text.includes('meeting') || text.includes('appointment') || text.includes('schedule')) {
-    suggestedAction = 'schedule_event'
-  } else if (text.includes('invoice') || text.includes('payment due') || text.includes('pay')) {
-    suggestedAction = 'pay_bill'
-  }
-
-  // Store triage result
-  await db.query(
-    `INSERT INTO email_triage_results (email_id, category, priority, confidence, suggested_action, triaged_at)
-     VALUES ($1, $2, $3, $4, $5, NOW())`,
-    [email.id, category, priority, 0.7, suggestedAction]
-  )
-
-  // Update the email record
-  await db.query(
-    `UPDATE email_inbox SET triaged = TRUE, category = $1, priority = $2 WHERE id = $3`,
-    [category, priority, email.id]
-  )
-
-  return { category, priority, suggestedAction }
+  const hit = await matchSenderRuleLib(fromAddress)
+  if (!hit) return null
+  return { category: hit.category, priority: hit.priority }
 }
 
 // ── GET ──
@@ -157,9 +102,12 @@ export async function GET(req: NextRequest) {
       const category = searchParams.get('category')
       const priority = searchParams.get('priority')
       const readFilter = searchParams.get('read')
+      const includeArchived = searchParams.get('include_archived') === '1'
+      const includeSnoozed = searchParams.get('include_snoozed') === '1'
 
       let sql = `SELECT id, gmail_id, from_address, from_name, subject, snippet, received_at,
-        read, starred, triaged, category, priority, has_attachments FROM email_inbox`
+        read, starred, triaged, category, priority, has_attachments,
+        snoozed_until, archived_at, task_created_id, account_email FROM email_inbox`
       const params: any[] = []
       const conditions: string[] = []
 
@@ -167,6 +115,8 @@ export async function GET(req: NextRequest) {
       if (priority) { params.push(priority); conditions.push(`priority = $${params.length}`) }
       if (readFilter === 'true') { conditions.push('read = TRUE') }
       if (readFilter === 'false') { conditions.push('read = FALSE') }
+      if (!includeArchived) conditions.push('archived_at IS NULL')
+      if (!includeSnoozed) conditions.push('(snoozed_until IS NULL OR snoozed_until < NOW())')
 
       if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`
       sql += ` ORDER BY received_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
@@ -174,13 +124,57 @@ export async function GET(req: NextRequest) {
 
       const rows = await db.query(sql, params)
 
-      // Category counts
+      // Category counts — only live (not archived, not currently snoozed) emails
       const counts = await db.query(
         `SELECT category, COUNT(*) FILTER (WHERE read = FALSE) as unread, COUNT(*) as total
-         FROM email_inbox GROUP BY category`
+           FROM email_inbox
+          WHERE archived_at IS NULL AND (snoozed_until IS NULL OR snoozed_until < NOW())
+          GROUP BY category`
       ).catch(() => [])
 
       return NextResponse.json({ emails: rows, counts })
+    }
+
+    // --------------------------------------------------------------------
+    // D82 — get_action_needed: emails with extracted action_items/deadline
+    // Joins email_inbox with the latest triage row and returns only
+    // those that have at least one action_item or a deadline.
+    // --------------------------------------------------------------------
+    if (action === 'get_action_needed') {
+      const rows = await db.query(
+        `SELECT e.id, e.gmail_id, e.from_address, e.from_name, e.subject, e.snippet,
+                e.received_at, e.read, e.starred, e.category, e.priority,
+                e.snoozed_until, e.task_created_id, e.account_email,
+                t.action_details, t.calendar_suggestion, t.suggested_action
+           FROM email_inbox e
+           LEFT JOIN LATERAL (
+             SELECT action_details, calendar_suggestion, suggested_action
+               FROM email_triage_results tr
+              WHERE tr.email_id = e.id
+              ORDER BY triaged_at DESC LIMIT 1
+           ) t ON TRUE
+          WHERE e.archived_at IS NULL
+            AND (e.snoozed_until IS NULL OR e.snoozed_until < NOW())
+            AND e.task_created_id IS NULL
+            AND (
+              (t.action_details IS NOT NULL AND jsonb_array_length(COALESCE(t.action_details->'action_items','[]'::jsonb)) > 0)
+              OR t.calendar_suggestion IS NOT NULL
+              OR e.priority = 'urgent'
+            )
+          ORDER BY
+            CASE e.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 ELSE 2 END,
+            e.received_at DESC
+          LIMIT 25`
+      ).catch(() => [] as any[])
+
+      const items = rows.map((r: any) => ({
+        ...r,
+        action_items: r.action_details?.action_items || [],
+        deadline: r.calendar_suggestion?.deadline || null,
+        urgency: r.action_details?.urgency || 'medium',
+      }))
+
+      return NextResponse.json({ emails: items, count: items.length })
     }
 
     if (action === 'get_email') {
@@ -271,33 +265,25 @@ export async function POST(req: NextRequest) {
 
               if (existing.length > 0) { skipped++; continue }
 
-              const ruleMatch = await matchSenderRule(parsed.from)
-
               await db.query(
-                `INSERT INTO email_inbox (gmail_id, thread_id, from_address, from_name, to_address, subject, snippet, received_at, category, priority, labels, has_attachments)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                `INSERT INTO email_inbox (gmail_id, thread_id, from_address, from_name, to_address, subject, snippet, received_at, labels, has_attachments, account_email)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                  ON CONFLICT (gmail_id) DO NOTHING`,
                 [
                   parsed.gmailId, parsed.threadId, parsed.from, parsed.fromName,
                   parsed.to, parsed.subject, parsed.snippet,
                   parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
-                  ruleMatch?.category || null, ruleMatch?.priority || 'normal',
                   JSON.stringify(parsed.labels), parsed.hasAttachments,
+                  targetEmail,
                 ]
               )
 
-              if (ruleMatch) {
-                const inserted = await db.query(
-                  `SELECT id FROM email_inbox WHERE gmail_id = $1`, [parsed.gmailId]
-                ).catch(() => [])
-                if (inserted[0]) {
-                  await db.query(`UPDATE email_inbox SET triaged = TRUE WHERE id = $1`, [inserted[0].id])
-                  await db.query(
-                    `INSERT INTO email_triage_results (email_id, category, priority, confidence, suggested_action)
-                     VALUES ($1, $2, $3, 1.0, 'rule_matched')`,
-                    [inserted[0].id, ruleMatch.category, ruleMatch.priority]
-                  ).catch(() => {})
-                }
+              const inserted = await db.query(
+                `SELECT id, from_address, from_name, subject, snippet, body_preview
+                   FROM email_inbox WHERE gmail_id = $1`, [parsed.gmailId]
+              ).catch(() => [])
+              if (inserted[0]) {
+                await triageAndSave(inserted[0]).catch((e) => console.warn('[sync triage] skipped', e?.message))
               }
 
               synced++
@@ -359,45 +345,83 @@ export async function POST(req: NextRequest) {
         if (!email_id) return NextResponse.json({ error: 'email_id required' }, { status: 400 })
         const emails = await db.query(`SELECT * FROM email_inbox WHERE id = $1`, [email_id])
         if (!emails[0]) return NextResponse.json({ error: 'Email not found' }, { status: 404 })
-
-        // First check sender rules
-        const ruleMatch = await matchSenderRule(emails[0].from_address)
-        if (ruleMatch) {
-          await db.query(`UPDATE email_inbox SET triaged = TRUE, category = $1, priority = $2 WHERE id = $3`,
-            [ruleMatch.category, ruleMatch.priority, email_id])
-          await db.query(
-            `INSERT INTO email_triage_results (email_id, category, priority, confidence, suggested_action)
-             VALUES ($1, $2, $3, 1.0, 'rule_matched')`,
-            [email_id, ruleMatch.category, ruleMatch.priority])
-          return NextResponse.json({ success: true, source: 'rule', ...ruleMatch })
-        }
-
-        // Fall back to AI triage
-        const result = await triageWithAI(emails[0])
-        return NextResponse.json({ success: true, source: 'ai', ...result })
+        const result = await triageAndSave(emails[0])
+        return NextResponse.json({ success: true, ...result })
       }
 
       case 'triage_batch': {
         const untriaged = await db.query(
           `SELECT id, from_address, from_name, subject, snippet, body_preview
-           FROM email_inbox WHERE triaged = FALSE ORDER BY received_at DESC LIMIT 50`
+             FROM email_inbox
+            WHERE triaged = FALSE
+            ORDER BY received_at DESC LIMIT 50`
         )
         let processed = 0
+        let ruleHits = 0
+        let aiHits = 0
+        let heuristicHits = 0
         for (const email of untriaged) {
-          const ruleMatch = await matchSenderRule(email.from_address)
-          if (ruleMatch) {
-            await db.query(`UPDATE email_inbox SET triaged = TRUE, category = $1, priority = $2 WHERE id = $3`,
-              [ruleMatch.category, ruleMatch.priority, email.id])
-            await db.query(
-              `INSERT INTO email_triage_results (email_id, category, priority, confidence, suggested_action)
-               VALUES ($1, $2, $3, 1.0, 'rule_matched')`,
-              [email.id, ruleMatch.category, ruleMatch.priority])
-          } else {
-            await triageWithAI(email)
+          try {
+            const result = await triageAndSave(email)
+            if (result.source === 'rule') ruleHits++
+            else if (result.source === 'ai') aiHits++
+            else heuristicHits++
+            processed++
+          } catch (e) {
+            console.warn('[triage_batch] skipped', email.id, e)
           }
-          processed++
         }
-        return NextResponse.json({ success: true, processed })
+        return NextResponse.json({ success: true, processed, rule: ruleHits, ai: aiHits, heuristic: heuristicHits })
+      }
+
+      // --------------------------------------------------------------------
+      // D82 — Snooze / unsnooze / archive / mark task converted
+      // --------------------------------------------------------------------
+      case 'snooze_email': {
+        const { email_id, until } = body
+        if (!email_id) return NextResponse.json({ error: 'email_id required' }, { status: 400 })
+        const snoozeTo = until
+          ? new Date(until).toISOString()
+          : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()  // default 24h
+        await db.query(`UPDATE email_inbox SET snoozed_until = $1 WHERE id = $2`, [snoozeTo, email_id])
+        return NextResponse.json({ success: true, snoozed_until: snoozeTo })
+      }
+
+      case 'unsnooze_email': {
+        const { email_id } = body
+        if (!email_id) return NextResponse.json({ error: 'email_id required' }, { status: 400 })
+        await db.query(`UPDATE email_inbox SET snoozed_until = NULL WHERE id = $1`, [email_id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'archive_email': {
+        const { email_id } = body
+        if (!email_id) return NextResponse.json({ error: 'email_id required' }, { status: 400 })
+        await db.query(
+          `UPDATE email_inbox SET archived_at = NOW(), read = TRUE WHERE id = $1`,
+          [email_id]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      case 'unarchive_email': {
+        const { email_id } = body
+        if (!email_id) return NextResponse.json({ error: 'email_id required' }, { status: 400 })
+        await db.query(`UPDATE email_inbox SET archived_at = NULL WHERE id = $1`, [email_id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'link_task': {
+        // Called by the Create Task modal after /api/action-items create succeeds.
+        const { email_id, action_item_id } = body
+        if (!email_id || !action_item_id) {
+          return NextResponse.json({ error: 'email_id + action_item_id required' }, { status: 400 })
+        }
+        await db.query(
+          `UPDATE email_inbox SET task_created_id = $1 WHERE id = $2`,
+          [action_item_id, email_id]
+        )
+        return NextResponse.json({ success: true })
       }
 
       case 'mark_read': {

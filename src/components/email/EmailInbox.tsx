@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { RefreshCw, Star, Settings, ChevronDown, ChevronUp, Mail, Loader2, Archive, ClipboardList, Ban, ExternalLink, Plus, X } from 'lucide-react'
+import {
+  RefreshCw, Star, Settings, ChevronDown, ChevronUp, Mail, Loader2, Archive,
+  ClipboardList, Ban, ExternalLink, Plus, X, Clock, AlertTriangle, CheckCircle2, Zap,
+} from 'lucide-react'
 import SenderRules from './SenderRules'
 
 interface Email {
@@ -9,6 +12,16 @@ interface Email {
   subject: string | null; snippet: string | null; body_preview?: string | null
   received_at: string; read: boolean; starred: boolean; triaged: boolean
   category: string | null; priority: string | null; has_attachments: boolean
+  snoozed_until?: string | null
+  task_created_id?: number | null
+  account_email?: string | null
+}
+
+interface ActionNeededEmail extends Email {
+  action_items: string[]
+  deadline: string | null
+  urgency: 'high' | 'medium' | 'low'
+  suggested_action: string | null
 }
 
 interface GmailAccount {
@@ -23,32 +36,57 @@ interface GmailAccount {
 interface TriageResult {
   category: string; priority: string; confidence: number
   suggested_action: string | null; calendar_suggestion: any
+  action_details?: { action_items?: string[]; urgency?: string; source?: string } | null
 }
 
 interface CategoryCount { category: string; unread: string; total: string }
 
 const CATEGORIES = [
   { id: 'all', label: 'All', color: 'bg-gray-500' },
-  { id: 'school', label: 'School', color: 'bg-blue-500' },
-  { id: 'medical', label: 'Medical', color: 'bg-red-500' },
-  { id: 'triton', label: 'Triton', color: 'bg-amber-600' },
-  { id: 'finance', label: 'Finance', color: 'bg-green-500' },
+  { id: 'school_urgent', label: 'School 🚨', color: 'bg-red-500' },
+  { id: 'school_normal', label: 'School', color: 'bg-blue-500' },
+  { id: 'medical', label: 'Medical', color: 'bg-rose-500' },
+  { id: 'triton_lead', label: 'Triton Lead', color: 'bg-amber-600' },
+  { id: 'triton_ops', label: 'Triton', color: 'bg-amber-500' },
+  { id: 'finance', label: 'Finance', color: 'bg-emerald-500' },
+  { id: 'household', label: 'Household', color: 'bg-indigo-500' },
+  { id: 'kids_tech', label: 'Kids Tech', color: 'bg-sky-500' },
   { id: 'family', label: 'Family', color: 'bg-purple-500' },
   { id: 'subscriptions', label: 'Subs', color: 'bg-gray-400' },
-  { id: 'junk', label: 'Junk', color: 'bg-gray-300' },
+  { id: 'noise', label: 'Noise', color: 'bg-gray-300' },
 ]
 
+const BOARD_MAP: Record<string, string> = {
+  school_urgent: 'school', school_normal: 'school', school: 'school',
+  medical: 'medical',
+  triton_lead: 'triton', triton_ops: 'triton', triton: 'triton',
+  household: 'household',
+  finance: 'personal', kids_tech: 'personal', family: 'personal',
+}
+
 const PRIORITY_DOTS: Record<string, string> = {
-  urgent: 'bg-red-500', normal: 'bg-gray-300', low: 'bg-gray-200', archive: 'bg-gray-100',
+  urgent: 'bg-red-500', high: 'bg-orange-400',
+  normal: 'bg-gray-300', low: 'bg-gray-200', archive: 'bg-gray-100',
 }
 
 const ACTION_LABELS: Record<string, string> = {
   reply_needed: 'Reply needed', schedule_event: 'Schedule event', pay_bill: 'Pay bill',
-  file_only: 'File only', archive: 'Archive', rule_matched: 'Auto-categorized', none: 'No action',
+  file_only: 'File only', archive: 'Archive', rule_matched: 'Auto-categorized',
+  auto_archive: 'Auto-archive', call: 'Call', read_only: 'Read only', none: 'No action',
+}
+
+type TaskForm = {
+  email: Email | ActionNeededEmail
+  title: string
+  board: string
+  notes: string
+  due_date: string  // YYYY-MM-DD
+  priority: 'urgent' | 'high' | 'normal' | 'low'
 }
 
 export default function EmailInbox() {
   const [emails, setEmails] = useState<Email[]>([])
+  const [actionNeeded, setActionNeeded] = useState<ActionNeededEmail[]>([])
   const [counts, setCounts] = useState<CategoryCount[]>([])
   const [filter, setFilter] = useState('all')
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -59,8 +97,9 @@ export default function EmailInbox() {
   const [loading, setLoading] = useState(true)
   const [accounts, setAccounts] = useState<GmailAccount[]>([])
   const [connected, setConnected] = useState<boolean | null>(null)
-  const [taskCreating, setTaskCreating] = useState<number | null>(null)
   const [accountSyncing, setAccountSyncing] = useState<string | null>(null)
+  const [taskForm, setTaskForm] = useState<TaskForm | null>(null)
+  const [taskSubmitting, setTaskSubmitting] = useState(false)
 
   const fetchAccounts = async () => {
     try {
@@ -78,10 +117,13 @@ export default function EmailInbox() {
   const fetchInbox = async (cat?: string) => {
     const catParam = (cat || filter) !== 'all' ? `&category=${cat || filter}` : ''
     try {
-      const res = await fetch(`/api/email?action=get_inbox${catParam}`)
-      const data = await res.json()
-      setEmails(data.emails || [])
-      setCounts(data.counts || [])
+      const [inboxRes, actionRes] = await Promise.all([
+        fetch(`/api/email?action=get_inbox${catParam}`).then(r => r.json()),
+        fetch(`/api/email?action=get_action_needed`).then(r => r.json()),
+      ])
+      setEmails(inboxRes.emails || [])
+      setCounts(inboxRes.counts || [])
+      setActionNeeded(actionRes.emails || [])
     } catch { /* silent */ }
     setLoading(false)
   }
@@ -98,7 +140,6 @@ export default function EmailInbox() {
       if (connectedEmail) {
         setStatusMsg(`Connected ${connectedEmail}! Syncing your inbox...`)
         setTimeout(() => setStatusMsg(null), 5000)
-        // Clean URL
         window.history.replaceState({}, '', window.location.pathname)
       } else if (gmailError) {
         const detail = gmailErrorDetail ? ` — ${gmailErrorDetail}` : ''
@@ -110,13 +151,12 @@ export default function EmailInbox() {
 
     fetchAccounts().then(isConnected => {
       fetchInbox()
-      if (isConnected) {
-        handleSync(true)
-      }
+      if (isConnected) handleSync(true)
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { if (connected) fetchInbox() }, [filter])
+  useEffect(() => { if (connected) fetchInbox() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filter])
 
   const handleSync = async (silent = false, accountEmail?: string) => {
     if (accountEmail) setAccountSyncing(accountEmail)
@@ -158,14 +198,16 @@ export default function EmailInbox() {
 
   const isRecentSync = (iso: string | null): boolean => {
     if (!iso) return false
-    return Date.now() - new Date(iso).getTime() < 60 * 60 * 1000 // within 1h
+    return Date.now() - new Date(iso).getTime() < 60 * 60 * 1000
   }
 
   const handleTriageAll = async () => {
     setTriaging(true)
     try {
-      await fetch('/api/email', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'triage_batch' }) })
+      await fetch('/api/email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'triage_batch' }),
+      })
       fetchInbox()
     } catch { /* silent */ }
     setTriaging(false)
@@ -173,15 +215,19 @@ export default function EmailInbox() {
 
   const handleStarToggle = async (emailId: number) => {
     setEmails(prev => prev.map(e => e.id === emailId ? { ...e, starred: !e.starred } : e))
-    await fetch('/api/email', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'star_email', email_id: emailId }) }).catch(() => {})
+    await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'star_email', email_id: emailId }),
+    }).catch(() => {})
   }
 
   const handleExpand = async (emailId: number) => {
     if (expandedId === emailId) { setExpandedId(null); setExpandedDetail(null); return }
     setExpandedId(emailId)
-    await fetch('/api/email', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_read', email_id: emailId }) }).catch(() => {})
+    await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mark_read', email_id: emailId }),
+    }).catch(() => {})
     setEmails(prev => prev.map(e => e.id === emailId ? { ...e, read: true } : e))
     try {
       const res = await fetch(`/api/email?action=get_email&id=${emailId}`)
@@ -189,48 +235,93 @@ export default function EmailInbox() {
     } catch { /* silent */ }
   }
 
-  const handleCreateTask = async (email: Email) => {
-    setTaskCreating(email.id)
+  // D82 Stage E — open pre-filled Create Task modal
+  const openCreateTask = (email: Email | ActionNeededEmail, firstActionItem?: string) => {
+    const cat = email.category || 'family'
+    const board = BOARD_MAP[cat] || 'personal'
+    const deadline = (email as ActionNeededEmail).deadline || ''
+    const priority = (email.priority === 'urgent' ? 'urgent'
+      : email.priority === 'high' ? 'high'
+      : email.priority === 'low' ? 'low' : 'normal') as TaskForm['priority']
+
+    setTaskForm({
+      email,
+      title: firstActionItem || email.subject || 'Email task',
+      board,
+      notes: `From: ${email.from_name || email.from_address}\n\n${email.snippet || ''}`,
+      due_date: deadline || '',
+      priority,
+    })
+  }
+
+  const handleCreateTaskSubmit = async () => {
+    if (!taskForm) return
+    setTaskSubmitting(true)
     try {
-      await fetch('/api/action-items', {
+      const res = await fetch('/api/action-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create',
-          title: email.subject || 'Email task',
-          description: email.snippet || '',
+          title: taskForm.title.trim(),
+          description: taskForm.notes,
           source_type: 'email',
-          source_id: email.gmail_id,
-          source_preview: `From: ${email.from_name || email.from_address}\n${email.snippet || ''}`,
-          category: email.category || 'family',
-          priority: email.priority === 'urgent' ? 'urgent' : email.priority === 'low' ? 'low' : 'normal',
-          board: email.category === 'triton' ? 'triton' : email.category === 'school' ? 'school' : email.category === 'medical' ? 'medical' : 'personal',
+          source_id: taskForm.email.gmail_id,
+          source_preview: `From: ${taskForm.email.from_name || taskForm.email.from_address}\n${taskForm.email.snippet || ''}`,
+          category: taskForm.email.category || 'family',
+          priority: taskForm.priority,
+          board: taskForm.board,
+          due_date: taskForm.due_date || null,
         }),
       })
+      const data = await res.json().catch(() => ({}))
+      const actionItemId = data?.item?.id || data?.id || data?.action_item?.id
+      if (actionItemId) {
+        await fetch('/api/email', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'link_task', email_id: taskForm.email.id, action_item_id: actionItemId }),
+        }).catch(() => {})
+      }
+      setTaskForm(null)
+      fetchInbox()
     } catch { /* silent */ }
-    setTaskCreating(null)
+    setTaskSubmitting(false)
+  }
+
+  const handleSnooze = async (emailId: number) => {
+    await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'snooze_email', email_id: emailId }),
+    }).catch(() => {})
+    fetchInbox()
   }
 
   const handleArchive = async (emailId: number) => {
-    await fetch('/api/email', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_read', email_id: emailId }) }).catch(() => {})
+    await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'archive_email', email_id: emailId }),
+    }).catch(() => {})
     setEmails(prev => prev.filter(e => e.id !== emailId))
+    setActionNeeded(prev => prev.filter(e => e.id !== emailId))
   }
 
   const handleJunk = async (email: Email) => {
-    // Mark as read + add sender to junk rules
     await Promise.all([
-      fetch('/api/email', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'mark_read', email_id: email.id }) }),
-      fetch('/api/email', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      fetch('/api/email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archive_email', email_id: email.id }),
+      }),
+      fetch('/api/email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_sender_rule',
           sender_pattern: `%${email.from_address.split('@')[1]}`,
           sender_name: email.from_name || email.from_address,
-          default_category: 'junk',
+          default_category: 'noise',
           default_priority: 'low',
           auto_archive: true,
-        }) }),
+        }),
+      }),
     ]).catch(() => {})
     setEmails(prev => prev.filter(e => e.id !== email.id))
   }
@@ -250,6 +341,13 @@ export default function EmailInbox() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
+  const formatDeadline = (dl: string | null): string => {
+    if (!dl) return ''
+    const d = new Date(dl)
+    if (isNaN(d.getTime())) return dl
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
   const catBadgeColor = (cat: string | null) => CATEGORIES.find(c => c.id === cat)?.color || 'bg-gray-300'
 
   if (showRules) return <SenderRules onBack={() => { setShowRules(false); fetchInbox() }} />
@@ -263,6 +361,11 @@ export default function EmailInbox() {
           {connected && (
             <span className="text-xs font-normal text-gray-400 ml-2">
               {accounts.length} account{accounts.length !== 1 ? 's' : ''} connected
+              {actionNeeded.length > 0 && (
+                <span className="ml-2 inline-block px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">
+                  {actionNeeded.length} need{actionNeeded.length === 1 ? 's' : ''} action
+                </span>
+              )}
             </span>
           )}
         </h2>
@@ -271,11 +374,11 @@ export default function EmailInbox() {
             <>
               <button onClick={handleTriageAll} disabled={triaging}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50">
-                {triaging ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Triage All
+                {triaging ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />} Triage All
               </button>
               <button onClick={() => handleSync(false)} disabled={syncing}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50">
-                <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} /> Sync All
+                <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} /> Sync Now
               </button>
             </>
           )}
@@ -295,7 +398,7 @@ export default function EmailInbox() {
         </div>
       )}
 
-      {/* Connect Gmail (no accounts yet) */}
+      {/* Connect Gmail */}
       {connected === false && (
         <div className="bg-white rounded-lg border p-8 text-center">
           <Mail className="w-12 h-12 text-indigo-200 mx-auto mb-4" />
@@ -311,7 +414,7 @@ export default function EmailInbox() {
             </a>
           </div>
           <p className="text-xs text-gray-400 mt-4">
-            Starts with read-only access. Your data stays in your database.
+            Read access only. Your data stays in your database.
           </p>
         </div>
       )}
@@ -321,10 +424,8 @@ export default function EmailInbox() {
         <div className="bg-white rounded-lg border p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-700">Connected Gmail Accounts</h3>
-            <a
-              href="/api/auth/gmail?action=connect"
-              className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
-            >
+            <a href="/api/auth/gmail?action=connect"
+              className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800">
               <Plus className="w-3 h-3" /> Connect Another
             </a>
           </div>
@@ -333,10 +434,7 @@ export default function EmailInbox() {
               const recent = isRecentSync(acc.last_sync_at)
               const dotColor = !acc.is_active ? 'bg-gray-300' : recent ? 'bg-green-500' : 'bg-amber-400'
               return (
-                <div
-                  key={acc.email}
-                  className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2"
-                >
+                <div key={acc.email} className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2">
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
@@ -350,24 +448,102 @@ export default function EmailInbox() {
                     <div className="text-[11px] text-gray-500 truncate">{acc.email}</div>
                     <div className="text-[10px] text-gray-400">{formatLastSync(acc.last_sync_at)}</div>
                   </div>
-                  <button
-                    onClick={() => handleSync(false, acc.email)}
-                    disabled={accountSyncing === acc.email}
+                  <button onClick={() => handleSync(false, acc.email)} disabled={accountSyncing === acc.email}
                     title="Sync this account"
-                    className="p-1 rounded hover:bg-white text-gray-500 hover:text-blue-600 disabled:opacity-50"
-                  >
+                    className="p-1 rounded hover:bg-white text-gray-500 hover:text-blue-600 disabled:opacity-50">
                     <RefreshCw className={`w-3.5 h-3.5 ${accountSyncing === acc.email ? 'animate-spin' : ''}`} />
                   </button>
-                  <button
-                    onClick={() => handleDisconnect(acc.email)}
-                    title="Disconnect"
-                    className="p-1 rounded hover:bg-white text-gray-400 hover:text-red-600"
-                  >
+                  <button onClick={() => handleDisconnect(acc.email)} title="Disconnect"
+                    className="p-1 rounded hover:bg-white text-gray-400 hover:text-red-600">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {/* D82 Stage D — Action Needed section */}
+      {actionNeeded.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-bold text-red-700 flex items-center gap-2 uppercase tracking-wide">
+            <AlertTriangle className="w-4 h-4" /> Action Needed ({actionNeeded.length})
+          </h3>
+          <div className="space-y-2">
+            {actionNeeded.map(email => (
+              <div key={email.id} className="bg-white rounded-lg border-l-4 border-red-400 border-y border-r border-y-gray-100 border-r-gray-100 shadow-sm p-4">
+                <div className="flex items-start gap-3 mb-2">
+                  <div className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-3.5 h-3.5 text-red-500" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900 text-sm truncate">
+                        {email.from_name || email.from_address}
+                      </span>
+                      {email.category && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded text-white ${catBadgeColor(email.category)}`}>
+                          {CATEGORIES.find(c => c.id === email.category)?.label || email.category}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400 ml-auto">{relativeTime(email.received_at)}</span>
+                    </div>
+                    <div className="text-sm text-gray-700 mt-0.5">{email.subject || '(no subject)'}</div>
+                  </div>
+                </div>
+
+                {/* Action items */}
+                {email.action_items.length > 0 && (
+                  <ul className="mt-2 ml-10 space-y-1">
+                    {email.action_items.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="text-red-500 mt-0.5">•</span>
+                        <span className="flex-1">{item}</span>
+                        <button
+                          onClick={() => openCreateTask(email, item)}
+                          className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold uppercase"
+                        >
+                          → Task
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* Deadline */}
+                {email.deadline && (
+                  <div className="ml-10 mt-1.5 flex items-center gap-1 text-xs text-amber-700 font-medium">
+                    <Clock className="w-3 h-3" /> Due {formatDeadline(email.deadline)}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="ml-10 mt-3 flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => openCreateTask(email, email.action_items[0])}
+                    disabled={!!email.task_created_id}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 text-white hover:bg-indigo-600 disabled:bg-emerald-500"
+                  >
+                    {email.task_created_id
+                      ? <><CheckCircle2 className="w-3 h-3" /> Task created</>
+                      : <><ClipboardList className="w-3 h-3" /> Create Task</>}
+                  </button>
+                  <button
+                    onClick={() => handleSnooze(email.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200"
+                  >
+                    <Clock className="w-3 h-3" /> Snooze 24h
+                  </button>
+                  <button
+                    onClick={() => handleArchive(email.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  >
+                    <CheckCircle2 className="w-3 h-3" /> Done
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -400,7 +576,7 @@ export default function EmailInbox() {
       ) : connected !== false && emails.length === 0 ? (
         <div className="bg-white rounded-lg border p-8 text-center">
           <p className="text-gray-500 text-sm">
-            {syncing ? 'Syncing your inbox...' : 'No emails yet. Click Sync to pull from Gmail.'}
+            {syncing ? 'Syncing your inbox...' : 'No emails yet. Click Sync Now to pull from Gmail.'}
           </p>
         </div>
       ) : emails.length > 0 ? (
@@ -429,6 +605,12 @@ export default function EmailInbox() {
                   )}
                 </div>
 
+                {email.task_created_id && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold flex-shrink-0">
+                    ✓ task
+                  </span>
+                )}
+
                 {email.category && (
                   <span className={`text-xs px-2 py-0.5 rounded-full text-white flex-shrink-0 ${catBadgeColor(email.category)}`}>
                     {email.category}
@@ -447,28 +629,44 @@ export default function EmailInbox() {
                   </div>
 
                   {expandedDetail.triage && (
-                    <div className="flex gap-3 flex-wrap text-xs">
-                      <span className={`px-2 py-1 rounded ${catBadgeColor(expandedDetail.triage.category)} text-white`}>
-                        {expandedDetail.triage.category}
-                      </span>
-                      <span className="px-2 py-1 rounded bg-gray-200 text-gray-700">
-                        Priority: {expandedDetail.triage.priority}
-                      </span>
-                      {expandedDetail.triage.suggested_action && expandedDetail.triage.suggested_action !== 'none' && (
-                        <span className="px-2 py-1 rounded bg-indigo-100 text-indigo-700">
-                          {ACTION_LABELS[expandedDetail.triage.suggested_action] || expandedDetail.triage.suggested_action}
+                    <div className="space-y-2">
+                      <div className="flex gap-2 flex-wrap text-xs">
+                        <span className={`px-2 py-1 rounded ${catBadgeColor(expandedDetail.triage.category)} text-white`}>
+                          {expandedDetail.triage.category}
                         </span>
+                        <span className="px-2 py-1 rounded bg-gray-200 text-gray-700">
+                          Priority: {expandedDetail.triage.priority}
+                        </span>
+                        {expandedDetail.triage.suggested_action && expandedDetail.triage.suggested_action !== 'none' && (
+                          <span className="px-2 py-1 rounded bg-indigo-100 text-indigo-700">
+                            {ACTION_LABELS[expandedDetail.triage.suggested_action] || expandedDetail.triage.suggested_action}
+                          </span>
+                        )}
+                      </div>
+                      {expandedDetail.triage.action_details?.action_items && expandedDetail.triage.action_details.action_items.length > 0 && (
+                        <ul className="text-xs text-gray-700 space-y-0.5">
+                          {expandedDetail.triage.action_details.action_items.map((item, i) => (
+                            <li key={i} className="flex items-start gap-1.5">
+                              <span className="text-indigo-400">→</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
                   )}
 
                   {/* Quick Actions */}
-                  <div className="flex gap-2 pt-2 border-t border-gray-200">
-                    <button onClick={(e) => { e.stopPropagation(); handleCreateTask(email) }}
-                      disabled={taskCreating === email.id}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition">
+                  <div className="flex gap-2 pt-2 border-t border-gray-200 flex-wrap">
+                    <button onClick={(e) => { e.stopPropagation(); openCreateTask(email) }}
+                      disabled={!!email.task_created_id}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 disabled:bg-emerald-100 disabled:text-emerald-700 transition">
                       <ClipboardList className="w-3 h-3" />
-                      {taskCreating === email.id ? 'Creating...' : 'Create Task'}
+                      {email.task_created_id ? 'Task created' : 'Create Task'}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleSnooze(email.id) }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition">
+                      <Clock className="w-3 h-3" /> Snooze
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); handleArchive(email.id) }}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
@@ -485,6 +683,100 @@ export default function EmailInbox() {
           ))}
         </div>
       ) : null}
+
+      {/* D82 Stage E — Create Task Modal */}
+      {taskForm && (
+        <div
+          className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => !taskSubmitting && setTaskForm(null)}
+        >
+          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-indigo-600" />
+                Create Task from Email
+              </h3>
+              <button onClick={() => !taskSubmitting && setTaskForm(null)} className="p-1 text-gray-400 hover:text-gray-700 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Title</label>
+                <input
+                  value={taskForm.title}
+                  onChange={e => setTaskForm(f => f ? { ...f, title: e.target.value } : f)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Board</label>
+                  <select
+                    value={taskForm.board}
+                    onChange={e => setTaskForm(f => f ? { ...f, board: e.target.value } : f)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                  >
+                    <option value="personal">Personal</option>
+                    <option value="triton">Triton</option>
+                    <option value="school">School</option>
+                    <option value="medical">Medical</option>
+                    <option value="household">Household</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Priority</label>
+                  <select
+                    value={taskForm.priority}
+                    onChange={e => setTaskForm(f => f ? { ...f, priority: e.target.value as TaskForm['priority'] } : f)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                  >
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Due date</label>
+                <input
+                  type="date"
+                  value={taskForm.due_date}
+                  onChange={e => setTaskForm(f => f ? { ...f, due_date: e.target.value } : f)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={taskForm.notes}
+                  onChange={e => setTaskForm(f => f ? { ...f, notes: e.target.value } : f)}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setTaskForm(null)}
+                disabled={taskSubmitting}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTaskSubmit}
+                disabled={taskSubmitting || !taskForm.title.trim()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-1 disabled:opacity-50"
+              >
+                {taskSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+                Create Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
