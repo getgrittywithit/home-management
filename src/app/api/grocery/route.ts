@@ -567,6 +567,62 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ requests: [] }) }
     }
 
+    // ── D90 S9: Sensory profile GET ──
+    if (action === 'get_sensory_profile') {
+      const kidName = searchParams.get('kid_name')?.toLowerCase()
+      if (!kidName) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      const rows = await db.query(`SELECT * FROM food_sensory_profiles WHERE kid_name = $1`, [kidName]).catch(() => [])
+      return NextResponse.json({ profile: rows[0] || null })
+    }
+
+    if (action === 'list_sensory_profiles') {
+      const rows = await db.query(`SELECT * FROM food_sensory_profiles ORDER BY kid_name`).catch(() => [])
+      return NextResponse.json({ profiles: rows })
+    }
+
+    // ── D90 S10: Spending report data ──
+    if (action === 'spending_report') {
+      const month = searchParams.get('month') || new Date().toISOString().slice(0, 7)
+      const [year, mo] = month.split('-').map(Number)
+      const start = `${month}-01`
+      const end = mo === 12 ? `${year + 1}-01-01` : `${year}-${String(mo + 1).padStart(2, '0')}-01`
+
+      const totals = await db.query(
+        `SELECT COALESCE(SUM(snap_amount), 0)::numeric AS snap, COALESCE(SUM(cash_amount), 0)::numeric AS cash,
+                COALESCE(SUM(total_amount), 0)::numeric AS total, COUNT(*)::int AS trips
+           FROM purchase_history WHERE purchase_date >= $1 AND purchase_date < $2`,
+        [start, end]
+      ).catch(() => [{ snap: 0, cash: 0, total: 0, trips: 0 }])
+
+      const byStore = await db.query(
+        `SELECT store, COALESCE(SUM(total_amount), 0)::numeric AS total, COUNT(*)::int AS trips
+           FROM purchase_history WHERE purchase_date >= $1 AND purchase_date < $2
+           GROUP BY store ORDER BY total DESC`,
+        [start, end]
+      ).catch(() => [])
+
+      const weekly = await db.query(
+        `SELECT date_trunc('week', purchase_date)::date AS week_start,
+                COALESCE(SUM(snap_amount), 0)::numeric AS snap,
+                COALESCE(SUM(cash_amount), 0)::numeric AS cash,
+                COALESCE(SUM(total_amount), 0)::numeric AS total
+           FROM purchase_history WHERE purchase_date >= $1 AND purchase_date < $2
+           GROUP BY week_start ORDER BY week_start`,
+        [start, end]
+      ).catch(() => [])
+
+      return NextResponse.json({
+        month,
+        snap_budget: 1141, cash_budget: 359, total_budget: 1500,
+        snap_spent: parseFloat(totals[0]?.snap) || 0,
+        cash_spent: parseFloat(totals[0]?.cash) || 0,
+        total_spent: parseFloat(totals[0]?.total) || 0,
+        trip_count: totals[0]?.trips || 0,
+        by_store: byStore,
+        weekly,
+      })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Grocery GET error:', error)
@@ -974,6 +1030,142 @@ export async function POST(request: NextRequest) {
           [start, end]
         ).catch(() => [])
         return NextResponse.json({ plans, start, end, week_offset: weekOffset })
+      }
+
+      // ── D90 S9: Sensory profile update ──
+      case 'update_sensory_profile': {
+        const { kid_name, ...fields } = body
+        if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+        const kid = kid_name.toLowerCase()
+        const allowed = ['textures_preferred','textures_avoided','temp_preferred','temp_avoided',
+          'flavors_preferred','flavors_avoided','colors_avoided','safe_foods','never_foods',
+          'conditional_foods','needs_separate_plate','preferred_utensils','eating_notes',
+          'allergies','intolerances']
+
+        const existing = await db.query(`SELECT id FROM food_sensory_profiles WHERE kid_name = $1`, [kid]).catch(() => [])
+
+        if (existing[0]) {
+          const sets: string[] = ['updated_at = NOW()']
+          const params: any[] = [kid]
+          for (const [k, v] of Object.entries(fields)) {
+            if (allowed.includes(k)) {
+              params.push(k === 'conditional_foods' ? JSON.stringify(v) : v)
+              sets.push(`${k} = $${params.length}`)
+            }
+          }
+          await db.query(`UPDATE food_sensory_profiles SET ${sets.join(', ')} WHERE kid_name = $1`, params)
+        } else {
+          await db.query(
+            `INSERT INTO food_sensory_profiles (kid_name, safe_foods, never_foods, conditional_foods, textures_preferred, textures_avoided, temp_preferred, temp_avoided, flavors_preferred, flavors_avoided, eating_notes, needs_separate_plate, preferred_utensils, allergies, intolerances)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+            [kid, fields.safe_foods||null, fields.never_foods||null, JSON.stringify(fields.conditional_foods||[]),
+             fields.textures_preferred||null, fields.textures_avoided||null, fields.temp_preferred||null, fields.temp_avoided||null,
+             fields.flavors_preferred||null, fields.flavors_avoided||null, fields.eating_notes||null,
+             fields.needs_separate_plate||false, fields.preferred_utensils||null, fields.allergies||null, fields.intolerances||null]
+          )
+        }
+        return NextResponse.json({ success: true })
+      }
+
+      // ── D90 S9: Sensory PDF ──
+      case 'export_sensory_pdf': {
+        const { kid_name } = body
+        const profiles = kid_name
+          ? await db.query(`SELECT * FROM food_sensory_profiles WHERE kid_name = $1`, [kid_name.toLowerCase()]).catch(() => [])
+          : await db.query(`SELECT * FROM food_sensory_profiles ORDER BY kid_name`).catch(() => [])
+
+        if (profiles.length === 0) return NextResponse.json({ error: 'No sensory profiles found' }, { status: 404 })
+
+        const doc = createPDF({ title: 'Food Sensory Report', orientation: 'portrait' })
+        const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
+        for (let pi = 0; pi < profiles.length; pi++) {
+          if (pi > 0) doc.addPage()
+          const p = profiles[pi]
+          let y = addHeader(doc, `Food Sensory Report — ${cap(p.kid_name)}`, new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
+
+          if (p.safe_foods?.length) { y = addSectionTitle(doc, 'Safe Foods (always ok)', y + 4, '✅'); doc.setFontSize(9); doc.text(p.safe_foods.join(', '), 10, y); y += 6 }
+          if (p.never_foods?.length) { y = addSectionTitle(doc, 'Never Foods (hard no)', y + 2, '🚫'); doc.setFontSize(9); doc.text(p.never_foods.join(', '), 10, y); y += 6 }
+          const conds = Array.isArray(p.conditional_foods) ? p.conditional_foods : []
+          if (conds.length > 0) {
+            y = addSectionTitle(doc, 'Conditional Foods', y + 2, '🤔')
+            doc.setFontSize(9)
+            for (const c of conds) { doc.text(`• ${c.food || ''} — ${c.condition || ''}`, 12, y); y += 4.5 }
+          }
+          y = addSectionTitle(doc, 'Preferences', y + 2)
+          doc.setFontSize(9)
+          if (p.textures_preferred?.length) { doc.text(`Textures (likes): ${p.textures_preferred.join(', ')}`, 10, y); y += 4.5 }
+          if (p.textures_avoided?.length) { doc.text(`Textures (avoids): ${p.textures_avoided.join(', ')}`, 10, y); y += 4.5 }
+          if (p.flavors_preferred?.length) { doc.text(`Flavors (likes): ${p.flavors_preferred.join(', ')}`, 10, y); y += 4.5 }
+          if (p.flavors_avoided?.length) { doc.text(`Flavors (avoids): ${p.flavors_avoided.join(', ')}`, 10, y); y += 4.5 }
+          if (p.eating_notes) { y = addSectionTitle(doc, 'Notes', y + 2); doc.setFontSize(9); doc.text(p.eating_notes, 10, y); y += 6 }
+          if (p.needs_separate_plate) { doc.setFontSize(9); doc.text('Foods cannot touch (needs separate plate sections)', 10, y); y += 5 }
+          doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.text('Family-wide: NO mushrooms', 10, y + 4); doc.text('Contact: Lola Moses — mosesfamily2008@gmail.com', 10, y + 8); doc.setTextColor(0, 0, 0)
+          addFooter(doc, `Page ${pi + 1} — ${cap(p.kid_name)}`)
+        }
+
+        const pdfBytes = pdfToUint8Array(doc)
+        return new NextResponse(pdfBytes as any, {
+          status: 200,
+          headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="sensory-report.pdf"`, 'Cache-Control': 'no-store' },
+        })
+      }
+
+      // ── D90 S10: Spending PDF ──
+      case 'export_spending_pdf': {
+        const { month } = body
+        const m = month || new Date().toISOString().slice(0, 7)
+        const [year, mo] = m.split('-').map(Number)
+        const start = `${m}-01`
+        const end = mo === 12 ? `${year + 1}-01-01` : `${year}-${String(mo + 1).padStart(2, '0')}-01`
+
+        const totals = await db.query(
+          `SELECT COALESCE(SUM(snap_amount), 0)::numeric AS snap, COALESCE(SUM(cash_amount), 0)::numeric AS cash,
+                  COALESCE(SUM(total_amount), 0)::numeric AS total, COUNT(*)::int AS trips
+             FROM purchase_history WHERE purchase_date >= $1 AND purchase_date < $2`,
+          [start, end]
+        ).catch(() => [{ snap: 0, cash: 0, total: 0, trips: 0 }])
+
+        const byStore = await db.query(
+          `SELECT store, COALESCE(SUM(total_amount), 0)::numeric AS total, COUNT(*)::int AS trips
+             FROM purchase_history WHERE purchase_date >= $1 AND purchase_date < $2
+             GROUP BY store ORDER BY total DESC`,
+          [start, end]
+        ).catch(() => [])
+
+        const snapSpent = parseFloat(totals[0]?.snap) || 0
+        const cashSpent = parseFloat(totals[0]?.cash) || 0
+        const totalSpent = parseFloat(totals[0]?.total) || 0
+        const pctUsed = 1500 > 0 ? Math.round((totalSpent / 1500) * 100) : 0
+        const monthLabel = new Date(year, mo - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+        const doc = createPDF({ title: 'Grocery Spending Report' })
+        let y = addHeader(doc, `Grocery Spending — ${monthLabel}`, 'Moses Family (8 members)')
+        y = addSectionTitle(doc, 'Budget vs Actual', y + 4)
+        y = addTable(doc, ['', 'Budget', 'Actual', 'Remaining'],
+          [['SNAP', '$1,141', `$${snapSpent.toFixed(2)}`, `$${(1141 - snapSpent).toFixed(2)}`],
+           ['Cash', '$359', `$${cashSpent.toFixed(2)}`, `$${(359 - cashSpent).toFixed(2)}`],
+           ['Total', '$1,500', `$${totalSpent.toFixed(2)}`, `$${(1500 - totalSpent).toFixed(2)}`]], y)
+        y = addKeyValue(doc, 'Budget Used', `${pctUsed}%`, y + 4)
+        y = addKeyValue(doc, 'Shopping Trips', String(totals[0]?.trips || 0), y)
+
+        if (byStore.length > 0) {
+          y = addSectionTitle(doc, 'By Store', y + 6)
+          y = addTable(doc, ['Store', 'Total', 'Trips', 'Avg/Trip'],
+            byStore.map((s: any) => [
+              s.store || 'Unknown',
+              `$${parseFloat(s.total).toFixed(2)}`,
+              String(s.trips),
+              `$${(parseFloat(s.total) / Math.max(s.trips, 1)).toFixed(2)}`,
+            ]), y)
+        }
+
+        addFooter(doc, `Generated ${new Date().toLocaleDateString('en-US')} — family-ops.grittysystems.com`)
+        const pdfBytes = pdfToUint8Array(doc)
+        return new NextResponse(pdfBytes as any, {
+          status: 200,
+          headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="spending-${m}.pdf"`, 'Cache-Control': 'no-store' },
+        })
       }
 
       default:
