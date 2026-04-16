@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Shield, AlertTriangle, FileText, ChevronDown, ChevronUp,
-  Check, Clock, Loader2, Calendar, User, ExternalLink,
+  Check, Clock, Loader2, Calendar, User, ExternalLink, ClipboardList,
 } from 'lucide-react'
+import ARDPacketBuilder from './ARDPacketBuilder'
 
 interface Gap { id: string; kid_name: string; gap_description: string; clinical_source: string; recommendation: string; priority: string; status: string }
 interface Action { id: string; kid_name: string; action_text: string; action_type: string; priority: string; status: string; source: string; due_date: string | null; contact_name: string | null; contact_email: string | null; contact_phone: string | null }
@@ -89,6 +90,9 @@ export default function AdvocacyDashboard() {
         <h1 className="text-2xl font-bold flex items-center gap-2"><Shield className="w-6 h-6" /> Advocacy & Accommodations</h1>
         <p className="text-indigo-200 mt-1">Track plans, identify gaps, prepare for meetings</p>
       </div>
+
+      {/* ARD/IEP Packet Builder — D89 */}
+      <ARDPacketBuilder />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
