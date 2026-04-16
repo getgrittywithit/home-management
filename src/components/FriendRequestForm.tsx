@@ -199,12 +199,10 @@ export default function FriendRequestForm({ kidName, onClose, onSubmitted }: Pro
               <Input label="Email" type="email" value={f.parent1_email} onChange={v => set('parent1_email', v)} />
             </div>
             <Input label="Parent/Guardian 2 name" value={f.parent2_name} onChange={v => set('parent2_name', v)} placeholder="If applicable" />
-            {f.parent2_name && (
-              <div className="grid grid-cols-2 gap-2">
-                <Input label="Phone" type="tel" value={f.parent2_phone} onChange={v => set('parent2_phone', v)} />
-                <Input label="Email" type="email" value={f.parent2_email} onChange={v => set('parent2_email', v)} />
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-2">
+              <Input label="Parent 2 phone" type="tel" value={f.parent2_phone} onChange={v => set('parent2_phone', v)} />
+              <Input label="Parent 2 email" type="email" value={f.parent2_email} onChange={v => set('parent2_email', v)} />
+            </div>
             <Select label="Parents married / together?" value={f.parents_married} onChange={v => set('parents_married', v)} options={MARITAL} />
             <Input label="Other adults in the home?" value={f.other_adults} onChange={v => set('other_adults', v)} placeholder="Grandparent, roommate, etc." />
           </Section>
