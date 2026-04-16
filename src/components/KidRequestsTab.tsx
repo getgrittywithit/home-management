@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Send, Utensils, Users, Gamepad2, Heart, ShoppingBag, Lock, MessageCircle, Package, Check, X, Clock } from 'lucide-react'
 import BreakButton from './BreakButton'
 import RequestFormModal, { type RequestKind } from './RequestFormModal'
+import FriendRequestForm from './FriendRequestForm'
 
 interface Message {
   id: string; message: string; created_at: string; parent_reply: string | null; reply_at: string | null
@@ -169,8 +170,26 @@ export default function KidRequestsTab({ childName }: { childName: string }) {
         })}
       </div>
 
-      {/* Request form modal */}
-      {openRequest && (
+      {/* Request form modal — friend_over uses the new comprehensive form */}
+      {openRequest === 'friend_over' && (
+        <FriendRequestForm
+          kidName={childName}
+          onClose={() => setOpenRequest(null)}
+          onSubmitted={() => {
+            setSentLabel('Friend Over')
+            setRecent(prev => [{
+              id: String(Date.now()),
+              message: 'Friend Over request sent',
+              created_at: new Date().toISOString(),
+              parent_reply: null,
+              reply_at: null,
+            }, ...prev].slice(0, 3))
+            setOpenRequest(null)
+            setTimeout(() => setSentLabel(null), 3000)
+          }}
+        />
+      )}
+      {openRequest && openRequest !== 'friend_over' && (
         <RequestFormModal
           kind={openRequest}
           kidName={childName}
