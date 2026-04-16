@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calculator, Send, SkipForward, Loader2, Star, Trophy, CheckCircle2, XCircle } from 'lucide-react'
+import { Calculator, Send, SkipForward, Loader2, Star, Trophy, CheckCircle2, XCircle, Lightbulb } from 'lucide-react'
 import SpeakerButton from '../SpeakerButton'
 
 interface MathBuddyProps {
@@ -19,12 +19,14 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
   const [submitting, setSubmitting] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set())
+  const [showHint, setShowHint] = useState(false)
 
   const loadNextSkill = async () => {
     setLoading(true)
     setFeedback(null)
     setAnswer('')
     setSelectedChoice(null)
+    setShowHint(false)
     try {
       const res = await fetch(`/api/learning-engine?action=next_math_skill&kid_name=${kidName.toLowerCase()}`)
       const data = await res.json()
@@ -150,15 +152,31 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
           )}
 
           {!feedback && (
-            <div className="flex gap-2">
-              <button onClick={handleSubmit} disabled={submitting || (!answer.trim() && !selectedChoice)}
-                className="flex-1 bg-teal-600 text-white py-2.5 rounded-lg font-medium hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {submitting ? 'Checking...' : 'Submit'}
-              </button>
-              <button onClick={loadNextSkill} className="px-4 py-2.5 text-gray-500 hover:text-gray-700 rounded-lg border">
-                <SkipForward className="w-4 h-4" />
-              </button>
+            <div className="space-y-2">
+              {problem?.hint_text && !showHint && (
+                <button
+                  onClick={() => setShowHint(true)}
+                  className="flex items-center gap-1.5 text-sm text-amber-600 hover:text-amber-700 font-medium"
+                >
+                  <Lightbulb className="w-4 h-4" /> Need a hint?
+                </button>
+              )}
+              {showHint && problem?.hint_text && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 flex items-start gap-2">
+                  <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>{problem.hint_text}</span>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={handleSubmit} disabled={submitting || (!answer.trim() && !selectedChoice)}
+                  className="flex-1 bg-teal-600 text-white py-2.5 rounded-lg font-medium hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {submitting ? 'Checking...' : 'Submit'}
+                </button>
+                <button onClick={loadNextSkill} className="px-4 py-2.5 text-gray-500 hover:text-gray-700 rounded-lg border">
+                  <SkipForward className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -170,7 +188,13 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
       )}
 
       {/* Feedback */}
-      {feedback && (
+      {feedback && (() => {
+        const encourageText = feedback.is_correct
+          ? (problem?.encouragement_correct || null)
+          : (problem?.encouragement_wrong || null)
+        const steps = !feedback.is_correct && Array.isArray(problem?.solution_steps)
+          ? problem.solution_steps : null
+        return (
         <div className={`rounded-lg border shadow-sm p-5 ${
           feedback.is_correct ? 'bg-green-50 border-green-200' :
           feedback.is_partial ? 'bg-amber-50 border-amber-200' :
@@ -184,10 +208,21 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-gray-900">
-                {feedback.is_correct ? 'Correct!' : feedback.is_partial ? 'Almost!' : 'Not quite.'}
+                {feedback.is_correct ? 'Correct!' : feedback.is_partial ? 'Almost!' : 'Not quite — but good try!'}
                 <span className="text-sm font-normal text-gray-500 ml-2">+{feedback.points} points</span>
               </p>
+              {encourageText && (
+                <p className="text-sm text-gray-800 mt-1 font-medium">{encourageText}</p>
+              )}
               <p className="text-sm text-gray-700 mt-1">{feedback.feedback}</p>
+              {steps && (
+                <div className="mt-2 bg-white/60 rounded-lg p-3 border border-gray-200">
+                  <p className="text-xs font-semibold text-gray-600 mb-1">How to solve it:</p>
+                  <ol className="list-decimal list-inside text-sm text-gray-700 space-y-0.5">
+                    {steps.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                  </ol>
+                </div>
+              )}
               {feedback.mastery_delta > 0 && (
                 <p className="text-sm text-green-600 mt-2 font-medium">Mastery: {feedback.mastery_before}% → {feedback.mastery_after}%</p>
               )}
@@ -206,7 +241,8 @@ export default function MathBuddy({ kidName, onStarsEarned }: MathBuddyProps) {
             Next Problem
           </button>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

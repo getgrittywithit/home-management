@@ -16,6 +16,9 @@ interface ElarPassage {
   passage_text: string
   question: string
   age_appropriate_context?: string
+  hint_text?: string | null
+  encouragement_correct?: string | null
+  encouragement_wrong?: string | null
 }
 
 interface MathProblem {
@@ -27,6 +30,10 @@ interface MathProblem {
   answer_type: string
   choices?: string[]
   age_appropriate_context?: string
+  hint_text?: string | null
+  encouragement_correct?: string | null
+  encouragement_wrong?: string | null
+  solution_steps?: string[] | null
 }
 
 type Subject = 'elar' | 'math'
@@ -52,6 +59,7 @@ export default function PlacementQuiz({
   const [totalPoints, setTotalPoints] = useState(0)
   const [phase, setPhase] = useState<'loading' | 'pick_skill' | 'quiz' | 'empty' | 'done'>('loading')
   const [resultMastery, setResultMastery] = useState<number | null>(null)
+  const [answerFeedback, setAnswerFeedback] = useState<{ correct: boolean; item: any } | null>(null)
 
   const kidKey = kidName.toLowerCase()
 
@@ -127,24 +135,26 @@ export default function PlacementQuiz({
   const total = items.length
   const current = items[currentIdx]
 
-  const submitResponse = async (isCorrect: boolean, answer: string) => {
-    const points = isCorrect ? (subject === 'elar' ? 15 : 15) : 0
-    const nextResponses = [...responses, {
-      item_id: current?.id,
-      answer,
-      correct: isCorrect,
-      points,
-    }]
-    const nextPoints = totalPoints + points
-    setResponses(nextResponses)
-    setTotalPoints(nextPoints)
+  const submitResponse = (isCorrect: boolean, answer: string) => {
+    const points = isCorrect ? 15 : 0
+    setResponses(prev => [...prev, { item_id: current?.id, answer, correct: isCorrect, points }])
+    setTotalPoints(prev => prev + points)
+    setAnswerFeedback({ correct: isCorrect, item: current })
+  }
 
-    if (currentIdx + 1 < total) {
-      setCurrentIdx(currentIdx + 1)
+  const advanceAfterFeedback = () => {
+    const nextIdx = currentIdx + 1
+    setAnswerFeedback(null)
+    if (nextIdx < total) {
+      setCurrentIdx(nextIdx)
       return
     }
+    finalizePlacement()
+  }
 
-    // Done — submit to API
+  const finalizePlacement = async () => {
+    const nextResponses = responses
+    const nextPoints = totalPoints
     try {
       const res = await fetch('/api/learning-engine', {
         method: 'POST',
@@ -274,17 +284,45 @@ export default function PlacementQuiz({
                 </div>
               </div>
 
-              {subject === 'elar' && 'passage_text' in current && (
-                <ElarPassageView
-                  passage={current as ElarPassage}
-                  onAnswer={(correct, answer) => submitResponse(correct, answer)}
-                />
+              {!answerFeedback && (
+                <>
+                  {subject === 'elar' && 'passage_text' in current && (
+                    <ElarPassageView
+                      passage={current as ElarPassage}
+                      onAnswer={(correct, answer) => submitResponse(correct, answer)}
+                    />
+                  )}
+                  {subject === 'math' && 'problem_text' in current && (
+                    <MathProblemView
+                      problem={current as MathProblem}
+                      onAnswer={(correct, answer) => submitResponse(correct, answer)}
+                    />
+                  )}
+                </>
               )}
-              {subject === 'math' && 'problem_text' in current && (
-                <MathProblemView
-                  problem={current as MathProblem}
-                  onAnswer={(correct, answer) => submitResponse(correct, answer)}
-                />
+
+              {answerFeedback && (
+                <div className={`rounded-lg p-4 border ${
+                  answerFeedback.correct
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-amber-50 border-amber-200'
+                }`}>
+                  <div className="flex items-start gap-2 mb-3">
+                    <span className="text-xl">{answerFeedback.correct ? '🌟' : '💪'}</span>
+                    <p className="text-sm text-gray-800">
+                      {answerFeedback.correct
+                        ? (answerFeedback.item?.encouragement_correct || 'Great job! Keep it up!')
+                        : (answerFeedback.item?.encouragement_wrong || 'Good try! Every question helps us find your starting spot.')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={advanceAfterFeedback}
+                    className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 flex items-center justify-center gap-2"
+                  >
+                    {currentIdx + 1 >= total ? 'Finish' : 'Next Question'}
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
           )}

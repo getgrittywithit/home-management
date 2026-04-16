@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BookOpen, Send, SkipForward, Loader2, Star, Trophy } from 'lucide-react'
+import { BookOpen, Send, SkipForward, Loader2, Star, Trophy, Lightbulb } from 'lucide-react'
 
 interface BookBuddyProps {
   kidName: string
@@ -18,11 +18,13 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
   const [sessionId, setSessionId] = useState('')
   const [questionsInSession, setQuestionsInSession] = useState(0)
   const [answeredIds, setAnsweredIds] = useState<Set<number>>(new Set())
+  const [showHint, setShowHint] = useState(false)
 
   const loadNextSkill = async () => {
     setLoading(true)
     setFeedback(null)
     setResponse('')
+    setShowHint(false)
     try {
       const res = await fetch(`/api/learning-engine?action=next_elar_skill&kid_name=${kidName.toLowerCase()}`)
       const data = await res.json()
@@ -131,15 +133,31 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
               className="w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none disabled:bg-gray-50"
             />
             {!feedback && (
-              <div className="flex gap-2 mt-3">
-                <button onClick={handleSubmit} disabled={submitting || !response.trim()}
-                  className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {submitting ? 'Checking...' : 'Submit'}
-                </button>
-                <button onClick={handleNext} className="px-4 py-2.5 text-gray-500 hover:text-gray-700 rounded-lg border">
-                  <SkipForward className="w-4 h-4" />
-                </button>
+              <div className="space-y-2 mt-3">
+                {passage?.hint_text && !showHint && (
+                  <button
+                    onClick={() => setShowHint(true)}
+                    className="flex items-center gap-1.5 text-sm text-amber-600 hover:text-amber-700 font-medium"
+                  >
+                    <Lightbulb className="w-4 h-4" /> Need a hint?
+                  </button>
+                )}
+                {showHint && passage?.hint_text && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 flex items-start gap-2">
+                    <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{passage.hint_text}</span>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={handleSubmit} disabled={submitting || !response.trim()}
+                    className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    {submitting ? 'Checking...' : 'Submit'}
+                  </button>
+                  <button onClick={handleNext} className="px-4 py-2.5 text-gray-500 hover:text-gray-700 rounded-lg border">
+                    <SkipForward className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -152,7 +170,12 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
       )}
 
       {/* Feedback */}
-      {feedback && (
+      {feedback && (() => {
+        const isGood = feedback.score === 'detailed' || feedback.score === 'adequate'
+        const encourageText = isGood
+          ? (passage?.encouragement_correct || null)
+          : (passage?.encouragement_wrong || null)
+        return (
         <div className={`rounded-lg border shadow-sm p-5 ${
           feedback.score === 'detailed' ? 'bg-green-50 border-green-200' :
           feedback.score === 'adequate' ? 'bg-blue-50 border-blue-200' :
@@ -165,6 +188,9 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
                 {feedback.score === 'detailed' ? 'Excellent!' : feedback.score === 'adequate' ? 'Good work!' : 'Keep going!'}
                 <span className="text-sm font-normal text-gray-500 ml-2">+{feedback.points} points</span>
               </p>
+              {encourageText && (
+                <p className="text-sm text-gray-800 mt-1 font-medium">{encourageText}</p>
+              )}
               <p className="text-sm text-gray-700 mt-1">{feedback.feedback}</p>
               {feedback.mastery_delta > 0 && (
                 <p className="text-sm text-green-600 mt-2 font-medium">Mastery: {feedback.mastery_before}% → {feedback.mastery_after}%</p>
@@ -184,7 +210,8 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
             Next Passage
           </button>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

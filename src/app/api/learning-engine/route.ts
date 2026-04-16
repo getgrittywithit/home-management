@@ -221,7 +221,9 @@ export async function GET(request: NextRequest) {
         const rows = await db.query(
           `SELECT DISTINCT ON (passage_number)
                   id, skill_id, reading_level, difficulty, passage_number,
-                  passage_text, question, age_appropriate_context, interest_tag
+                  passage_text, question, answer_key, scoring_rubric,
+                  age_appropriate_context, interest_tag,
+                  encouragement_correct, encouragement_wrong, hint_text, title, vocabulary
            FROM elar_placement_passages
            WHERE skill_id = $1 AND reading_level = $2
            ORDER BY passage_number,
@@ -241,7 +243,10 @@ export async function GET(request: NextRequest) {
         const level = searchParams.get('level') || '2nd-3rd'
         if (!skillId) return NextResponse.json({ error: 'skill_id required' }, { status: 400 })
         const rows = await db.query(
-          `SELECT id, skill_id, math_level, problem_text, answer, answer_type, choices, age_appropriate_context
+          `SELECT id, skill_id, math_level, difficulty, problem_text, answer, answer_type,
+                  choices, explanation, age_appropriate_context,
+                  encouragement_correct, encouragement_wrong, hint_text, title,
+                  solution_steps, answer_display
            FROM math_placement_problems WHERE skill_id = $1 AND math_level = $2 ORDER BY problem_number LIMIT 4`,
           [skillId, level]
         ).catch(() => [])
