@@ -88,6 +88,13 @@ export async function checkAchievements(kidName: string) {
       if (earnedSet.has(badge.key)) continue
       const count = counts[badge.category] || 0
       if (count >= badge.threshold) {
+        // D97: Check if already earned — prevent notification spam
+        const alreadyEarned = await db.query(
+          `SELECT 1 FROM notifications WHERE source_type = 'achievement_earned' AND source_ref = $1 LIMIT 1`,
+          [`achievement-${kid}-${badge.key}`]
+        ).catch(() => [])
+        if (alreadyEarned.length > 0) continue
+
         // Ensure definition exists
         await db.query(
           `INSERT INTO achievement_definitions (key, title, description, emoji, category, trigger_type, trigger_value)
@@ -96,13 +103,7 @@ export async function checkAchievements(kidName: string) {
           [badge.key, badge.title, `Earned by reaching ${badge.threshold} in ${badge.category.replace('_', ' ')}`, badge.emoji, badge.category, badge.threshold]
         ).catch(() => {})
 
-        // Award
-        await db.query(
-          `INSERT INTO kid_achievements (kid_name, achievement_key, seen_by_kid) VALUES ($1, $2, FALSE) ON CONFLICT DO NOTHING`,
-          [kid, badge.key]
-        ).catch(() => {})
-
-        // Notify kid
+        // Notify kid (once only — deduped by source_ref check above)
         await createNotification({
           title: `${badge.emoji} New badge: ${badge.title}!`,
           message: `You earned the ${badge.title} badge!`,
@@ -111,7 +112,7 @@ export async function checkAchievements(kidName: string) {
           target_role: 'kid', kid_name: kid,
         }).catch(() => {})
 
-        // Notify parent
+        // Notify parent (once only)
         await createNotification({
           title: `${kidDisplay} earned: ${badge.title}`,
           message: `${badge.emoji} ${badge.category.replace('_', ' ')} badge`,
