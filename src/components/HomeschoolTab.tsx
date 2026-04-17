@@ -17,8 +17,9 @@ import AttendanceLogger from './homeschool/AttendanceLogger'
 import HomeschoolScience from './homeschool/HomeschoolScience'
 import HomeschoolSocialStudies from './homeschool/HomeschoolSocialStudies'
 import TeacherResourceLibrary from './homeschool/TeacherResourceLibrary'
+import { ParentLibraryAdmin } from './HomeLibrary'
 
-type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources'
+type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library'
 
 const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
@@ -28,6 +29,7 @@ const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'science', label: 'Science', icon: '🔬' },
   { id: 'history', label: 'Social Studies', icon: '🌍' },
   { id: 'enrichment', label: 'Enrichment', icon: '🎯' },
+  { id: 'library', label: 'Library', icon: '📚' },
   { id: 'records', label: 'Records', icon: '📁' },
   { id: 'attendance', label: 'Attendance', icon: '✅' },
   { id: 'portfolio', label: 'Portfolio', icon: '🎨' },
@@ -35,10 +37,10 @@ const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'resources', label: 'Resources', icon: '📂' },
 ]
 
-export default function HomeschoolTab() {
+export default function HomeschoolTab({ initialSubTab }: { initialSubTab?: SubTabId }) {
   const [data, setData] = useState<HomeschoolData | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [activeSubTab, setActiveSubTab] = useState<SubTabId>('overview')
+  const [activeSubTab, setActiveSubTab] = useState<SubTabId>(initialSubTab || 'overview')
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
   const [focusSession, setFocusSession] = useState<{ student: StudentData; subject: Subject } | null>(null)
   const [taskProgress, setTaskProgress] = useState<Record<string, { total_tasks: number; completed_tasks: number; focus_mins: number }>>({})
@@ -103,6 +105,8 @@ export default function HomeschoolTab() {
         return <HomeschoolPortfolio />
       case 'units':
         return <UnitsView units={units} />
+      case 'library':
+        return <ParentLibraryAdmin />
       default:
         return <HomeschoolOverview students={students} taskProgress={taskProgress} selectedStudentId={null}
           onSelectStudent={setSelectedStudentId}

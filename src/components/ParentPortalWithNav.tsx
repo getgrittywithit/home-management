@@ -3,11 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import ChoresTab from './ChoresTab'
-import SchoolTabWithSchedules from './SchoolTabWithSchedules'
 import FamilyCalendarTab from './FamilyCalendarTab'
 import CalendarView from './CalendarView'
 import CalendarDashboardCard from './CalendarDashboardCard'
-import FoodInventoryManager from './FoodInventoryManager'
 import AIAgentWidget from './AIAgentWidget'
 import FlagCenterPanel from './FlagCenterPanel'
 import FamilyConfigAdmin from './FamilyConfigAdmin'
@@ -15,17 +13,13 @@ import KidsChecklistOverview from './KidsChecklistOverview'
 import AvailabilityWidget from './AvailabilityWidget'
 import HomeschoolTab from './HomeschoolTab'
 import HomeschoolDashboardCard from './HomeschoolDashboardCard'
-import { ParentLibraryAdmin } from './HomeLibrary'
 import ProfileSwitcher from './ProfileSwitcher'
-import HouseholdNeedsTab from './HouseholdNeedsTab'
-import RecipeImportTab from './RecipeImportTab'
 import QuickActionsBar from './QuickActionsBar'
 import NotificationPermissionPrompt from './NotificationPermissionPrompt'
 import PetsTab from './PetsTab'
 import FamilyQuickActions from './FamilyQuickActions'
 import FamilyActivityFeed from './FamilyActivityFeed'
 import RewardsDashboardCard from './RewardsDashboardCard'
-import HabitsTab from './HabitsTab'
 import HabitsDashboardCard from './HabitsDashboardCard'
 import FinanceDashboardCard from './FinanceDashboardCard'
 import PortalSettingsPanel from './PortalSettingsPanel'
@@ -34,9 +28,7 @@ import NotificationBell from './NotificationBell'
 import KidSnapshotCards from './KidSnapshotCards'
 import HealthMergedTab from './HealthMergedTab'
 import EmailInbox from './email/EmailInbox'
-import ShoppingHelper from './shopping/ShoppingHelper'
 import FamilyHuddle from './FamilyHuddle'
-import GiftSuggestions from './gifts/GiftSuggestions'
 import FinanceMergedTab from './FinanceMergedTab'
 import StarsAndRewardsTab from './StarsAndRewardsTab'
 import MessagesAndAlertsTab from './MessagesAndAlertsTab'
@@ -44,16 +36,17 @@ import SettingsExpandedTab from './SettingsExpandedTab'
 import AiBuddyChat from './AiBuddyChat'
 import AdventureBoardParentTab from './AdventureBoardParentTab'
 import BoardsTab from './parent/BoardsTab'
-import AdvocacyDashboard from './parent/AdvocacyDashboard'
 import PrintCenter from './parent/PrintCenter'
 import LeaderboardCard from './LeaderboardCard'
 import ParentMyDayCard from './ParentMyDayCard'
+import KitchenMergedTab from './KitchenMergedTab'
+import SchoolAdvocacyMergedTab from './SchoolAdvocacyMergedTab'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
   Home, ClipboardList, Users, Calendar, Settings, BookOpen,
   User, CheckSquare, ChefHat, DollarSign, Heart, Star, MessageCircle,
-  Dog, GraduationCap, Flame, Shield, Mail, ShoppingCart, Gift, Library, ShoppingBag, Upload, Printer, MapPin
+  Dog, GraduationCap, Shield, Mail, Printer, MapPin
 } from 'lucide-react'
 
 interface Tab {
@@ -74,20 +67,13 @@ const tabs: Tab[] = [
   { id: 'family-huddle', name: 'Family Huddle', icon: Users, color: 'bg-violet-500', section: 'DAILY' },
   // SCHOOL
   { id: 'homeschool', name: 'Homeschool', icon: BookOpen, color: 'bg-teal-500', section: 'SCHOOL' },
-  { id: 'school', name: 'School', icon: GraduationCap, color: 'bg-orange-500', section: 'SCHOOL' },
-  { id: 'advocacy', name: 'Advocacy', icon: Shield, color: 'bg-indigo-600', section: 'SCHOOL' },
-  { id: 'library', name: 'Library', icon: Library, color: 'bg-sky-500', section: 'SCHOOL' },
+  { id: 'school-advocacy', name: 'School & Advocacy', icon: GraduationCap, color: 'bg-orange-500', section: 'SCHOOL' },
   // HOME
   { id: 'chores', name: 'Chores & Zones', icon: ClipboardList, color: 'bg-green-500', section: 'HOME' },
   { id: 'belle-care', name: 'Pets', icon: Dog, color: 'bg-amber-600', section: 'HOME' },
-  { id: 'food-inventory', name: 'Food & Meals', icon: ChefHat, color: 'bg-emerald-500', section: 'HOME' },
-  { id: 'recipe-import', name: 'Recipe Import', icon: Upload, color: 'bg-emerald-600', section: 'HOME' },
-  { id: 'shopping', name: 'Shopping', icon: ShoppingCart, color: 'bg-rose-500', section: 'HOME' },
-  { id: 'needs-list', name: 'Needs List', icon: ShoppingBag, color: 'bg-sky-500', section: 'HOME' },
+  { id: 'kitchen', name: 'Kitchen', icon: ChefHat, color: 'bg-emerald-500', section: 'HOME' },
   // REWARDS & GROWTH
   { id: 'stars-rewards', name: 'Stars & Rewards', icon: Star, color: 'bg-amber-500', section: 'REWARDS' },
-  { id: 'habits', name: 'Habits', icon: Flame, color: 'bg-orange-500', section: 'REWARDS' },
-  { id: 'gifts', name: 'Gift Ideas', icon: Gift, color: 'bg-pink-500', section: 'REWARDS' },
   // HEALTH
   { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-600', section: 'HEALTH' },
   // PLANNING & ADMIN
@@ -104,6 +90,8 @@ const LEGACY_TAB_MAP: Record<string, string> = {
   'points-earning': 'stars-rewards',
   rewards: 'stars-rewards',
   'digi-pet': 'stars-rewards',
+  habits: 'stars-rewards',
+  gifts: 'stars-rewards',
   'needs-board': 'messages-alerts',
   messages: 'messages-alerts',
   'household-config': 'chores',
@@ -113,6 +101,13 @@ const LEGACY_TAB_MAP: Record<string, string> = {
   portfolio: 'homeschool',
   teacher: 'homeschool',
   opportunities: 'homeschool',
+  library: 'homeschool',
+  school: 'school-advocacy',
+  advocacy: 'school-advocacy',
+  'food-inventory': 'kitchen',
+  'recipe-import': 'kitchen',
+  shopping: 'kitchen',
+  'needs-list': 'kitchen',
   'weekly-checklist': 'overview',
   todos: 'settings',
   'moe-money': 'finance',
@@ -443,8 +438,18 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   )
 
   const renderActiveTab = () => {
-    // Handle legacy tab IDs — redirect to new consolidated location
     const resolvedTab = LEGACY_TAB_MAP[activeTab] || activeTab
+
+    // Determine sub-tab hints for merged tabs based on original tab ID
+    const kitchenSubTab = activeTab === 'recipe-import' ? 'recipes' as const
+      : activeTab === 'shopping' ? 'shopping' as const
+      : activeTab === 'needs-list' ? 'needs' as const
+      : undefined
+    const schoolSubTab = activeTab === 'advocacy' ? 'advocacy' as const : undefined
+    const homeschoolSubTab = activeTab === 'library' ? 'library' as const : undefined
+    const rewardsSubTab = activeTab === 'habits' ? 'habits' as const
+      : activeTab === 'gifts' ? 'gifts' as const
+      : undefined
 
     switch (resolvedTab) {
       case 'overview':
@@ -459,7 +464,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
             <CalendarDashboardCard onNavigate={() => setActiveTab('calendar')} />
             <RewardsDashboardCard onNavigate={() => setActiveTab('stars-rewards')} />
-            <HabitsDashboardCard onNavigate={() => setActiveTab('habits')} />
+            <HabitsDashboardCard onNavigate={() => setActiveTab('stars-rewards')} />
             <FinanceDashboardCard onNavigate={() => setActiveTab('finance')} />
             <LeaderboardCard />
             <KidSnapshotCards />
@@ -470,16 +475,9 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'kids-checklist':
         return <KidsChecklistOverview />
       case 'homeschool':
-        return <HomeschoolTab />
-      case 'school':
-        return <SchoolTabWithSchedules children={familyChildren.map(child => ({
-          ...child,
-          school: child.school.name
-        }))} />
-      case 'advocacy':
-        return <AdvocacyDashboard />
-      case 'library':
-        return <ParentLibraryAdmin />
+        return <HomeschoolTab initialSubTab={homeschoolSubTab} />
+      case 'school-advocacy':
+        return <SchoolAdvocacyMergedTab initialSubTab={schoolSubTab} />
       case 'chores':
         return <ChoresTab familyMembers={familyMembers} />
       case 'belle-care':
@@ -490,20 +488,10 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
         return <BoardsTab />
       case 'family-huddle':
         return <FamilyHuddle />
-      case 'shopping':
-        return <ShoppingHelper />
-      case 'needs-list':
-        return <HouseholdNeedsTab />
-      case 'gifts':
-        return <GiftSuggestions />
-      case 'food-inventory':
-        return <FoodInventoryManager />
-      case 'recipe-import':
-        return <RecipeImportTab />
+      case 'kitchen':
+        return <KitchenMergedTab initialSubTab={kitchenSubTab} />
       case 'stars-rewards':
-        return <StarsAndRewardsTab />
-      case 'habits':
-        return <HabitsTab />
+        return <StarsAndRewardsTab initialSubTab={rewardsSubTab} />
       case 'health':
         return <HealthMergedTab />
       case 'calendar':
@@ -519,7 +507,6 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
       case 'family':
         return renderFamilyTab()
       default:
-        // Redirect unknown tabs to overview
         return (
           <div className="p-6 text-center text-gray-500">
             <p>Select a tab from the sidebar to get started.</p>
