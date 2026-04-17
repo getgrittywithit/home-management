@@ -46,7 +46,12 @@ function todayLabel(): string {
   })
 }
 
+const HOMESCHOOL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah']
+
 export default function MySchoolDayCard({ kidName }: { kidName: string }) {
+  // BUG-7: Don't show for public school kids (Zoey, Kaylee)
+  if (!HOMESCHOOL_KIDS.includes(kidName.toLowerCase())) return null
+
   const [tasks, setTasks] = useState<DailyTask[]>([])
   const [totals, setTotals] = useState<Totals | null>(null)
   const [loading, setLoading] = useState(true)
