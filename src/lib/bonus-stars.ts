@@ -64,6 +64,7 @@ export async function checkBonusStar(kidName: string, triggerType: string): Prom
       source_type: 'bonus_stars',
       source_ref: `bonus-${kidName.toLowerCase()}-${Date.now()}`,
       icon: '\u2728',
+      link_tab: 'my-day',
       target_role: 'kid',
       kid_name: kidName.toLowerCase(),
     }).catch(() => {})

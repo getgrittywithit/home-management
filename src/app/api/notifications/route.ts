@@ -180,6 +180,13 @@ export async function POST(request: NextRequest) {
         [dayOfWeek, currentTime]
       ).catch(() => [])
 
+      const REMINDER_LINK_MAP: Record<string, string> = {
+        med_am: 'health', med_pm: 'health',
+        bedtime: 'kids-checklist', lights_out: 'kids-checklist',
+        chore_am: 'chores', belle_pm: 'belle-care', belle_am: 'belle-care',
+        meal_pick: 'food-inventory',
+      }
+
       let fired = 0
       for (const r of due) {
         await createNotification({
@@ -188,6 +195,7 @@ export async function POST(request: NextRequest) {
           source_type: `reminder_${r.reminder_type}`,
           source_ref: `reminder:${r.id}`,
           icon: r.title.match(/💊/) ? '💊' : r.title.match(/🐕/) ? '🐕' : r.title.match(/🌙/) ? '🌙' : '⏰',
+          link_tab: REMINDER_LINK_MAP[r.reminder_type] || 'overview',
           target_role: r.target_role || 'parent',
           kid_name: r.kid_name || undefined,
         }).catch(() => {})
