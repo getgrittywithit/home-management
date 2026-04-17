@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Plus, Check, X, ChevronRight, Calendar, Mail, ClipboardList,
-  Loader2, Trash2, Edit3, MoreHorizontal, ArrowRight,
+  Loader2, Trash2, Edit3, MoreHorizontal, ArrowRight, Target, LayoutGrid,
 } from 'lucide-react'
+import MyFocusView from './MyFocusView'
 
 interface Board {
   id: number; name: string; slug: string; columns: string[]; color: string; icon: string; position: number
@@ -38,6 +39,30 @@ const COL_LABELS: Record<string, string> = {
 }
 
 export default function BoardsTab() {
+  const [viewMode, setViewMode] = useState<'focus' | 'boards'>('focus')
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <button onClick={() => setViewMode('focus')}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === 'focus' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          <Target className="w-4 h-4" /> My Focus
+        </button>
+        <button onClick={() => setViewMode('boards')}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+            viewMode === 'boards' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          <LayoutGrid className="w-4 h-4" /> Boards
+        </button>
+      </div>
+      {viewMode === 'focus' ? <MyFocusView /> : <BoardsKanban />}
+    </div>
+  )
+}
+
+function BoardsKanban() {
   const [boards, setBoards] = useState<Board[]>([])
   const [activeBoard, setActiveBoard] = useState<string>('personal')
   const [items, setItems] = useState<ActionItem[]>([])

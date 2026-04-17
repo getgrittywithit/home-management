@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import {
-  Wrench, DollarSign, Loader2, Plus, ChevronDown, ChevronUp, X, Check,
+  Wrench, DollarSign, Loader2, Plus, ChevronDown, ChevronUp, X, Check, FileText,
 } from 'lucide-react'
+import EstimateBuilder from './EstimateBuilder'
 
 type Job = {
   id: number; client_name: string; job_description: string | null
@@ -40,16 +41,22 @@ export default function TritonDashboard() {
   const [data, setData] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAddJob, setShowAddJob] = useState(false)
+  const [showEstimate, setShowEstimate] = useState(false)
   const [expandedJob, setExpandedJob] = useState<number | null>(null)
   const [toast, setToast] = useState('')
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([])
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
   async function load() {
     setLoading(true)
     try {
-      const res = await fetch(`/api/plaid?action=get_triton_summary&month=${currentMonthKey()}`)
-      setData(await res.json())
+      const [sumRes, cliRes] = await Promise.all([
+        fetch(`/api/plaid?action=get_triton_summary&month=${currentMonthKey()}`).then(r => r.json()),
+        fetch('/api/triton?action=list_clients').then(r => r.json()).catch(() => ({ clients: [] })),
+      ])
+      setData(sumRes)
+      setClients((cliRes.clients || []).map((c: any) => ({ id: c.id, name: c.name })))
     } catch { /* silent */ }
     setLoading(false)
   }
@@ -82,6 +89,10 @@ export default function TritonDashboard() {
           <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
             Active Jobs ({data.active_jobs.length})
           </h3>
+          <button onClick={() => setShowEstimate(true)}
+            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">
+            <FileText className="w-3 h-3" /> Estimate
+          </button>
           <button onClick={() => setShowAddJob(true)}
             className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700">
             <Plus className="w-3 h-3" /> New Job
@@ -138,6 +149,7 @@ export default function TritonDashboard() {
       )}
 
       {showAddJob && <AddJobModal onClose={() => setShowAddJob(false)} onSaved={() => { setShowAddJob(false); flash('Job created'); load() }} />}
+      {showEstimate && <EstimateBuilder clients={clients} onClose={() => setShowEstimate(false)} onSaved={() => { setShowEstimate(false); flash('Estimate saved'); load() }} />}
     </div>
   )
 
