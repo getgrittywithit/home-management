@@ -475,12 +475,20 @@ export async function GET(request: NextRequest) {
     } catch {}
     if (belleAssignee === child) {
       required.push({
-        id: `belle-am-${today}`, title: 'Belle Care — AM Feed + Walk',
-        description: 'Feed Belle and take her for a walk', category: 'belle', time: '7:00 AM',
+        id: `belle-am-feed-${today}`, title: 'Belle Care — AM Feed',
+        description: 'Feed Belle breakfast — one scoop + fresh water', category: 'belle', time: '7:00 AM',
       })
       required.push({
-        id: `belle-pm-${today}`, title: 'Belle Care — PM Feed + Walk',
-        description: 'Evening feed and walk', category: 'belle', time: '5:00 PM',
+        id: `belle-am-walk-${today}`, title: 'Belle Care — AM Walk',
+        description: 'Take Belle for her morning walk on leash', category: 'belle', time: '7:15 AM',
+      })
+      required.push({
+        id: `belle-pm-feed-${today}`, title: 'Belle Care — PM Feed',
+        description: 'Evening feed — one scoop, check water', category: 'belle', time: '5:00 PM',
+      })
+      required.push({
+        id: `belle-pm-walk-${today}`, title: 'Belle Care — PM Walk',
+        description: 'Take Belle for her evening walk', category: 'belle', time: '7:00 PM',
       })
     }
 
@@ -721,8 +729,10 @@ export async function GET(request: NextRequest) {
       else if (id.startsWith('dishes-evening')) instructions = instructionMap['chore:dishes_evening'] || null
       else if (id.startsWith('dinner-manager')) instructions = instructionMap['duty:dinner_manager_help'] || null
       else if (id.startsWith('laundry-')) instructions = instructionMap['duty:laundry_help'] || null
-      else if (id.startsWith('belle-am')) instructions = instructionMap['belle:am_feed_walk'] || null
-      else if (id.startsWith('belle-pm')) instructions = instructionMap['belle:pm_feed'] || instructionMap['belle:pm_walk'] || null
+      else if (id.startsWith('belle-am-feed')) instructions = instructionMap['belle:am_feed'] || ['One scoop in her bowl, fresh water']
+      else if (id.startsWith('belle-am-walk')) instructions = instructionMap['belle:am_walk'] || ['Take her outside on leash, walk around the block, pick up after her']
+      else if (id.startsWith('belle-pm-feed')) instructions = instructionMap['belle:pm_feed'] || ['One scoop of food, check water']
+      else if (id.startsWith('belle-pm-walk')) instructions = instructionMap['belle:pm_walk'] || ['Evening walk, same route as morning']
       else if (id.startsWith('pet-hades')) instructions = instructionMap['pet:hades_water'] || null
       else if (id.startsWith('pet-spike-helper')) instructions = instructionMap['pet:spike_water'] || null
       else if (id.startsWith('pet-spike')) instructions = instructionMap['pet:spike_feed'] || null

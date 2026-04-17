@@ -1890,6 +1890,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
             {isHomeschool && (
               <MySchoolDayCard kidName={profile.first_name || profile.name} />
             )}
+            <BelleCareCard childName={profile.first_name || ''} />
             <MyDayView
               kidName={profile.first_name || profile.name}
               previewMode={previewMode}

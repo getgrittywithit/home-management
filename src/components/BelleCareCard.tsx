@@ -36,6 +36,15 @@ interface Task { key: string; label: string; emoji: string; time: string; comple
 interface GroomTask { key: string; label: string; emoji: string; completed: boolean }
 
 const BELLE_TASK_HELP: Record<string, string[]> = {
+  am_feed: [
+    "Get Belle's food from the container in the laundry room",
+    'One scoop in her bowl, fresh water',
+  ],
+  am_walk: [
+    'Take her outside on leash for a walk around the block',
+    'Pick up after her with a bag',
+    'Walk should be at least 10 minutes',
+  ],
   am_feed_walk: [
     "Get Belle's food from the container in the laundry room",
     'One scoop in her bowl, fresh water',
@@ -79,6 +88,9 @@ export default function BelleCareCard({ childName }: { childName: string }) {
   const [swapReason, setSwapReason] = useState('')
   const [swapSending, setSwapSending] = useState(false)
   const [swapSent, setSwapSent] = useState(false)
+  const [showHelperMenu, setShowHelperMenu] = useState(false)
+  const [helperLogged, setHelperLogged] = useState<string[]>([])
+  const [helperLogging, setHelperLogging] = useState(false)
 
   const childKey = childName.toLowerCase()
 
@@ -136,6 +148,17 @@ export default function BelleCareCard({ childName }: { childName: string }) {
     setShowSwapModal(false)
   }
 
+  const logHelper = async (task: string) => {
+    setHelperLogging(true)
+    await fetch('/api/kids/belle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'log_helper', kid_name: childKey, task })
+    }).catch(() => {})
+    setHelperLogged(prev => [...prev, task])
+    setHelperLogging(false)
+  }
+
   const respondSwap = async (id: string, response: 'accepted' | 'declined') => {
     await fetch('/api/kids/belle', {
       method: 'POST',
@@ -179,6 +202,7 @@ export default function BelleCareCard({ childName }: { childName: string }) {
             Need help with Belle? Find <span className="font-medium">{displayName}</span> or ask Mom.
           </p>
         </div>
+        <WeeklyBelleSchedule highlightKid={childKey} />
       </div>
     )
   }
@@ -241,6 +265,7 @@ export default function BelleCareCard({ childName }: { childName: string }) {
             </div>
           )}
           <p className="px-4 py-2 text-xs text-gray-400 italic">Belle can't tell you when she needs care — that's why she's counting on you 🐾</p>
+          <WeeklyBelleSchedule highlightKid={childKey} />
         </div>
       </div>
     )
@@ -265,6 +290,7 @@ export default function BelleCareCard({ childName }: { childName: string }) {
             <p className="text-xs text-gray-500">Your next weekday: {info.myWeekday}, {info.nextWeekdayDate}</p>
           )}
           <SwapButton info={info} onOpen={() => setShowSwapModal(true)} onCancel={cancelSwap} swapSent={swapSent} />
+          <WeeklyBelleSchedule highlightKid={childKey} />
         </div>
         {showSwapModal && <SwapModal childKey={childKey} info={info} swapTarget={swapTarget} setSwapTarget={setSwapTarget} swapReason={swapReason} setSwapReason={setSwapReason} onSend={sendSwap} onClose={() => setShowSwapModal(false)} sending={swapSending} />}
       </div>
@@ -272,6 +298,14 @@ export default function BelleCareCard({ childName }: { childName: string }) {
   }
 
   // ── State 2: Not their day ──
+  const HELPER_TASKS = [
+    { key: 'am_feed', label: 'Fed Belle', emoji: '🍽️' },
+    { key: 'am_walk', label: 'Walked Belle', emoji: '🐾' },
+    { key: 'pm_feed', label: 'Fed Belle (PM)', emoji: '🍽️' },
+    { key: 'pm_walk', label: 'Walked Belle (PM)', emoji: '🌙' },
+    { key: 'brush_fur', label: 'Brushed Belle', emoji: '🐕' },
+  ]
+
   return (
     <div className="space-y-3">
       {incomingSwaps.map(s => <SwapRequestCard key={s.id} swap={s} onRespond={respondSwap} />)}
@@ -289,9 +323,83 @@ export default function BelleCareCard({ childName }: { childName: string }) {
         {info.nextWeekendDaysAway && info.nextWeekendDaysAway <= 14 && (
           <p className="text-xs text-gray-400">Your weekend with Belle: in {info.nextWeekendDaysAway} days</p>
         )}
+
+        {/* I helped with Belle — Hannah's idea */}
+        <div className="mt-3 pt-3 border-t">
+          {!showHelperMenu ? (
+            <button onClick={() => setShowHelperMenu(true)} className="text-xs text-teal-600 hover:text-teal-800 font-medium">
+              🙋 I helped with Belle today!
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-500">What did you help with?</p>
+              <div className="flex flex-wrap gap-1.5">
+                {HELPER_TASKS.map(t => {
+                  const logged = helperLogged.includes(t.key)
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => !logged && !helperLogging && logHelper(t.key)}
+                      disabled={logged || helperLogging}
+                      className={`px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        logged
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-teal-100 hover:text-teal-800'
+                      }`}
+                    >
+                      {t.emoji} {logged ? '✓ ' : ''}{t.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {helperLogged.length > 0 && (
+                <p className="text-xs text-green-600">Thanks for helping with Belle! Mom can see this.</p>
+              )}
+            </div>
+          )}
+        </div>
+
         <SwapButton info={info} onOpen={() => setShowSwapModal(true)} onCancel={cancelSwap} swapSent={swapSent} />
+        <WeeklyBelleSchedule highlightKid={childKey} />
       </div>
       {showSwapModal && <SwapModal childKey={childKey} info={info} swapTarget={swapTarget} setSwapTarget={setSwapTarget} swapReason={swapReason} setSwapReason={setSwapReason} onSend={sendSwap} onClose={() => setShowSwapModal(false)} sending={swapSending} />}
+    </div>
+  )
+}
+
+// ── Weekly schedule strip (visible to all kids) ──
+const WEEKDAY_ORDER = [
+  { short: 'Mon', dow: 1 }, { short: 'Tue', dow: 2 }, { short: 'Wed', dow: 3 },
+  { short: 'Thu', dow: 4 }, { short: 'Fri', dow: 5 },
+]
+
+function WeeklyBelleSchedule({ highlightKid }: { highlightKid: string }) {
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+  const todayDate = new Date(todayStr + 'T12:00:00')
+  const todayDow = todayDate.getDay()
+  // Weekend assignee
+  const { name: weekendKid } = zoeyGetTodayAssignee()
+
+  return (
+    <div className="px-4 py-2 border-t bg-gray-50">
+      <p className="text-xs font-medium text-gray-500 mb-1.5">This Week</p>
+      <div className="flex gap-1">
+        {WEEKDAY_ORDER.map(({ short, dow }) => {
+          const kid = ZOEY_WEEKDAY_MAP[dow] || ''
+          const isToday = dow === todayDow
+          const isMe = kid === highlightKid
+          return (
+            <div key={dow} className={`flex-1 text-center rounded py-1 ${isToday ? 'ring-2 ring-amber-400' : ''} ${isMe ? 'bg-amber-100' : 'bg-white'}`}>
+              <p className="text-[10px] text-gray-400">{short}</p>
+              <p className={`text-xs font-medium ${isMe ? 'text-amber-800' : 'text-gray-600'}`}>{KID_DISPLAY[kid]?.slice(0, 3) || '?'}</p>
+            </div>
+          )
+        })}
+        <div className={`flex-1 text-center rounded py-1 ${todayDow === 0 || todayDow === 6 ? 'ring-2 ring-amber-400' : ''} ${weekendKid === highlightKid ? 'bg-amber-100' : 'bg-white'}`}>
+          <p className="text-[10px] text-gray-400">Wknd</p>
+          <p className={`text-xs font-medium ${weekendKid === highlightKid ? 'text-amber-800' : 'text-gray-600'}`}>{KID_DISPLAY[weekendKid]?.slice(0, 3) || '?'}</p>
+        </div>
+      </div>
     </div>
   )
 }

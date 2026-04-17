@@ -249,18 +249,14 @@ function BadgeCountSync({ setBadgeCounts, setFlagBadgeCount }: {
     fetch('/api/notifications?action=get_unread_count&role=parent')
       .then(r => r.json())
       .then(data => {
-        if (data.count > 0) {
-          setBadgeCounts(prev => ({ ...prev, overview: data.count }))
-        }
+        setBadgeCounts(prev => ({ ...prev, overview: data.count || 0 }))
       })
       .catch(() => {})
     // Positive reports pending approval
     fetch('/api/positive-reports?action=get_pending')
       .then(r => r.json())
       .then(data => {
-        if ((data.reports || []).length > 0) {
-          setBadgeCounts(prev => ({ ...prev, 'stars-rewards': (data.reports || []).length }))
-        }
+        setBadgeCounts(prev => ({ ...prev, 'stars-rewards': (data.reports || []).length }))
       })
       .catch(() => {})
   }, [loaded, setBadgeCounts])

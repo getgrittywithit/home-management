@@ -24,7 +24,10 @@ const EXTRA_TASK: Record<number, { task: string; label: string; emoji: string } 
 }
 
 const TASK_INFO: Record<string, { label: string; emoji: string; time: string }> = {
-  am_feed_walk: { label: 'AM Feed + Walk', emoji: '🐾', time: '7:00 AM' },
+  am_feed: { label: 'AM Feed', emoji: '🍽️', time: '7:00 AM' },
+  am_walk: { label: 'AM Walk', emoji: '🐾', time: '7:15 AM' },
+  // Legacy alias — keep so old logs still resolve a label
+  am_feed_walk: { label: 'AM Feed + Walk (old)', emoji: '🐾', time: '7:00 AM' },
   poop_patrol: { label: 'Poop Patrol', emoji: '💩', time: '' },
   brush_fur: { label: 'Brush Fur', emoji: '🐕', time: '' },
   brush_teeth: { label: 'Brush Teeth', emoji: '🦷', time: '' },
@@ -40,7 +43,8 @@ const GROOMING_INFO: Record<string, { label: string; emoji: string }> = {
 }
 
 const TASK_POINTS: Record<string, number> = {
-  am_feed_walk: 8, pm_feed: 4, pm_walk: 6, poop_patrol: 5, brush_fur: 5, brush_teeth: 5,
+  am_feed: 4, am_walk: 6, am_feed_walk: 8, // legacy
+  pm_feed: 4, pm_walk: 6, poop_patrol: 5, brush_fur: 5, brush_teeth: 5,
   bath: 15, nail_trim: 12, fur_brush: 8, ear_clean: 10,
 }
 
@@ -116,7 +120,7 @@ async function getEffectiveAssignee(dateStr: string): Promise<string> {
 
 function getDailyTasks(dateStr: string): string[] {
   const dow = getDow(dateStr)
-  const tasks = ['am_feed_walk']
+  const tasks = ['am_feed', 'am_walk']
   const extra = EXTRA_TASK[dow]
   if (extra) tasks.push(extra.task)
   tasks.push('pm_feed', 'pm_walk')
@@ -393,6 +397,22 @@ export async function GET(request: NextRequest) {
         } catch { return NextResponse.json({ logs: [], groomingLogs: [] }) }
       }
 
+      case 'get_helpers': {
+        try {
+          const days = parseInt(searchParams.get('days') || '30')
+          const helpers = await db.query(
+            `SELECT kid_name, care_date, task, note, created_at FROM belle_care_helpers WHERE care_date >= CURRENT_DATE - $1::int * INTERVAL '1 day' ORDER BY created_at DESC`,
+            [days]
+          )
+          // Summarize: who helps most
+          const summary: Record<string, number> = {}
+          for (const h of helpers) {
+            summary[h.kid_name] = (summary[h.kid_name] || 0) + 1
+          }
+          return NextResponse.json({ helpers, summary })
+        } catch { return NextResponse.json({ helpers: [], summary: {} }) }
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
@@ -483,6 +503,91 @@ export async function POST(request: NextRequest) {
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         await db.query(`DELETE FROM belle_care_swaps WHERE id = $1 AND status = 'pending'`, [id])
         return NextResponse.json({ success: true })
+      }
+
+      // ── Helper / Assist logging (Hannah's idea) ──
+      // Any kid can log that they helped with a Belle task even if it's not their day
+      case 'log_helper': {
+        const { kid_name, task, note } = body
+        if (!kid_name || !task) return NextResponse.json({ error: 'kid_name and task required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO belle_care_helpers (kid_name, care_date, task, note, created_at) VALUES ($1, $2, $3, $4, NOW())`,
+          [kid_name.toLowerCase(), today, task, note?.trim() || null]
+        )
+        // Award helper points (half of assigned points — helping is still valuable!)
+        const pts = Math.ceil((TASK_POINTS[task] || 4) / 2)
+        await creditPoints(kid_name.toLowerCase(), pts, `Belle helper: ${TASK_INFO[task]?.label || task}`)
+        return NextResponse.json({ success: true, points: pts })
+      }
+
+      // ── Extended absence coverage (e.g., Amos at Grandma's for 2 weeks) ──
+      case 'set_absence_coverage': {
+        const { absent_kid, start_date, end_date, coverage_map, reason } = body
+        // coverage_map: Record<string, string> — date → covering_kid (parent assigns)
+        if (!absent_kid || !start_date || !end_date) {
+          return NextResponse.json({ error: 'absent_kid, start_date, end_date required' }, { status: 400 })
+        }
+        // If no coverage_map provided, auto-distribute among remaining kids
+        const coverageEntries: Array<{ date: string; kid: string }> = []
+        const startD = new Date(start_date + 'T12:00:00')
+        const endD = new Date(end_date + 'T12:00:00')
+        const availableKids = BELLE_KIDS.filter(k => k !== absent_kid.toLowerCase())
+
+        for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toLocaleDateString('en-CA')
+          const dow = d.getDay()
+          const baseAssignee = getBaseAssignee(dateStr)
+          // Only create coverage for days where the absent kid IS the base assignee
+          if (baseAssignee === absent_kid.toLowerCase()) {
+            const coverKid = coverage_map?.[dateStr] || availableKids[coverageEntries.length % availableKids.length]
+            coverageEntries.push({ date: dateStr, kid: coverKid })
+          }
+        }
+
+        // Insert as accepted swaps
+        for (const entry of coverageEntries) {
+          await db.query(
+            `INSERT INTO belle_care_swaps (requesting_kid, covering_kid, swap_type, swap_date, reason, status, responded_at)
+             VALUES ($1, $2, $3, $4, $5, 'accepted', NOW())
+             ON CONFLICT DO NOTHING`,
+            [absent_kid.toLowerCase(), entry.kid, getDow(entry.date) >= 1 && getDow(entry.date) <= 5 ? 'weekday' : 'weekend', entry.date, reason?.trim() || `${absent_kid} away`]
+          )
+        }
+
+        return NextResponse.json({ success: true, coverage: coverageEntries })
+      }
+
+      // ── Get helper log for a date range (for trend tracking) ──
+      case 'get_care_history': {
+        const { start_date, end_date } = body
+        const startD = start_date || new Date(new Date(today + 'T12:00:00').getTime() - 30 * 86400000).toLocaleDateString('en-CA')
+        const endD = end_date || today
+
+        const logs = await db.query(
+          `SELECT kid_name, care_date, task, completed, completed_at FROM belle_care_log WHERE care_date BETWEEN $1 AND $2 ORDER BY care_date, task`,
+          [startD, endD]
+        )
+        const helpers = await db.query(
+          `SELECT kid_name, care_date, task, note, created_at FROM belle_care_helpers WHERE care_date BETWEEN $1 AND $2 ORDER BY care_date`,
+          [startD, endD]
+        )
+
+        // Build trend data: who completes most, what time of day, etc.
+        const byKid: Record<string, { assigned: number; completed: number; helped: number }> = {}
+        for (const kid of BELLE_KIDS) {
+          byKid[kid] = { assigned: 0, completed: 0, helped: 0 }
+        }
+        for (const log of logs) {
+          if (byKid[log.kid_name]) {
+            byKid[log.kid_name].assigned++
+            if (log.completed) byKid[log.kid_name].completed++
+          }
+        }
+        for (const h of helpers) {
+          if (byKid[h.kid_name]) byKid[h.kid_name].helped++
+        }
+
+        return NextResponse.json({ logs, helpers, trends: byKid })
       }
 
       case 'flag_missed_grooming': {
