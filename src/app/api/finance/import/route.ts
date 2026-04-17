@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { syncFoodBudget } from '@/lib/budget'
+import { createPDF, addHeader, addFooter, addSectionTitle, addKeyValue, addTable, pdfToUint8Array } from '@/lib/pdf/generate'
 
 const CATEGORY_RULES: Record<string, string[]> = {
   food: ['HEB', 'WALMART GROCERY', 'COSTCO', 'ALDI', 'WHATABURGER', 'MCDONALD', 'CHICK-FIL-A', 'TACO BELL', 'SONIC', 'PIZZA HUT', 'DOMINOS'],
@@ -182,6 +183,90 @@ export async function POST(req: NextRequest) {
       if (sets.length === 0) return NextResponse.json({ error: 'nothing to update' }, { status: 400 })
       const rows = await db.query(`UPDATE recurring_bills SET ${sets.join(', ')} WHERE id = $1 RETURNING *`, params)
       return NextResponse.json({ bill: rows[0] })
+    }
+
+    if (action === 'export_pdf') {
+      const { month } = body
+      const m = month || new Date().toISOString().slice(0, 7)
+      const [y, mo] = m.split('-').map(Number)
+      const start = `${m}-01`
+      const end = mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, '0')}-01`
+      const monthLabel = new Date(y, mo - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+      const budget = await db.query(
+        `SELECT bc.name, bc.emoji, bm.budgeted, bm.spent_snap, bm.spent_cash
+           FROM budget_monthly bm JOIN budget_categories bc ON bc.id = bm.category_id
+          WHERE bm.month = $1 ORDER BY bc.sort_order`, [m]
+      ).catch(() => [])
+
+      const txnSummary = await db.query(
+        `SELECT COUNT(*)::int AS count, COALESCE(SUM(ABS(amount)), 0)::numeric AS total,
+                COALESCE(SUM(ABS(amount)) FILTER (WHERE is_snap), 0)::numeric AS snap_total,
+                COALESCE(SUM(ABS(amount)) FILTER (WHERE NOT is_snap), 0)::numeric AS cash_total
+           FROM finance_transactions WHERE to_char(date, 'YYYY-MM') = $1 AND amount > 0`, [m]
+      ).catch(() => [{ count: 0, total: 0, snap_total: 0, cash_total: 0 }])
+
+      const triton = await db.query(
+        `SELECT COALESCE(SUM(paid_amount), 0)::numeric AS revenue, COUNT(*) FILTER (WHERE status = 'paid')::int AS paid_jobs
+           FROM triton_jobs WHERE paid_at >= $1 AND paid_at < $2`, [start, end]
+      ).catch(() => [{ revenue: 0, paid_jobs: 0 }])
+
+      const bills = await db.query(`SELECT name, amount, due_day, is_auto_pay FROM recurring_bills WHERE is_active = TRUE ORDER BY due_day`).catch(() => [])
+
+      const doc = createPDF({ title: `Finance Report — ${monthLabel}` })
+      let pg = addHeader(doc, `Moses Family Finance — ${monthLabel}`, 'Generated ' + new Date().toLocaleDateString('en-US'))
+
+      pg = addSectionTitle(doc, 'Monthly Summary', pg + 4)
+      pg = addKeyValue(doc, 'Total Spending', `$${parseFloat(txnSummary[0]?.total || 0).toFixed(2)}`, pg)
+      pg = addKeyValue(doc, 'SNAP Spending', `$${parseFloat(txnSummary[0]?.snap_total || 0).toFixed(2)}`, pg)
+      pg = addKeyValue(doc, 'Cash Spending', `$${parseFloat(txnSummary[0]?.cash_total || 0).toFixed(2)}`, pg)
+      pg = addKeyValue(doc, 'Transactions', String(txnSummary[0]?.count || 0), pg)
+      pg = addKeyValue(doc, 'Triton Revenue', `$${parseFloat(triton[0]?.revenue || 0).toFixed(2)} (${triton[0]?.paid_jobs || 0} jobs)`, pg)
+
+      if (budget.length > 0) {
+        pg = addSectionTitle(doc, 'Budget vs Actual', pg + 6)
+        const budgetRows = budget.map((b: any) => [
+          `${b.emoji || ''} ${b.name}`,
+          `$${parseFloat(b.budgeted || 0).toFixed(0)}`,
+          `$${(parseFloat(b.spent_snap || 0) + parseFloat(b.spent_cash || 0)).toFixed(0)}`,
+          `$${Math.max(0, parseFloat(b.budgeted || 0) - parseFloat(b.spent_snap || 0) - parseFloat(b.spent_cash || 0)).toFixed(0)}`,
+        ])
+        pg = addTable(doc, ['Category', 'Budget', 'Spent', 'Remaining'], budgetRows, pg)
+      }
+
+      if (bills.length > 0) {
+        pg = addSectionTitle(doc, 'Recurring Bills', pg + 6)
+        const billRows = bills.map((b: any) => [b.name, `$${parseFloat(b.amount || 0).toFixed(2)}`, `Day ${b.due_day || '?'}`, b.is_auto_pay ? 'Auto' : 'Manual'])
+        pg = addTable(doc, ['Bill', 'Amount', 'Due', 'Pay'], billRows, pg)
+      }
+
+      addFooter(doc, `Coral Family Ops — ${monthLabel} — Confidential`)
+      const pdfBytes = pdfToUint8Array(doc)
+      return new NextResponse(pdfBytes as any, {
+        headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="finance-${m}.pdf"`, 'Cache-Control': 'no-store' },
+      })
+    }
+
+    if (action === 'export_csv') {
+      const { month } = body
+      const m = month || new Date().toISOString().slice(0, 7)
+      const rows = await db.query(
+        `SELECT ft.date, ft.description, ft.amount, ft.merchant_name, ft.entity, ft.is_snap,
+                bc.name AS category
+           FROM finance_transactions ft
+           LEFT JOIN budget_categories bc ON bc.id = ft.category_id
+          WHERE to_char(ft.date, 'YYYY-MM') = $1
+          ORDER BY ft.date DESC`, [m]
+      ).catch(() => [])
+
+      let csv = 'Date,Merchant,Description,Amount,Category,Entity,SNAP\n'
+      for (const r of rows) {
+        csv += `${r.date},${(r.merchant_name || '').replace(/,/g, '')},${(r.description || '').replace(/,/g, '')},${r.amount},${r.category || ''},${r.entity || 'personal'},${r.is_snap ? 'Yes' : 'No'}\n`
+      }
+
+      return new NextResponse(csv, {
+        headers: { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="transactions-${m}.csv"` },
+      })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
