@@ -2,48 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import {
-  CheckCircle2, Clock, AlertTriangle, Inbox, Plus, Calendar,
-  Loader2, ChevronRight, Mail, Wrench, X, ArrowRight,
+  CheckCircle2, Clock, AlertTriangle, Inbox, Plus, Calendar, Mail,
+  Loader2, ArrowRight, X, Wrench, Home, Users, Star,
 } from 'lucide-react'
 
-type Task = {
-  id: number; title: string; description: string | null
-  source_type: string; source_id: string | null; board: string
-  column_name: string; priority: string; due_date: string | null
-  assigned_to: string | null; notes: string | null; status: string
-  created_at: string
+const BOARD_ICONS: Record<string, string> = { personal: '📋', triton: '🔧', school: '🏫', medical: '🏥', household: '🏠' }
+const CATEGORY_COLORS: Record<string, string> = {
+  household: 'text-emerald-700', school: 'text-indigo-700', medical: 'text-rose-700',
+  finance: 'text-green-700', business: 'text-amber-700', homeschool: 'text-teal-700',
 }
 
-const BOARD_ICONS: Record<string, string> = {
-  personal: '📋', triton: '🔧', school: '🏫', medical: '🏥', household: '🏠',
-}
-const BOARD_COLORS: Record<string, string> = {
-  personal: 'bg-blue-100 text-blue-700', triton: 'bg-amber-100 text-amber-700',
-  school: 'bg-indigo-100 text-indigo-700', medical: 'bg-rose-100 text-rose-700',
-  household: 'bg-emerald-100 text-emerald-700',
-}
-const SOURCE_ICONS: Record<string, string> = {
-  email: '📧', manual: '✏️', triton: '🔧', friend_request: '🏠',
-}
-
-function fmtDate(d: string | null): string {
-  if (!d) return ''
-  const date = new Date(d + 'T12:00:00')
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function isOverdue(d: string | null): boolean {
-  if (!d) return false
-  return new Date(d + 'T23:59:59') < new Date()
-}
-
-function isToday(d: string | null): boolean {
-  if (!d) return false
-  return d === new Date().toLocaleDateString('en-CA')
-}
+function fmt(n: number) { return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) }
 
 export default function MyFocusView() {
-  const [tasks, setTasks] = useState<Task[]>([])
+  const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [newTitle, setNewTitle] = useState('')
@@ -57,190 +29,266 @@ export default function MyFocusView() {
   async function load() {
     setLoading(true)
     try {
-      const res = await fetch('/api/action-items?action=list')
-      const data = await res.json()
-      setTasks((data.items || []).filter((t: Task) => t.status !== 'done' && t.status !== 'dismissed'))
+      const res = await fetch('/api/parent/my-focus?action=get_focus_view')
+      setData(await res.json())
     } catch { /* silent */ }
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
 
-  const handleDone = async (id: number) => {
-    await fetch('/api/action-items', {
+  const handleCompleteTask = async (id: number) => {
+    await fetch('/api/parent/my-focus', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'complete', id }),
+      body: JSON.stringify({ action: 'complete_task', id }),
     }).catch(() => {})
-    setTasks(prev => prev.filter(t => t.id !== id))
     flash('Done!')
+    load()
   }
 
-  const handleSnooze = async (id: number, toDate?: string) => {
-    const due = toDate || new Date(Date.now() + 86400000).toLocaleDateString('en-CA')
-    await fetch('/api/action-items', {
+  const handleSnoozeTask = async (id: number) => {
+    await fetch('/api/parent/my-focus', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', id, due_date: due }),
+      body: JSON.stringify({ action: 'snooze_task', id, days: 1 }),
     }).catch(() => {})
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, due_date: due } : t))
-    flash(`Snoozed to ${fmtDate(due)}`)
+    flash('Snoozed → tomorrow')
+    load()
   }
 
-  const handleAdd = async () => {
+  const handleToggleChecklist = async (id: string) => {
+    await fetch('/api/parent/my-focus', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'complete_checklist_item', id }),
+    }).catch(() => {})
+    load()
+  }
+
+  const handleBulkClear = async (cats: string[]) => {
+    await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bulk_archive_by_category', categories: cats }),
+    }).catch(() => {})
+    flash('Cleared!')
+    load()
+  }
+
+  const handleAddTask = async () => {
     if (!newTitle.trim()) return
     setAdding(true)
-    const colMap: Record<string, string> = { triton: 'leads', personal: 'inbox', school: 'inbox', medical: 'inbox', household: 'inbox' }
-    await fetch('/api/action-items', {
+    await fetch('/api/parent/my-focus', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'create', title: newTitle.trim(), board: newBoard,
-        column_name: colMap[newBoard] || 'inbox',
-        due_date: newDue || null, source_type: 'manual',
-      }),
+      body: JSON.stringify({ action: 'add_task', title: newTitle.trim(), board: newBoard, due_date: newDue || null }),
     }).catch(() => {})
     setNewTitle(''); setNewDue(''); setShowAdd(false); setAdding(false)
     flash('Task added')
     load()
   }
 
-  const todayStr = new Date().toLocaleDateString('en-CA')
-  const overdue = tasks.filter(t => t.due_date && isOverdue(t.due_date) && !isToday(t.due_date))
-  const doToday = tasks.filter(t => (t.due_date && isToday(t.due_date)) || (!t.due_date && t.priority === 'urgent'))
-  const upcoming = tasks.filter(t => t.due_date && !isOverdue(t.due_date) && !isToday(t.due_date))
-  const inbox = tasks.filter(t => !t.due_date && t.priority !== 'urgent')
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-4 p-1">
+        <div className="skeleton h-8 w-64" />
+        {[1, 2, 3].map(i => <div key={i} className="skeleton h-20 rounded-xl" />)}
+      </div>
+    )
+  }
+
+  if (!data) return <div className="text-center py-8 text-gray-400">Failed to load.</div>
+
+  const d = data
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-3xl mx-auto space-y-5 p-1">
       {toast && <div className="fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">{toast}</div>}
 
-      {loading && <div className="text-center py-12"><Loader2 className="w-5 h-5 animate-spin text-gray-400 mx-auto" /></div>}
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">🐙 Lola's {d.day_label}</h1>
+        {d.attention_count > 0 && (
+          <p className="text-sm text-gray-600 mt-1">
+            You've got <span className="font-semibold text-red-600">{d.attention_count} thing{d.attention_count === 1 ? '' : 's'}</span> that need{d.attention_count === 1 ? 's' : ''} you today.
+          </p>
+        )}
+      </div>
 
-      {!loading && (
-        <>
-          {/* Overdue */}
-          {overdue.length > 0 && (
-            <Section title="Overdue" count={overdue.length} icon={<AlertTriangle className="w-4 h-4" />} color="text-red-700" bgColor="bg-red-50">
-              {overdue.map(t => <TaskCard key={t.id} task={t} onDone={() => handleDone(t.id)} onSnooze={(d) => handleSnooze(t.id, d)} />)}
-            </Section>
-          )}
-
-          {/* Do Today */}
-          <Section title="Do Today" count={doToday.length} icon={<Clock className="w-4 h-4" />} color="text-amber-700" bgColor="bg-amber-50">
-            {doToday.length === 0 ? (
-              <p className="text-sm text-gray-400 py-3 text-center">Nothing due today — nice!</p>
-            ) : doToday.map(t => <TaskCard key={t.id} task={t} onDone={() => handleDone(t.id)} onSnooze={(d) => handleSnooze(t.id, d)} />)}
-          </Section>
-
-          {/* Upcoming */}
-          {upcoming.length > 0 && (
-            <Section title="Upcoming" count={upcoming.length} icon={<Calendar className="w-4 h-4" />} color="text-blue-700" bgColor="bg-blue-50">
-              {upcoming.map(t => <TaskCard key={t.id} task={t} onDone={() => handleDone(t.id)} onSnooze={(d) => handleSnooze(t.id, d)} compact />)}
-            </Section>
-          )}
-
-          {/* Inbox */}
-          {inbox.length > 0 && (
-            <Section title="Inbox — needs sorting" count={inbox.length} icon={<Inbox className="w-4 h-4" />} color="text-gray-600" bgColor="bg-gray-50">
-              {inbox.map(t => <TaskCard key={t.id} task={t} onDone={() => handleDone(t.id)} onSnooze={(d) => handleSnooze(t.id, d)} showSetDate />)}
-            </Section>
-          )}
-
-          {/* Quick Add */}
-          {showAdd ? (
-            <div className="bg-white rounded-lg border p-4 space-y-2">
-              <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Task title..."
-                onKeyDown={e => e.key === 'Enter' && handleAdd()} autoFocus
-                className="w-full px-3 py-2 border rounded-lg text-sm" />
-              <div className="flex gap-2">
-                <select value={newBoard} onChange={e => setNewBoard(e.target.value)} className="px-2 py-1.5 border rounded-lg text-xs bg-white">
-                  <option value="personal">Personal</option><option value="triton">Triton</option>
-                  <option value="school">School</option><option value="medical">Medical</option>
-                  <option value="household">Household</option>
-                </select>
-                <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)} className="px-2 py-1.5 border rounded-lg text-xs" />
-                <button onClick={handleAdd} disabled={adding || !newTitle.trim()}
-                  className="ml-auto px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">
-                  {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
-                </button>
-                <button onClick={() => setShowAdd(false)} className="px-2 py-1.5 text-gray-400 hover:text-gray-600">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowAdd(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-lg text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
-              <Plus className="w-4 h-4" /> Add Task
-            </button>
-          )}
-        </>
+      {/* 🔴 Needs Attention */}
+      {d.attention_count > 0 && (
+        <Section title="Needs Attention" count={d.attention_count} icon={<AlertTriangle className="w-4 h-4" />} color="text-red-700" bg="bg-red-50 border-red-200">
+          {d.attention_items.map((item: any) => (
+            <TaskRow key={item.id} item={item} onDone={() => handleCompleteTask(item.id)} onSnooze={() => handleSnoozeTask(item.id)} />
+          ))}
+        </Section>
       )}
-    </div>
-  )
-}
 
-function Section({ title, count, icon, color, bgColor, children }: {
-  title: string; count: number; icon: React.ReactNode; color: string; bgColor: string; children: React.ReactNode
-}) {
-  return (
-    <div>
-      <div className={`flex items-center gap-2 text-sm font-bold uppercase tracking-wide ${color} mb-2`}>
-        {icon} {title} ({count})
-      </div>
-      <div className={`${bgColor} rounded-lg border space-y-0`}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function TaskCard({ task: t, onDone, onSnooze, compact, showSetDate }: {
-  task: Task; onDone: () => void; onSnooze: (d?: string) => void; compact?: boolean; showSetDate?: boolean
-}) {
-  const boardMeta = BOARD_COLORS[t.board] || BOARD_COLORS.personal
-  const boardIcon = BOARD_ICONS[t.board] || '📋'
-  const sourceIcon = SOURCE_ICONS[t.source_type] || ''
-  const overdue = isOverdue(t.due_date)
-  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('en-CA')
-
-  return (
-    <div className={`flex items-start gap-3 px-4 py-3 bg-white/80 border-b last:border-b-0 ${overdue ? 'border-l-4 border-l-red-400' : ''}`}>
-      <button onClick={onDone} title="Mark done"
-        className="mt-0.5 w-5 h-5 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 flex-shrink-0 transition-colors" />
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-900 leading-snug">
-          {sourceIcon && <span className="mr-1">{sourceIcon}</span>}
-          {t.title}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${boardMeta}`}>
-            {boardIcon} {t.board}
-          </span>
-          {t.due_date && (
-            <span className={`text-[10px] font-medium ${overdue ? 'text-red-600' : 'text-gray-500'}`}>
-              {overdue ? 'Due ' : ''}{fmtDate(t.due_date)}
+      {/* 📅 Today's Schedule */}
+      <Section title="Today's Schedule" count={d.events_count} icon={<Calendar className="w-4 h-4" />} color="text-blue-700" bg="bg-blue-50 border-blue-200">
+        {d.events_count === 0 ? (
+          <p className="text-sm text-gray-400 px-4 py-2">No appointments today</p>
+        ) : d.events_today.map((e: any, i: number) => (
+          <div key={i} className="px-4 py-2 bg-white/80 border-b last:border-b-0 text-sm">
+            <span className="font-medium text-gray-900">
+              {e.start_time ? new Date(e.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }) : 'All day'}
             </span>
+            <span className="ml-2 text-gray-700">{e.title}</span>
+            {e.location && <span className="text-gray-400 ml-1 text-xs">· {e.location}</span>}
+          </div>
+        ))}
+      </Section>
+
+      {/* ✅ Quick Wins */}
+      {d.quick_wins_count > 0 && (
+        <Section title="Quick Wins" count={d.quick_wins_count} icon={<Star className="w-4 h-4" />} color="text-emerald-700" bg="bg-emerald-50 border-emerald-200">
+          {d.quick_wins.map((item: any) => (
+            <TaskRow key={item.id} item={item} onDone={() => handleCompleteTask(item.id)} onSnooze={() => handleSnoozeTask(item.id)} />
+          ))}
+        </Section>
+      )}
+
+      {/* 📋 Today's Checklist */}
+      {d.checklist_total > 0 && (
+        <Section title="Today's Checklist" count={d.checklist_total} done={d.checklist_done} icon={<CheckCircle2 className="w-4 h-4" />} color="text-indigo-700" bg="bg-indigo-50 border-indigo-200">
+          {d.checklist.map((item: any) => (
+            <button key={item.id} onClick={() => handleToggleChecklist(item.id)}
+              className="w-full flex items-center gap-3 px-4 py-2 bg-white/80 border-b last:border-b-0 text-left hover:bg-white text-sm">
+              <span className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                item.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'
+              }`}>
+                {item.completed && <CheckCircle2 className="w-3 h-3" />}
+              </span>
+              <span className={item.completed ? 'line-through text-gray-400' : 'text-gray-900'}>
+                {item.task_label}
+              </span>
+              <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-medium ${CATEGORY_COLORS[item.category] || 'text-gray-500'}`}>
+                {item.category}
+              </span>
+            </button>
+          ))}
+        </Section>
+      )}
+
+      {/* 👨‍👩‍👧‍👦 Kid Check-in */}
+      <Section title="Kid Check-in" count={d.kids?.length || 6} icon={<Users className="w-4 h-4" />} color="text-purple-700" bg="bg-purple-50 border-purple-200">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3">
+          {(d.kids || []).map((kid: any) => {
+            const pct = kid.tasks_total > 0 ? Math.round((kid.tasks_done / kid.tasks_total) * 100) : null
+            const mood = pct === null ? '—' : pct >= 75 ? '😊' : pct >= 40 ? '😐' : '😟'
+            const isLow = pct !== null && pct < 30 && kid.tasks_total > 0
+            return (
+              <div key={kid.kid_name} className={`bg-white rounded-lg px-3 py-2 text-xs ${isLow ? 'border-2 border-amber-300' : 'border'}`}>
+                <div className="font-semibold text-gray-900">{mood} {kid.kid_name.charAt(0).toUpperCase() + kid.kid_name.slice(1)}</div>
+                <div className="text-gray-500">
+                  {pct !== null ? `${kid.tasks_done}/${kid.tasks_total} tasks` : 'No tasks'}
+                  {kid.streak_days > 0 && <span className="ml-1">🔥{kid.streak_days}d</span>}
+                </div>
+                {isLow && <div className="text-amber-600 font-medium mt-0.5">⚠️ Low completion</div>}
+              </div>
+            )
+          })}
+        </div>
+      </Section>
+
+      {/* 🏠 Household */}
+      <Section title="Household Today" icon={<Home className="w-4 h-4" />} color="text-gray-700" bg="bg-gray-50 border-gray-200">
+        <div className="px-4 py-2 text-sm text-gray-700">
+          Belle: {d.household?.belle || '—'} · Dinner: {d.household?.dinner || '—'} · Zone Week {d.household?.zone_week || '?'}
+        </div>
+      </Section>
+
+      {/* 📧 Email */}
+      <Section title={`Email (${d.email_important} important · ${d.email_clearable} clearable)`} icon={<Mail className="w-4 h-4" />} color="text-gray-700" bg="bg-gray-50 border-gray-200">
+        <div className="px-4 py-2 flex gap-2 flex-wrap">
+          {d.email_noise > 0 && (
+            <button onClick={() => handleBulkClear(['noise'])}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600">
+              Clear Noise ({d.email_noise})
+            </button>
           )}
-          {t.priority === 'urgent' && <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700 font-semibold">Urgent</span>}
-          {t.priority === 'high' && <span className="text-[10px] px-1 py-0.5 rounded bg-orange-100 text-orange-700 font-semibold">High</span>}
+          {d.email_subs > 0 && (
+            <button onClick={() => handleBulkClear(['subscriptions'])}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600">
+              Clear Subs ({d.email_subs})
+            </button>
+          )}
+          <button onClick={() => window.dispatchEvent(new CustomEvent('tabChange', { detail: { tab: 'email' } }))}
+            className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50">
+            Open Email →
+          </button>
+        </div>
+      </Section>
+
+      {/* 🔧 Triton */}
+      {d.triton_active > 0 && (
+        <Section title={`Triton (${d.triton_active} active)`} icon={<Wrench className="w-4 h-4" />} color="text-amber-700" bg="bg-amber-50 border-amber-200">
+          <div className="px-4 py-2 text-sm text-gray-700">
+            {d.triton_active} job{d.triton_active === 1 ? '' : 's'} in pipeline
+          </div>
+        </Section>
+      )}
+
+      {/* + Add Task */}
+      {showAdd ? (
+        <div className="bg-white rounded-xl border p-4 space-y-2">
+          <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="What needs doing?"
+            onKeyDown={e => e.key === 'Enter' && handleAddTask()} autoFocus
+            className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <div className="flex gap-2">
+            <select value={newBoard} onChange={e => setNewBoard(e.target.value)} className="px-2 py-1.5 border rounded-lg text-xs bg-white">
+              <option value="personal">Personal</option><option value="triton">Triton</option>
+              <option value="school">School</option><option value="medical">Medical</option>
+              <option value="household">Household</option>
+            </select>
+            <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)} className="px-2 py-1.5 border rounded-lg text-xs" />
+            <button onClick={handleAddTask} disabled={adding || !newTitle.trim()}
+              className="ml-auto px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 disabled:opacity-50">
+              {adding ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+            </button>
+            <button onClick={() => setShowAdd(false)} className="px-2 py-1.5 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowAdd(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors">
+          <Plus className="w-4 h-4" /> Add a task
+        </button>
+      )}
+    </div>
+  )
+}
+
+function Section({ title, count, done, icon, color, bg, children }: {
+  title: string; count?: number; done?: number; icon: React.ReactNode; color: string; bg: string; children: React.ReactNode
+}) {
+  return (
+    <div className={`rounded-xl border overflow-hidden ${bg}`}>
+      <div className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold uppercase tracking-wide ${color}`}>
+        {icon} {title}
+        {count !== undefined && <span className="ml-auto font-normal normal-case text-xs opacity-70">{done !== undefined ? `${done}/${count}` : count}</span>}
+      </div>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function TaskRow({ item, onDone, onSnooze }: { item: any; onDone: () => void; onSnooze: () => void }) {
+  const overdue = item.due_date && new Date(item.due_date) < new Date(new Date().toLocaleDateString('en-CA'))
+  return (
+    <div className={`flex items-start gap-3 px-4 py-2.5 bg-white/80 border-b last:border-b-0 ${overdue ? 'border-l-4 border-l-red-400' : ''}`}>
+      <button onClick={onDone} title="Done"
+        className="mt-0.5 w-5 h-5 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-gray-900">{item.title}</div>
+        <div className="text-[11px] text-gray-500 mt-0.5">
+          {item.board && <span className="mr-2">{BOARD_ICONS[item.board] || '📋'} {item.board}</span>}
+          {item.due_date && <span className={overdue ? 'text-red-600 font-medium' : ''}>
+            {overdue ? 'Overdue' : 'Due'} {new Date(item.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>}
+          {item.source_type === 'email' && <span className="ml-2">📧</span>}
         </div>
       </div>
-      {!compact && (
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {showSetDate ? (
-            <button onClick={() => {
-              const d = prompt('Due date (YYYY-MM-DD):')
-              if (d) onSnooze(d)
-            }} className="text-[10px] px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium">
-              Set Date
-            </button>
-          ) : (
-            <button onClick={() => onSnooze(tomorrow)} title="Tomorrow"
-              className="text-[10px] px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium flex items-center gap-0.5">
-              <ArrowRight className="w-3 h-3" /> Tomorrow
-            </button>
-          )}
-        </div>
-      )}
+      <button onClick={onSnooze} title="Tomorrow"
+        className="text-[10px] px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium flex items-center gap-0.5 flex-shrink-0">
+        <ArrowRight className="w-3 h-3" /> Tomorrow
+      </button>
     </div>
   )
 }
