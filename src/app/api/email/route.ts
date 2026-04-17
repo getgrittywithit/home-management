@@ -411,6 +411,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      // D93: Bulk email actions
+      case 'bulk_archive_by_category': {
+        const { categories } = body
+        if (!categories?.length) return NextResponse.json({ error: 'categories[] required' }, { status: 400 })
+        const result = await db.query(
+          `UPDATE email_inbox SET archived_at = NOW() WHERE category = ANY($1) AND archived_at IS NULL`,
+          [categories]
+        )
+        return NextResponse.json({ success: true, archived: result.length || 0 })
+      }
+
+      case 'bulk_archive_selected': {
+        const { email_ids } = body
+        if (!email_ids?.length) return NextResponse.json({ error: 'email_ids[] required' }, { status: 400 })
+        await db.query(
+          `UPDATE email_inbox SET archived_at = NOW() WHERE id = ANY($1::int[]) AND archived_at IS NULL`,
+          [email_ids]
+        )
+        return NextResponse.json({ success: true })
+      }
+
       case 'link_task': {
         // Called by the Create Task modal after /api/action-items create succeeds.
         const { email_id, action_item_id } = body

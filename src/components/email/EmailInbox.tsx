@@ -208,6 +208,14 @@ export default function EmailInbox() {
     return Date.now() - new Date(iso).getTime() < 60 * 60 * 1000
   }
 
+  const handleBulkClear = async (categories: string[]) => {
+    await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bulk_archive_by_category', categories }),
+    }).catch(() => {})
+    fetchInbox()
+  }
+
   const handleTriageAll = async () => {
     setTriaging(true)
     try {
@@ -576,6 +584,38 @@ export default function EmailInbox() {
               </button>
             )
           })}
+        </div>
+      )}
+
+      {/* D93: Bulk clear buttons */}
+      {connected && emails.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {(() => {
+            const noiseCount = emails.filter(e => e.category === 'noise').length
+            const subsCount = emails.filter(e => e.category === 'subscriptions').length
+            return (
+              <>
+                {noiseCount > 0 && (
+                  <button onClick={() => handleBulkClear(['noise'])}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600">
+                    Clear Noise ({noiseCount})
+                  </button>
+                )}
+                {subsCount > 0 && (
+                  <button onClick={() => handleBulkClear(['subscriptions'])}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600">
+                    Clear Subs ({subsCount})
+                  </button>
+                )}
+                {(noiseCount + subsCount) > 5 && (
+                  <button onClick={() => handleBulkClear(['noise', 'subscriptions'])}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200">
+                    Clear All Junk ({noiseCount + subsCount})
+                  </button>
+                )}
+              </>
+            )
+          })()}
         </div>
       )}
 

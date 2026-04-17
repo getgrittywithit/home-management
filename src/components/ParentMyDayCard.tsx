@@ -130,7 +130,7 @@ export default function ParentMyDayCard({ onNavigate }: ParentMyDayCardProps) {
           <Sun className="w-4 h-4 text-amber-500" /> Lola&apos;s {chicagoNow}
         </h3>
         {onNavigate && (
-          <button onClick={() => onNavigate('my-day')} className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5">
+          <button onClick={() => onNavigate('boards')} className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-0.5">
             Open Full My Day <ArrowRight className="w-3 h-3" />
           </button>
         )}
