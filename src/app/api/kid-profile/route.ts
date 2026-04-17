@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
+
+const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 
 async function ensureTables() {
   await db.query(`
@@ -135,6 +138,17 @@ export async function POST(request: NextRequest) {
         vals
       )
       const updated = await ensureProfile(kid_name)
+      const changedFields = Object.keys(fields).filter(k => allowed.includes(k) && fields[k] !== undefined)
+      if (changedFields.length > 0) {
+        await createNotification({
+          title: `📋 ${cap(kid_name)} updated their profile`,
+          message: `Changed: ${changedFields.join(', ')}`,
+          source_type: 'profile_updated',
+          source_ref: `profile_${kid_name}_${new Date().toISOString().split('T')[0]}`,
+          icon: '📋',
+          link_tab: 'kids-checklist',
+        }).catch(() => {})
+      }
       return NextResponse.json({ success: true, profile: updated })
     }
 

@@ -176,6 +176,9 @@ const PARENT_PUSH_SOURCES = new Set([
   'meal_pick_deadline',         // meal deadline (future cron)
   'meal_request',               // kid meal request
   'kid_finished_school',        // kid finished all school tasks
+  'profile_updated',            // kid updated About Me profile
+  'vibe_updated',               // kid updated Vibe profile
+  'sizes_updated',              // kid updated clothing sizes
 ])
 
 const KID_PUSH_SOURCES = new Set([

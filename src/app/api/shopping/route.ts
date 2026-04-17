@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 import crypto from 'crypto'
+
+const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -10,8 +13,15 @@ export async function GET(req: NextRequest) {
     if (action === 'get_profile') {
       const kid = searchParams.get('kid_name')
       if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
-      const rows = await db.query(`SELECT * FROM kid_shopping_profile WHERE kid_name = $1`, [kid.toLowerCase()])
-      return NextResponse.json({ profile: rows[0] || null })
+      const k = kid.toLowerCase()
+      const shopping = await db.query(`SELECT * FROM kid_shopping_profile WHERE kid_name = $1`, [k]).catch(() => [])
+      const aboutMe = await db.query(`SELECT favorite_color, interests FROM kid_profiles WHERE kid_name = $1`, [k]).catch(() => [])
+      const vibe = await db.query(`SELECT interests, aesthetic FROM kid_vibe_profile WHERE kid_name = $1`, [k]).catch(() => [])
+      return NextResponse.json({
+        profile: shopping[0] || null,
+        about_me: aboutMe[0] || null,
+        vibe: vibe[0] || null,
+      })
     }
 
     if (action === 'get_all_profiles') {
@@ -75,6 +85,15 @@ export async function POST(req: NextRequest) {
            favorite_colors ? JSON.stringify(favorite_colors) : null, favorite_brands ? JSON.stringify(favorite_brands) : null,
            wish_list ? JSON.stringify(wish_list) : null, avoid_list ? JSON.stringify(avoid_list) : null, notes || null]
         )
+        if (sizes) {
+          await createNotification({
+            title: `📏 ${cap(kid_name)} updated their sizes`,
+            message: `Sizes: shirt ${sizes.shirt || '?'}, pants ${sizes.pants || '?'}, shoes ${sizes.shoe || '?'}`,
+            source_type: 'sizes_updated',
+            source_ref: `sizes_${kid_name.toLowerCase()}_${new Date().toISOString().split('T')[0]}`,
+            icon: '📏',
+          }).catch(() => {})
+        }
         return NextResponse.json({ success: true })
       }
 

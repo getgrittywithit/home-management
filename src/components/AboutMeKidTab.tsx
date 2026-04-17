@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   User, Heart, Star, Palette, Gift, Edit3, Save, X,
-  Camera, BookOpen, Gamepad2, Music, Film
+  Camera, BookOpen, Gamepad2, Music, Film, Ruler
 } from 'lucide-react'
 
 interface AboutMeKidTabProps {
@@ -29,6 +29,12 @@ interface KidProfile {
   updated_at: string | null
 }
 
+interface Sizes {
+  shirt: string
+  pants: string
+  shoe: string
+}
+
 interface WishItem {
   id: number
   item_name: string
@@ -36,12 +42,20 @@ interface WishItem {
   status: string
 }
 
+const SHIRT_SIZES = ['Youth XS', 'Youth S', 'Youth M', 'Youth L', 'Youth XL', 'Adult XS', 'Adult S', 'Adult M', 'Adult L', 'Adult XL']
+const PANTS_SIZES = ['8', '8 Slim', '10', '10 Slim', '12', '12 Reg', '14', '14 Slim', '16', '26x28', '28x30', '30x30', '30x32', '32x30', '32x32', '34x32']
+const SHOE_SIZES = ['1Y', '2Y', '3Y', '4Y', '5Y', '6Y', '7Y', '7W', '8W', '8M', '9M', '9W', '10M', '10W', '11M', '12M']
+
 export default function AboutMeKidTab({ childName }: AboutMeKidTabProps) {
   const [profile, setProfile] = useState<KidProfile | null>(null)
   const [wishes, setWishes] = useState<WishItem[]>([])
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<Partial<KidProfile>>({})
   const [newWish, setNewWish] = useState('')
+  const [sizes, setSizes] = useState<Sizes>({ shirt: '', pants: '', shoe: '' })
+  const [editSizes, setEditSizes] = useState<Sizes>({ shirt: '', pants: '', shoe: '' })
+  const [sizesEditing, setSizesEditing] = useState(false)
+  const [sizesSaving, setSizesSaving] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
@@ -51,10 +65,16 @@ export default function AboutMeKidTab({ childName }: AboutMeKidTabProps) {
     Promise.all([
       fetch(`/api/kid-profile?action=get_profile&kid_name=${kidKey}`).then(r => r.json()),
       fetch(`/api/kid-profile?action=get_wish_list&kid_name=${kidKey}`).then(r => r.json()),
+      fetch(`/api/shopping?action=get_profile&kid_name=${kidKey}`).then(r => r.json()),
     ])
-      .then(([profileData, wishData]) => {
+      .then(([profileData, wishData, shopData]) => {
         setProfile(profileData.profile || null)
         setWishes(wishData.wishes || [])
+        const s = shopData.profile?.sizes
+        if (s) {
+          const parsed = typeof s === 'string' ? JSON.parse(s) : s
+          setSizes({ shirt: parsed.shirt || '', pants: parsed.pants || '', shoe: parsed.shoe || '' })
+        }
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -245,6 +265,85 @@ export default function AboutMeKidTab({ childName }: AboutMeKidTabProps) {
           </div>
         </div>
       )}
+
+      {/* My Sizes */}
+      <div className="bg-white rounded-lg border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Ruler className="w-5 h-5 text-indigo-500" /> My Sizes
+          </h3>
+          {!sizesEditing ? (
+            <button onClick={() => { setEditSizes({ ...sizes }); setSizesEditing(true) }}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+              Edit
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button disabled={sizesSaving} onClick={async () => {
+                setSizesSaving(true)
+                try {
+                  await fetch('/api/shopping', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'update_profile', kid_name: kidKey, sizes: editSizes }),
+                  })
+                  setSizes({ ...editSizes })
+                  setSizesEditing(false)
+                } catch {} finally { setSizesSaving(false) }
+              }} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-full font-medium hover:bg-indigo-700 disabled:opacity-50">
+                {sizesSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button onClick={() => setSizesEditing(false)}
+                className="text-xs text-gray-500 hover:text-gray-700 font-medium">Cancel</button>
+            </div>
+          )}
+        </div>
+        {sizesEditing ? (
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">👕 Shirt</label>
+              <select value={editSizes.shirt} onChange={e => setEditSizes(p => ({ ...p, shirt: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                <option value="">Select...</option>
+                {SHIRT_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">👖 Pants</label>
+              <select value={editSizes.pants} onChange={e => setEditSizes(p => ({ ...p, pants: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                <option value="">Select...</option>
+                {PANTS_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">👟 Shoes</label>
+              <select value={editSizes.shoe} onChange={e => setEditSizes(p => ({ ...p, shoe: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                <option value="">Select...</option>
+                {SHOE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center bg-gray-50 rounded-lg p-3">
+              <span className="text-lg">👕</span>
+              <p className="text-xs text-gray-500 mt-1">Shirt</p>
+              <p className="text-sm font-medium text-gray-900">{sizes.shirt || '—'}</p>
+            </div>
+            <div className="text-center bg-gray-50 rounded-lg p-3">
+              <span className="text-lg">👖</span>
+              <p className="text-xs text-gray-500 mt-1">Pants</p>
+              <p className="text-sm font-medium text-gray-900">{sizes.pants || '—'}</p>
+            </div>
+            <div className="text-center bg-gray-50 rounded-lg p-3">
+              <span className="text-lg">👟</span>
+              <p className="text-xs text-gray-500 mt-1">Shoes</p>
+              <p className="text-sm font-medium text-gray-900">{sizes.shoe || '—'}</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Wish List */}
       <div className="bg-white rounded-lg border p-4">

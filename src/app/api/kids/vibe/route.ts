@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
+
+const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -56,6 +59,13 @@ export async function POST(req: NextRequest) {
            interests ? JSON.stringify(interests) : null, goals ? JSON.stringify(goals) : null,
            portfolio_items ? JSON.stringify(portfolio_items) : null]
         )
+        await createNotification({
+          title: `✨ ${cap(kid_name)} updated their Vibe`,
+          message: aesthetic ? `New aesthetic: ${aesthetic}` : 'Updated their profile',
+          source_type: 'vibe_updated',
+          source_ref: `vibe_${kid_name.toLowerCase()}_${new Date().toISOString().split('T')[0]}`,
+          icon: '✨',
+        }).catch(() => {})
         return NextResponse.json({ success: true })
       }
 
