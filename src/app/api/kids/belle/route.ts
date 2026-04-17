@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
 
 // ── Constants ──
 const BELLE_KIDS = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
@@ -433,13 +434,31 @@ export async function POST(request: NextRequest) {
       case 'complete_task': {
         const { kid_name, task } = body
         if (!kid_name || !task) return NextResponse.json({ error: 'kid_name and task required' }, { status: 400 })
+        const kn = kid_name.toLowerCase()
         await db.query(
           `INSERT INTO belle_care_log (kid_name, care_date, task, completed, completed_at) VALUES ($1, $2, $3, TRUE, NOW())
            ON CONFLICT (care_date, task) DO UPDATE SET completed = TRUE, completed_at = NOW(), kid_name = $1`,
-          [kid_name.toLowerCase(), today, task]
+          [kn, today, task]
         )
         const pts = TASK_POINTS[task] || 5
-        await creditPoints(kid_name.toLowerCase(), pts, `Belle: ${TASK_INFO[task]?.label || task}`)
+        await creditPoints(kn, pts, `Belle: ${TASK_INFO[task]?.label || task}`)
+
+        const allTasks = getDailyTasks(today)
+        const completedRows = await db.query(
+          `SELECT task FROM belle_care_log WHERE care_date = $1 AND completed = TRUE`, [today]
+        ).catch(() => [])
+        const completedSet = new Set(completedRows.map((r: any) => r.task))
+        if (allTasks.every(t => completedSet.has(t))) {
+          const cap = kn.charAt(0).toUpperCase() + kn.slice(1)
+          await createNotification({
+            title: `🐾 ${cap} finished all Belle tasks!`,
+            message: `All ${allTasks.length} tasks done for today`,
+            source_type: 'belle_complete',
+            source_ref: `belle_complete_${kn}_${today}`,
+            icon: '🐾',
+          }).catch(() => {})
+        }
+
         return NextResponse.json({ success: true, points: pts })
       }
 

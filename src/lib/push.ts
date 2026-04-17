@@ -30,7 +30,13 @@ function ensureVapid() {
 // Kid rate limit: max 4 push notifications per kid per day (ADHD-friendly).
 // Returns true if allowed, false if limit reached.
 // ----------------------------------------------------------------------------
-const KID_DAILY_LIMIT = 4
+const KID_DAILY_LIMIT = 12
+
+const SAFETY_BYPASS_SOURCES = new Set([
+  'crisis_detection',
+  'concern_detection',
+  'safety_event',
+])
 
 async function checkKidRateLimit(kidName: string, silent: boolean): Promise<boolean> {
   if (silent) return true // silent/badge-only pushes don't count against the limit
@@ -64,6 +70,7 @@ interface SendPushOptions {
   link_tab?: string | null
   icon?: string | null
   source_ref?: string | null
+  source_type?: string | null
   silent?: boolean // badge-only, no alert sound/vibration
 }
 
@@ -73,8 +80,8 @@ export async function sendPush(opts: SendPushOptions): Promise<{ sent: number; f
   const role = opts.target_role
   const kid = opts.kid_name?.toLowerCase() || null
 
-  // Kid rate limit
-  if (role === 'kid' && kid) {
+  // Kid rate limit — safety notifications always bypass
+  if (role === 'kid' && kid && !SAFETY_BYPASS_SOURCES.has(opts.source_type || '')) {
     const allowed = await checkKidRateLimit(kid, !!opts.silent)
     if (!allowed) {
       console.log(`[push] rate-limited: ${kid} has hit daily cap of ${KID_DAILY_LIMIT}`)
@@ -179,6 +186,23 @@ const PARENT_PUSH_SOURCES = new Set([
   'profile_updated',            // kid updated About Me profile
   'vibe_updated',               // kid updated Vibe profile
   'sizes_updated',              // kid updated clothing sizes
+  // Safety — must always push
+  'concern_detection',          // AI detected concerning content
+  'break_spike',                // kid taking way more breaks than normal
+  'completion_cliff',           // kid's task completion dropped sharply
+  'velocity_alert',             // kid's pace changed significantly
+  'pattern_alert',              // pattern detection flagged something
+  'safety_event',               // safety system triggered
+  // Activity completions
+  'belle_complete',             // kid finished all Belle tasks
+  'checklist_complete',         // kid finished full daily checklist
+  'belle_overdue',              // Belle AM tasks overdue
+  'adventure_submitted',        // kid submitted an adventure idea
+  'adventure_interest',         // kid voted on an adventure
+  // Academic
+  'book_finished',              // kid finished a book
+  'financial_literacy_advance', // kid advanced in money skills
+  'placement_complete',         // kid finished placement quiz
 ])
 
 const KID_PUSH_SOURCES = new Set([
@@ -192,6 +216,10 @@ const KID_PUSH_SOURCES = new Set([
   'redemption_approved',        // star redemption approved
   'redemption_denied',          // star redemption denied
   'star_earned',                // star awarded (SILENT — badge only)
+  'adventure_decision',         // parent decided on their adventure
+  'meal_pick_reminder',         // deadline reminder
+  'quick_praise',               // parent sent quick praise
+  'positive_report',            // parent left a positive report
 ])
 
 const SILENT_SOURCES = new Set([

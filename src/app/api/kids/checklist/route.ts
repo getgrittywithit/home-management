@@ -920,6 +920,23 @@ export async function POST(request: NextRequest) {
           computeVelocity(kidName, today).catch(e => console.error('Velocity check failed:', kidName, e.message))
           checkAchievements(kidName).catch(e => console.error('Achievement check failed:', kidName, e.message))
           checkBonusStar(kidName, 'checklist').catch(e => console.error('Bonus star check failed:', kidName, e.message))
+
+          // Check if all checklist items are now complete
+          const allItems = await db.query(
+            `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE completed = TRUE)::int AS done
+             FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2`,
+            [kidName, today]
+          ).catch(() => [{ total: 0, done: 0 }])
+          if (allItems[0]?.total > 0 && allItems[0]?.total === allItems[0]?.done) {
+            const cap = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+            await createNotification({
+              title: `✅ ${cap} finished their daily checklist!`,
+              message: `All ${allItems[0].total} tasks complete for today`,
+              source_type: 'checklist_complete',
+              source_ref: `checklist_complete_${kidName}_${today}`,
+              icon: '✅',
+            }).catch(() => {})
+          }
         }
 
         return NextResponse.json({ success: true, completed: newCompleted })

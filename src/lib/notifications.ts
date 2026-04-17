@@ -41,6 +41,7 @@ export async function createNotification({
         link_tab: link_tab || null,
         icon: icon || null,
         source_ref: source_ref || null,
+        source_type: source_type || null,
         silent: isSilentSource(source_type),
       })
     } catch (err) {
