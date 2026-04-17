@@ -6,6 +6,8 @@ import {
   Loader2, ArrowRight, X, Wrench, Home, Users, Star,
 } from 'lucide-react'
 
+const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+
 const BOARD_ICONS: Record<string, string> = { personal: '📋', triton: '🔧', school: '🏫', medical: '🏥', household: '🏠' }
 const CATEGORY_COLORS: Record<string, string> = {
   household: 'text-emerald-700', school: 'text-indigo-700', medical: 'text-rose-700',
@@ -162,6 +164,26 @@ export default function MyFocusView() {
                 {item.category}
               </span>
             </button>
+          ))}
+        </Section>
+      )}
+
+      {/* 💬 Needs Response (unanswered messages + pending requests) */}
+      {(d.unanswered_count > 0 || d.pending_count > 0) && (
+        <Section title="Needs Your Response" count={(d.unanswered_count || 0) + (d.pending_count || 0)} icon={<Mail className="w-4 h-4" />} color="text-pink-700" bg="bg-pink-50 border-pink-200">
+          {(d.unanswered_messages || []).map((msg: any) => (
+            <div key={msg.id} className="px-4 py-2 bg-white/80 border-b last:border-b-0 text-sm flex items-center gap-2">
+              <span className="text-pink-500">💬</span>
+              <span className="font-medium text-gray-900">{cap(msg.from_kid)}:</span>
+              <span className="text-gray-600 truncate flex-1">{msg.message?.substring(0, 60)}</span>
+            </div>
+          ))}
+          {(d.pending_requests || []).map((req: any, i: number) => (
+            <div key={i} className="px-4 py-2 bg-white/80 border-b last:border-b-0 text-sm flex items-center gap-2">
+              <span className="text-amber-500">{req.type === 'grocery' ? '🛒' : req.type === 'calendar' ? '📅' : '❤️'}</span>
+              <span className="font-medium text-gray-900">{cap(req.kid_name || '')}:</span>
+              <span className="text-gray-600 truncate flex-1">{req.title}</span>
+            </div>
           ))}
         </Section>
       )}

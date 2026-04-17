@@ -50,9 +50,9 @@ const THEME_EMOJI: Record<string, string> = {
 }
 
 const THEME_LABEL: Record<string, string> = {
-  'american-comfort': 'American', 'soup-comfort': 'Soup', 'asian': 'Asian', 'bar-night': 'Bar',
-  'easy-lazy': 'Easy', 'pizza-italian': 'Pizza', 'grill': 'Grill', 'experiment': 'Experiment',
-  'roast-comfort': 'Roast', 'brunch': 'Brunch', 'mexican': 'Mexican',
+  'american-comfort': 'American Comfort', 'soup-comfort': 'Soup / Crockpot', 'asian': 'Asian Night', 'bar-night': 'Bar Night',
+  'easy-lazy': 'Easy / Lazy', 'pizza-italian': 'Pizza & Italian', 'grill': 'Grill Night', 'experiment': 'Experiment',
+  'roast-comfort': 'Roast / Comfort', 'brunch': 'Brunch / Light', 'mexican': 'Mexican Night',
 }
 
 export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: Props) {

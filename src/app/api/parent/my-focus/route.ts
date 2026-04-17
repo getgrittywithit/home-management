@@ -76,6 +76,21 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // 4b. Unanswered messages + pending requests (BUG-6)
+      const unansweredMsgs = await db.query(
+        `SELECT id, from_kid, message, created_at FROM family_messages
+          WHERE parent_reply IS NULL AND archived_at IS NULL
+          ORDER BY created_at DESC LIMIT 5`
+      ).catch(() => [])
+      const pendingRequests = await db.query(
+        `SELECT 'grocery' AS type, name AS title, kid_name, created_at FROM kid_grocery_requests WHERE status = 'pending'
+         UNION ALL
+         SELECT 'calendar', event_title, kid_name, created_at FROM kid_calendar_requests WHERE status = 'pending'
+         UNION ALL
+         SELECT 'health', description, kid_name, created_at FROM kid_health_requests WHERE status = 'pending'
+         ORDER BY created_at DESC LIMIT 5`
+      ).catch(() => [])
+
       // 5. Email summary
       const emailCounts = await db.query(
         `SELECT category, COUNT(*)::int AS count FROM email_inbox
@@ -116,6 +131,11 @@ export async function GET(req: NextRequest) {
         kids: Object.values(kidMap),
         kids_on_track: Object.values(kidMap).filter((k: any) => k.tasks_total === 0 || k.tasks_done / Math.max(k.tasks_total, 1) > 0.5).length,
         kid_flag: Object.values(kidMap).find((k: any) => k.tasks_total > 0 && k.tasks_done / k.tasks_total < 0.3),
+        // Unanswered messages + pending requests
+        unanswered_messages: unansweredMsgs,
+        unanswered_count: unansweredMsgs.length,
+        pending_requests: pendingRequests,
+        pending_count: pendingRequests.length,
         // Email
         email_important: importantCount,
         email_noise: noiseCount,
