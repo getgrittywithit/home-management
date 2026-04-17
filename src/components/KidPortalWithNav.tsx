@@ -60,6 +60,7 @@ import PositiveReportButton from './PositiveReportButton'
 import NotificationBell from './NotificationBell'
 import HuddlePreSubmit from './huddle/HuddlePreSubmit'
 // TalkToParentsButton moved to KidRequestsTab (BUTTON-FIX-1)
+import AdventureBoardTab from './AdventureBoardTab'
 import HydrationTracker from './HydrationTracker'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
@@ -75,7 +76,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
 
 interface NavTab {
   id: TabId
@@ -121,6 +122,7 @@ const navSections: NavSection[] = [
       { id: 'typing-race', name: 'Typing Race', icon: Keyboard, color: 'bg-violet-500' },
       { id: 'financial-literacy', name: 'Money Skills', icon: DollarSign, color: 'bg-teal-500' },
       { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
+      { id: 'adventures', name: 'Adventures', icon: MapPin, color: 'bg-indigo-500' },
       { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
       { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
     ],
@@ -1940,6 +1942,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return <GoalsTab childName={profile.first_name || profile.name} />
       case 'opportunities':
         return <OpportunitiesTab childName={profile.first_name || profile.name} />
+      case 'adventures':
+        return <AdventureBoardTab childName={profile.first_name || profile.name} />
       case 'requests':
         return <KidRequestsTab childName={profile.first_name || profile.name} />
       case 'library':
