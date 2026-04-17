@@ -1,5 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { createNotification } from '@/lib/notifications'
+
+const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+
+async function lookupBookExternal(query: { isbn?: string; title?: string; author?: string }) {
+  try {
+    const q = query.isbn ? `isbn:${query.isbn}` : `${query.title || ''}+inauthor:${query.author || ''}`
+    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=1`,
+      { headers: { 'User-Agent': 'CoralFamilyApp/1.0' } })
+    if (res.ok) {
+      const data = await res.json()
+      const item = data.items?.[0]?.volumeInfo
+      if (item) return {
+        title: item.title, author: item.authors?.join(', '),
+        description: item.description?.substring(0, 300),
+        cover_image_url: item.imageLinks?.thumbnail?.replace('http:', 'https:'),
+        total_pages: item.pageCount, isbn: query.isbn || item.industryIdentifiers?.find((i: any) => i.type === 'ISBN_13')?.identifier,
+        categories: item.categories || [], source: 'google_books', confidence: query.isbn ? 'high' : 'medium',
+      }
+    }
+  } catch { /* fallthrough */ }
+  try {
+    const url = query.isbn
+      ? `https://openlibrary.org/api/books?bibkeys=ISBN:${query.isbn}&format=json&jscmd=data`
+      : `https://openlibrary.org/search.json?title=${encodeURIComponent(query.title || '')}&limit=1`
+    const res = await fetch(url, { headers: { 'User-Agent': 'CoralFamilyApp/1.0' } })
+    if (res.ok) {
+      const data = await res.json()
+      if (query.isbn) {
+        const book = data[`ISBN:${query.isbn}`]
+        if (book) return { title: book.title, author: book.authors?.map((a: any) => a.name).join(', '),
+          cover_image_url: book.cover?.medium, total_pages: book.number_of_pages,
+          isbn: query.isbn, source: 'open_library', confidence: 'high' }
+      } else {
+        const doc = data.docs?.[0]
+        if (doc) return { title: doc.title, author: doc.author_name?.join(', '), total_pages: doc.number_of_pages_median,
+          isbn: doc.isbn?.[0], cover_image_url: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : null,
+          source: 'open_library', confidence: 'medium' }
+      }
+    }
+  } catch { /* fallthrough */ }
+  return { title: query.title || 'Unknown', source: 'manual_needed', confidence: 'low' }
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -151,6 +194,52 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // D102: Book lookup
+    case 'lookup': {
+      const isbn = searchParams.get('isbn')
+      const title = searchParams.get('title')
+      const author = searchParams.get('author')
+      const result = await lookupBookExternal({ isbn: isbn || undefined, title: title || undefined, author: author || undefined })
+      return NextResponse.json(result)
+    }
+
+    // D102: Recommendations based on interests + reading history
+    case 'get_recommendations': {
+      const kid = searchParams.get('kid_name')?.toLowerCase()
+      if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      const interests = await db.query(`SELECT tag FROM kid_interest_tags WHERE kid_name = $1`, [kid]).catch(() => [])
+      const interestTags = interests.map((i: any) => i.tag)
+      const readIds = new Set((await db.query(`SELECT book_id FROM kid_book_progress WHERE kid_name = $1`, [kid]).catch(() => [])).map((r: any) => String(r.book_id)))
+
+      const books = await db.query(
+        `SELECT id, title, author_or_publisher AS author, cover_image_url, genres, reading_level_tag, total_pages
+           FROM home_library WHERE item_type = 'book' AND genres IS NOT NULL AND genres != '{}' ORDER BY title LIMIT 100`
+      ).catch(() => [])
+
+      const scored = books.filter((b: any) => !readIds.has(String(b.id))).map((b: any) => {
+        let score = 0
+        if ((b.genres || []).some((g: string) => interestTags.includes(g))) score += 25
+        if (b.reading_level_tag) score += 10
+        if (b.cover_image_url) score += 5
+        return { ...b, score }
+      }).sort((a: any, b: any) => b.score - a.score).slice(0, 5)
+
+      return NextResponse.json({ recommendations: scored })
+    }
+
+    // D102: Browse by genre/level
+    case 'browse': {
+      const genre = searchParams.get('genre')
+      const level = searchParams.get('level')
+      let sql = `SELECT id, title, author_or_publisher AS author, cover_image_url, genres, reading_level_tag, total_pages FROM home_library WHERE item_type = 'book'`
+      const params: any[] = []
+      if (genre) { params.push(genre); sql += ` AND $${params.length} = ANY(genres)` }
+      if (level) { params.push(level); sql += ` AND reading_level_tag = $${params.length}` }
+      sql += ` ORDER BY title LIMIT 50`
+      const rows = await db.query(sql, params).catch(() => [])
+      return NextResponse.json({ books: rows })
+    }
+
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }
@@ -262,6 +351,41 @@ export async function POST(request: NextRequest) {
         console.error('log_enjoyment error:', error)
         return NextResponse.json({ error: 'Failed to log enjoyment' }, { status: 500 })
       }
+    }
+
+    case 'finish_book': {
+      const { kid_name, book_id, rating, review } = body
+      if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      const kid = kid_name.toLowerCase()
+      const rows = await db.query(
+        `UPDATE kid_book_progress SET status = 'finished', finished_at = NOW(), rating = $3, review = $4
+         WHERE kid_name = $1 AND (book_id::text = $2 OR ($2 IS NULL AND status = 'reading')) RETURNING *`,
+        [kid, book_id || null, rating || null, review || null]
+      )
+      await db.query(`UPDATE digi_pets SET stars_balance = stars_balance + 10 WHERE kid_name = $1`, [kid]).catch(() => {})
+      await db.query(`INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, 10, 'book_finished', $2)`,
+        [kid, `Finished: ${rows[0]?.book_title || 'a book'}`]).catch(() => {})
+      await createNotification({
+        title: `📚 ${cap(kid)} finished a book!`, message: `"${rows[0]?.book_title || 'Unknown'}"${rating ? ` — rated ${rating}/5` : ''}`,
+        source_type: 'book_completed', icon: '📚', link_tab: 'homeschool',
+      }).catch(() => {})
+      return NextResponse.json({ success: true, stars: 10, book: rows[0] })
+    }
+
+    case 'enrich_book': {
+      const { book_id, isbn, title: bTitle, author } = body
+      if (!book_id) return NextResponse.json({ error: 'book_id required' }, { status: 400 })
+      const result = await lookupBookExternal({ isbn, title: bTitle, author })
+      if (result.source !== 'manual_needed') {
+        await db.query(
+          `UPDATE home_library SET cover_image_url = COALESCE($2, cover_image_url),
+             description_short = COALESCE($3, description_short), total_pages = COALESCE($4, total_pages),
+             isbn = COALESCE($5, isbn), lookup_source = $6, lookup_at = NOW() WHERE id = $1`,
+          [book_id, (result as any).cover_image_url || null, (result as any).description?.substring(0, 300) || null,
+           result.total_pages || null, (result as any).isbn || null, result.source]
+        ).catch(() => {})
+      }
+      return NextResponse.json({ result })
     }
 
     default:
