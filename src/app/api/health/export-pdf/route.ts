@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
       addHeader(doc, `${kidDisplay} — ${mType} Meeting Packet`, `${info.grade} | ${info.school} | Generated: ${mDate}`)
       let y = 55
 
-      const goals = await db.query(`SELECT * FROM iep_goals WHERE kid_name = $1 AND active = true`, [kid]).catch(() => [])
-      const accoms = await db.query(`SELECT * FROM accommodations WHERE kid_name = $1 AND active = true`, [kid]).catch(() => [])
+      const goals = await db.query(`SELECT * FROM iep_goal_progress WHERE kid_name = $1`, [kid]).catch(() => [])
+      const accoms = await db.query(`SELECT * FROM kid_accommodations WHERE kid_name = $1 AND active = true`, [kid]).catch(() => [])
       const attendanceRows = await db.query(
-        `SELECT status, COUNT(*)::int as c FROM attendance_log WHERE kid_name = $1 AND log_date >= CURRENT_DATE - INTERVAL '90 days' GROUP BY status`, [kid]
+        `SELECT status, COUNT(*)::int as c FROM kid_attendance WHERE kid_name = $1 AND attendance_date >= CURRENT_DATE - INTERVAL '90 days' GROUP BY status`, [kid]
       ).catch(() => [])
       const taskComp = await db.query(
         `SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE completed = TRUE)::int as done FROM kid_daily_checklist WHERE child_name = $1 AND event_date >= CURRENT_DATE - INTERVAL '30 days'`, [kid]
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         doc.addPage()
         addHeader(doc, `${kidDisplay} — IEP Goals & Progress`, mType)
         y = 55
-        const goalRows = goals.map((g: any) => [g.goal_area || 'General', (g.goal_text || '').slice(0, 60), g.target || '', g.current_progress || '', g.status || 'active'])
+        const goalRows = goals.map((g: any) => [g.goal_type || 'General', (g.goal_text || '').slice(0, 60), g.target_value || '', g.current_value || '', g.status || 'active'])
         y = addTable(doc, ['Area', 'Goal', 'Target', 'Progress', 'Status'], goalRows, y, [25, 65, 25, 30, 25])
       }
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         doc.addPage()
         addHeader(doc, `${kidDisplay} — Active Accommodations`, mType)
         y = 55
-        const accomRows = accoms.map((a: any) => [a.accommodation_type || 'General', (a.description || '').slice(0, 80), a.setting || 'All'])
+        const accomRows = accoms.map((a: any) => [a.accommodation_type || 'General', JSON.stringify(a.parameters || {}).slice(0, 80), a.source || 'All'])
         y = addTable(doc, ['Type', 'Description', 'Setting'], accomRows, y, [35, 100, 35])
       }
 
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       y = 55
 
       const behaviors = await db.query(
-        `SELECT behavior_type, COUNT(*)::int as c FROM behavior_logs WHERE kid_name = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY behavior_type ORDER BY c DESC`, [kid]
+        `SELECT behavior_type, COUNT(*)::int as c FROM behavior_events WHERE reporter_kid = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY behavior_type ORDER BY c DESC`, [kid]
       ).catch(() => [])
       if (behaviors.length > 0) {
         addSectionTitle(doc, 'Behavior Summary (30 Days)', y); y += 12
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
         addKeyValue(doc, s.charAt(0).toUpperCase() + s.slice(1), `${attendMap[s] || 0} days`, y); y += 8
       }
       y += 5
-      const benchmarks = await db.query(`SELECT subject, score, assessment_date, notes FROM benchmarks WHERE kid_name = $1 ORDER BY assessment_date DESC LIMIT 10`, [kid]).catch(() => [])
+      const benchmarks = await db.query(`SELECT test_name AS subject, score, test_date AS assessment_date, notes FROM kid_benchmarks WHERE kid_name = $1 ORDER BY test_date DESC LIMIT 10`, [kid]).catch(() => [])
       if (benchmarks.length > 0) {
         addSectionTitle(doc, 'Academic Benchmarks', y); y += 12
         y = addTable(doc, ['Subject', 'Score', 'Date', 'Notes'], benchmarks.map((b: any) => [b.subject || '', `${b.score || ''}`, b.assessment_date?.toString()?.slice(0, 10) || '', (b.notes || '').slice(0, 40)]), y, [35, 25, 30, 80])
@@ -233,13 +233,13 @@ export async function POST(request: NextRequest) {
     // Med adherence
     y = addSectionTitle(doc, `Medication Adherence (${days}-Day)`, y)
     const adherence = await db.query(
-      `SELECT log_date as date, status FROM medication_adherence_log
-       WHERE LOWER(person_name) = $1 AND log_date >= $2 ORDER BY log_date`,
+      `SELECT log_date as date, taken FROM med_adherence_log
+       WHERE kid_name = $1 AND log_date >= $2 ORDER BY log_date`,
       [kid, start]
     ).catch(() => [])
     const adherenceData = adherence.map((a: any) => ({
       date: a.date?.toISOString?.()?.slice(0, 10) || String(a.date).slice(0, 10),
-      taken: a.status === 'taken',
+      taken: !!a.taken,
     }))
     if (adherenceData.length > 0) {
       const takenCount = adherenceData.filter(a => a.taken).length

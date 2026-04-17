@@ -58,7 +58,7 @@ async function aggregatePacketData(kidName: string, startDate: string, endDate: 
     [kid]
   ).catch(() => [])
   const medAdherence = await db.query(
-    `SELECT * FROM medication_adherence_log WHERE LOWER(person_name) = $1 AND log_date BETWEEN $2 AND $3`,
+    `SELECT * FROM med_adherence_log WHERE kid_name = $1 AND log_date BETWEEN $2 AND $3`,
     [kid, startDate, endDate]
   ).catch(() => [])
   const providers = await db.query(

@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
 
         // Med adherence
         const meds = await db.query(
-          `SELECT COUNT(*)::int as taken FROM medication_adherence_log WHERE LOWER(person_name) = $1 AND log_date BETWEEN $2 AND $3 AND status = 'taken'`,
+          `SELECT COUNT(*)::int as taken FROM med_adherence_log WHERE kid_name = $1 AND log_date BETWEEN $2 AND $3 AND taken = true`,
           [kid, weekStart, weekEnd]
         ).catch(() => [])
         kidData.meds_taken = meds[0]?.taken || 0

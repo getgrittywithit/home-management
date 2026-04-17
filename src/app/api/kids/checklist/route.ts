@@ -834,11 +834,12 @@ export async function POST(request: NextRequest) {
           } catch {}
           // MED-1: Log to medication adherence calendar
           const medName = eventSummary || (eventId.includes('am') ? 'Morning Focalin' : 'Evening Clonidine')
+          const timeOfDay = eventId.includes('am') ? 'am' : 'pm'
           await db.query(
-            `INSERT INTO medication_adherence_log (person_name, medication, log_date, status)
-             VALUES ($1, $2, CURRENT_DATE, 'taken')
-             ON CONFLICT (person_name, medication, log_date) DO UPDATE SET status = 'taken', logged_at = NOW()`,
-            [kidName, medName]
+            `INSERT INTO med_adherence_log (kid_name, med_name, time_of_day, taken, log_date)
+             VALUES ($1, $2, $3, TRUE, CURRENT_DATE)
+             ON CONFLICT DO NOTHING`,
+            [kidName, medName, timeOfDay]
           ).catch(e => console.error('Med adherence log failed:', kidName, medName, e.message))
 
           // NOTIFY-FIX-1 #4: Notify parent of med completion

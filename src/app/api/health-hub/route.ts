@@ -412,7 +412,7 @@ export async function GET(request: NextRequest) {
       if (!person || !medication) return NextResponse.json({ error: 'person and medication required' }, { status: 400 })
       try {
         const rows = await db.query(
-          `SELECT log_date as date, status FROM medication_adherence_log
+          `SELECT log_date as date, status FROM med_adherence_log
            WHERE person_name = $1 AND medication = $2
            AND to_char(log_date, 'YYYY-MM') = $3
            ORDER BY log_date`,

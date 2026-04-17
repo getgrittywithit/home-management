@@ -287,7 +287,7 @@ async function generateParentPrep(weekStart: string, weekEnd: string) {
 
   // Behavior logs (Medium)
   const behaviors = await db.query(
-    `SELECT kid_name, behavior_type, description FROM behavior_logs WHERE created_at::date BETWEEN $1 AND $2 ORDER BY created_at DESC LIMIT 5`,
+    `SELECT reporter_kid AS kid_name, behavior_type, description FROM behavior_events WHERE created_at::date BETWEEN $1 AND $2 ORDER BY created_at DESC LIMIT 5`,
     [weekStart, weekEnd]
   ).catch(() => [])
   for (const b of behaviors) {
@@ -296,7 +296,7 @@ async function generateParentPrep(weekStart: string, weekEnd: string) {
 
   // Sick days (Info)
   const sick = await db.query(
-    `SELECT kid_name, COUNT(*)::int as days FROM attendance_log WHERE log_date BETWEEN $1 AND $2 AND status = 'sick' GROUP BY kid_name`,
+    `SELECT kid_name, COUNT(*)::int as days FROM kid_attendance WHERE attendance_date BETWEEN $1 AND $2 AND status = 'sick' GROUP BY kid_name`,
     [weekStart, weekEnd]
   ).catch(() => [])
   for (const s of sick) {

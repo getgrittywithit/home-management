@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     try {
       adherenceRows = await db.query(
         `SELECT medication_name, taken, log_date
-         FROM medication_adherence_log
+         FROM med_adherence_log
          WHERE kid_name = $1
            AND log_date >= CURRENT_DATE - $2 * INTERVAL '1 day'
          ORDER BY log_date ASC`,

@@ -701,10 +701,10 @@ export async function POST(request: NextRequest) {
         y = 50
 
         // Quick stats
-        const goals = await db.query(`SELECT * FROM iep_goals WHERE kid_name = $1 AND active = true`, [kid_name.toLowerCase()]).catch(() => [])
-        const accoms = await db.query(`SELECT * FROM accommodations WHERE kid_name = $1 AND active = true`, [kid_name.toLowerCase()]).catch(() => [])
+        const goals = await db.query(`SELECT * FROM iep_goal_progress WHERE kid_name = $1`, [kid_name.toLowerCase()]).catch(() => [])
+        const accoms = await db.query(`SELECT * FROM kid_accommodations WHERE kid_name = $1 AND active = true`, [kid_name.toLowerCase()]).catch(() => [])
         const attendanceRows = await db.query(
-          `SELECT status, COUNT(*)::int as c FROM attendance_log WHERE kid_name = $1 AND log_date >= CURRENT_DATE - INTERVAL '90 days' GROUP BY status`,
+          `SELECT status, COUNT(*)::int as c FROM kid_attendance WHERE kid_name = $1 AND attendance_date >= CURRENT_DATE - INTERVAL '90 days' GROUP BY status`,
           [kid_name.toLowerCase()]
         ).catch(() => [])
         const taskCompletion = await db.query(
@@ -755,7 +755,7 @@ export async function POST(request: NextRequest) {
           y = 50
 
           const behaviors = await db.query(
-            `SELECT behavior_type, COUNT(*)::int as c FROM behavior_logs WHERE kid_name = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY behavior_type ORDER BY c DESC`,
+            `SELECT behavior_type, COUNT(*)::int as c FROM behavior_events WHERE reporter_kid = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days' GROUP BY behavior_type ORDER BY c DESC`,
             [kid_name.toLowerCase()]
           ).catch(() => [])
 
@@ -808,7 +808,7 @@ export async function POST(request: NextRequest) {
           y += 5
 
           const benchmarks = await db.query(
-            `SELECT subject, score, assessment_date, notes FROM benchmarks WHERE kid_name = $1 ORDER BY assessment_date DESC LIMIT 10`,
+            `SELECT test_name AS subject, score, test_date AS assessment_date, notes FROM kid_benchmarks WHERE kid_name = $1 ORDER BY test_date DESC LIMIT 10`,
             [kid_name.toLowerCase()]
           ).catch(() => [])
           if (benchmarks.length > 0) {
