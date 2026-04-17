@@ -21,9 +21,11 @@ export async function GET(request: NextRequest) {
       }
 
       case 'get_all_messages': {
+        const includeArchived = searchParams.get('include_archived') === '1'
         const rows = await db.query(
-          `SELECT id, from_kid, message, created_at, read_by_parent, read_at, parent_reply, reply_at, resolved, resolved_at
+          `SELECT id, from_kid, message, created_at, read_by_parent, read_at, parent_reply, reply_at, resolved, resolved_at, archived_at
            FROM family_messages
+           ${includeArchived ? '' : 'WHERE archived_at IS NULL'}
            ORDER BY resolved ASC, read_at IS NOT NULL ASC, created_at DESC LIMIT 50`
         )
         const unreadCount = rows.filter((r: any) => !r.read_at).length
@@ -162,6 +164,19 @@ export async function POST(request: NextRequest) {
 
       case 'deactivate_greenlight': {
         await db.query(`UPDATE family_announcements SET active = FALSE WHERE announcement_type = 'greenlight' AND active = TRUE`)
+        return NextResponse.json({ success: true })
+      }
+
+      // D92 Part F: Archive resolved messages
+      case 'archive_message': {
+        const { id } = body
+        if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+        await db.query(`UPDATE family_messages SET archived_at = NOW() WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'archive_all_resolved': {
+        await db.query(`UPDATE family_messages SET archived_at = NOW() WHERE resolved = TRUE AND archived_at IS NULL`)
         return NextResponse.json({ success: true })
       }
 
