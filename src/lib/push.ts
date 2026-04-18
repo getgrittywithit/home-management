@@ -195,6 +195,7 @@ const PARENT_PUSH_SOURCES = new Set([
   'safety_event',               // safety system triggered
   // Activity completions
   'belle_complete',             // kid finished all Belle tasks
+  'zone_complete',              // kid finished all zone chores
   'checklist_complete',         // kid finished full daily checklist
   'belle_overdue',              // Belle AM tasks overdue
   'adventure_submitted',        // kid submitted an adventure idea

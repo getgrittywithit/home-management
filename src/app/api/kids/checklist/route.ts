@@ -900,10 +900,46 @@ export async function POST(request: NextRequest) {
             `UPDATE kid_points_balance SET current_points = current_points + 10, total_earned_all_time = total_earned_all_time + 10, updated_at = NOW() WHERE kid_name = $1`,
             [kidName]
           ).catch(e => console.error('Points balance update failed:', kidName, e.message))
+          // Check if all zone tasks are now complete
+          const allZone = await db.query(
+            `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE completed = TRUE)::int AS done
+             FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2 AND event_id LIKE 'zone-%'`,
+            [kidName, today]
+          ).catch(() => [{ total: 0, done: 0 }])
+          if (allZone[0]?.total > 0 && allZone[0]?.done === allZone[0]?.total) {
+            const capName = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+            await createNotification({
+              title: `🧹 ${capName} finished all zone tasks!`,
+              message: `All ${allZone[0].total} zone chores done for today`,
+              source_type: 'zone_complete',
+              source_ref: `zone_complete_${kidName}_${today}`,
+              icon: '🧹',
+            }).catch(() => {})
+          }
+
           try {
             const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])
             return NextResponse.json({ success: true, completed: newCompleted, points_awarded: 10, new_balance: bal[0]?.balance || 0 })
           } catch {}
+        }
+
+        // Check if all Belle tasks are now complete (via checklist)
+        if (eventId.startsWith('belle-') && newCompleted) {
+          const allBelle = await db.query(
+            `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE completed = TRUE)::int AS done
+             FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2 AND event_id LIKE 'belle-%'`,
+            [kidName, today]
+          ).catch(() => [{ total: 0, done: 0 }])
+          if (allBelle[0]?.total > 0 && allBelle[0]?.done === allBelle[0]?.total) {
+            const capName = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+            await createNotification({
+              title: `🐾 ${capName} finished all Belle tasks!`,
+              message: `All ${allBelle[0].total} Belle care tasks done for today`,
+              source_type: 'belle_complete',
+              source_ref: `belle_complete_${kidName}_${today}`,
+              icon: '🐾',
+            }).catch(() => {})
+          }
         }
 
         // Return with points info if earned (earn-money chores)

@@ -432,6 +432,23 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ days: [], streak: 0 }) }
     }
 
+    case 'get_daily_med_status': {
+      const kid = searchParams.get('kid_name')
+      const date = searchParams.get('date')
+      if (!kid || !date) return NextResponse.json({ error: 'kid_name + date required' }, { status: 400 })
+      try {
+        const logs = await db.query(
+          `SELECT time_of_day, taken FROM med_adherence_log WHERE kid_name = $1 AND log_date = $2`,
+          [kid.toLowerCase(), date]
+        )
+        const am_taken = logs.some((l: any) => l.time_of_day === 'am' && l.taken)
+        const pm_taken = logs.some((l: any) => l.time_of_day === 'pm' && l.taken)
+        return NextResponse.json({ am_taken, pm_taken })
+      } catch {
+        return NextResponse.json({ am_taken: false, pm_taken: false })
+      }
+    }
+
     default:
       return NextResponse.json({ error: `Unknown GET action: ${action}` }, { status: 400 })
   }
