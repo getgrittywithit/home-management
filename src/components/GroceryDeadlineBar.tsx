@@ -104,7 +104,7 @@ export default function GroceryDeadlineBar({ kidName }: Props) {
       const hoursBeforeMidnight = s.deadline_hours_before
       const daysBack = hoursBeforeMidnight >= 24 ? 2 : 1
       const deadlineDow = (pickupDow + 7 - daysBack) % 7
-      const deadlineHour = 24 - (hoursBeforeMidnight % 24)
+      const deadlineHour = (24 - (hoursBeforeMidnight % 24)) % 24
 
       const isDeadlineDay = todayDow === deadlineDow
       // Is the deadline past?

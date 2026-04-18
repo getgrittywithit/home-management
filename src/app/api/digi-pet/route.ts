@@ -114,20 +114,17 @@ async function ensurePet(kid_name: string) {
 // Recalculate stars_balance and weekly_stars from the log (single source of truth)
 // This makes the system self-correcting — no desync possible
 async function recalcBalanceFromLog(kid_name: string) {
-  const totalResult = await db.query(
-    `SELECT COALESCE(SUM(amount), 0)::int as total FROM digi_pet_star_log WHERE kid_name = $1`,
+  // Single query: earned minus spent
+  const result = await db.query(
+    `SELECT
+       GREATEST(0, COALESCE(SUM(amount), 0) - COALESCE((SELECT SUM(cost) FROM digi_pet_shop_purchases WHERE kid_name = $1), 0))::int AS balance
+     FROM digi_pet_star_log WHERE kid_name = $1`,
     [kid_name]
-  ).catch(() => [{ total: 0 }])
+  ).catch(() => [{ balance: 0 }])
 
-  // Subtract shop purchases from total to get balance
-  const spentResult = await db.query(
-    `SELECT COALESCE(SUM(cost), 0)::int as spent FROM digi_pet_shop_purchases WHERE kid_name = $1`,
-    [kid_name]
-  ).catch(() => [{ spent: 0 }])
+  const balance = result[0]?.balance ?? 0
 
-  const balance = Math.max(0, (totalResult[0]?.total || 0) - (spentResult[0]?.spent || 0))
-
-  // Weekly stars: sum log entries from this week's Monday
+  // Weekly stars
   const d = new Date()
   const dayOfWeek = d.getDay()
   d.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1))
@@ -145,7 +142,6 @@ async function recalcBalanceFromLog(kid_name: string) {
     [balance, weekly, kid_name]
   )
 
-  // Also sync weekly_star_goals
   await db.query(
     `INSERT INTO weekly_star_goals (kid_name, week_start, earned_stars) VALUES ($1, $2, $3)
      ON CONFLICT (kid_name, week_start) DO UPDATE SET earned_stars = $3`,
@@ -315,9 +311,17 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     if (action === 'buy_item') {
-      const { kid_name, item_id } = body
+      const { kid_name, item_id, idempotency_key } = body
       const item = SHOP_CATALOG[item_id]
       if (!item) return NextResponse.json({ error: 'Unknown item' }, { status: 400 })
+
+      if (idempotency_key) {
+        const dup = await db.query(
+          `SELECT 1 FROM digi_pet_star_log WHERE kid_name = $1 AND note = $2 LIMIT 1`,
+          [kid_name, `purchase:${idempotency_key}`]
+        ).catch(() => [])
+        if (dup.length > 0) return NextResponse.json({ already_purchased: true })
+      }
 
       const pet = await ensurePet(kid_name)
       if (pet.stars_balance < item.cost) {
@@ -342,9 +346,10 @@ export async function POST(request: NextRequest) {
 
       // Record star log (negative) with actual balance
       const { balance: purchaseBalance } = await recalcBalanceFromLog(kid_name)
+      const purchaseNote = idempotency_key ? `purchase:${idempotency_key}` : `Bought ${item.name}`
       await db.query(
         `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, $3, $4, $5)`,
-        [kid_name, -item.cost, 'purchase', `Bought ${item.name}`, purchaseBalance]
+        [kid_name, -item.cost, 'purchase', purchaseNote, purchaseBalance]
       )
 
       // For accessories, insert into accessories table
@@ -482,21 +487,30 @@ export async function POST(request: NextRequest) {
 
       await db.query(`UPDATE digi_pets SET streak_days = $1, last_activity_at = NOW() WHERE kid_name = $2`, [newStreak, kid_name])
 
-      // Streak milestones
+      // Streak milestones — dedup via source note
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
       let bonusStars = 0
       if (newStreak === 3 && pet.streak_days < 3) {
-        bonusStars = STAR_AMOUNTS.streak_3
-        await db.query(
-          `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, 'streak_3', '3-day streak bonus!', 0)`,
-          [kid_name, bonusStars]
-        )
+        const streakRef = `streak_3_${kid_name}_${today}`
+        const alreadyAwarded = await db.query(`SELECT 1 FROM digi_pet_star_log WHERE kid_name = $1 AND note = $2`, [kid_name, streakRef]).catch(() => [])
+        if (alreadyAwarded.length === 0) {
+          bonusStars = STAR_AMOUNTS.streak_3
+          await db.query(
+            `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, 'streak_3', $3, 0)`,
+            [kid_name, bonusStars, streakRef]
+          )
+        }
       }
       if (newStreak === 7 && pet.streak_days < 7) {
-        bonusStars += STAR_AMOUNTS.streak_7
-        await db.query(
-          `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, 'streak_7', '7-day streak bonus!', 0)`,
-          [kid_name, STAR_AMOUNTS.streak_7]
-        )
+        const streakRef = `streak_7_${kid_name}_${today}`
+        const alreadyAwarded = await db.query(`SELECT 1 FROM digi_pet_star_log WHERE kid_name = $1 AND note = $2`, [kid_name, streakRef]).catch(() => [])
+        if (alreadyAwarded.length === 0) {
+          bonusStars += STAR_AMOUNTS.streak_7
+          await db.query(
+            `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, 'streak_7', $3, 0)`,
+            [kid_name, STAR_AMOUNTS.streak_7, streakRef]
+          )
+        }
       }
 
       // Belle care bonus

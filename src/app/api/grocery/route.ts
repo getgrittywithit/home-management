@@ -58,6 +58,9 @@ export async function GET(request: NextRequest) {
       const prevStart = `${prevYear}-${String(prevMo).padStart(2, '0')}-01`
 
       try {
+        const budgetRow = await db.query(`SELECT monthly_budget FROM grocery_settings LIMIT 1`).catch(() => [])
+        const monthlyBudget = budgetRow[0]?.monthly_budget || 1500
+
         const currentRows = await db.query(
           `SELECT
              COALESCE(SUM(total_amount) FILTER (WHERE LOWER(store) LIKE '%walmart%'), 0)::numeric as walmart_total,
@@ -109,7 +112,7 @@ export async function GET(request: NextRequest) {
           previous: { combined_total: parseFloat(previous.combined_total) || 0, trip_count: previous.trip_count || 0 },
           this_week: parseFloat(thisWeekRows[0]?.total) || 0,
           last_week: parseFloat(lastWeekRows[0]?.total) || 0,
-          budget: 1500,
+          budget: monthlyBudget,
         })
       } catch (err: any) {
         if (err?.message?.includes('does not exist') || err?.code === '42P01') {

@@ -161,6 +161,8 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
   const [starPopup, setStarPopup] = useState<{ amount: number; key: number } | null>(null)
   const [isSickDay, setIsSickDay] = useState(false)
   const [undoInfo, setUndoInfo] = useState<{ itemId: string; tier: string; starsLost: number } | null>(null)
+  const [errorToast, setErrorToast] = useState<string | null>(null)
+  const [inFlight, setInFlight] = useState<Set<string>>(new Set())
 
   const childKey = childName.toLowerCase()
 
@@ -203,12 +205,16 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
   const [toggleLock, setToggleLock] = useState<Record<string, number>>({})
 
   const toggle = async (item: ChecklistItem, tier: 'required' | 'dailyCare' | 'earnMoney') => {
-    // Debounce: prevent toggling same item within 500ms
+    if (inFlight.has(item.id)) return
     const now = Date.now()
     if (toggleLock[item.id] && now - toggleLock[item.id] < 500) return
     setToggleLock(prev => ({ ...prev, [item.id]: now }))
+    setInFlight(prev => new Set(prev).add(item.id))
 
     // Optimistic update
+    const prevRequired = [...required]
+    const prevDailyCare = [...dailyCare]
+    const prevEarnMoney = [...earnMoney]
     const update = (items: ChecklistItem[]) => items.map(i => i.id === item.id ? { ...i, completed: !i.completed } : i)
     if (tier === 'required') {
       const updated = update(required)
@@ -278,6 +284,13 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
       }
     } catch (err) {
       console.error('Toggle error:', err)
+      setRequired(prevRequired)
+      setDailyCare(prevDailyCare)
+      setEarnMoney(prevEarnMoney)
+      setErrorToast("Couldn't save — try again")
+      setTimeout(() => setErrorToast(null), 3000)
+    } finally {
+      setInFlight(prev => { const n = new Set(prev); n.delete(item.id); return n })
     }
   }
 
@@ -331,6 +344,13 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
             }
             setUndoInfo(null)
           }} className="text-amber-400 font-semibold text-sm ml-3">UNDO</button>
+        </div>
+      )}
+
+      {/* Error toast */}
+      {errorToast && (
+        <div className="fixed bottom-4 left-4 right-4 bg-red-600 text-white rounded-xl p-3 text-sm text-center z-50 shadow-lg">
+          {errorToast}
         </div>
       )}
 
