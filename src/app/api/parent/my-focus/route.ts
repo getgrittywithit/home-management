@@ -101,9 +101,18 @@ export async function GET(req: NextRequest) {
       const noiseCount = emailCounts.filter((e: any) => e.category === 'noise').reduce((s: number, e: any) => s + e.count, 0)
       const subsCount = emailCounts.filter((e: any) => e.category === 'subscriptions').reduce((s: number, e: any) => s + e.count, 0)
 
-      // 6. Household
-      const belleKid = BELLE_WEEKDAY[dow] || 'Weekend rotation'
-      const dinnerManager = DINNER_MANAGERS[dow] || 'Parents'
+      // 6. Household — check for overrides first, fall back to static rotation
+      const belleOverride = await db.query(
+        `SELECT assigned_to FROM household_overrides WHERE override_date = $1 AND override_type = 'belle_duty'`, [todayStr]
+      ).catch(() => [])
+      const dinnerOverride = await db.query(
+        `SELECT assigned_to FROM household_overrides WHERE override_date = $1 AND override_type = 'dinner_manager'`, [todayStr]
+      ).catch(() => [])
+      const belleSwap = await db.query(
+        `SELECT covering_kid FROM belle_care_swaps WHERE swap_date = $1 AND status = 'accepted' LIMIT 1`, [todayStr]
+      ).catch(() => [])
+      const belleKid = belleOverride[0]?.assigned_to || belleSwap[0]?.covering_kid || BELLE_WEEKDAY[dow] || 'Weekend rotation'
+      const dinnerManager = dinnerOverride[0]?.assigned_to || DINNER_MANAGERS[dow] || 'Parents'
       const zoneWeek = Math.ceil(((now.getTime() - new Date('2026-03-16').getTime()) / (7 * 86400000))) % 6 || 6
 
       // 7. Triton pipeline
@@ -213,6 +222,26 @@ export async function POST(req: NextRequest) {
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         await db.query(`UPDATE action_items SET status = 'dismissed' WHERE id = $1`, [id])
         return NextResponse.json({ success: true })
+      }
+
+      case 'dismiss_alert': {
+        const { alert_key } = body
+        if (!alert_key) return NextResponse.json({ error: 'alert_key required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO parent_alert_dismissals (alert_key) VALUES ($1) ON CONFLICT (alert_key) DO NOTHING`,
+          [alert_key]
+        ).catch(() => {})
+        return NextResponse.json({ dismissed: true })
+      }
+
+      case 'get_dismissed_alerts': {
+        const rows = await db.query(`SELECT alert_key FROM parent_alert_dismissals`).catch(() => [])
+        return NextResponse.json({ keys: rows.map((r: any) => r.alert_key) })
+      }
+
+      case 'restore_alerts': {
+        await db.query(`DELETE FROM parent_alert_dismissals`).catch(() => {})
+        return NextResponse.json({ restored: true })
       }
 
       default:

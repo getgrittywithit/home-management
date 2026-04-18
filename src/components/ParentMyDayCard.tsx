@@ -75,7 +75,7 @@ export default function ParentMyDayCard({ onNavigate }: Props) {
         </div>
 
         {/* Email */}
-        {(data.email_important > 0 || data.email_clearable > 0) && (
+        {(data.email_important > 0 || data.email_clearable > 0) ? (
           <div className="flex items-center gap-2 text-gray-600">
             <Mail className="w-3.5 h-3.5" />
             <span>
@@ -83,6 +83,11 @@ export default function ParentMyDayCard({ onNavigate }: Props) {
               {data.email_important > 0 && data.email_clearable > 0 && ' · '}
               {data.email_clearable > 0 && `${data.email_clearable} clearable`}
             </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-gray-400 text-xs">
+            <Mail className="w-3 h-3" />
+            <span>Email sync not connected</span>
           </div>
         )}
 

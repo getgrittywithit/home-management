@@ -23,16 +23,15 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
   const [dismissed, setDismissed] = useState(false)
   const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set())
 
-  // Load persisted dismissals from localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('familyops_dismissed_alerts')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        setDismissedItems(new Set(parsed.items || []))
-        if (parsed.allDismissed) setDismissed(true)
-      }
-    } catch { /* ignore */ }
+    fetch('/api/parent/my-focus', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_dismissed_alerts' }),
+    }).then(r => r.json()).then(data => {
+      const keys = data.keys || []
+      setDismissedItems(new Set(keys))
+      if (keys.includes('__all_dismissed__')) setDismissed(true)
+    }).catch(() => {})
   }, [])
   const ctx = useDashboardData()
 
@@ -118,11 +117,11 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
   const visibleFlags = flags.filter((_, i) => !dismissedItems.has(`${flags[i]?.type}-${i}`))
   const dismissItem = (type: string, idx: number) => {
     const key = `${type}-${idx}`
-    setDismissedItems(prev => {
-      const next = new Set(prev).add(key)
-      try { localStorage.setItem('familyops_dismissed_alerts', JSON.stringify({ items: Array.from(next), allDismissed: false })) } catch {}
-      return next
-    })
+    setDismissedItems(prev => new Set(prev).add(key))
+    fetch('/api/parent/my-focus', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'dismiss_alert', alert_key: key }),
+    }).catch(() => {})
   }
 
   if (visibleFlags.length === 0 || dismissed) {
@@ -143,7 +142,13 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
             {visibleFlags.length} item{visibleFlags.length > 1 ? 's' : ''} need{visibleFlags.length === 1 ? 's' : ''} attention
           </span>
         </div>
-        <button onClick={() => { setDismissed(true); try { localStorage.setItem('familyops_dismissed_alerts', JSON.stringify({ items: Array.from(dismissedItems), allDismissed: true })) } catch {} }} className="p-1 hover:bg-amber-100 rounded">
+        <button onClick={() => {
+          setDismissed(true)
+          fetch('/api/parent/my-focus', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'dismiss_alert', alert_key: '__all_dismissed__' }),
+          }).catch(() => {})
+        }} className="p-1 hover:bg-amber-100 rounded">
           <X className="w-4 h-4 text-amber-500" />
         </button>
       </div>

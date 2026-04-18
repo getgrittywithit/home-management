@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { User, Heart, Star, Palette, Gift, Eye, Edit3 } from 'lucide-react'
 import { useDashboardData } from '@/context/DashboardDataContext'
 
@@ -32,10 +33,37 @@ const COLOR_BG: Record<string, string> = {
   yellow: 'bg-yellow-100 border-yellow-300',
 }
 
+interface LiveStatus {
+  tasksTotal: number; tasksDone: number
+  mood: string | null; moodTime: string | null
+  isSick: boolean; streak: number; starsBalance: number
+}
+
 export default function KidSnapshotCards({ onViewFull, onEdit }: KidSnapshotCardsProps) {
   const ctx = useDashboardData()
   const snapshots: Snapshot[] = ctx.kidSnapshots?.snapshots || []
   const loaded = ctx.loaded
+  const [liveStatus, setLiveStatus] = useState<Record<string, LiveStatus>>({})
+
+  useEffect(() => {
+    if (!loaded || snapshots.length === 0) return
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    Promise.all(
+      snapshots.map(async s => {
+        try {
+          const res = await fetch(`/api/parent/kid-status?kid=${s.kid_name}&date=${today}`)
+          const d = await res.json()
+          return [s.kid_name, {
+            tasksTotal: d.tasks_total ?? 0, tasksDone: d.tasks_done ?? 0,
+            mood: d.latest_mood ?? null, moodTime: d.mood_time ?? null,
+            isSick: !!d.is_sick, streak: d.streak_days ?? 0, starsBalance: d.stars_balance ?? 0,
+          }] as const
+        } catch {
+          return [s.kid_name, { tasksTotal: 0, tasksDone: 0, mood: null, moodTime: null, isSick: false, streak: 0, starsBalance: 0 }] as const
+        }
+      })
+    ).then(entries => setLiveStatus(Object.fromEntries(entries)))
+  }, [loaded, snapshots.length])
 
   if (!loaded) {
     return (
@@ -80,6 +108,31 @@ export default function KidSnapshotCards({ onViewFull, onEdit }: KidSnapshotCard
                   )}
                 </div>
               </div>
+
+              {/* Live status */}
+              {liveStatus[snap.kid_name] && (() => {
+                const s = liveStatus[snap.kid_name]
+                const pct = s.tasksTotal > 0 ? Math.round((s.tasksDone / s.tasksTotal) * 100) : 0
+                return (
+                  <div className="space-y-2 mb-3 pb-3 border-b border-white/40">
+                    {s.isSick && (
+                      <span className="inline-block bg-red-100 text-red-700 text-xs font-medium px-2 py-0.5 rounded-full">🤒 Sick Day</span>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-white/40 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${pct === 100 ? 'bg-green-500' : pct > 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                          style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-600 font-medium">{s.tasksDone}/{s.tasksTotal}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      {s.mood && <span>{s.mood} {s.moodTime}</span>}
+                      {s.streak > 0 && <span>🔥 {s.streak}d</span>}
+                      <span>⭐ {s.starsBalance}</span>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Favorites summary */}
               <div className="space-y-1 text-xs text-gray-700 mb-3">
