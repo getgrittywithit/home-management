@@ -290,6 +290,7 @@ const KID_PUSH_SOURCES = new Set([
   'event_response',             // parent responded to event request
   'challenge',                  // challenge issued
   'challenge_win',              // challenge won
+  'challenge_update',           // someone updated challenge progress
   'parent_nudge',               // parent nudge
   'break_acknowledged',         // break request acknowledged
 ])

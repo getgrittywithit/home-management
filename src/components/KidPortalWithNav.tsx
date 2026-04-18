@@ -7,7 +7,7 @@ import {
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
   User, Heart, X, Shuffle, Dices, Sparkles,
-  ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library
+  ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library, MessageCircle
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -62,6 +62,9 @@ import HuddlePreSubmit from './huddle/HuddlePreSubmit'
 // TalkToParentsButton moved to KidRequestsTab (BUTTON-FIX-1)
 import AdventureBoardTab from './AdventureBoardTab'
 import HydrationTracker from './HydrationTracker'
+import SiblingChat from './SiblingChat'
+import ChallengeBoard from './ChallengeBoard'
+import LeaderboardCard from './LeaderboardCard'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
@@ -76,7 +79,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
 
 interface NavTab {
   id: TabId
@@ -109,6 +112,7 @@ const navSections: NavSection[] = [
     label: 'MY STUFF',
     tabs: [
       { id: 'requests', name: 'Requests', icon: MessageSquare, color: 'bg-indigo-500' },
+      { id: 'messages', name: 'Messages', icon: MessageCircle, color: 'bg-blue-500' },
       { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-500' },
       { id: 'library', name: 'Our Library', icon: Library, color: 'bg-emerald-500' },
       { id: 'my-vibe', name: 'My Vibe', icon: Sparkles, color: 'bg-purple-500' },
@@ -123,6 +127,7 @@ const navSections: NavSection[] = [
       { id: 'financial-literacy', name: 'Money Skills', icon: DollarSign, color: 'bg-teal-500' },
       { id: 'achievements', name: 'Achievements', icon: Award, color: 'bg-yellow-500' },
       { id: 'adventures', name: 'Adventures', icon: MapPin, color: 'bg-indigo-500' },
+      { id: 'challenges', name: 'Challenges', icon: Trophy, color: 'bg-orange-500' },
       { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
       { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
     ],
@@ -1900,6 +1905,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
             />
             <HydrationTracker kidName={profile.first_name || profile.name} />
             <WorkLogCard kidName={profile.first_name || profile.name} />
+            <LeaderboardCard currentKid={profile.first_name || profile.name} />
           </div>
         )
       case 'dashboard':
@@ -1942,6 +1948,10 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return <AdventureBoardTab childName={profile.first_name || profile.name} />
       case 'requests':
         return <KidRequestsTab childName={profile.first_name || profile.name} />
+      case 'messages':
+        return <SiblingChat kidName={profile.first_name || profile.name} />
+      case 'challenges':
+        return <ChallengeBoard kidName={profile.first_name || profile.name} />
       case 'library':
         return <KidLibraryView kidName={profile.first_name || profile.name} />
       case 'my-vibe':

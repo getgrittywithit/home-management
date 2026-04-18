@@ -14,7 +14,7 @@ const KID_DISPLAY: Record<string, string> = {
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-export default function LeaderboardCard() {
+export default function LeaderboardCard({ currentKid }: { currentKid?: string } = {}) {
   const [board, setBoard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -34,7 +34,9 @@ export default function LeaderboardCard() {
       </h3>
       <div className="space-y-2">
         {board.map((entry, i) => (
-          <div key={entry.kid_name} className={`flex items-center gap-3 p-2 rounded-lg ${i === 0 ? 'bg-amber-50' : ''}`}>
+          <div key={entry.kid_name} className={`flex items-center gap-3 p-2 rounded-lg ${
+            currentKid && entry.kid_name === currentKid.toLowerCase() ? 'bg-yellow-50 border-l-2 border-yellow-400' : i === 0 ? 'bg-amber-50' : ''
+          }`}>
             <span className="text-lg w-6 text-center">{MEDALS[i] || `${i + 1}.`}</span>
             <span className="font-medium text-gray-900 flex-1 capitalize">
               {KID_DISPLAY[entry.kid_name] || entry.kid_name}
