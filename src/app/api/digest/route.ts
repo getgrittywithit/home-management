@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
-
-const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+import { ALL_KIDS as KIDS } from '@/lib/constants'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)

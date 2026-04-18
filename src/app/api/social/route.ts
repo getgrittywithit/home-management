@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
 
+import { ALL_KIDS as KIDS } from '@/lib/constants'
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)

@@ -4,7 +4,7 @@ import { createNotification } from '@/lib/notifications'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-const KID_NAMES = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+import { ALL_KIDS as KID_NAMES } from '@/lib/constants'
 
 function detectKidFromEmail(subject: string, body: string): string | null {
   const text = `${subject} ${body}`.toLowerCase()

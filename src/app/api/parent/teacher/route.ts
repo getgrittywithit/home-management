@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
-
-const HOMESCHOOL = ['amos', 'ellie', 'wyatt', 'hannah']
+import { ALL_KIDS, HOMESCHOOL_KIDS as HOMESCHOOL } from '@/lib/constants'
 const PUBLIC_SCHOOL = ['zoey', 'kaylee']
-const ALL_KIDS = [...HOMESCHOOL, ...PUBLIC_SCHOOL]
 const FULL_NAMES: Record<string, string> = { zoey: 'Zoey Moses', kaylee: 'Kaylee Moses' }
 const MAKEUP_SUBJECTS = ['Math', 'ELAR/Writing', 'Science/SS', 'Reading']
 

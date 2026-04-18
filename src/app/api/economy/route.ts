@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
-
-const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+import { ALL_KIDS as KIDS } from '@/lib/constants'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)

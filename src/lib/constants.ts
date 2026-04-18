@@ -32,3 +32,26 @@ export type BelleTask = typeof BELLE_TASKS[number]
 export const MED_KIDS = ['amos', 'wyatt'] as const
 export const ALL_KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah'] as const
 export const HOMESCHOOL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah'] as const
+
+export const KID_AGES: Record<string, number> = {
+  amos: 17, zoey: 15, kaylee: 13, ellie: 12, wyatt: 10, hannah: 8,
+}
+
+export const KID_GRADES: Record<string, number> = {
+  amos: 10, zoey: 9, kaylee: 7, ellie: 6, wyatt: 4, hannah: 3,
+}
+
+export const KID_GRADE_LABELS: Record<string, string> = {
+  amos: '10th grade', zoey: '9th grade', kaylee: '7th grade',
+  ellie: '6th grade', wyatt: '4th grade', hannah: '3rd grade',
+}
+
+export const KID_DISPLAY: Record<string, string> = {
+  amos: 'Amos', zoey: 'Zoey', kaylee: 'Kaylee',
+  ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah',
+}
+
+export const KID_SCHOOL_TYPE: Record<string, 'homeschool' | 'public'> = {
+  amos: 'homeschool', zoey: 'public', kaylee: 'public',
+  ellie: 'homeschool', wyatt: 'homeschool', hannah: 'homeschool',
+}

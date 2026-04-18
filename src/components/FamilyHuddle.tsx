@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Shuffle, Star, CheckCircle2, Calendar, Utensils, Dog, MessageSquare, Loader2, Printer, ClipboardList, ArrowRight, ListTodo } from 'lucide-react'
+import { Users, Shuffle, Star, CheckCircle2, Calendar, Utensils, Dog, MessageSquare, Loader2, Printer, ClipboardList, ArrowRight, ListTodo, Trophy } from 'lucide-react'
 import ParentPrep from './huddle/ParentPrep'
 import HuddleMiniGame from './huddle/HuddleMiniGame'
 import HuddleBonusRound from './huddle/HuddleBonusRound'
@@ -52,6 +52,7 @@ export default function FamilyHuddle() {
   const [saving, setSaving] = useState(false)
   const [mode, setMode] = useState<'quick' | 'full'>('full')
   const [actionItems, setActionItems] = useState<string[]>([])
+  const [activeChallenges, setActiveChallenges] = useState<any[]>([])
   const [actionInput, setActionInput] = useState('')
   const [toastMsg, setToastMsg] = useState('')
 
@@ -87,7 +88,11 @@ export default function FamilyHuddle() {
     setHistory(res.history || [])
   }
 
-  useEffect(() => { fetchCurrent(); fetchHistory() }, [])
+  useEffect(() => {
+    fetchCurrent(); fetchHistory()
+    fetch('/api/social?action=list_challenges&status=active')
+      .then(r => r.json()).then(d => setActiveChallenges(d.challenges || [])).catch(() => {})
+  }, [])
 
   const handleGenerate = async () => {
     setLoading(true)
@@ -591,6 +596,28 @@ export default function FamilyHuddle() {
               Complete Huddle
             </button>
           )}
+        </div>
+      )}
+
+      {activeChallenges.length > 0 && (
+        <div className="bg-white rounded-xl border shadow-sm p-4">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mb-3">
+            <Trophy className="w-4 h-4 text-amber-500" /> Kids&apos; Challenges
+          </h3>
+          <div className="space-y-2">
+            {activeChallenges.map((c: any) => (
+              <div key={c.id} className="flex items-center justify-between text-sm border-b border-gray-100 pb-2 last:border-0">
+                <div>
+                  <p className="font-medium text-gray-800">{c.title}</p>
+                  <p className="text-xs text-gray-500">
+                    {(c.participants || []).map(cap).join(', ')} · Ends {new Date(c.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </p>
+                </div>
+                <span className="text-xs text-amber-600 font-medium">⭐ {c.star_prize}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-2 italic">Read-only — kids manage their own challenges</p>
         </div>
       )}
     </div>

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
-
-const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+import { ALL_KIDS as KIDS } from '@/lib/constants'
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 
 const DOMAIN_KEYWORDS: Record<string, string[]> = {

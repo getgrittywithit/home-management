@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
-
-const ALL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
-const DISPLAY_NAMES: Record<string, string> = { amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', zoey: 'Zoey', kaylee: 'Kaylee' }
+import { ALL_KIDS, KID_DISPLAY as DISPLAY_NAMES } from '@/lib/constants'
 const CYCLE_KIDS = ['ellie', 'hannah', 'kaylee', 'zoey']
 const MOOD_EMOJIS: Record<number, string> = { 1: '😢', 2: '😕', 3: '😐', 4: '😊', 5: '😄' }
 
