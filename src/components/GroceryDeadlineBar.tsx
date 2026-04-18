@@ -102,10 +102,8 @@ export default function GroceryDeadlineBar({ kidName }: Props) {
     // Deadline falls on (pickup_day - 1) if hours < 24, or earlier
     const deadlines = [s.pickup_day_1, s.pickup_day_2].map(pickupDow => {
       const hoursBeforeMidnight = s.deadline_hours_before
-      // Deadline day = day before pickup (if hours < 24)
-      const deadlineDow = hoursBeforeMidnight >= 24
-        ? (pickupDow + 6) % 7 // 2 days before
-        : (pickupDow + 6) % 7 // 1 day before
+      const daysBack = hoursBeforeMidnight >= 24 ? 2 : 1
+      const deadlineDow = (pickupDow + 7 - daysBack) % 7
       const deadlineHour = 24 - (hoursBeforeMidnight % 24)
 
       const isDeadlineDay = todayDow === deadlineDow

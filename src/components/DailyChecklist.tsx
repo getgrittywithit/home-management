@@ -160,6 +160,7 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
   const [prevAllDone, setPrevAllDone] = useState(false)
   const [starPopup, setStarPopup] = useState<{ amount: number; key: number } | null>(null)
   const [isSickDay, setIsSickDay] = useState(false)
+  const [undoInfo, setUndoInfo] = useState<{ itemId: string; tier: string; starsLost: number } | null>(null)
 
   const childKey = childName.toLowerCase()
 
@@ -263,13 +264,13 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
             })
             const reverseData = await reverseRes.json()
             if (reverseData.reversed && reverseData.reversed > 0) {
-              // Show deduction animation
               setStarPopup({ amount: -reverseData.reversed, key: Date.now() })
               setTimeout(() => setStarPopup(null), 2200)
             }
-            // Always refresh header from DB
             onStarEarned?.(-1)
-          } catch { /* reversal failed — don't show animation */ }
+            setUndoInfo({ itemId: item.id, tier: item.category, starsLost: reverseData.reversed || 0 })
+            setTimeout(() => setUndoInfo(null), 5000)
+          } catch { /* reversal failed */ }
         } else {
           // No star task type but still refresh header
           onStarEarned?.(0)
@@ -318,6 +319,20 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
 
       {/* Celebration burst overlay */}
       {showCelebration && <CelebrationBurst />}
+
+      {/* Undo toast after unchecking */}
+      {undoInfo && (
+        <div className="fixed bottom-4 left-4 right-4 bg-gray-800 text-white rounded-xl p-3 flex items-center justify-between z-50 shadow-lg">
+          <span className="text-sm">Task unchecked{undoInfo.starsLost > 0 ? ` · −${undoInfo.starsLost} ⭐` : ''}</span>
+          <button onClick={() => {
+            const item = [...required, ...dailyCare, ...earnMoney].find(i => i.id === undoInfo.itemId)
+            if (item) {
+              toggle(item, required.includes(item) ? 'required' : dailyCare.includes(item) ? 'dailyCare' : 'earnMoney')
+            }
+            setUndoInfo(null)
+          }} className="text-amber-400 font-semibold text-sm ml-3">UNDO</button>
+        </div>
+      )}
 
       {/* GAP-13: Sick Day Rest Banner */}
       {isSickDay && (
@@ -491,7 +506,11 @@ function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expand
     }).catch(() => setSubstepsLoaded(true))
   }, [hasSubsteps, substepsLoaded, item.id, childName])
 
+  const [substepLocked, setSubstepLocked] = useState(false)
+
   const toggleSubstep = async (index: number) => {
+    if (substepLocked) return
+    setSubstepLocked(true)
     const newState = [...substepState]
     newState[index] = !newState[index]
     setSubstepState(newState)
@@ -507,12 +526,14 @@ function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expand
       const data = await res.json()
       if (data.substep_progress) setSubstepState(data.substep_progress)
       if (data.all_complete && !item.completed) {
-        onToggle() // Trigger parent completion + stars
+        onToggle()
       }
     } catch (e) {
       console.error('Substep toggle failed:', e)
-      newState[index] = !newState[index] // Revert on error
+      newState[index] = !newState[index]
       setSubstepState(newState)
+    } finally {
+      setSubstepLocked(false)
     }
   }
 

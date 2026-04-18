@@ -119,7 +119,9 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
   const displayName = kidName.charAt(0).toUpperCase() + kidName.slice(1)
 
   const greetings = () => {
-    const hour = now.getHours()
+    const hour = parseInt(
+      new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Chicago' }).format(new Date())
+    )
     if (hour < 12) return 'Good Morning'
     if (hour < 17) return 'Good Afternoon'
     return 'Good Evening'
@@ -195,6 +197,8 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       }
 
       for (const item of [...(clData.required || []), ...(clData.dailyCare || [])]) {
+        // Belle tasks are handled by BelleCareCard — skip to avoid duplicates
+        if (item.id?.startsWith('belle-')) continue
         // Skip items already added from school tasks
         if (allTasks.some(t => t.id === item.id)) continue
         const tb = getTimeBlock(item.time, item.category)
@@ -571,14 +575,14 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
               <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /> Weekly Star Goal
             </span>
             <span className="text-sm font-bold text-amber-600">
-              {weeklyGoal.earned}/{weeklyGoal.target}
+              {weeklyGoal.earned ?? 0}/{weeklyGoal.target ?? 50}
             </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3">
-            <div className={`h-full rounded-full transition-all ${weeklyGoal.earned >= weeklyGoal.target ? 'bg-green-500' : 'bg-amber-400'}`}
-              style={{ width: `${Math.min(100, Math.round((weeklyGoal.earned / weeklyGoal.target) * 100))}%` }} />
+            <div className={`h-full rounded-full transition-all ${(weeklyGoal.earned ?? 0) >= (weeklyGoal.target ?? 50) ? 'bg-green-500' : 'bg-amber-400'}`}
+              style={{ width: `${Math.min(100, Math.round(((weeklyGoal.earned ?? 0) / (weeklyGoal.target || 50)) * 100))}%` }} />
           </div>
-          {weeklyGoal.earned >= weeklyGoal.target && (
+          {(weeklyGoal.earned ?? 0) >= (weeklyGoal.target ?? 50) && (
             <p className="text-xs text-green-600 font-medium mt-1.5">Goal met! Keep it up!</p>
           )}
           {weeklyGoal.earned === 0 && (
