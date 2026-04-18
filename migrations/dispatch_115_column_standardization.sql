@@ -1,0 +1,27 @@
+-- Dispatch 115 — Column naming standardization (child_name → kid_name)
+-- WARNING: Do NOT run this migration until ALL code references to child_name
+-- have been updated to kid_name. There are 126+ references in src/app/api/.
+-- This migration is prepared for a future coordinated rename.
+
+-- Tables that use child_name (15 total):
+-- kid_daily_checklist, kid_mood_log, kid_daily_care, kid_daily_care_log,
+-- kid_dental_items, kid_dental_log, kid_dental_notes, kid_dental_streaks,
+-- kid_health_requests, kid_wellness_log, kid_activity_log,
+-- daily_checklist_completion, earn_money_chores, homeschool_checklist, parent_tasks
+
+-- UNCOMMENT when code changes are ready:
+-- ALTER TABLE kid_daily_checklist RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_mood_log RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_daily_care RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_daily_care_log RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_dental_items RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_dental_log RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_dental_notes RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_dental_streaks RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_health_requests RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_wellness_log RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE kid_activity_log RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE daily_checklist_completion RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE earn_money_chores RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE homeschool_checklist RENAME COLUMN child_name TO kid_name;
+-- ALTER TABLE parent_tasks RENAME COLUMN child_name TO kid_name;
