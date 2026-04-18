@@ -195,8 +195,8 @@ export default function BulkDocumentProcessor() {
         })
       })
       
-      if (response.ok) {
-        console.log(`Successfully moved ${file.name} to ${folder} folder`)
+      if (!response.ok) {
+        console.error(`Failed to move ${file.name} to ${folder}`)
       }
     } catch (error) {
       console.error('Error moving file:', error)

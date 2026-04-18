@@ -55,7 +55,7 @@ import NotificationPermissionPrompt from './NotificationPermissionPrompt'
 import AiBuddyChat from './AiBuddyChat'
 import ProfileSwitcher from './ProfileSwitcher'
 import MyVibe from './kid/MyVibe'
-import JourneyMap from './JourneyMap'
+import JourneyMap from './homeschool/JourneyMap'
 import PositiveReportButton from './PositiveReportButton'
 import NotificationBell from './NotificationBell'
 import HuddlePreSubmit from './huddle/HuddlePreSubmit'
@@ -545,20 +545,17 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         const sourceRef = `checklist-${eventId}-${today}`
 
         if (newCompleted) {
-          console.log('[Stars] My Day award:', childKey, starTaskType, eventId)
           try {
             const res = await fetch('/api/digi-pet', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ action: 'award_task_stars', kid_name: childKey, task_type: starTaskType, source_ref: sourceRef }),
             })
             const data = await res.json()
-            console.log('[Stars] My Day award result:', data)
             if (data.amount && !data.already_awarded) {
               setBalanceRefreshKey(k => k + 1)
             }
           } catch (err) { console.error('[Stars] My Day award failed:', err) }
         } else {
-          console.log('[Stars] My Day reverse:', childKey, sourceRef)
           try {
             await fetch('/api/digi-pet', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -646,7 +643,6 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
   const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
   const toggleTaskComplete = async (taskId: string) => {
-    console.log('Toggle task:', taskId)
   }
 
   const getDayEvents = (date: Date) => {

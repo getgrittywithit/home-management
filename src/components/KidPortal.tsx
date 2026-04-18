@@ -33,8 +33,6 @@ export default function KidPortal({ kidData }: KidPortalProps) {
   const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
   const toggleTaskComplete = async (taskId: string) => {
-    // This would call an API to update the task completion
-    console.log('Toggle task:', taskId)
   }
 
   const openEventModal = (event: any) => {
@@ -166,25 +164,25 @@ export default function KidPortal({ kidData }: KidPortalProps) {
                 icon={<Plus className="w-5 h-5" />}
                 label="Add Event"
                 color="blue"
-                onClick={() => console.log('Add event')}
+                onClick={() => {}}
               />
               <QuickActionButton
                 icon={<Utensils className="w-5 h-5" />}
                 label="Meal Request"
                 color="green"
-                onClick={() => console.log('Meal request')}
+                onClick={() => {}}
               />
               <QuickActionButton
                 icon={<MessageSquare className="w-5 h-5" />}
                 label="Note to Parents"
                 color="purple"
-                onClick={() => console.log('Send note')}
+                onClick={() => {}}
               />
               <QuickActionButton
                 icon={<Award className="w-5 h-5" />}
                 label="My Achievements"
                 color="yellow"
-                onClick={() => console.log('View achievements')}
+                onClick={() => {}}
               />
             </div>
           </div>

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       if (cost) { params.push(cost); sql += ` AND ae.cost = $${params.length}` }
       sql += ` ORDER BY CASE WHEN ae.event_date >= CURRENT_DATE THEN 0 ELSE 1 END, ae.event_date ASC NULLS LAST LIMIT 50`
 
-      const rows = await db.query(sql, params).catch(() => [])
+      const rows = await db.query(sql, params).catch(e => { console.error('[adventures]', e.message); return [] })
       return NextResponse.json({ events: rows })
     }
 
@@ -33,9 +33,9 @@ export async function GET(req: NextRequest) {
       const id = searchParams.get('id')
       if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
       const event = await db.query(`SELECT * FROM adventure_events WHERE id = $1`, [id])
-      const interests = await db.query(`SELECT * FROM adventure_interests WHERE event_id = $1 ORDER BY created_at`, [id]).catch(() => [])
-      const messages = await db.query(`SELECT * FROM adventure_messages WHERE event_id = $1 ORDER BY created_at`, [id]).catch(() => [])
-      const decision = await db.query(`SELECT * FROM adventure_decisions WHERE event_id = $1 ORDER BY created_at DESC LIMIT 1`, [id]).catch(() => [])
+      const interests = await db.query(`SELECT * FROM adventure_interests WHERE event_id = $1 ORDER BY created_at`, [id]).catch(e => { console.error('[adventures]', e.message); return [] })
+      const messages = await db.query(`SELECT * FROM adventure_messages WHERE event_id = $1 ORDER BY created_at`, [id]).catch(e => { console.error('[adventures]', e.message); return [] })
+      const decision = await db.query(`SELECT * FROM adventure_decisions WHERE event_id = $1 ORDER BY created_at DESC LIMIT 1`, [id]).catch(e => { console.error('[adventures]', e.message); return [] })
       return NextResponse.json({ event: event[0] || null, interests, messages, decision: decision[0] || null })
     }
 
@@ -45,18 +45,18 @@ export async function GET(req: NextRequest) {
                 (SELECT COUNT(*)::int FROM adventure_interests ai WHERE ai.event_id = ae.id AND ai.interest_level != 'pass') AS votes
            FROM adventure_events ae WHERE ae.status = 'active' AND ae.event_date >= CURRENT_DATE
            ORDER BY votes DESC LIMIT 5`
-      ).catch(() => [])
+      ).catch(e => { console.error('[adventures]', e.message); return [] })
       const pending = await db.query(
         `SELECT ae.id, ae.title, ae.event_date FROM adventure_events ae
           WHERE ae.status = 'active' AND NOT EXISTS (SELECT 1 FROM adventure_decisions ad WHERE ad.event_id = ae.id)
           AND (SELECT COUNT(*) FROM adventure_interests ai WHERE ai.event_id = ae.id AND ai.interest_level != 'pass') > 0
           ORDER BY ae.event_date LIMIT 5`
-      ).catch(() => [])
+      ).catch(e => { console.error('[adventures]', e.message); return [] })
       const approved = await db.query(
         `SELECT ae.id, ae.title, ae.event_date, ad.planned_date FROM adventure_events ae
           JOIN adventure_decisions ad ON ad.event_id = ae.id AND ad.decision = 'approved'
           WHERE ae.event_date >= CURRENT_DATE ORDER BY COALESCE(ad.planned_date, ae.event_date) LIMIT 5`
-      ).catch(() => [])
+      ).catch(e => { console.error('[adventures]', e.message); return [] })
       return NextResponse.json({ hot, pending, approved })
     }
 
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
             title: `🗺️ ${cap(submitted_by)} found an adventure!`,
             message: `"${title}"${event_date ? ` on ${new Date(event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}`,
             source_type: 'adventure_submitted', icon: '🗺️', link_tab: 'calendar',
-          }).catch(() => {})
+          }).catch(e => console.error('[adventures]', e.message))
         }
         return NextResponse.json({ event: rows[0] }, { status: 201 })
       }
@@ -101,14 +101,14 @@ export async function POST(req: NextRequest) {
           [event_id, person.toLowerCase(), interest_level || 'interested', comment || null]
         )
         // Get event title + count for notification
-        const event = await db.query(`SELECT title FROM adventure_events WHERE id = $1`, [event_id]).catch(() => [])
-        const count = await db.query(`SELECT COUNT(*)::int AS c FROM adventure_interests WHERE event_id = $1 AND interest_level != 'pass'`, [event_id]).catch(() => [{ c: 0 }])
+        const event = await db.query(`SELECT title FROM adventure_events WHERE id = $1`, [event_id]).catch(e => { console.error('[adventures]', e.message); return [] })
+        const count = await db.query(`SELECT COUNT(*)::int AS c FROM adventure_interests WHERE event_id = $1 AND interest_level != 'pass'`, [event_id]).catch(e => { console.error('[adventures]', e.message); return [{ c: 0 }] })
         if (interest_level !== 'pass') {
           await createNotification({
             title: `🙋 ${cap(person)} wants to go!`,
             message: `"${event[0]?.title || 'an adventure'}" — ${count[0]?.c || 1} interested`,
             source_type: 'adventure_interest', icon: '🙋',
-          }).catch(() => {})
+          }).catch(e => console.error('[adventures]', e.message))
         }
         return NextResponse.json({ success: true, count: count[0]?.c || 0 })
       }
@@ -135,8 +135,8 @@ export async function POST(req: NextRequest) {
           await db.query(`UPDATE adventure_events SET status = 'approved' WHERE id = $1`, [event_id])
         }
         // Notify interested kids
-        const event = await db.query(`SELECT title FROM adventure_events WHERE id = $1`, [event_id]).catch(() => [])
-        const interested = await db.query(`SELECT person FROM adventure_interests WHERE event_id = $1 AND interest_level != 'pass'`, [event_id]).catch(() => [])
+        const event = await db.query(`SELECT title FROM adventure_events WHERE id = $1`, [event_id]).catch(e => { console.error('[adventures]', e.message); return [] })
+        const interested = await db.query(`SELECT person FROM adventure_interests WHERE event_id = $1 AND interest_level != 'pass'`, [event_id]).catch(e => { console.error('[adventures]', e.message); return [] })
         const msgs: Record<string, { title: string; icon: string }> = {
           approved: { title: `✅ "${event[0]?.title}" is approved!`, icon: '✅' },
           maybe: { title: `🤔 "${event[0]?.title}" — maybe!`, icon: '🤔' },
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
             await createNotification({
               title: m.title, message: notes || '', source_type: 'adventure_decision',
               icon: m.icon, target_role: 'kid', kid_name: i.person,
-            }).catch(() => {})
+            }).catch(e => console.error('[adventures]', e.message))
           }
         }
         return NextResponse.json({ decision: rows[0] })

@@ -207,14 +207,14 @@ export async function GET(request: NextRequest) {
     case 'get_recommendations': {
       const kid = searchParams.get('kid_name')?.toLowerCase()
       if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
-      const interests = await db.query(`SELECT tag FROM kid_interest_tags WHERE kid_name = $1`, [kid]).catch(() => [])
+      const interests = await db.query(`SELECT tag FROM kid_interest_tags WHERE kid_name = $1`, [kid]).catch(e => { console.error('[reading]', e.message); return [] })
       const interestTags = interests.map((i: any) => i.tag)
-      const readIds = new Set((await db.query(`SELECT book_id FROM kid_book_progress WHERE kid_name = $1`, [kid]).catch(() => [])).map((r: any) => String(r.book_id)))
+      const readIds = new Set((await db.query(`SELECT book_id FROM kid_book_progress WHERE kid_name = $1`, [kid]).catch(e => { console.error('[reading]', e.message); return [] })).map((r: any) => String(r.book_id)))
 
       const books = await db.query(
         `SELECT id, title, author_or_publisher AS author, cover_image_url, genres, reading_level_tag, total_pages
            FROM home_library WHERE item_type = 'book' AND genres IS NOT NULL AND genres != '{}' ORDER BY title LIMIT 100`
-      ).catch(() => [])
+      ).catch(e => { console.error('[reading]', e.message); return [] })
 
       const scored = books.filter((b: any) => !readIds.has(String(b.id))).map((b: any) => {
         let score = 0
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
       if (genre) { params.push(genre); sql += ` AND $${params.length} = ANY(genres)` }
       if (level) { params.push(level); sql += ` AND reading_level_tag = $${params.length}` }
       sql += ` ORDER BY title LIMIT 50`
-      const rows = await db.query(sql, params).catch(() => [])
+      const rows = await db.query(sql, params).catch(e => { console.error('[reading]', e.message); return [] })
       return NextResponse.json({ books: rows })
     }
 
@@ -340,7 +340,7 @@ export async function POST(request: NextRequest) {
       }
       try {
         // Add enjoyment_rating column if it doesn't exist
-        await db.query(`ALTER TABLE kid_reading_log ADD COLUMN IF NOT EXISTS enjoyment_rating INT`).catch(() => {})
+        await db.query(`ALTER TABLE kid_reading_log ADD COLUMN IF NOT EXISTS enjoyment_rating INT`).catch(e => console.error('[reading]', e.message))
         await db.query(
           `INSERT INTO kid_reading_log (kid_name, book_title, minutes_read, enjoyment_rating, session_notes, log_date)
            VALUES ($1, $2, 0, $3, $4, CURRENT_DATE)`,
@@ -362,13 +362,13 @@ export async function POST(request: NextRequest) {
          WHERE kid_name = $1 AND (book_id::text = $2 OR ($2 IS NULL AND status = 'reading')) RETURNING *`,
         [kid, book_id || null, rating || null, review || null]
       )
-      await db.query(`UPDATE digi_pets SET stars_balance = stars_balance + 10 WHERE kid_name = $1`, [kid]).catch(() => {})
+      await db.query(`UPDATE digi_pets SET stars_balance = stars_balance + 10 WHERE kid_name = $1`, [kid]).catch(e => console.error('[reading]', e.message))
       await db.query(`INSERT INTO digi_pet_star_log (kid_name, amount, source, note) VALUES ($1, 10, 'book_finished', $2)`,
-        [kid, `Finished: ${rows[0]?.book_title || 'a book'}`]).catch(() => {})
+        [kid, `Finished: ${rows[0]?.book_title || 'a book'}`]).catch(e => console.error('[reading]', e.message))
       await createNotification({
         title: `📚 ${cap(kid)} finished a book!`, message: `"${rows[0]?.book_title || 'Unknown'}"${rating ? ` — rated ${rating}/5` : ''}`,
         source_type: 'book_completed', icon: '📚', link_tab: 'homeschool',
-      }).catch(() => {})
+      }).catch(e => console.error('[reading]', e.message))
       return NextResponse.json({ success: true, stars: 10, book: rows[0] })
     }
 
@@ -383,7 +383,7 @@ export async function POST(request: NextRequest) {
              isbn = COALESCE($5, isbn), lookup_source = $6, lookup_at = NOW() WHERE id = $1`,
           [book_id, (result as any).cover_image_url || null, (result as any).description?.substring(0, 300) || null,
            result.total_pages || null, (result as any).isbn || null, result.source]
-        ).catch(() => {})
+        ).catch(e => console.error('[reading]', e.message))
       }
       return NextResponse.json({ result })
     }

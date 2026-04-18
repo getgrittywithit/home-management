@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
         `SELECT id, entry_date, prompt_text, entry_text, mood_tag, private, created_at
          FROM kid_journal_entries WHERE kid_name = $1 ORDER BY created_at DESC LIMIT 30`,
         [kidName.toLowerCase()]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       return NextResponse.json({ entries: rows })
     }
 
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
         `SELECT id, entry_date, prompt_text, entry_text, mood_tag, created_at
          FROM kid_journal_entries WHERE kid_name = $1 AND private = FALSE ORDER BY created_at DESC LIMIT 20`,
         [kidName.toLowerCase()]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       return NextResponse.json({ entries: rows })
     }
 
@@ -71,46 +71,46 @@ export async function GET(request: NextRequest) {
       const achievements = await db.query(
         `SELECT title FROM kid_achievements WHERE kid_name = $1 AND earned_at >= CURRENT_DATE - INTERVAL '14 days' ORDER BY earned_at DESC LIMIT 2`,
         [kid]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       achievements.forEach((a: any) => wins.push(a.title))
 
       // Zone streak
       const streak = await db.query(
         `SELECT streak_type, current_count FROM kid_chore_streaks WHERE kid_name = $1 AND current_count >= 3 ORDER BY current_count DESC LIMIT 1`,
         [kid]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       if (streak[0]) wins.push(`${streak[0].current_count}-day ${streak[0].streak_type} streak`)
 
       // Stars earned this week
       const stars = await db.query(
         `SELECT COALESCE(SUM(amount), 0)::int as total FROM digi_pet_star_log WHERE kid_name = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days' AND amount > 0`,
         [kid]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       if (stars[0]?.total > 0) wins.push(`Earned ${stars[0].total} stars this week`)
 
       // Points earned this week
       const points = await db.query(
         `SELECT COALESCE(SUM(points), 0)::int as total FROM kid_points_log WHERE kid_name = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days' AND transaction_type = 'earned'`,
         [kid]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       if (points[0]?.total > 0) wins.push(`Earned ${points[0].total} points this week`)
 
       // Positive reports
       const goods = await db.query(
         `SELECT category FROM kid_positive_reports WHERE kid_name = $1 AND approved = TRUE AND created_at >= CURRENT_DATE - INTERVAL '14 days' ORDER BY created_at DESC LIMIT 1`,
         [kid]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       if (goods[0]) wins.push(`Recognized for ${goods[0].category}`)
 
       // Should we show the card? Check for low mood or concern events
       const shouldShow = await db.query(
         `SELECT 1 FROM kid_mood_log WHERE child_name = $1 AND log_date >= CURRENT_DATE - INTERVAL '2 days' AND (mood <= 2 OR mood_score <= 2) LIMIT 1`,
         [kid]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
       const hasConcern = await db.query(
         `SELECT 1 FROM safety_events WHERE kid_name = $1 AND created_at >= CURRENT_DATE - INTERVAL '7 days' LIMIT 1`,
         [kid]
-      ).catch(() => [])
+      ).catch(e => { console.error('[journal]', e.message); return [] })
 
       return NextResponse.json({
         show: (shouldShow.length > 0 || hasConcern.length > 0) && wins.length > 0,
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
           `INSERT INTO safety_events (kid_name, event_type, severity, source, message_snippet, parent_notified)
            VALUES ($1, $2, $3, 'journal', $4, TRUE)`,
           [kid_name.toLowerCase(), `${safetyLevel}_keyword`, safetyLevel === 'crisis' ? 'high' : 'medium', entry_text.substring(0, 100)]
-        ).catch(() => {})
+        ).catch(e => console.error('[journal]', e.message))
       }
 
       return NextResponse.json({ success: true, flagged })

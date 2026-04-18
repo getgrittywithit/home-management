@@ -289,8 +289,6 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
     const taskType = getDigiPetTaskType(task)
     const online = isOnline()
 
-    console.log('[Stars] MyDayView toggle:', { id: task.id, source: task.source, taskType, completing: !task.completed })
-
     // Build the actions to perform
     const checklistBody = { action: 'toggle', child: kid, eventId: task.id, eventSummary: task.label }
     const starAwardBody = taskType ? { action: 'award_task_stars', kid_name: kid, task_type: taskType, source_ref: sourceRef } : null
@@ -318,10 +316,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
         // Award stars via digi-pet
         if (starAwardBody) {
           try {
-            console.log('[Stars] MyDayView award:', kid, taskType, sourceRef)
-            const res = await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starAwardBody) })
-            const data = await res.json()
-            console.log('[Stars] MyDayView award result:', data)
+            await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starAwardBody) })
           } catch (err) { console.error('[Stars] MyDayView award failed:', err) }
         }
         // For school tasks, also toggle in homeschool system
@@ -343,7 +338,6 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       if (online) {
         if (starReverseBody) {
           try {
-            console.log('[Stars] MyDayView reverse:', kid, sourceRef)
             await fetch('/api/digi-pet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(starReverseBody) })
           } catch (err) { console.error('[Stars] MyDayView reverse failed:', err) }
         }

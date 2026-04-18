@@ -32,7 +32,6 @@ async function awardTaskStars(kidName: string, item: { id: string; category: str
     return null
   }
   try {
-    console.log('[Stars] Awarding:', kidName, taskType, item.id)
     const res = await fetch('/api/digi-pet', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,7 +43,6 @@ async function awardTaskStars(kidName: string, item: { id: string; category: str
       }),
     })
     const data = await res.json()
-    console.log('[Stars] Award result:', data)
     return data
   } catch (err) {
     console.error('[Stars] Award failed:', err)
@@ -241,8 +239,6 @@ export default function DailyChecklist({ childName, onStarEarned }: DailyCheckli
           setTimeout(() => setPointsToast({ show: false, amount: 0, balance: 0 }), 2500)
         }
       } catch {}
-      // Award digi-pet stars on task completion, reverse on uncheck
-      console.log('[Stars] Toggle:', item.id, 'category:', item.category, 'newCompleted:', newCompleted)
       if (newCompleted) {
         const result = await awardTaskStars(childKey, item)
         if (result && result.amount && !result.already_awarded) {

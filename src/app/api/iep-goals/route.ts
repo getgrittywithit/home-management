@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const rows = await db.query(
       `SELECT * FROM iep_goal_progress WHERE kid_name = $1 ORDER BY status = 'in_progress' DESC, created_at DESC`,
       [kidName.toLowerCase()]
-    ).catch(() => [])
+    ).catch(e => { console.error('[iep-goals]', e.message); return [] })
     return NextResponse.json({ goals: rows })
   }
 
@@ -22,10 +22,10 @@ export async function GET(request: NextRequest) {
     const kid = kidName.toLowerCase()
     const goals = await db.query(
       `SELECT goal_text, measurement_type, current_value, target_value, status FROM iep_goal_progress WHERE kid_name = $1 AND status = 'in_progress'`, [kid]
-    ).catch(() => [])
+    ).catch(e => { console.error('[iep-goals]', e.message); return [] })
     const docs = await db.query(
       `SELECT document_type, school_year, notes FROM iep_504_documents WHERE kid_name = $1 ORDER BY upload_date DESC LIMIT 3`, [kid]
-    ).catch(() => [])
+    ).catch(e => { console.error('[iep-goals]', e.message); return [] })
     // Kid profile data from CLAUDE.md
     const KID_PROFILES: Record<string, { diagnoses: string[]; accommodations: string[]; working_level: string }> = {
       amos: { diagnoses: ['ADHD Combined', 'ASD Level 1', 'Dyslexia', 'Dyscalculia', 'APD', 'Bilateral hearing loss'], accommodations: ['Visual representations', 'Single-step problems', 'Real-world context', 'Extended time', 'Shorter passages', 'Multiple-choice preferred', 'TTS available'], working_level: '~2nd grade math, 10th grade enrolled' },
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   const rows = await db.query(
     `SELECT * FROM iep_goal_progress WHERE kid_name = $1 ORDER BY status = 'in_progress' DESC, created_at DESC`,
     [kidName.toLowerCase()]
-  ).catch(() => [])
+  ).catch(e => { console.error('[iep-goals]', e.message); return [] })
   return NextResponse.json({ goals: rows })
 }
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       const { id, value, note } = body
       if (!id || value === undefined) return NextResponse.json({ error: 'id and value required' }, { status: 400 })
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      const row = await db.query(`SELECT data_points FROM iep_goal_progress WHERE id = $1`, [id]).catch(() => [])
+      const row = await db.query(`SELECT data_points FROM iep_goal_progress WHERE id = $1`, [id]).catch(e => { console.error('[iep-goals]', e.message); return [] })
       const existing = row[0]?.data_points || []
       existing.push({ date: today, value: String(value), note: note || null })
       await db.query(
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     case 'upload_document': {
       const { kid_name, document_type, file_url, school_year, notes } = body
       if (!kid_name || !file_url) return NextResponse.json({ error: 'kid_name, file_url required' }, { status: 400 })
-      await db.query(`CREATE TABLE IF NOT EXISTS iep_504_documents (id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, document_type TEXT DEFAULT 'IEP', file_url TEXT NOT NULL, upload_date DATE DEFAULT CURRENT_DATE, school_year TEXT, notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`).catch(() => {})
+      await db.query(`CREATE TABLE IF NOT EXISTS iep_504_documents (id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, document_type TEXT DEFAULT 'IEP', file_url TEXT NOT NULL, upload_date DATE DEFAULT CURRENT_DATE, school_year TEXT, notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW())`).catch(e => console.error('[iep-goals]', e.message))
       const result = await db.query(
         `INSERT INTO iep_504_documents (kid_name, document_type, file_url, school_year, notes) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
         [kid_name.toLowerCase(), document_type || 'IEP', file_url, school_year || null, notes || null]
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       const goals = await db.query(
         `SELECT id, goal_text, data_points, current_value FROM iep_goal_progress WHERE kid_name = $1 AND status = 'in_progress' AND goal_text ILIKE $2`,
         [kid, `%${subject}%`]
-      ).catch(() => [])
+      ).catch(e => { console.error('[iep-goals]', e.message); return [] })
       for (const goal of goals) {
         const existing = goal.data_points || []
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })

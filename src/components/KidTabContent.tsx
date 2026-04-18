@@ -162,7 +162,7 @@ export default function KidTabContent({ kidData, activeTab }: TabContentProps) {
                   {categoryTasks.map(task => (
                     <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
                       <button 
-                        onClick={() => console.log('Toggle task:', task.id)}
+                        onClick={() => {}}
                         className="flex-shrink-0"
                       >
                         {task.completed ? (

@@ -124,10 +124,8 @@ export default function MoeMoneyTab() {
     
     try {
       const text = await file.text()
-      console.log('Raw CSV text:', text.substring(0, 500)) // Debug: show first 500 chars
-      
-      const lines = text.split('\n').filter(line => line.trim()) // Remove empty lines
-      console.log('Total lines:', lines.length)
+      const lines = text.split('\n').filter(line => line.trim())
+
       
       if (lines.length < 2) {
         alert('CSV file appears to be empty or has no data rows')
@@ -135,7 +133,6 @@ export default function MoeMoneyTab() {
       }
       
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''))
-      console.log('Headers found:', headers)
       
       // Set debug info for display
       setDebugInfo(`Headers: ${headers.join(', ')}\nTotal lines: ${lines.length - 1} data rows\n\nFirst few rows:\n${lines.slice(1, 4).join('\n')}`)
@@ -150,15 +147,12 @@ export default function MoeMoneyTab() {
       const parentCategoryIndex = headers.findIndex(h => h === 'parent category')
       const accountIndex = headers.findIndex(h => h === 'account')
       
-      console.log('Column indices:', { dateIndex, nameIndex, amountIndex, categoryIndex, accountIndex })
-      
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim()
         if (!line) continue
         
         // Better CSV parsing - handles commas within quoted fields
         const values = parseCsvLine(line)
-        console.log(`Row ${i}:`, values)
         
         if (values.length >= 3) { // Minimum columns needed
           // Parse based on detected indices
@@ -202,12 +196,9 @@ export default function MoeMoneyTab() {
             type: isExpense ? 'expense' : 'income'
           }
           
-          console.log('Parsed transaction:', transaction)
           newTransactions.push(transaction)
         }
       }
-      
-      console.log('Total transactions parsed:', newTransactions.length)
       
       if (newTransactions.length === 0) {
         alert('No valid transactions found in CSV. Please check the format:\nExpected columns: Date, Description, Amount, Category, Account')
@@ -227,7 +218,6 @@ export default function MoeMoneyTab() {
         }
         
         const result = await response.json()
-        console.log('Saved to Supabase:', result)
         
         // Update local state
         setTransactions(prev => [...prev, ...newTransactions])
