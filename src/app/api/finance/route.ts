@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
              COALESCE(SUM(ABS(amount)) FILTER (WHERE amount < 0), 0)::numeric as total_expense,
              COALESCE(SUM(amount), 0)::numeric as net
            FROM finance_transactions
-           WHERE date >= $1 AND date < $2`,
+           WHERE transaction_date >= $1 AND transaction_date < $2`,
           [start, nextMonth]
         )
         const r = rows[0] || {}

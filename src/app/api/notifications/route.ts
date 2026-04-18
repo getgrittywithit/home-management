@@ -79,14 +79,15 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     if (action === 'create') {
-      const { title, message, icon, source_type, source_ref, link_tab } = body
+      const { title, message, icon, source_type, source_ref, link_tab, target_role, kid_name } = body
       if (!title || !message) return NextResponse.json({ error: 'title and message required' }, { status: 400 })
-      const rows = await db.query(
-        `INSERT INTO notifications (title, message, icon, source_type, source_ref, link_tab)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [title, message, icon || null, source_type || null, source_ref || null, link_tab || null]
-      )
-      return NextResponse.json({ success: true, notification: rows[0] })
+      const result = await createNotification({
+        title, message, source_type: source_type || 'manual',
+        source_ref, link_tab, icon,
+        target_role: target_role || 'parent',
+        kid_name: kid_name || null,
+      })
+      return NextResponse.json(result || { created: true })
     }
 
     if (action === 'mark_read') {

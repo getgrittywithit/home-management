@@ -20,14 +20,16 @@ export async function createNotification({
       `SELECT id FROM notifications WHERE source_ref = $1 AND target_role = $2 LIMIT 1`,
       [source_ref, target_role]
     ).catch(() => [])
-    if (existing.length > 0) return
+    if (existing.length > 0) return { created: false, reason: 'duplicate' }
   }
 
   await db.query(
     `INSERT INTO notifications (target_role, kid_name, title, message, icon, source_type, source_ref, link_tab, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
     [target_role, kid_name || null, title, message, icon || null, source_type, source_ref || null, link_tab || null]
-  ).catch(() => {})
+  ).catch((e) => {
+    console.error('[notifications] INSERT failed:', { source_type, source_ref, error: e?.message })
+  })
 
   // D73 PUSH-2/3 — fan out to web push for push-enabled source types. Non-blocking
   // and non-fatal: if push fails, the in-app notification still landed above.
@@ -48,4 +50,6 @@ export async function createNotification({
       console.error('[notifications] push fanout failed:', err)
     }
   }
+
+  return { created: true }
 }

@@ -89,6 +89,27 @@ export async function sendPush(opts: SendPushOptions): Promise<{ sent: number; f
     }
   }
 
+  // Quiet hours check — safety notifications bypass
+  if (!SAFETY_BYPASS_SOURCES.has(opts.source_type || '')) {
+    const prefs = await db.query(
+      `SELECT quiet_start, quiet_end FROM notification_preferences WHERE role = $1 LIMIT 1`,
+      [role]
+    ).catch(() => [])
+    if (prefs[0]?.quiet_start != null && prefs[0]?.quiet_end != null) {
+      const centralHour = parseInt(
+        new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Chicago' }).format(new Date())
+      )
+      const start = parseInt(prefs[0].quiet_start)
+      const end = parseInt(prefs[0].quiet_end)
+      const isQuiet = start < end
+        ? (centralHour >= start && centralHour < end)
+        : (centralHour >= start || centralHour < end)
+      if (isQuiet) {
+        return { sent: 0, failed: 0, skipped: 'quiet_hours' }
+      }
+    }
+  }
+
   // Look up matching subscriptions
   const params: any[] = [role]
   let where = 'target_role = $1'
@@ -178,9 +199,9 @@ const PARENT_PUSH_SOURCES = new Set([
   'help_request',               // kid requested help on task
   'homeschool_help',            // same, different source tag
   'redemption_request',         // star redemption pending
-  'med_reminder',               // scheduled med time (future cron)
-  'overdue_chore',              // overdue chore alert (future cron)
-  'meal_pick_deadline',         // meal deadline (future cron)
+  'med_reminder',               // scheduled med time
+  'overdue_chore',              // overdue chore alert
+  'meal_pick_deadline',         // meal deadline
   'meal_request',               // kid meal request
   'kid_finished_school',        // kid finished all school tasks
   'profile_updated',            // kid updated About Me profile
@@ -202,8 +223,49 @@ const PARENT_PUSH_SOURCES = new Set([
   'adventure_interest',         // kid voted on an adventure
   // Academic
   'book_finished',              // kid finished a book
+  'book_completed',             // alt name for book finished
   'financial_literacy_advance', // kid advanced in money skills
+  'financial_level_advance',    // alt name
   'placement_complete',         // kid finished placement quiz
+  // Achievements & progress
+  'achievement_earned',         // kid earned an achievement
+  'achievement_parent',         // achievement notification for parent
+  // Behavior & safety
+  'behavior_event',             // behavior logged
+  'low_mood',                   // kid logged low mood
+  'wellness_concern',           // wellness system flagged
+  'flag_acknowledged',          // flag was acknowledged
+  // School & learning
+  'grade_alert',                // school grade alert
+  'school_note',                // school note received
+  // Requests from kids
+  'grocery_request',            // kid requested grocery item
+  'grocery_reviewed',           // grocery request reviewed
+  'event_request',              // kid requested calendar event
+  'reward_request',             // kid requested reward purchase
+  'library_approved',           // library submission approved
+  'library_rejected',           // library submission rejected
+  // Economy
+  'bonus_stars',                // bonus stars awarded
+  'star_goal',                  // star goal reached
+  // Health
+  'health_alert',               // health system alert
+  'dental_complete',            // dental care logged
+  'med_completion',             // kid took medication
+  'refill_alert',               // medication refill needed
+  // Social
+  'friend_request',             // kid submitted friend request
+  'friend_request_response',    // parent responded to friend request
+  'sibling_message',            // sibling sent a message
+  // Household
+  'zone_photo',                 // kid submitted zone photo
+  'cooking_complete',           // cooking session complete
+  'activity_logged',            // activity was logged
+  'all_tasks_complete',         // all tasks complete
+  // Parent actions
+  'positive_approved',          // positive report approved
+  'positive_catch',             // positive catch logged
+  'kid_report',                 // kid report submitted
 ])
 
 const KID_PUSH_SOURCES = new Set([
@@ -221,6 +283,15 @@ const KID_PUSH_SOURCES = new Set([
   'meal_pick_reminder',         // deadline reminder
   'quick_praise',               // parent sent quick praise
   'positive_report',            // parent left a positive report
+  'parent_praise',              // parent sent praise
+  'reward_approved',            // reward purchase approved
+  'library_approved',           // library submission approved
+  'library_rejected',           // library submission rejected
+  'event_response',             // parent responded to event request
+  'challenge',                  // challenge issued
+  'challenge_win',              // challenge won
+  'parent_nudge',               // parent nudge
+  'break_acknowledged',         // break request acknowledged
 ])
 
 const SILENT_SOURCES = new Set([

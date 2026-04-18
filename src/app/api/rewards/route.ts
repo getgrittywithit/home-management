@@ -302,7 +302,10 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ redemptions: [] }) }
     }
     case 'photo_submissions': {
-      return NextResponse.json({ submissions: [] })
+      const photos = await db.query(
+        `SELECT * FROM zone_photo_submissions WHERE status = 'pending' ORDER BY created_at DESC LIMIT 20`
+      ).catch(() => [])
+      return NextResponse.json({ submissions: photos })
     }
 
     case 'get_weekly_leaderboard': {

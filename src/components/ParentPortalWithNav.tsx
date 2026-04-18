@@ -40,6 +40,7 @@ import PrintCenter from './parent/PrintCenter'
 import LeaderboardCard from './LeaderboardCard'
 import ParentMyDayCard from './ParentMyDayCard'
 import MedStatusCard from './MedStatusCard'
+import DigestCard from './DigestCard'
 import KitchenMergedTab from './KitchenMergedTab'
 import SchoolAdvocacyMergedTab from './SchoolAdvocacyMergedTab'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
@@ -461,6 +462,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <SickAlertBanner />
             <QuickActionsBar />
             <MedStatusCard />
+            <DigestCard />
             <ParentMyDayCard onNavigate={(tab) => setActiveTab(tab)} />
             <AvailabilityWidget />
             <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />

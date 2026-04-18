@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
       }
 
       const accessories = await db.query(
-        `SELECT * FROM digi_pet_accessories WHERE kid_name = $1 AND is_active = true`,
+        `SELECT * FROM digi_pet_accessories WHERE kid_name = $1 AND active = true`,
         [kid_name]
       )
 
@@ -340,10 +340,11 @@ export async function POST(request: NextRequest) {
         [kid_name, item_id, item.type, item.cost]
       )
 
-      // Record star log (negative)
+      // Record star log (negative) with actual balance
+      const { balance: purchaseBalance } = await recalcBalanceFromLog(kid_name)
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, $3, $4, 0)`,
-        [kid_name, -item.cost, 'purchase', `Bought ${item.name}`]
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, $3, $4, $5)`,
+        [kid_name, -item.cost, 'purchase', `Bought ${item.name}`, purchaseBalance]
       )
 
       // For accessories, insert into accessories table
@@ -376,7 +377,7 @@ export async function POST(request: NextRequest) {
     if (action === 'toggle_accessory') {
       const { kid_name, item_id, active } = body
       await db.query(
-        `UPDATE digi_pet_accessories SET is_active = $1 WHERE kid_name = $2 AND item_id = $3`,
+        `UPDATE digi_pet_accessories SET active = $1 WHERE kid_name = $2 AND item_id = $3`,
         [active, kid_name, item_id]
       )
       return NextResponse.json({ success: true })
@@ -401,12 +402,12 @@ export async function POST(request: NextRequest) {
         `UPDATE digi_pets SET stars_balance = stars_balance + $1, last_activity_at = NOW() WHERE kid_name = $2`,
         [amount, kid_name]
       )
+      const bonusPet = await ensurePet(kid_name)
       await db.query(
-        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, $3, $4, 0)`,
-        [kid_name, amount, source || 'parent_bonus', note || 'Parent bonus']
+        `INSERT INTO digi_pet_star_log (kid_name, amount, source, note, balance_after) VALUES ($1, $2, $3, $4, $5)`,
+        [kid_name, amount, source || 'parent_bonus', note || 'Parent bonus', bonusPet.stars_balance]
       )
-      const pet = await ensurePet(kid_name)
-      return NextResponse.json({ success: true, balance: pet.stars_balance })
+      return NextResponse.json({ success: true, balance: bonusPet.stars_balance })
     }
 
     if (action === 'toggle_enabled') {
