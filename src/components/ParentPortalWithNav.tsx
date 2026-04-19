@@ -460,6 +460,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     const rewardsSubTab = activeTab === 'habits' ? 'habits' as const
       : activeTab === 'gifts' ? 'gifts' as const
       : activeTab === 'goals' ? 'goals' as const
+      : activeTab === 'challenges' ? 'challenges' as const
       : undefined
 
     switch (resolvedTab) {

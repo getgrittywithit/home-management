@@ -13,6 +13,8 @@ import HealthCycleTracker from './health/HealthCycleTracker'
 import HealthOverview from './health/HealthOverview'
 import HealthMoodActivity from './health/HealthMoodActivity'
 import HealthDentalManager from './health/HealthDentalManager'
+import HealthImmunizations from './health/HealthImmunizations'
+import HealthGrowthChart from './health/HealthGrowthChart'
 import ShareWithProviderModal from './health/ShareWithProviderModal'
 
 // ============================================================================
@@ -354,6 +356,8 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
           { id: 'daily_care', label: '🩺 Daily Care', show: memberGroup === 'kids' },
           { id: 'activity_mood', label: '💛 Mood & Activity', show: memberGroup === 'kids' },
           { id: 'notes', label: '📋 Visit Notes', show: true },
+          { id: 'immunizations', label: '💉 Vaccines', show: memberGroup === 'kids' },
+          { id: 'growth', label: '📏 Growth', show: memberGroup === 'kids' },
           { id: 'cycle', label: '🌙 Cycle Tracker', show: memberGroup === 'kids' },
         ].filter(t => t.show).map(tab => (
           <button
@@ -468,6 +472,20 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
       {/* ================================================================== */}
       {activeSection === 'activity_mood' && memberGroup === 'kids' && (
         <HealthMoodActivity />
+      )}
+
+      {/* ================================================================== */}
+      {/* IMMUNIZATIONS (Parent portal — kids memberGroup only) */}
+      {/* ================================================================== */}
+      {activeSection === 'immunizations' && memberGroup === 'kids' && (
+        <HealthImmunizations />
+      )}
+
+      {/* ================================================================== */}
+      {/* GROWTH CHART (Parent portal — kids memberGroup only) */}
+      {/* ================================================================== */}
+      {activeSection === 'growth' && memberGroup === 'kids' && (
+        <HealthGrowthChart />
       )}
 
       {/* ================================================================== */}

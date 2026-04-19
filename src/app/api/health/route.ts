@@ -6,6 +6,25 @@ const query = db.query.bind(db)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
+    const action = searchParams.get('action')
+
+    // Action-based GET routes (no group required)
+    if (action === 'get_vaccinations') {
+      const kid = searchParams.get('kid_name')
+      const rows = kid
+        ? await query(`SELECT * FROM vaccinations WHERE kid_name = $1 ORDER BY date_administered DESC NULLS LAST`, [kid.toLowerCase()])
+        : await query(`SELECT * FROM vaccinations ORDER BY kid_name, date_administered DESC NULLS LAST`)
+      return NextResponse.json({ vaccinations: rows })
+    }
+
+    if (action === 'get_growth_measurements') {
+      const kid = searchParams.get('kid_name')
+      const rows = kid
+        ? await query(`SELECT * FROM growth_measurements WHERE kid_name = $1 ORDER BY measure_date DESC`, [kid.toLowerCase()])
+        : await query(`SELECT * FROM growth_measurements ORDER BY kid_name, measure_date DESC`)
+      return NextResponse.json({ measurements: rows })
+    }
+
     const group = searchParams.get('group') as 'parents' | 'kids'
 
     if (!group || !['parents', 'kids'].includes(group)) {
@@ -829,6 +848,43 @@ export async function POST(request: NextRequest) {
         return new Response(pdfOutput, {
           headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${kidDisplay}-${mType}-Packet.pdf"` },
         })
+      }
+
+      // ====== VACCINATIONS CRUD ======
+      case 'add_vaccination': {
+        const { kid_name, vaccine_name, dose_number, date_administered, provider, lot_number, next_due_date, notes } = data
+        const rows = await query(
+          `INSERT INTO vaccinations (kid_name, vaccine_name, dose_number, date_administered, provider, lot_number, next_due_date, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+          [kid_name?.toLowerCase(), vaccine_name, parseInt(dose_number) || 1, date_administered || null, provider || null, lot_number || null, next_due_date || null, notes || null]
+        )
+        return NextResponse.json({ vaccination: rows[0] })
+      }
+
+      case 'delete_vaccination': {
+        const { id } = body
+        await query(`DELETE FROM vaccinations WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
+      }
+
+      // ====== GROWTH MEASUREMENTS CRUD ======
+      case 'add_growth_measurement': {
+        const { kid_name, measure_date, height_inches, weight_lbs, notes } = data
+        const h = height_inches ? parseFloat(height_inches) : null
+        const w = weight_lbs ? parseFloat(weight_lbs) : null
+        const bmi = (h && w) ? parseFloat(((w / (h * h)) * 703).toFixed(1)) : null
+        const rows = await query(
+          `INSERT INTO growth_measurements (kid_name, measure_date, height_inches, weight_lbs, bmi, notes)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+          [kid_name?.toLowerCase(), measure_date || new Date().toISOString().slice(0, 10), h, w, bmi, notes || null]
+        )
+        return NextResponse.json({ measurement: rows[0] })
+      }
+
+      case 'delete_growth_measurement': {
+        const { id } = body
+        await query(`DELETE FROM growth_measurements WHERE id = $1`, [id])
+        return NextResponse.json({ success: true })
       }
 
       default:
