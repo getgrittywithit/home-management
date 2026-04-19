@@ -92,7 +92,7 @@ export async function sendPush(opts: SendPushOptions): Promise<{ sent: number; f
   // Quiet hours check — safety notifications bypass
   if (!SAFETY_BYPASS_SOURCES.has(opts.source_type || '')) {
     const prefs = await db.query(
-      `SELECT quiet_start, quiet_end FROM notification_preferences WHERE role = $1 LIMIT 1`,
+      `SELECT quiet_start, quiet_end FROM notification_preferences WHERE target_role = $1 LIMIT 1`,
       [role]
     ).catch(() => [])
     if (prefs[0]?.quiet_start != null && prefs[0]?.quiet_end != null) {

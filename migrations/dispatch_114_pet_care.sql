@@ -1,14 +1,26 @@
 -- Dispatch 114 — General pet care logging for Spike, Hades, Midnight
-CREATE TABLE IF NOT EXISTS pet_care_log (
-  id SERIAL PRIMARY KEY,
-  pet_name TEXT NOT NULL,
-  kid_name TEXT NOT NULL,
-  task TEXT NOT NULL,
-  care_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  completed BOOLEAN DEFAULT FALSE,
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(pet_name, kid_name, task, care_date)
-);
+-- NOTE: pet_care_log already existed via family-ops-schema.sql with UUID-based schema.
+-- This migration is a no-op. Live schema uses:
+--   id UUID PRIMARY KEY,
+--   pet_id UUID REFERENCES pets(id),
+--   caretaker_id UUID REFERENCES profiles(id),
+--   task_type TEXT NOT NULL,
+--   task_description TEXT NOT NULL,
+--   completed_at TIMESTAMPTZ NOT NULL,
+--   failsafe_triggered BOOLEAN DEFAULT FALSE,
+--   created_at TIMESTAMPTZ DEFAULT NOW()
+-- Index idx_pet_care_log_date already exists.
 
-CREATE INDEX IF NOT EXISTS idx_pet_care_log_date ON pet_care_log(care_date);
+-- Original migration (kept for history, DO NOT RUN):
+-- CREATE TABLE IF NOT EXISTS pet_care_log (
+--   id SERIAL PRIMARY KEY,
+--   pet_name TEXT NOT NULL,
+--   kid_name TEXT NOT NULL,
+--   task TEXT NOT NULL,
+--   care_date DATE NOT NULL DEFAULT CURRENT_DATE,
+--   completed BOOLEAN DEFAULT FALSE,
+--   notes TEXT,
+--   created_at TIMESTAMPTZ DEFAULT NOW(),
+--   UNIQUE(pet_name, kid_name, task, care_date)
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_pet_care_log_date ON pet_care_log(care_date);

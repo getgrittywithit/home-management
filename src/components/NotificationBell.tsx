@@ -200,18 +200,47 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick, 
                         <button
                           onClick={() => {
                             // Map notification link_tab to actual portal tab IDs (role-aware)
+                            // Keep in sync with sidebar tab IDs in ParentPortalWithNav / KidPortalWithNav
                             const PARENT_TAB_MAP: Record<string, string> = {
-                              'food-meals': 'food-inventory', 'pets': 'belle-care',
-                              'achievements': 'stars-rewards', 'requests': 'messages-alerts:messages',
-                              'chores': 'chores', 'health': 'health', 'my-day': 'overview',
-                              'messages-alerts': 'messages-alerts:messages', 'messages': 'messages-alerts:messages',
-                              'kids-checklist': 'kids-checklist',
+                              // Food & Kitchen
+                              'food-meals': 'food-inventory', 'food': 'food-inventory', 'food-inventory': 'food-inventory',
+                              'kitchen': 'food-inventory',
+                              // Pets
+                              'pets': 'belle-care', 'belle-care': 'belle-care',
+                              // Rewards & Stars
+                              'achievements': 'stars-rewards', 'stars': 'stars-rewards', 'stars-rewards': 'stars-rewards',
+                              'rewards': 'stars-rewards',
+                              // Messages & Alerts
+                              'requests': 'messages-alerts:messages', 'messages-alerts': 'messages-alerts:messages',
+                              'messages': 'messages-alerts:messages',
+                              // Chores & Zones
+                              'chores': 'chores',
+                              // Health
+                              'health': 'health',
+                              // Overview / Home
+                              'my-day': 'overview', 'home': 'overview', 'overview': 'overview',
+                              // Kids checklist
+                              'kids-checklist': 'kids-checklist', 'kids': 'kids-checklist', 'checklist': 'kids-checklist',
+                              // School
+                              'school': 'school-advocacy', 'school-advocacy': 'school-advocacy',
+                              // Homeschool & Library
+                              'homeschool': 'homeschool', 'library': 'homeschool',
+                              // Calendar & Finance
+                              'calendar': 'calendar', 'finance': 'finance',
+                              // Email & My Tasks
+                              'email': 'email', 'my-tasks': 'my-tasks',
+                              // Family Huddle
+                              'family-huddle': 'family-huddle',
                             }
                             const KID_TAB_MAP: Record<string, string> = {
                               'messages-alerts': 'requests', 'messages': 'requests',
                               'requests': 'requests', 'achievements': 'achievements',
                               'chores': 'checklist', 'health': 'health', 'my-day': 'my-day',
-                              'food-meals': 'my-day', 'checklist': 'checklist',
+                              'food-meals': 'my-day', 'food': 'my-day', 'checklist': 'checklist',
+                              'home': 'my-day', 'overview': 'my-day', 'kids': 'my-day',
+                              'stars': 'achievements', 'stars-rewards': 'achievements',
+                              'belle-care': 'checklist', 'pets': 'checklist',
+                              'school': 'my-day', 'homeschool': 'my-day', 'library': 'my-day',
                             }
                             const tabMap = role === 'kid' ? KID_TAB_MAP : PARENT_TAB_MAP
                             onNavigate(tabMap[n.link_tab!] || n.link_tab!); setOpen(false)

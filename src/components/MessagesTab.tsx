@@ -240,12 +240,12 @@ export default function MessagesTab() {
                     {/* Reply input */}
                     {replyingTo === msg.id && (
                       <div className="mt-2 flex gap-2">
-                        <input
-                          type="text"
+                        <textarea
                           value={replyText}
                           onChange={e => setReplyText(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && sendReply(msg.id)}
+                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendReply(msg.id)}
                           placeholder="Write a reply..."
+                          rows={3}
                           className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
                           autoFocus
                         />

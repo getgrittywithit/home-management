@@ -93,7 +93,7 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
   if (data.meal_requests?.length > 0) {
     flags.push({
       type: 'meal', label: `${data.meal_requests.length} pending meal request${data.meal_requests.length > 1 ? 's' : ''}`,
-      tabId: 'food-inventory', icon: <Gift className="w-3.5 h-3.5" />,
+      tabId: 'kitchen', icon: <Gift className="w-3.5 h-3.5" />,
     })
   }
 
@@ -110,7 +110,7 @@ export default function NeedsAttentionPanel({ onNavigate }: NeedsAttentionPanelP
   if (data.school_notes?.length > 0) {
     flags.push({
       type: 'note', label: `${data.school_notes.length} unread school note${data.school_notes.length > 1 ? 's' : ''}`,
-      tabId: 'messages-alerts', icon: <MessageSquare className="w-3.5 h-3.5" />,
+      tabId: 'school-advocacy', icon: <MessageSquare className="w-3.5 h-3.5" />,
     })
   }
 

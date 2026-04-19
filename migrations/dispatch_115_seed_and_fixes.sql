@@ -1,22 +1,17 @@
 -- Dispatch 115 — Seed data + infrastructure fixes
+-- UPDATED April 18, 2026 to match live DB schema
 
--- Quiet hours default (needed for D113 Phase 5 to actually work)
-CREATE TABLE IF NOT EXISTS notification_preferences (
-  id SERIAL PRIMARY KEY,
-  role TEXT NOT NULL DEFAULT 'parent',
-  kid_name TEXT,
-  quiet_start INTEGER,
-  quiet_end INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(role, kid_name)
-);
+-- notification_preferences table already exists (created in earlier migration).
+-- Live schema: id, target_role, source_type, enabled, created_at, quiet_start (TIME),
+--   quiet_end (TIME), quiet_enabled
+-- Original migration referenced wrong columns (role, kid_name, INTEGER quiet hours).
 
-INSERT INTO notification_preferences (role, quiet_start, quiet_end)
-VALUES ('parent', 21, 7)
-ON CONFLICT (role, kid_name) DO NOTHING;
+-- Quiet hours default seed
+INSERT INTO notification_preferences (target_role, source_type, quiet_start, quiet_end, quiet_enabled, enabled)
+VALUES ('parent', 'all', '21:00:00', '07:00:00', true, true)
+ON CONFLICT DO NOTHING;
 
--- Grocery staples seed (30 common items for the Moses family)
+-- Grocery staples seed (60 common items for the Moses family)
 INSERT INTO grocery_items (item_name, category) VALUES
   ('Rice (long grain)', 'pantry'),
   ('Pasta (spaghetti)', 'pantry'),
@@ -80,6 +75,7 @@ INSERT INTO grocery_items (item_name, category) VALUES
   ('Lemonade mix', 'beverages')
 ON CONFLICT DO NOTHING;
 
--- Add skip_reason column if not exists (for sick day task skipping)
-ALTER TABLE kid_daily_checklist ADD COLUMN IF NOT EXISTS skip_reason TEXT;
-ALTER TABLE kid_daily_checklist ADD COLUMN IF NOT EXISTS skipped_at TIMESTAMPTZ;
+-- skip_reason + skipped_at already exist on kid_daily_checklist (added in earlier migration)
+-- Original lines kept commented for reference:
+-- ALTER TABLE kid_daily_checklist ADD COLUMN IF NOT EXISTS skip_reason TEXT;
+-- ALTER TABLE kid_daily_checklist ADD COLUMN IF NOT EXISTS skipped_at TIMESTAMPTZ;

@@ -8,7 +8,7 @@ const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 // amos: owl, zoey: star, kaylee: theater, ellie: bulb, wyatt: lightning, hannah: sunflower
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'Kaylee', 2: 'Amos', 3: 'Hannah', 4: 'Wyatt', 5: 'Ellie' }
 const BELLE_WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
-const BELLE_WEEKEND_EPOCH = new Date('2026-06-13T12:00:00')
+const BELLE_WEEKEND_EPOCH = new Date('2026-03-28T12:00:00')
 const BATH_ANCHOR = new Date('2026-06-13T12:00:00')
 const NAIL_ANCHOR = new Date('2026-06-14T12:00:00')
 

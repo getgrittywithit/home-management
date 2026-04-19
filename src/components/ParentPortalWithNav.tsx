@@ -235,7 +235,7 @@ function BadgeCountSync({ setBadgeCounts, setFlagBadgeCount }: {
       health: breakCount + sickCount + lowMoods,
       'kids-checklist': missedChores,
       'pets-plants': petCare,
-      'food-meals': mealCount,
+      'kitchen': mealCount,
       'school-notes': schoolNotes,
     })
     setFlagBadgeCount(msgCount + breakCount + sickCount + mealCount + missedChores + petCare)

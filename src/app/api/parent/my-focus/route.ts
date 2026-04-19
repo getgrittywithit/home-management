@@ -111,7 +111,17 @@ export async function GET(req: NextRequest) {
       const belleSwap = await db.query(
         `SELECT covering_kid FROM belle_care_swaps WHERE swap_date = $1 AND status = 'accepted' LIMIT 1`, [todayStr]
       ).catch(() => [])
-      const belleKid = belleOverride[0]?.assigned_to || belleSwap[0]?.covering_kid || BELLE_WEEKDAY[dow] || 'Weekend rotation'
+      // Weekend Belle rotation: same anchor + order as Dashboard.tsx / BelleCareCard.tsx
+      const BELLE_WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
+      const BELLE_ANCHOR_MS = new Date(2026, 2, 28).getTime()
+      let weekendKid = 'Weekend rotation'
+      if (dow === 0 || dow === 6) {
+        const satDate = dow === 0 ? new Date(now.getTime() - 86400000) : now
+        const weeksSince = Math.floor((satDate.getTime() - BELLE_ANCHOR_MS) / (7 * 86400000))
+        const idx = ((weeksSince % 5) + 5) % 5
+        weekendKid = BELLE_WEEKEND_ROTATION[idx].charAt(0).toUpperCase() + BELLE_WEEKEND_ROTATION[idx].slice(1)
+      }
+      const belleKid = belleOverride[0]?.assigned_to || belleSwap[0]?.covering_kid || BELLE_WEEKDAY[dow] || weekendKid
       const dinnerManager = dinnerOverride[0]?.assigned_to || DINNER_MANAGERS[dow] || 'Parents'
       const zoneWeek = Math.ceil(((now.getTime() - new Date('2026-03-16').getTime()) / (7 * 86400000))) % 6 || 6
 
