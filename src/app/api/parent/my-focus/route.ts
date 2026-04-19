@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
         `SELECT covering_kid FROM belle_care_swaps WHERE swap_date = $1 AND status = 'accepted' LIMIT 1`, [todayStr]
       ).catch(() => [])
       // Weekend Belle rotation: same anchor + order as Dashboard.tsx / BelleCareCard.tsx
-      const BELLE_WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
+      const BELLE_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
       const BELLE_ANCHOR_MS = new Date(2026, 2, 28).getTime()
       let weekendKid = 'Weekend rotation'
       if (dow === 0 || dow === 6) {

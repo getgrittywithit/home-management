@@ -544,9 +544,9 @@ const BELLE_WEEKDAY_HELPERS: Record<number, string> = {
   1: 'Kaylee', 2: 'Amos', 3: 'Hannah', 4: 'Wyatt', 5: 'Ellie',
 }
 
-// 5-week weekend rotation: Hannah → Wyatt → Amos → Kaylee → Ellie → repeat
-const BELLE_WEEKEND_ROTATION = ['Hannah', 'Wyatt', 'Amos', 'Kaylee', 'Ellie']
-const BELLE_WEEKEND_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1 (Hannah)
+// 5-week weekend rotation: Kaylee → Amos → Hannah → Wyatt → Ellie → repeat (verified against Google Calendar Apr 18 2026)
+const BELLE_WEEKEND_ROTATION = ['Kaylee', 'Amos', 'Hannah', 'Wyatt', 'Ellie']
+const BELLE_WEEKEND_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1 (Kaylee)
 const BELLE_WEEKEND_OFFSET = 0
 
 function getBelleWeekendHelper(date: Date): string {

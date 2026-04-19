@@ -12,7 +12,7 @@ const BELLE_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'kaylee']
 
 // ── Hardcoded Belle assignment logic (mirrors API, zero DB calls) ──
 const ZOEY_WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
-const ZOEY_WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
+const ZOEY_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 const ZOEY_ANCHOR_MS = new Date(2026, 2, 28).getTime() // Saturday March 28, 2026 = Week 1
 const ZOEY_MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 

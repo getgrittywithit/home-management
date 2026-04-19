@@ -8,7 +8,7 @@ import { checkBonusStar } from '@/lib/bonus-stars'
 
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
-const BELLE_WEEKEND_ROTATION = ['hannah', 'wyatt', 'amos', 'kaylee', 'ellie']
+const BELLE_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 const BELLE_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1
 
 function getBelleHelper(date: Date): string {

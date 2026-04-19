@@ -267,14 +267,20 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   const [activeTab, setActiveTabRaw] = useState('overview')
   const [messageSubTab, setMessageSubTab] = useState<'alerts' | 'messages' | 'needs' | 'checkins' | undefined>(undefined)
 
-  // Wrapper: when navigating to messages-alerts with a subtab hint, set it
+  const [healthSubTab, setHealthSubTab] = useState<string | undefined>(undefined)
+
+  // Wrapper: when navigating with a subtab hint (e.g. 'messages-alerts:messages', 'health:medications')
   const setActiveTab = (tab: string) => {
-    if (tab === 'messages-alerts:messages') {
+    if (tab.startsWith('messages-alerts:')) {
       setActiveTabRaw('messages-alerts')
-      setMessageSubTab('messages')
+      setMessageSubTab(tab.split(':')[1] as any)
+    } else if (tab.startsWith('health:')) {
+      setActiveTabRaw('health')
+      setHealthSubTab(tab.split(':')[1])
     } else {
       setActiveTabRaw(tab)
       if (tab !== 'messages-alerts') setMessageSubTab(undefined)
+      if (tab !== 'health') setHealthSubTab(undefined)
     }
   }
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({})

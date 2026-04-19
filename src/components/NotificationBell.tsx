@@ -203,8 +203,8 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick, 
                             // Keep in sync with sidebar tab IDs in ParentPortalWithNav / KidPortalWithNav
                             const PARENT_TAB_MAP: Record<string, string> = {
                               // Food & Kitchen
-                              'food-meals': 'food-inventory', 'food': 'food-inventory', 'food-inventory': 'food-inventory',
-                              'kitchen': 'food-inventory',
+                              'food-meals': 'kitchen', 'food': 'kitchen', 'food-inventory': 'kitchen',
+                              'kitchen': 'kitchen',
                               // Pets
                               'pets': 'belle-care', 'belle-care': 'belle-care',
                               // Rewards & Stars
@@ -215,8 +215,13 @@ export default function NotificationBell({ onNavigate, badgeCount, onFlagClick, 
                               'messages': 'messages-alerts:messages',
                               // Chores & Zones
                               'chores': 'chores',
-                              // Health
+                              // Health (with sub-tab hints)
                               'health': 'health',
+                              'health:medications': 'health:medications',
+                              'health:appointments': 'health:appointments',
+                              'health:providers': 'health:providers',
+                              'medications': 'health:medications',
+                              'meds': 'health:medications',
                               // Overview / Home
                               'my-day': 'overview', 'home': 'overview', 'overview': 'overview',
                               // Kids checklist

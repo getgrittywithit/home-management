@@ -241,9 +241,13 @@ export default function MyFocusView() {
       {/* 🔧 Triton */}
       {d.triton_active > 0 && (
         <Section title={`Triton (${d.triton_active} active)`} icon={<Wrench className="w-4 h-4" />} color="text-amber-700" bg="bg-amber-50 border-amber-200">
-          <div className="px-4 py-2 text-sm text-gray-700">
-            {d.triton_active} job{d.triton_active === 1 ? '' : 's'} in pipeline
-          </div>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('tabChange', { detail: { tab: 'boards' } }))}
+            className="w-full px-4 py-2 text-sm text-gray-700 hover:bg-amber-100 rounded-lg transition-colors text-left flex items-center justify-between"
+          >
+            <span>{d.triton_active} job{d.triton_active === 1 ? '' : 's'} in pipeline</span>
+            <ArrowRight className="w-3.5 h-3.5 text-amber-500" />
+          </button>
         </Section>
       )}
 

@@ -181,18 +181,18 @@ export async function GET(request: NextRequest) {
       const weekEnd = endDate.toISOString().split('T')[0]
 
       try {
-        // 1. Get approved meals for the week
-        const mealRequests = await db.query(
-          `SELECT DISTINCT mr.meal_description, ml.id as meal_id
-           FROM meal_requests mr
-           LEFT JOIN meal_library ml ON LOWER(ml.name) = LOWER(mr.meal_description)
-           WHERE mr.request_date >= $1 AND mr.request_date <= $2 AND mr.status = 'approved'`,
-          [weekStart, weekEnd]
+        // 1. Get planned meals for the week from meal_week_plan (linked via UUID)
+        const plannedMeals = await db.query(
+          `SELECT DISTINCT mwp.meal_id, ml.name AS meal_name
+           FROM meal_week_plan mwp
+           JOIN meal_library ml ON mwp.meal_id = ml.id
+           WHERE mwp.week_start = $1 AND mwp.meal_id IS NOT NULL`,
+          [weekStart]
         )
 
         // 2. Get ingredients for each meal and aggregate
         const ingredientMap: Record<string, { name: string; quantity: number; unit: string; department: string; preferred_store: string }> = {}
-        for (const meal of mealRequests) {
+        for (const meal of plannedMeals) {
           if (!meal.meal_id) continue
           const ingredients = await db.query(
             `SELECT name, quantity, unit, department, preferred_store FROM meal_ingredients WHERE meal_id = $1`,
@@ -268,7 +268,7 @@ export async function GET(request: NextRequest) {
           estimated_walmart: Math.round(estimatedWalmart * 100) / 100,
           estimated_heb: Math.round(estimatedHeb * 100) / 100,
           estimated_amazon: Math.round(estimatedAmazon * 100) / 100,
-          meal_count: mealRequests.length,
+          meal_count: plannedMeals.length,
         })
       } catch (err: any) {
         if (err?.message?.includes('does not exist') || err?.code === '42P01') {
@@ -289,17 +289,17 @@ export async function GET(request: NextRequest) {
       const weekEnd = endDate.toISOString().split('T')[0]
 
       try {
-        // Reuse generate_weekly_list logic
-        const mealRequests = await db.query(
-          `SELECT DISTINCT mr.meal_description, ml.id as meal_id
-           FROM meal_requests mr
-           LEFT JOIN meal_library ml ON LOWER(ml.name) = LOWER(mr.meal_description)
-           WHERE mr.request_date >= $1 AND mr.request_date <= $2 AND mr.status = 'approved'`,
-          [weekStart, weekEnd]
+        // Get planned meals for the week from meal_week_plan (linked via UUID)
+        const plannedMeals = await db.query(
+          `SELECT DISTINCT mwp.meal_id, ml.name AS meal_name
+           FROM meal_week_plan mwp
+           JOIN meal_library ml ON mwp.meal_id = ml.id
+           WHERE mwp.week_start = $1 AND mwp.meal_id IS NOT NULL`,
+          [weekStart]
         )
 
         const ingredientMap: Record<string, { name: string; quantity: number; unit: string; department: string; preferred_store: string }> = {}
-        for (const meal of mealRequests) {
+        for (const meal of plannedMeals) {
           if (!meal.meal_id) continue
           const ingredients = await db.query(
             `SELECT name, quantity, unit, department, preferred_store FROM meal_ingredients WHERE meal_id = $1`,
