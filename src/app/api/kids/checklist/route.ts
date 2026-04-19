@@ -5,10 +5,10 @@ import { createNotification } from '@/lib/notifications'
 import { checkDailyPatterns, computeVelocity } from '@/lib/pattern-detection'
 import { checkAchievements } from '@/lib/achievement-checker'
 import { checkBonusStar } from '@/lib/bonus-stars'
+import { ALL_KIDS, HOMESCHOOL_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
-const BELLE_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 const BELLE_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1
 
 function getBelleHelper(date: Date): string {
@@ -29,7 +29,6 @@ const DISHES: Record<string, string[]> = {
   dinner: ['zoey', 'kaylee'],
 }
 
-const HOMESCHOOL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah']
 
 // Dinner Manager — day-gated per fixed weekly schedule
 const DINNER_MANAGER: Record<number, string[]> = {
@@ -102,7 +101,7 @@ export async function GET(request: NextRequest) {
           if (DISHES.dinner.includes(kid)) zone++
           if ((DINNER_MANAGER[dow] || []).includes(kid)) zone++
           zone++ // Evening tidy (always)
-          if (HOMESCHOOL_KIDS.includes(kid) && isWeekday) zone++ // School room clean
+          if ((HOMESCHOOL_KIDS as readonly string[]).includes(kid) && isWeekday) zone++ // School room clean
           if (belleHelper === kid) pet += 2 // Belle AM + PM
           if (kid === 'amos') pet++ // Spike primary
           if (kid === 'kaylee' || kid === 'wyatt') pet++ // Spike helper
@@ -181,7 +180,7 @@ export async function GET(request: NextRequest) {
           tasks.push({ id: `evening-tidy-${today}`, summary: 'Evening Tidy & Reset', category: 'zone' })
 
           // School Room Group Clean (homeschool + weekday)
-          if (HOMESCHOOL_KIDS.includes(kid) && isWeekday) {
+          if ((HOMESCHOOL_KIDS as readonly string[]).includes(kid) && isWeekday) {
             tasks.push({ id: `school-clean-${today}`, summary: 'School Room Group Clean', category: 'zone' })
           }
 
@@ -210,7 +209,7 @@ export async function GET(request: NextRequest) {
           return tasks
         }
 
-        const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee'].map(kid => {
+        const kids = ALL_KIDS.map(kid => {
           // Expected tasks for today (source of truth shared by summary + detail)
           const expectedTasks = buildExpectedRoutineTasks(kid)
 
@@ -266,7 +265,7 @@ export async function GET(request: NextRequest) {
             name: kid,
             zone: zoneBucket,
             dailyCare: careBucket,
-            school: HOMESCHOOL_KIDS.includes(kid)
+            school: (HOMESCHOOL_KIDS as readonly string[]).includes(kid)
               ? { done: schoolEntry.done, total: schoolEntry.total }
               : { done: 0, total: 0, hidden: true },
             petCare: petBucket,
@@ -284,7 +283,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (action === 'today_zone_status') {
-      const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
+      const kids = ALL_KIDS
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
 
       const zones: any[] = []
@@ -529,7 +528,7 @@ export async function GET(request: NextRequest) {
     })
 
     // School Room Group Clean (homeschool only, weekdays)
-    if (HOMESCHOOL_KIDS.includes(child) && isWeekday) {
+    if ((HOMESCHOOL_KIDS as readonly string[]).includes(child) && isWeekday) {
       required.push({
         id: `school-clean-${today}`, title: 'School Room Group Clean',
         description: 'Clean up the school room together', category: 'school_clean', time: '2:00 PM',

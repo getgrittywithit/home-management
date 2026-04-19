@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { DashboardData, FamilyEvent, Zone } from '@/types'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange } from '@/lib/zoneRotation'
+import { KID_DISPLAY, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 import PostGreenlightModal from './PostGreenlightModal'
 import LogRevenueModal from './LogRevenueModal'
 import CheckZonesPanel from './CheckZonesPanel'
@@ -545,7 +546,7 @@ const BELLE_WEEKDAY_HELPERS: Record<number, string> = {
 }
 
 // 5-week weekend rotation: Kaylee → Amos → Hannah → Wyatt → Ellie → repeat (verified against Google Calendar Apr 18 2026)
-const BELLE_WEEKEND_ROTATION = ['Kaylee', 'Amos', 'Hannah', 'Wyatt', 'Ellie']
+// Using imported BELLE_WEEKEND_ROTATION from constants (lowercase) and mapping to display names via KID_DISPLAY
 const BELLE_WEEKEND_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1 (Kaylee)
 const BELLE_WEEKEND_OFFSET = 0
 
@@ -555,7 +556,7 @@ function getBelleWeekendHelper(date: Date): string {
   const msPerWeek = 7 * 24 * 60 * 60 * 1000
   const weeksSince = Math.floor((sat.getTime() - BELLE_WEEKEND_ANCHOR.getTime()) / msPerWeek)
   const idx = (((weeksSince + BELLE_WEEKEND_OFFSET) % 5) + 5) % 5
-  return BELLE_WEEKEND_ROTATION[idx]
+  return KID_DISPLAY[BELLE_WEEKEND_ROTATION[idx]]
 }
 
 function getBelleHelper(dayOfWeek: number, date: Date): string {

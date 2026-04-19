@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { ALL_KIDS } from '@/lib/constants'
 
 async function ensureTables() {
   await db.query(`
@@ -37,7 +38,7 @@ async function init() {
   if (!ready) {
     try { await ensureTables() } catch { /* tables may already exist */ }
     // EDU-FIX-5: Reset all kids to Level 1 (override stale levels from old system)
-    const kids = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+    const kids = ALL_KIDS
     for (const kid of kids) {
       await db.query(
         `INSERT INTO financial_literacy_levels (kid_name, current_level) VALUES ($1, 1)
@@ -68,7 +69,7 @@ export async function GET(req: NextRequest) {
 
     if (action === 'get_all_levels') {
       // For leaderboard
-      const kids = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+      const kids = ALL_KIDS
       const levels = await db.query(`SELECT * FROM financial_literacy_levels ORDER BY kid_name`).catch(() => [])
       const levelMap: Record<string, number> = {}
       levels.forEach((l: any) => { levelMap[l.kid_name] = l.current_level })

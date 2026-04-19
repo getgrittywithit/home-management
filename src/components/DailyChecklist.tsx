@@ -8,6 +8,7 @@ import {
 import ZoneDetailCard from './ZoneDetailCard'
 import MorningCheckinCard from './MorningCheckinCard'
 import HelpDropdown from './HelpDropdown'
+import SpeakerButton from './SpeakerButton'
 
 // Map checklist categories/ids to digi-pet star task_types
 function getStarTaskType(item: { id: string; category: string }): string | null {
@@ -577,6 +578,9 @@ function ExpandableChecklistRow({ item, onToggle, childName, currentZone, expand
         <div className="flex-1 min-w-0">
           <span className={`text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
             {item.title}
+            {!item.completed && item.description && (
+              <SpeakerButton text={`${item.title}. ${item.description}`} size="sm" className="ml-1 inline-flex align-middle" />
+            )}
           </span>
           {item.description && !expanded && !hasSubsteps && (
             <p className={`text-xs ${item.completed ? 'text-gray-300' : 'text-gray-500'}`}>{item.description}</p>

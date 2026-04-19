@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { getKidZone } from '@/lib/zoneRotation'
+import { BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'Kaylee', 2: 'Amos', 3: 'Hannah', 4: 'Wyatt', 5: 'Ellie' }
 const DINNER_MANAGERS: Record<number, string> = { 1: 'Kaylee', 2: 'Zoey', 3: 'Wyatt', 4: 'Amos', 5: 'Ellie & Hannah', 6: 'Parents', 0: 'Parents' }
@@ -112,7 +113,6 @@ export async function GET(req: NextRequest) {
         `SELECT covering_kid FROM belle_care_swaps WHERE swap_date = $1 AND status = 'accepted' LIMIT 1`, [todayStr]
       ).catch(() => [])
       // Weekend Belle rotation: same anchor + order as Dashboard.tsx / BelleCareCard.tsx
-      const BELLE_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
       const BELLE_ANCHOR_MS = new Date(2026, 2, 28).getTime()
       let weekendKid = 'Weekend rotation'
       if (dow === 0 || dow === 6) {

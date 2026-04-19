@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
-
-// ── Constants ──
-const BELLE_KIDS = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
+import { BELLE_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 
 // Weekday assignments — fixed, same every week
 const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
 // Reverse lookup: kid -> their fixed weekday number
 const KID_WEEKDAY: Record<string, number> = { kaylee: 1, amos: 2, hannah: 3, wyatt: 4, ellie: 5 }
-
-// Weekend rotation — 5-week cycle, anchored March 28, 2026 (Week 1 = Kaylee)
-const WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 const WEEKEND_ANCHOR_MS = new Date(2026, 2, 28).getTime()
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 
@@ -78,7 +73,7 @@ function getWeekendAssignee(dateStr: string): string {
   const sat = getSaturdayDate(dateStr)
   const weeksSince = Math.floor((sat.getTime() - WEEKEND_ANCHOR_MS) / MS_PER_WEEK)
   const index = ((weeksSince % 5) + 5) % 5
-  return WEEKEND_ROTATION[index]
+  return BELLE_WEEKEND_ROTATION[index]
 }
 
 function getRotationWeekNumber(dateStr: string): number {
@@ -281,7 +276,7 @@ export async function GET(request: NextRequest) {
           const satStr = sat.toLocaleDateString('en-CA')
           if (satStr < today) continue
           const rotWeek = getRotationWeekNumber(satStr)
-          if (WEEKEND_ROTATION[rotWeek - 1] === kid) {
+          if (BELLE_WEEKEND_ROTATION[rotWeek - 1] === kid) {
             nextWeekendSat = satStr
             nextWeekendDaysAway = Math.ceil((sat.getTime() - todayDate.getTime()) / 86400000)
             break
@@ -357,7 +352,7 @@ export async function GET(request: NextRequest) {
           const groomTasks = getGroomingTasks(rotWeek)
           weekends.push({
             saturday: satStr,
-            kid_name: WEEKEND_ROTATION[rotWeek - 1] || 'unknown',
+            kid_name: BELLE_WEEKEND_ROTATION[rotWeek - 1] || 'unknown',
             label: sat.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             groomingTasks: groomTasks.map(t => ({ key: t, ...(GROOMING_INFO[t] || { label: t, emoji: '' }) })),
           })

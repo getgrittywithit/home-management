@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { ALL_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 
 const HOST_ROTATION = ['amos', 'kaylee', 'hannah', 'ellie', 'wyatt', 'zoey']
 const HOST_EPOCH = new Date('2026-04-05T12:00:00')
-const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 // KID_EMOJIS used in frontend, kept here for reference
 // amos: owl, zoey: star, kaylee: theater, ellie: bulb, wyatt: lightning, hannah: sunflower
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'Kaylee', 2: 'Amos', 3: 'Hannah', 4: 'Wyatt', 5: 'Ellie' }
-const BELLE_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 const BELLE_WEEKEND_EPOCH = new Date('2026-03-28T12:00:00')
 const BATH_ANCHOR = new Date('2026-06-13T12:00:00')
 const NAIL_ANCHOR = new Date('2026-06-14T12:00:00')
@@ -195,7 +194,7 @@ async function scanCelebrations(weekStart: string, weekEnd: string) {
   }
 
   // Zone completion 100%
-  for (const kid of KIDS) {
+  for (const kid of ALL_KIDS) {
     const zoneData = await db.query(
       `SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE completed = TRUE)::int as done
        FROM kid_daily_checklist WHERE child_name = $1 AND event_date BETWEEN $2 AND $3 AND task_category = 'zone'`,
@@ -225,7 +224,7 @@ async function generateParentPrep(weekStart: string, weekEnd: string) {
   }
 
   // Safety events / break button usage (Hot)
-  for (const kid of KIDS) {
+  for (const kid of ALL_KIDS) {
     const breaks = await db.query(
       `SELECT COUNT(*)::int as c FROM kid_break_flags WHERE kid_name = $1 AND flagged_at::date BETWEEN $2 AND $3`,
       [kid, weekStart, weekEnd]
@@ -236,7 +235,7 @@ async function generateParentPrep(weekStart: string, weekEnd: string) {
   }
 
   // Low mood patterns (Hot)
-  for (const kid of KIDS) {
+  for (const kid of ALL_KIDS) {
     const mood = await db.query(
       `SELECT COUNT(*)::int as low_days FROM kid_mood_log WHERE child_name = $1 AND log_date BETWEEN $2 AND $3 AND COALESCE(mood_score, mood) <= 2`,
       [kid, weekStart, weekEnd]
@@ -247,7 +246,7 @@ async function generateParentPrep(weekStart: string, weekEnd: string) {
   }
 
   // Zones below 30% (Medium)
-  for (const kid of KIDS) {
+  for (const kid of ALL_KIDS) {
     const tasks = await db.query(
       `SELECT COUNT(*)::int as total, COUNT(*) FILTER (WHERE completed = TRUE)::int as done
        FROM kid_daily_checklist WHERE child_name = $1 AND event_date BETWEEN $2 AND $3`,
@@ -620,7 +619,7 @@ export async function POST(req: NextRequest) {
         const sunday = getSundayOfWeek(today)
         const bonusType = getBonusType(new Date(sunday + 'T12:00:00'))
 
-        let content: any = { type: bonusType, kids: KIDS.map(k => cap(k)) }
+        let content: any = { type: bonusType, kids: [...ALL_KIDS].map(k => cap(k)) }
 
         if (bonusType === 'family_challenge') {
           const challenge = await db.query(

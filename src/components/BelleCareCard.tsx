@@ -4,15 +4,10 @@ import { useState, useEffect } from 'react'
 import { CheckCircle2, Circle, X } from 'lucide-react'
 import HelpDropdown from './HelpDropdown'
 import SpeakerButton from './SpeakerButton'
-
-const KID_DISPLAY: Record<string, string> = {
-  amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', kaylee: 'Kaylee'
-}
-const BELLE_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'kaylee']
+import { KID_DISPLAY, BELLE_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 
 // ── Hardcoded Belle assignment logic (mirrors API, zero DB calls) ──
 const ZOEY_WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
-const ZOEY_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie']
 const ZOEY_ANCHOR_MS = new Date(2026, 2, 28).getTime() // Saturday March 28, 2026 = Week 1
 const ZOEY_MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 
@@ -29,7 +24,7 @@ function zoeyGetTodayAssignee(): { name: string; isWeekend: boolean } {
   // dow===6 means it IS Saturday already
   const weeksSince = Math.floor((sat.getTime() - ZOEY_ANCHOR_MS) / ZOEY_MS_PER_WEEK)
   const index = ((weeksSince % 5) + 5) % 5
-  return { name: ZOEY_WEEKEND_ROTATION[index] || '', isWeekend: true }
+  return { name: BELLE_WEEKEND_ROTATION[index] || '', isWeekend: true }
 }
 
 interface Task { key: string; label: string; emoji: string; time: string; completed: boolean }
@@ -428,8 +423,9 @@ function BelleTaskRow({ task, onToggle }: { task: { key: string; label: string; 
         {task.time && <span className="text-xs text-gray-400">{task.time}</span>}
       </button>
       {helpSteps && !task.completed && (
-        <div className="px-12 pb-2">
+        <div className="px-12 pb-2 flex items-start gap-1">
           <HelpDropdown instructions={helpSteps} compact />
+          <SpeakerButton steps={helpSteps} size="sm" rate={0.9} />
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Calendar, Sparkles, ChevronDown, ChevronUp, CheckCircle2, Circle } from 'lucide-react'
+import { Calendar, Sparkles, ChevronDown, ChevronUp, CheckCircle2, Circle, Camera, Check, RotateCcw, Filter } from 'lucide-react'
 import {
   DAILY_FOCUS,
   MONTHLY_HABITS
@@ -30,10 +30,29 @@ interface ChoresTabProps {
   isParent?: boolean
 }
 
+interface PhotoSubmission {
+  id: string
+  kid_name: string
+  zone_name: string
+  photo_url: string
+  submitted_at: string
+  status: string
+  parent_note: string | null
+  reviewed_at: string | null
+}
+
 export default function ChoresTab({ familyMembers = [], isParent = true }: ChoresTabProps) {
   const [progress, setProgress] = useState<ZoneProgress[]>([])
   const [expandedKid, setExpandedKid] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+
+  // Photo gallery state
+  const [photos, setPhotos] = useState<PhotoSubmission[]>([])
+  const [photosLoaded, setPhotosLoaded] = useState(false)
+  const [photoFilter, setPhotoFilter] = useState<'pending' | 'approved' | 'all'>('pending')
+  const [photoTotal, setPhotoTotal] = useState(0)
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
+  const [reviewingId, setReviewingId] = useState<string | null>(null)
 
   const zoneWeek = getCurrentZoneWeek()
   const { start, end } = getCurrentZoneWeekRange()
@@ -74,6 +93,42 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
       setLoaded(true)
     })
   }, [])
+
+  // Fetch zone photos
+  const loadPhotos = (filter: 'pending' | 'approved' | 'all') => {
+    setPhotosLoaded(false)
+    const statusParam = filter === 'all' ? '' : `&status=${filter}`
+    fetch(`/api/parent/zone-photos?action=get_history${statusParam}&limit=20`)
+      .then(r => r.json())
+      .then(data => {
+        setPhotos(data.submissions || [])
+        setPhotoTotal(data.total || 0)
+        setPhotosLoaded(true)
+      })
+      .catch(() => setPhotosLoaded(true))
+  }
+
+  useEffect(() => { if (isParent) loadPhotos(photoFilter) }, [photoFilter])
+
+  const handleApprove = async (id: string) => {
+    setReviewingId(id)
+    await fetch('/api/parent/zone-photos', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'approve', submission_id: id }),
+    }).catch(() => {})
+    setReviewingId(null)
+    loadPhotos(photoFilter)
+  }
+
+  const handleRedo = async (id: string, note: string) => {
+    setReviewingId(id)
+    await fetch('/api/parent/zone-photos', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'request_redo', submission_id: id, parent_note: note || 'Please redo this area' }),
+    }).catch(() => {})
+    setReviewingId(null)
+    loadPhotos(photoFilter)
+  }
 
   const getStatus = (p: ZoneProgress) => {
     if (p.total === 0) return { label: 'No Tasks', color: 'text-gray-400', icon: '—' }
@@ -174,6 +229,113 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
           </div>
         )}
       </div>
+
+      {/* Zone Photo Gallery — Parents Only */}
+      {isParent && (
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Camera className="w-4 h-4 text-blue-600" />
+              <h3 className="font-bold text-gray-900">Zone Photos</h3>
+              {photoTotal > 0 && <span className="text-xs text-gray-500">({photoTotal} total)</span>}
+            </div>
+            <div className="flex gap-1">
+              {(['pending', 'approved', 'all'] as const).map(f => (
+                <button key={f} onClick={() => setPhotoFilter(f)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium ${photoFilter === f ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {f === 'pending' ? '⏳ Pending' : f === 'approved' ? '✅ Approved' : '📋 All'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {!photosLoaded ? (
+            <div className="p-8 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+            </div>
+          ) : photos.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              {photoFilter === 'pending' ? 'No photos waiting for review' : 'No zone photos yet'}
+            </div>
+          ) : (
+            <div className="divide-y">
+              {photos.map(photo => {
+                const isExpanded = expandedPhoto === photo.id
+                const kidDisplay = photo.kid_name.charAt(0).toUpperCase() + photo.kid_name.slice(1)
+                const timeAgo = (() => {
+                  const diff = Date.now() - new Date(photo.submitted_at).getTime()
+                  const mins = Math.floor(diff / 60000)
+                  if (mins < 60) return `${mins}m ago`
+                  const hrs = Math.floor(mins / 60)
+                  if (hrs < 24) return `${hrs}h ago`
+                  return `${Math.floor(hrs / 24)}d ago`
+                })()
+
+                return (
+                  <div key={photo.id} className="px-4 py-3">
+                    <button onClick={() => setExpandedPhoto(isExpanded ? null : photo.id)}
+                      className="w-full flex items-center gap-3 text-left">
+                      <span className="text-sm font-medium text-gray-900 w-16">{kidDisplay}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{photo.zone_name}</span>
+                      <span className="flex-1" />
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        photo.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                        photo.status === 'approved' ? 'bg-green-100 text-green-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {photo.status === 'pending' ? '⏳ Pending' : photo.status === 'approved' ? '✅ Approved' : '🔄 Redo'}
+                      </span>
+                      <span className="text-xs text-gray-400">{timeAgo}</span>
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="mt-3 space-y-3">
+                        {/* Photo */}
+                        {photo.photo_url && (
+                          <div className="rounded-lg overflow-hidden border max-w-sm">
+                            <img src={photo.photo_url} alt={`${kidDisplay}'s ${photo.zone_name} zone`}
+                              className="w-full h-auto max-h-64 object-cover" />
+                          </div>
+                        )}
+                        {/* Parent note (if redo) */}
+                        {photo.parent_note && (
+                          <p className="text-xs text-gray-600 bg-gray-50 rounded px-3 py-2">
+                            <span className="font-medium">Your note:</span> {photo.parent_note}
+                          </p>
+                        )}
+                        {/* Review buttons (pending only) */}
+                        {photo.status === 'pending' && (
+                          <div className="flex gap-2">
+                            <button onClick={() => handleApprove(photo.id)}
+                              disabled={reviewingId === photo.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 disabled:opacity-50">
+                              <Check className="w-3.5 h-3.5" /> Approve
+                            </button>
+                            <button onClick={() => {
+                              const note = window.prompt('Note for the kid (optional):')
+                              if (note !== null) handleRedo(photo.id, note)
+                            }}
+                              disabled={reviewingId === photo.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 disabled:opacity-50">
+                              <RotateCcw className="w-3.5 h-3.5" /> Redo
+                            </button>
+                          </div>
+                        )}
+                        {photo.reviewed_at && (
+                          <p className="text-xs text-gray-400">
+                            Reviewed {new Date(photo.reviewed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

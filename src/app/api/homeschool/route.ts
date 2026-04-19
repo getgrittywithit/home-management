@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
+import { KID_FLAGS, KID_GRADES } from '@/lib/constants'
 
 // ============================================================================
 // GET /api/homeschool?action=...
@@ -459,18 +460,6 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        // Kid accessibility flags and grade
-        const KID_FLAGS: Record<string, string[]> = {
-          amos: ['dyslexia','dyscalculia','speech_delay','apd','color_vision','adhd','autism'],
-          ellie: ['speech_delay','suspected_adhd'],
-          wyatt: ['speech_delay','adhd','color_vision'],
-          hannah: ['speech_delay','stutter'],
-          kaylee: ['speech_delay','autism','suspected_dyslexia'],
-          zoey: [],
-        }
-        const KID_GRADES: Record<string, number> = {
-          amos: 10, ellie: 6, wyatt: 4, hannah: 3, kaylee: 7, zoey: 9,
-        }
         const kid = kidName.toLowerCase()
         const flags = KID_FLAGS[kid] || []
         const grade = KID_GRADES[kid] || 5

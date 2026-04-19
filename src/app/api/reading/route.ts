@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
+import { ALL_KIDS } from '@/lib/constants'
 
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 
@@ -149,7 +150,7 @@ export async function GET(request: NextRequest) {
 
     case 'get_all_kids_progress': {
       try {
-        const kids = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
+        const kids = ALL_KIDS
         const result: any[] = []
         for (const kid of kids) {
           const [currentBook, stats] = await Promise.all([

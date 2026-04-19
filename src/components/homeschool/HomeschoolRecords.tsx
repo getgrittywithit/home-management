@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { FileText, Plus, X, Award, ClipboardList, Download } from 'lucide-react'
 import { createPDF, addHeader, addFooter, addSectionTitle, addKeyValue, addTable } from '@/lib/pdf/generate'
 
+// TODO: When KID_GRADE_LABELS constant is created in @/lib/constants, replace this array with the imported constant
 const KIDS = [
   { id: 'amos', label: 'Amos', grade: '10th' },
   { id: 'ellie', label: 'Ellie', grade: '6th' },

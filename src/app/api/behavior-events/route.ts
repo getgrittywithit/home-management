@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { ALL_KIDS } from '@/lib/constants'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
     if (action === 'get_digest') {
       // Weekly behavioral digest with recommendations
       const monday = getMonday()
-      const kids = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
+      const kids = ALL_KIDS
       const kidDigests = []
       for (const k of kids) {
         const events = await db.query(

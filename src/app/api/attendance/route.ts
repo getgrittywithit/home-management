@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { HOMESCHOOL_KIDS } from '@/lib/constants'
 
 const SCHOOL_TYPES: Record<string, string> = {
   amos: 'homeschool', zoey: 'public', kaylee: 'public',
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
       const kidName = searchParams.get('kid_name')
       const startDate = searchParams.get('start_date') || '2025-08-01'
       const endDate = searchParams.get('end_date') || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      const homeschoolKids = kidName ? [kidName.toLowerCase()] : ['amos', 'ellie', 'wyatt', 'hannah']
+      const homeschoolKids = kidName ? [kidName.toLowerCase()] : HOMESCHOOL_KIDS
 
       try {
         const reports: any[] = []

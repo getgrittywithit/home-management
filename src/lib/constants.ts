@@ -32,6 +32,20 @@ export type BelleTask = typeof BELLE_TASKS[number]
 export const MED_KIDS = ['amos', 'wyatt'] as const
 export const ALL_KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah'] as const
 export const HOMESCHOOL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah'] as const
+export const PUBLIC_SCHOOL_KIDS = ['zoey', 'kaylee'] as const
+
+// Belle care — Zoey excluded per her request
+export const BELLE_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'kaylee'] as const
+export const BELLE_WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
+export const BELLE_WEEKEND_ROTATION = ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie'] as const
+export const BELLE_WEEKEND_ANCHOR = new Date(2026, 2, 28) // Saturday March 28, 2026 = Week 1
+
+// Dinner manager rotation (Mon-Fri kid assignments)
+export const DINNER_MANAGERS: Record<string, string | string[]> = {
+  monday: 'kaylee', tuesday: 'zoey', wednesday: 'wyatt',
+  thursday: 'amos', friday: ['ellie', 'hannah'],
+  saturday: 'parents', sunday: 'parents',
+}
 
 export const KID_AGES: Record<string, number> = {
   amos: 17, zoey: 15, kaylee: 13, ellie: 12, wyatt: 10, hannah: 8,
@@ -54,4 +68,92 @@ export const KID_DISPLAY: Record<string, string> = {
 export const KID_SCHOOL_TYPE: Record<string, 'homeschool' | 'public'> = {
   amos: 'homeschool', zoey: 'public', kaylee: 'public',
   ellie: 'homeschool', wyatt: 'homeschool', hannah: 'homeschool',
+}
+
+// ── Pet Care Constants ──
+export const PET_LIST = ['belle', 'spike', 'hades', 'midnight'] as const
+export type PetKey = typeof PET_LIST[number]
+
+export const PET_DISPLAY: Record<string, string> = {
+  belle: 'Belle', spike: 'Spike', hades: 'Hades', midnight: 'Midnight',
+}
+
+export const PET_EMOJI: Record<string, string> = {
+  belle: '🐕', spike: '🦎', hades: '🐍', midnight: '🐰',
+}
+
+export const PET_TYPE: Record<string, string> = {
+  belle: 'Dog', spike: 'Bearded Dragon', hades: 'Ball Python', midnight: 'Lionhead Dwarf Bunny',
+}
+
+export const PET_PRIMARY: Record<string, string> = {
+  belle: 'rotating', spike: 'amos', hades: 'zoey', midnight: 'ellie',
+}
+
+export const PET_HELPERS: Record<string, string[]> = {
+  belle: ['kaylee', 'amos', 'hannah', 'wyatt', 'ellie'],
+  spike: ['kaylee', 'wyatt'],
+  hades: [], // Zoey sole caretaker
+  midnight: ['hannah', 'wyatt'],
+}
+
+// Hades feeding schedule: 2-3 live adult mice every 7-14 days
+export const HADES_FEEDING_INTERVAL_DAYS = 10 // default reminder at 10 days
+export const HADES_FEEDING_OVERDUE_DAYS = 14 // overdue at 14 days
+export const HADES_MICE_PER_FEEDING = 2
+
+// Spike live feeding: crickets and/or roaches a few times per month (bought with Hades mice)
+export const SPIKE_LIVE_FEED_INTERVAL_DAYS = 10 // reminder around same pet store trip
+
+export const PET_DAILY_TASKS: Record<string, Array<{ key: string; label: string; emoji: string; time?: string }>> = {
+  spike: [
+    { key: 'feed', label: 'Feed Spike', emoji: '🍽️', time: 'Morning' },
+    { key: 'water', label: 'Fresh Water', emoji: '💧', time: 'Morning' },
+    { key: 'spot_clean', label: 'Spot Clean', emoji: '🧹' },
+    { key: 'health_check', label: 'Visual Health Check', emoji: '👀' },
+  ],
+  hades: [
+    { key: 'check_water', label: 'Check Water', emoji: '💧', time: 'Morning' },
+    { key: 'health_check', label: 'Visual Health Check', emoji: '👀' },
+  ],
+  midnight: [
+    { key: 'feed', label: 'Feed Midnight', emoji: '🥕', time: 'Morning' },
+    { key: 'hay', label: 'Fresh Hay', emoji: '🌾', time: 'Morning' },
+    { key: 'water', label: 'Fresh Water', emoji: '💧', time: 'Morning' },
+    { key: 'spot_clean', label: 'Spot Clean Pellet Box', emoji: '🧹' },
+    { key: 'brush', label: 'Brush Mane', emoji: '🐰' },
+  ],
+}
+
+export const PET_WEEKLY_TASKS: Record<string, Array<{ key: string; label: string; emoji: string; frequency: string }>> = {
+  spike: [
+    { key: 'warm_bath', label: 'Warm Bath', emoji: '🛁', frequency: '2-3x/week' },
+  ],
+  midnight: [
+    { key: 'full_cage_clean', label: 'Full Cage Clean', emoji: '🧽', frequency: 'Weekly' },
+    { key: 'grooming_nail_check', label: 'Grooming & Nail Check', emoji: '✂️', frequency: 'Weekly' },
+  ],
+}
+
+export const PET_MONTHLY_TASKS: Record<string, Array<{ key: string; label: string; emoji: string }>> = {
+  spike: [
+    { key: 'full_pen_clean', label: 'Full Pen Clean', emoji: '🧽' },
+    { key: 'uvb_bulb_check', label: 'UVB Bulb Check (replace every 6mo)', emoji: '💡' },
+  ],
+  hades: [
+    { key: 'full_pen_clean', label: 'Full Pen Clean + Substrate', emoji: '🧽' },
+  ],
+  midnight: [
+    { key: 'weight_check', label: 'Weight Check', emoji: '⚖️' },
+    { key: 'health_assessment', label: 'Monthly Health Assessment', emoji: '🏥' },
+  ],
+}
+
+export const KID_FLAGS: Record<string, string[]> = {
+  amos: ['dyslexia','dyscalculia','speech_delay','apd','color_vision','adhd','autism'],
+  zoey: [],
+  kaylee: ['speech_delay','autism','suspected_dyslexia'],
+  ellie: ['speech_delay','suspected_adhd'],
+  wyatt: ['speech_delay','adhd','color_vision'],
+  hannah: ['speech_delay','stutter'],
 }
