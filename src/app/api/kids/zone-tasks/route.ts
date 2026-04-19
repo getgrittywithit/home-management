@@ -572,18 +572,19 @@ export async function POST(request: NextRequest) {
         const { kid_name, zone_name, photo_url } = body
         if (!kid_name || !zone_name || !photo_url) return NextResponse.json({ error: 'kid_name, zone_name, photo_url required' }, { status: 400 })
         try {
-          await db.query(
-            `INSERT INTO zone_photo_submissions (kid_name, zone_name, photo_url) VALUES ($1, $2, $3)`,
+          const inserted = await db.query(
+            `INSERT INTO zone_photo_submissions (kid_name, zone_name, photo_url) VALUES ($1, $2, $3) RETURNING id`,
             [kid_name.toLowerCase(), zone_name, photo_url]
           )
+          const photoId = inserted[0]?.id
           const kidDisplay = kid_name.charAt(0).toUpperCase() + kid_name.slice(1).toLowerCase()
           await createNotification({
             title: `${kidDisplay} submitted a zone photo`,
             message: `Zone: ${zone_name} — needs review`,
-            source_type: 'zone_photo', source_ref: `kid:${kid_name.toLowerCase()}`,
+            source_type: 'zone_photo', source_ref: photoId ? `photo:${photoId}` : `kid:${kid_name.toLowerCase()}`,
             link_tab: 'chores', icon: '📸',
           }).catch(() => {})
-          return NextResponse.json({ success: true })
+          return NextResponse.json({ success: true, photo_id: photoId })
         } catch (error) {
           return NextResponse.json({ error: 'Failed' }, { status: 500 })
         }

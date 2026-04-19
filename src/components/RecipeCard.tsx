@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { X, Printer, Clock, Users, Loader2, ChevronDown, ChevronUp, Edit3 } from 'lucide-react'
+import SpeakerButton from './SpeakerButton'
 
 type StepGroup = 'prep' | 'cook' | 'finish'
 
@@ -417,7 +418,10 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
               {/* Steps */}
               {hasSteps ? (
                 <div className="px-5 py-4 recipe-steps">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">Steps</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Steps</h3>
+                    <SpeakerButton steps={meal.recipe_steps.map(s => s.text)} size="sm" rate={0.9} />
+                  </div>
                   {STEP_GROUPS.map(group => {
                     const groupSteps = meal.recipe_steps.filter(s => s.group === group.value)
                     if (groupSteps.length === 0) return null

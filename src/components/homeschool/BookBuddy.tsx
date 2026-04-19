@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { BookOpen, Send, SkipForward, Loader2, Star, Trophy, Lightbulb } from 'lucide-react'
+import SpeakerButton from '../SpeakerButton'
 
 interface BookBuddyProps {
   kidName: string
@@ -119,11 +120,17 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
       {/* Passage + Question */}
       {passage ? (
         <div className="bg-white rounded-lg border shadow-sm p-5">
-          <div className="prose prose-sm max-w-none mb-4">
-            <p className="text-gray-800 leading-relaxed text-base">{passage.passage_text}</p>
+          <div className="prose prose-sm max-w-none mb-4 relative">
+            <div className="absolute top-0 right-0">
+              <SpeakerButton text={passage.passage_text} size="md" rate={0.85} />
+            </div>
+            <p className="text-gray-800 leading-relaxed text-base pr-8">{passage.passage_text}</p>
           </div>
           <div className="border-t pt-4">
-            <p className="font-medium text-gray-900 mb-3">{passage.question}</p>
+            <div className="flex items-start gap-2 mb-3">
+              <p className="font-medium text-gray-900 flex-1">{passage.question}</p>
+              <SpeakerButton text={passage.question} size="sm" rate={0.85} />
+            </div>
             <textarea
               value={response}
               onChange={e => setResponse(e.target.value)}
@@ -145,7 +152,8 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
                 {showHint && passage?.hint_text && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 flex items-start gap-2">
                     <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>{passage.hint_text}</span>
+                    <span className="flex-1">{passage.hint_text}</span>
+                    <SpeakerButton text={passage.hint_text} size="sm" rate={0.85} />
                   </div>
                 )}
                 <div className="flex gap-2">
@@ -191,7 +199,10 @@ export default function BookBuddy({ kidName, onStarsEarned }: BookBuddyProps) {
               {encourageText && (
                 <p className="text-sm text-gray-800 mt-1 font-medium">{encourageText}</p>
               )}
-              <p className="text-sm text-gray-700 mt-1">{feedback.feedback}</p>
+              <div className="flex items-start gap-1 mt-1">
+                <p className="text-sm text-gray-700 flex-1">{feedback.feedback}</p>
+                <SpeakerButton text={feedback.feedback} size="sm" rate={0.85} />
+              </div>
               {feedback.mastery_delta > 0 && (
                 <p className="text-sm text-green-600 mt-2 font-medium">Mastery: {feedback.mastery_before}% → {feedback.mastery_after}%</p>
               )}
