@@ -78,6 +78,8 @@ const tabs: Tab[] = [
   { id: 'stars-rewards', name: 'Stars & Rewards', icon: Star, color: 'bg-amber-500', section: 'REWARDS' },
   // HEALTH
   { id: 'health', name: 'Health', icon: Heart, color: 'bg-rose-600', section: 'HEALTH' },
+  // FAMILY
+  { id: 'family', name: 'Family', icon: Users, color: 'bg-purple-500', section: 'FAMILY' },
   // PLANNING & ADMIN
   { id: 'calendar', name: 'Calendar', icon: Calendar, color: 'bg-pink-500', section: 'PLANNING' },
   { id: 'finance', name: 'Finance', icon: DollarSign, color: 'bg-green-500', section: 'PLANNING' },
@@ -457,6 +459,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     const homeschoolSubTab = activeTab === 'library' ? 'library' as const : undefined
     const rewardsSubTab = activeTab === 'habits' ? 'habits' as const
       : activeTab === 'gifts' ? 'gifts' as const
+      : activeTab === 'goals' ? 'goals' as const
       : undefined
 
     switch (resolvedTab) {

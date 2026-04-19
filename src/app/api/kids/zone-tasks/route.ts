@@ -714,6 +714,144 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true })
       }
 
+      // ── Log daily pet care task (any pet) ──
+      case 'log_pet_care': {
+        const { pet_key, task_key, completed_by, date, notes } = body
+        if (!pet_key || !task_key || !completed_by) return NextResponse.json({ error: 'pet_key, task_key, completed_by required' }, { status: 400 })
+        const careDate = date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        await db.query(
+          `INSERT INTO pet_care_log (id, pet_id, caretaker_id, task_type, task_description, completed_at)
+           VALUES (gen_random_uuid(), (SELECT id FROM pets WHERE LOWER(name) = $1 LIMIT 1),
+                   '00000000-0000-0000-0000-000000000000', $2, $3, NOW())`,
+          [pet_key.toLowerCase(), task_key, notes || `${task_key} by ${completed_by}`]
+        )
+        return NextResponse.json({ success: true })
+      }
+
+      // ── Get pet care status for today (any pet) ──
+      case 'get_pet_care_today': {
+        const { pet_key } = body
+        if (!pet_key) return NextResponse.json({ error: 'pet_key required' }, { status: 400 })
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        const logs = await db.query(
+          `SELECT task_type, task_description, completed_at FROM pet_care_log
+           WHERE pet_id = (SELECT id FROM pets WHERE LOWER(name) = $1 LIMIT 1)
+             AND completed_at::date = $2::date
+           ORDER BY completed_at`,
+          [pet_key.toLowerCase(), today]
+        ).catch(() => [])
+        // Also check feeding log for today
+        const feedings = await db.query(
+          `SELECT * FROM pet_feeding_log WHERE pet_key = $1 AND fed_date = $2`,
+          [pet_key.toLowerCase(), today]
+        ).catch(() => [])
+        return NextResponse.json({ care_logs: logs, feedings, date: today })
+      }
+
+      // ── Hades feeding cycle check + auto grocery push ──
+      case 'check_hades_feeding': {
+        const lastFeeding = await db.query(
+          `SELECT fed_date, quantity, notes FROM pet_feeding_log WHERE pet_key = 'hades' ORDER BY fed_date DESC LIMIT 1`
+        ).catch(() => [])
+        if (lastFeeding.length === 0) {
+          return NextResponse.json({
+            days_since_fed: null, needs_mice: true, urgency: 'overdue',
+            message: 'No feeding recorded — Hades needs mice ASAP'
+          })
+        }
+        const lastDate = new Date(lastFeeding[0].fed_date)
+        const today = new Date()
+        const daysSince = Math.floor((today.getTime() - lastDate.getTime()) / (86400000))
+        const needsMice = daysSince >= 7
+        const urgency = daysSince >= 14 ? 'overdue' : daysSince >= 10 ? 'due_soon' : daysSince >= 7 ? 'due' : 'ok'
+
+        // If due, auto-create a grocery request for live mice
+        if (needsMice && daysSince >= 10) {
+          // Check if we already created a request recently
+          const existing = await db.query(
+            `SELECT id FROM kid_grocery_requests
+             WHERE kid_name = 'zoey' AND item_name LIKE '%mice%' AND status = 'pending'
+             AND created_at > NOW() - INTERVAL '7 days'`
+          ).catch(() => [])
+          if (existing.length === 0) {
+            await db.query(
+              `INSERT INTO kid_grocery_requests (kid_name, item_name, category, quantity, reason, status)
+               VALUES ('zoey', 'Live adult mice for Hades', 'pet_care', '2-3',
+                       'Last fed ${daysSince} days ago — feeding cycle due', 'pending')`
+            ).catch(() => {})
+            // Notify parent
+            const { createNotification: cn } = await import('@/lib/notifications')
+            await cn({
+              title: '🐍 Hades needs feeding — mice needed',
+              message: `Last fed ${daysSince} days ago. Zoey flagged: need 2-3 live adult mice from pet store.`,
+              source_type: 'pet_feeding_due', source_ref: `pet:hades:feeding`,
+              link_tab: 'pets', icon: '🐍',
+            }).catch(() => {})
+          }
+        }
+
+        return NextResponse.json({
+          days_since_fed: daysSince, last_fed: lastFeeding[0].fed_date,
+          quantity: lastFeeding[0].quantity, needs_mice: needsMice, urgency,
+          message: urgency === 'overdue' ? `OVERDUE — ${daysSince} days since last feeding!`
+            : urgency === 'due_soon' ? `Due soon — ${daysSince} days since last feeding`
+            : urgency === 'due' ? `Due — ${daysSince} days since feeding`
+            : `OK — fed ${daysSince} day${daysSince !== 1 ? 's' : ''} ago`
+        })
+      }
+
+      // ── Check Spike live feeding (crickets/roaches) ──
+      case 'check_spike_feeding': {
+        const lastFeeding = await db.query(
+          `SELECT fed_date, quantity, notes FROM pet_feeding_log WHERE pet_key = 'spike' ORDER BY fed_date DESC LIMIT 1`
+        ).catch(() => [])
+        if (lastFeeding.length === 0) {
+          return NextResponse.json({ days_since_fed: null, message: 'No live feeding recorded yet.' })
+        }
+        const lastDate = new Date(lastFeeding[0].fed_date)
+        const daysSince = Math.floor((Date.now() - lastDate.getTime()) / 86400000)
+        return NextResponse.json({
+          days_since_fed: daysSince, last_fed: lastFeeding[0].fed_date,
+          notes: lastFeeding[0].notes,
+          message: daysSince >= 14 ? `Due — ${daysSince} days since live feed`
+            : `Fed ${daysSince} day${daysSince !== 1 ? 's' : ''} ago`
+        })
+      }
+
+      // ── Get Spike feeding history ──
+      case 'get_spike_feeding_history': {
+        const limit = parseInt(body.limit || '10')
+        const rows = await db.query(
+          `SELECT * FROM pet_feeding_log WHERE pet_key = 'spike' ORDER BY fed_date DESC LIMIT $1`,
+          [limit]
+        ).catch(() => [])
+        return NextResponse.json({ feedings: rows })
+      }
+
+      // ── Zoey: request mice for Hades ──
+      case 'request_hades_mice': {
+        const { notes: miceNotes } = body
+        const lastFeeding = await db.query(
+          `SELECT fed_date FROM pet_feeding_log WHERE pet_key = 'hades' ORDER BY fed_date DESC LIMIT 1`
+        ).catch(() => [])
+        const daysSince = lastFeeding.length > 0
+          ? Math.floor((Date.now() - new Date(lastFeeding[0].fed_date).getTime()) / 86400000)
+          : null
+        await db.query(
+          `INSERT INTO kid_grocery_requests (kid_name, item_name, category, quantity, reason, status)
+           VALUES ('zoey', 'Live adult mice for Hades', 'pet_care', '2-3', $1, 'pending')`,
+          [miceNotes || `Hades feeding cycle — last fed ${daysSince !== null ? daysSince + ' days ago' : 'unknown'}`]
+        )
+        const { createNotification: cn2 } = await import('@/lib/notifications')
+        await cn2({
+          title: '🐍 Zoey: Hades needs mice',
+          message: miceNotes || `Feeding cycle due. Need 2-3 live adult mice from pet store.`,
+          source_type: 'pet_feeding_request', source_ref: `pet:hades:mice`,
+          link_tab: 'food-inventory', icon: '🐍',
+        }).catch(() => {})
+        return NextResponse.json({ success: true, days_since_fed: daysSince })
+      }
+
       // ── Parent config: toggle task active/inactive ──
       case 'toggle_task_active': {
         const { task_id } = body

@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { BarChart2, Gift, Sparkles, Flame } from 'lucide-react'
+import { BarChart2, Gift, Sparkles, Flame, Target } from 'lucide-react'
 import PointsEarningTab from './PointsEarningTab'
 import ParentRewardsManager from './ParentRewardsManager'
 import RewardsTab from './RewardsTab'
 import DigiPetParentPanel from './DigiPetParentPanel'
 import HabitsTab from './HabitsTab'
 import GiftSuggestions from './gifts/GiftSuggestions'
+import ParentGoalsOverview from './ParentGoalsOverview'
 
-type SubTab = 'overview' | 'catalog' | 'digi-pet' | 'habits' | 'gifts'
+type SubTab = 'overview' | 'catalog' | 'digi-pet' | 'habits' | 'goals' | 'gifts'
 
 export default function StarsAndRewardsTab({ initialSubTab }: { initialSubTab?: SubTab }) {
   const [subTab, setSubTab] = useState<SubTab>(initialSubTab || 'overview')
@@ -19,6 +20,7 @@ export default function StarsAndRewardsTab({ initialSubTab }: { initialSubTab?: 
     { id: 'catalog', label: 'Rewards', icon: Gift },
     { id: 'digi-pet', label: 'Digi-Pet', icon: Sparkles },
     { id: 'habits', label: 'Habits', icon: Flame },
+    { id: 'goals', label: 'Goals', icon: Target },
     { id: 'gifts', label: 'Gift Ideas', icon: Gift },
   ]
 
@@ -55,6 +57,7 @@ export default function StarsAndRewardsTab({ initialSubTab }: { initialSubTab?: 
       )}
       {subTab === 'digi-pet' && <DigiPetParentPanel />}
       {subTab === 'habits' && <HabitsTab />}
+      {subTab === 'goals' && <ParentGoalsOverview />}
       {subTab === 'gifts' && <GiftSuggestions />}
     </div>
   )

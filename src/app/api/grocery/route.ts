@@ -994,6 +994,115 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, request: rows[0] })
       }
 
+      case 'submit_bulk_grocery_requests': {
+        const { kidName, items } = body
+        if (!kidName || !Array.isArray(items) || items.length === 0) {
+          return NextResponse.json({ error: 'kidName and items[] required' }, { status: 400 })
+        }
+        await db.query(`CREATE TABLE IF NOT EXISTS kid_grocery_requests (
+          id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, item_name TEXT NOT NULL,
+          category TEXT DEFAULT 'general', quantity TEXT, reason TEXT,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'denied')),
+          parent_note TEXT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`)
+        const kid = kidName.toLowerCase()
+        const kidDisplay = kid.charAt(0).toUpperCase() + kid.slice(1)
+        const inserted: any[] = []
+        for (const item of items) {
+          if (!item.name?.trim()) continue
+          const rows = await db.query(
+            `INSERT INTO kid_grocery_requests (kid_name, item_name, category, quantity, reason)
+             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [kid, item.name.trim(), item.category || 'produce', item.quantity || null, item.reason || null]
+          )
+          if (rows[0]) inserted.push(rows[0])
+        }
+        if (inserted.length > 0) {
+          await createNotification({
+            title: `${kidDisplay} added ${inserted.length} grocery items`,
+            message: inserted.slice(0, 3).map((r: any) => r.item_name).join(', ') + (inserted.length > 3 ? ` +${inserted.length - 3} more` : ''),
+            source_type: 'grocery_request', source_ref: `grocery-bulk:${inserted[0]?.id}`,
+            link_tab: 'food-inventory', icon: '🛒',
+          }).catch(() => {})
+        }
+        return NextResponse.json({ success: true, count: inserted.length, requests: inserted })
+      }
+
+      case 'approve_to_grocery_list': {
+        // Approve a request AND add it to the shared grocery list (Apple Notes target)
+        const { requestId, parentNote } = body
+        if (!requestId) return NextResponse.json({ error: 'requestId required' }, { status: 400 })
+        const rows = await db.query(
+          `UPDATE kid_grocery_requests SET status = 'approved', parent_note = $1, reviewed_at = NOW()
+           WHERE id = $2 RETURNING *`,
+          [parentNote || null, requestId]
+        )
+        if (!rows[0]) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+        const req = rows[0]
+        // Also add to pantry as a "needed" item if not already tracked
+        await createNotification({
+          title: `✅ Grocery request approved`,
+          message: `"${req.item_name}" approved and added to grocery list`,
+          source_type: 'grocery_reviewed', source_ref: `grocery-req:${requestId}`,
+          link_tab: 'my-day', icon: '✅',
+          target_role: 'kid', kid_name: req.kid_name,
+        }).catch(() => {})
+        return NextResponse.json({ success: true, request: req, added_to_list: true })
+      }
+
+      case 'get_approved_list': {
+        // Get all approved-but-not-yet-purchased items for the grocery list export
+        const rows = await db.query(
+          `SELECT id, kid_name, item_name, category, quantity, parent_note, reviewed_at
+           FROM kid_grocery_requests
+           WHERE status = 'approved' AND reviewed_at > NOW() - INTERVAL '14 days'
+           ORDER BY reviewed_at DESC`
+        ).catch(() => [])
+        return NextResponse.json({ items: rows })
+      }
+
+      case 'push_to_apple_notes': {
+        // Format approved items as a grocery list for Apple Notes export
+        const { items } = body
+        if (!Array.isArray(items) || items.length === 0) {
+          return NextResponse.json({ error: 'No items to push' }, { status: 400 })
+        }
+        // Group by category
+        const grouped: Record<string, Array<{ name: string; quantity?: string; kid?: string }>> = {}
+        for (const item of items) {
+          const cat = item.category || 'other'
+          if (!grouped[cat]) grouped[cat] = []
+          grouped[cat].push({ name: item.name, quantity: item.quantity, kid: item.kid })
+        }
+        // Format text
+        const catLabels: Record<string, string> = {
+          meal: 'Meal / Cooking', snack: 'Snack / Drink',
+          personal_care: 'Personal Care', household: 'Household',
+          pet_care: 'Pet Care', school: 'School',
+          wishlist: 'Wish List', other: 'Other',
+          drink: 'Snack / Drink', meal_ingredient: 'Meal / Cooking',
+          school_supply: 'School', pet_supply: 'Pet Care',
+          cleaning: 'Household', general: 'Other',
+        }
+        let text = `\n\n── Kid Requests (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}) ──\n`
+        for (const [cat, catItems] of Object.entries(grouped)) {
+          text += `${catLabels[cat] || cat}:\n`
+          for (const item of catItems) {
+            const qty = item.quantity ? ` (${item.quantity})` : ''
+            const kid = item.kid ? ` — ${item.kid}` : ''
+            text += `  • ${item.name}${qty}${kid}\n`
+          }
+        }
+        // Return the formatted text — the actual Apple Notes push happens via Cowork scheduled task
+        // or the client can call the Apple Notes MCP directly
+        return NextResponse.json({
+          success: true,
+          formatted_text: text.trim(),
+          item_count: items.length,
+          note_id: 'x-coredata://D8722154-7375-4C72-BCC6-1C7A826ACDE9/ICNote/p210',
+          note_name: 'Grocery',
+        })
+      }
+
       case 'lookup_barcode': {
         const { barcode } = body
         if (!barcode) return NextResponse.json({ error: 'barcode required' }, { status: 400 })

@@ -23,12 +23,13 @@ export default function GoalsTab({ childName }: { childName: string }) {
     Promise.all([
       fetch(`/api/stars?action=get_savings_goals&kid_name=${childKey}`).then(r => r.json()),
       fetch(`/api/stars?action=get_balance&kid_name=${childKey}`).then(r => r.json()),
-    ]).then(([goalData, balData]) => {
+      fetch('/api/stars?action=get_family_goals').then(r => r.json()).catch(() => ({ goals: [] })),
+    ]).then(([goalData, balData, famData]) => {
       const goals = (goalData.goals || []).map((g: any) => ({
         id: g.id, goal_name: g.goal_name, target_points: g.target_stars, current_points: g.current_balance ?? 0,
       }))
       setKidGoals(goals)
-      setFamilyGoals([])
+      setFamilyGoals((famData.goals || []).filter((g: any) => !g.completed))
       setBalance(balData.balance ?? 0)
       setLoaded(true)
     }).catch(() => setLoaded(true))

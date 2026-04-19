@@ -7,7 +7,7 @@ import {
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
   User, Heart, X, Shuffle, Dices, Sparkles,
-  ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library, MessageCircle
+  ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library, MessageCircle, Flame
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -25,6 +25,8 @@ import DailyCheckInCard from './DailyCheckInCard'
 import MealFeedbackCard from './MealFeedbackCard'
 import RegulationToolsCard from './RegulationToolsCard'
 import BelleCareCard from './BelleCareCard'
+import PetCareCard from './PetCareCard'
+import RoutineChecklist from './RoutineChecklist'
 import DutyCard from './DutyCard'
 import SchoolMakeupCard from './SchoolMakeupCard'
 import TonightsDinnerCard from './TonightsDinnerCard'
@@ -32,6 +34,8 @@ import LearningPortfolioTab from './LearningPortfolioTab'
 import OpportunitiesTab from './OpportunitiesTab'
 import GoalsTab from './GoalsTab'
 import AchievementsTab from './AchievementsTab'
+import HabitsTab from './HabitsTab'
+import AchievementPopup from './AchievementPopup'
 import KidRequestsTab from './KidRequestsTab'
 import KidCalendarTab from './KidCalendarTab'
 import FamilyEventsStrip from './FamilyEventsStrip'
@@ -79,7 +83,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'habits' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
 
 interface NavTab {
   id: TabId
@@ -129,6 +133,7 @@ const navSections: NavSection[] = [
       { id: 'adventures', name: 'Adventures', icon: MapPin, color: 'bg-indigo-500' },
       { id: 'challenges', name: 'Challenges', icon: Trophy, color: 'bg-orange-500' },
       { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
+      { id: 'habits', name: 'My Habits', icon: Flame, color: 'bg-orange-500' },
       { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
     ],
   },
@@ -1282,6 +1287,9 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         {/* Belle Care */}
         <BelleCareCard childName={profile.first_name || ''} />
 
+        {/* Other Pet Care (Spike, Hades, Midnight) */}
+        <PetCareCard kidName={profile.first_name || ''} />
+
         {/* School Makeup (Zoey + Kaylee only) */}
         <SchoolMakeupCard childName={profile.first_name || ''} />
 
@@ -1885,15 +1893,18 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
       case 'my-day':
         return (
           <div className="space-y-4">
+            <AchievementPopup kidName={profile.first_name || profile.name} />
             <NotificationPermissionPrompt
               targetRole="kid"
               kidName={(profile.first_name || profile.name || '').toLowerCase()}
             />
             <HuddlePreSubmit kidName={profile.first_name || profile.name} />
+            <RoutineChecklist kidName={profile.first_name || profile.name} />
             {isHomeschool && (
               <MySchoolDayCard kidName={profile.first_name || profile.name} />
             )}
             <BelleCareCard childName={profile.first_name || ''} />
+            <PetCareCard kidName={profile.first_name || ''} />
             <MyDayView
               kidName={profile.first_name || profile.name}
               previewMode={previewMode}
@@ -1942,6 +1953,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return <AchievementsTab childName={profile.first_name || profile.name} />
       case 'goals':
         return <GoalsTab childName={profile.first_name || profile.name} />
+      case 'habits':
+        return <HabitsTab />
       case 'opportunities':
         return <OpportunitiesTab childName={profile.first_name || profile.name} />
       case 'adventures':

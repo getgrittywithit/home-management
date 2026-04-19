@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Dog } from 'lucide-react'
+import { Dog, AlertTriangle, Clock } from 'lucide-react'
 import BelleCareTab from './BelleCareTab'
 
 interface PetStatus {
@@ -16,6 +16,9 @@ interface PetStatus {
 export default function PetsTab() {
   const [pets, setPets] = useState<PetStatus[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [feedingHistory, setFeedingHistory] = useState<any[]>([])
+  const [spikeFeedingHistory, setSpikeFeedingHistory] = useState<any[]>([])
+  const [hadesUrgency, setHadesUrgency] = useState('')
 
   useEffect(() => {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
@@ -78,6 +81,25 @@ export default function PetsTab() {
       ])
       setLoaded(true)
     })
+
+    // Fetch feeding histories
+    fetch('/api/kids/zone-tasks?action=get_feeding_history&pet=hades&limit=5')
+      .then(r => r.json())
+      .then(data => setFeedingHistory(data.feedings || []))
+      .catch(() => {})
+
+    fetch('/api/kids/zone-tasks?action=get_feeding_history&pet=spike&limit=5')
+      .then(r => r.json())
+      .then(data => setSpikeFeedingHistory(data.feedings || []))
+      .catch(() => {})
+
+    // Check Hades urgency
+    fetch('/api/kids/zone-tasks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'check_hades_feeding' }),
+    }).then(r => r.json())
+      .then(data => setHadesUrgency(data.urgency || ''))
+      .catch(() => {})
   }, [])
 
   const statusDot = (s: string) => {
@@ -123,6 +145,60 @@ export default function PetsTab() {
           </div>
         )}
       </div>
+
+      {/* Hades Feeding Cycle */}
+      {(hadesUrgency === 'overdue' || hadesUrgency === 'due_soon' || hadesUrgency === 'due') && (
+        <div className={`rounded-lg border p-4 ${hadesUrgency === 'overdue' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className={`w-4 h-4 ${hadesUrgency === 'overdue' ? 'text-red-500' : 'text-amber-500'}`} />
+            <span className="font-semibold text-sm text-gray-900">
+              {hadesUrgency === 'overdue' ? '🐍 Hades — OVERDUE for feeding!' : '🐍 Hades — Feeding due soon'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-600">Zoey should be flagging mice needed. Check grocery requests for live mice.</p>
+        </div>
+      )}
+
+      {/* Feeding History */}
+      {feedingHistory.length > 0 && (
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-4 border-b bg-gray-50 rounded-t-lg">
+            <h2 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+              <Clock className="w-4 h-4" /> 🐍 Hades — Feeding History
+            </h2>
+          </div>
+          <div className="divide-y">
+            {feedingHistory.map((f: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="text-gray-800 font-medium">{new Date(f.fed_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                <span className="text-gray-500">Fed by {f.fed_by}</span>
+                <span className="text-gray-400">({f.quantity} mice)</span>
+                {f.notes && <span className="text-xs text-gray-400 italic">{f.notes}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Spike Feeding History */}
+      {spikeFeedingHistory.length > 0 && (
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-4 border-b bg-gray-50 rounded-t-lg">
+            <h2 className="font-bold text-gray-800 text-sm flex items-center gap-2">
+              <Clock className="w-4 h-4" /> 🦎 Spike — Live Feed History (Crickets / Roaches)
+            </h2>
+          </div>
+          <div className="divide-y">
+            {spikeFeedingHistory.map((f: any, i: number) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span className="text-gray-800 font-medium">{new Date(f.fed_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                <span className="text-gray-500">Fed by {f.fed_by}</span>
+                {f.notes && <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{f.notes}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Existing Belle Care content */}
       <BelleCareTab />

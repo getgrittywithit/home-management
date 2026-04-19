@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Check, X, ChevronDown, ChevronUp, ShoppingCart, Loader2 } from 'lucide-react'
 
 interface GroceryRequest {
   id: number
@@ -17,9 +17,14 @@ interface GroceryRequest {
 }
 
 const CAT_LABELS: Record<string, string> = {
-  snack: 'Snack', drink: 'Drink', meal_ingredient: 'Meal Ingredient',
-  personal_care: 'Personal Care', school_supply: 'School Supply',
-  pet_supply: 'Pet Supply', other: 'Other', general: 'General',
+  meal: 'Meal / Cooking', snack: 'Snack / Drink',
+  personal_care: 'Personal Care', household: 'Household',
+  pet_care: 'Pet Care', school: 'School',
+  wishlist: 'Wish List', other: 'Other',
+  // Legacy values from before category update
+  drink: 'Snack / Drink', meal_ingredient: 'Meal / Cooking',
+  school_supply: 'School', pet_supply: 'Pet Care',
+  cleaning: 'Household', general: 'Other',
 }
 
 export default function GroceryRequestReview() {
@@ -28,6 +33,8 @@ export default function GroceryRequestReview() {
   const [showHistory, setShowHistory] = useState(false)
   const [noteFor, setNoteFor] = useState<number | null>(null)
   const [noteText, setNoteText] = useState('')
+  const [pushing, setPushing] = useState(false)
+  const [pushToast, setPushToast] = useState('')
 
   const fetchRequests = () => {
     fetch('/api/grocery?action=kid_requests&status=pending')
@@ -58,6 +65,53 @@ export default function GroceryRequestReview() {
     } catch { /* silent */ }
   }
 
+  const handleApproveAll = async () => {
+    for (const req of pending) {
+      await handleReview(req.id, 'approved')
+    }
+  }
+
+  const handlePushToAppleNotes = async () => {
+    setPushing(true)
+    try {
+      const res = await fetch('/api/grocery', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get_approved_list' }),
+      })
+      // Fallback: use GET
+      const listRes = await fetch('/api/grocery?action=kid_requests&status=approved')
+      const data = await listRes.json()
+      const approved = (data.requests || []).filter((r: GroceryRequest) =>
+        r.reviewed_at && new Date(r.reviewed_at) > new Date(Date.now() - 14 * 86400000)
+      )
+      if (approved.length === 0) {
+        setPushToast('No approved items to push')
+        setTimeout(() => setPushToast(''), 3000)
+        setPushing(false)
+        return
+      }
+      // Push to Apple Notes via server action
+      const pushRes = await fetch('/api/grocery', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'push_to_apple_notes',
+          items: approved.map((r: GroceryRequest) => ({
+            name: r.item_name, category: r.category,
+            quantity: r.quantity, kid: r.kid_name,
+          })),
+        }),
+      })
+      const pushData = await pushRes.json()
+      if (pushData.success) {
+        setPushToast(`✅ ${approved.length} items pushed to Grocery note!`)
+      } else {
+        setPushToast(pushData.error || 'Push failed')
+      }
+    } catch { setPushToast('Push failed — check connection') }
+    setPushing(false)
+    setTimeout(() => setPushToast(''), 4000)
+  }
+
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
   return (
@@ -71,8 +125,30 @@ export default function GroceryRequestReview() {
         </h3>
       </div>
 
+      {pending.length > 1 && (
+        <div className="flex gap-2">
+          <button onClick={handleApproveAll}
+            className="flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-lg hover:bg-green-200 transition font-medium">
+            <Check className="w-3 h-3" /> Approve All ({pending.length})
+          </button>
+          <button onClick={handlePushToAppleNotes} disabled={pushing}
+            className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg hover:bg-blue-200 transition font-medium disabled:opacity-50">
+            {pushing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShoppingCart className="w-3 h-3" />}
+            Push to Grocery Note
+          </button>
+        </div>
+      )}
+      {pushToast && <div className="text-xs text-center text-blue-600 font-medium">{pushToast}</div>}
+
       {pending.length === 0 && (
-        <p className="text-sm text-gray-400">No pending requests.</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-400">No pending requests.</p>
+          <button onClick={handlePushToAppleNotes} disabled={pushing}
+            className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition font-medium disabled:opacity-50">
+            {pushing ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShoppingCart className="w-3 h-3" />}
+            Push Approved → Grocery Note
+          </button>
+        </div>
       )}
 
       {pending.map(req => (

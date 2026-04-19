@@ -213,6 +213,14 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    // ── get_family_goals ──
+    if (action === 'get_family_goals') {
+      const goals = await db.query(
+        `SELECT * FROM family_goals ORDER BY completed ASC, created_at DESC`
+      ).catch(() => [])
+      return NextResponse.json({ goals })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error: any) {
     console.error('Stars API GET error:', error)
@@ -426,6 +434,39 @@ export async function POST(req: NextRequest) {
       )
 
       return NextResponse.json({ success: true, reversed_amount: reverseAmount })
+    }
+
+    // ── create_family_goal ──
+    if (action === 'create_family_goal') {
+      const { goal_name, target_points, created_by } = body
+      if (!goal_name || !target_points) return NextResponse.json({ error: 'goal_name and target_points required' }, { status: 400 })
+      const rows = await db.query(
+        `INSERT INTO family_goals (goal_name, target_points, current_points, completed, created_by)
+         VALUES ($1, $2, 0, false, $3) RETURNING *`,
+        [goal_name, target_points, created_by || 'parent']
+      )
+      return NextResponse.json({ success: true, goal: rows[0] })
+    }
+
+    // ── update_family_goal_progress ──
+    if (action === 'update_family_goal_progress') {
+      const { goal_id, points_to_add } = body
+      if (!goal_id || !points_to_add) return NextResponse.json({ error: 'goal_id and points_to_add required' }, { status: 400 })
+      const rows = await db.query(
+        `UPDATE family_goals SET current_points = current_points + $2,
+         completed = (current_points + $2 >= target_points)
+         WHERE id = $1 RETURNING *`,
+        [goal_id, points_to_add]
+      )
+      return NextResponse.json({ success: true, goal: rows[0] })
+    }
+
+    // ── delete_family_goal ──
+    if (action === 'delete_family_goal') {
+      const { goal_id } = body
+      if (!goal_id) return NextResponse.json({ error: 'goal_id required' }, { status: 400 })
+      await db.query(`DELETE FROM family_goals WHERE id = $1`, [goal_id])
+      return NextResponse.json({ success: true })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
