@@ -69,6 +69,7 @@ import HydrationTracker from './HydrationTracker'
 import SiblingChat from './SiblingChat'
 import ChallengeBoard from './ChallengeBoard'
 import LeaderboardCard from './LeaderboardCard'
+import ModeBanner from './kid/ModeBanner'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
@@ -1898,6 +1899,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
               targetRole="kid"
               kidName={(profile.first_name || profile.name || '').toLowerCase()}
             />
+            <ModeBanner kidName={profile.first_name || profile.name} />
             <HuddlePreSubmit kidName={profile.first_name || profile.name} />
             <RoutineChecklist kidName={profile.first_name || profile.name} />
             {isHomeschool && (

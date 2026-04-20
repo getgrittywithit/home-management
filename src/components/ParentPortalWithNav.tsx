@@ -43,6 +43,7 @@ import MedStatusCard from './MedStatusCard'
 import DigestCard from './DigestCard'
 import KitchenMergedTab from './KitchenMergedTab'
 import SchoolAdvocacyMergedTab from './SchoolAdvocacyMergedTab'
+import ParentDayModeWidget from './ParentDayModeWidget'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
@@ -470,6 +471,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <NotificationPermissionPrompt targetRole="parent" />
             <NeedsAttentionPanel onNavigate={(tab) => setActiveTab(tab)} />
             <SickAlertBanner />
+            <ParentDayModeWidget />
             <QuickActionsBar />
             <MedStatusCard />
             <DigestCard />
