@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MODE_EFFECTS } from '@/lib/dayMode'
+import { MODE_EFFECTS } from '@/lib/dayModeTypes'
 
 const MODE_COLORS: Record<string, string> = {
   fun_friday: 'from-yellow-400 to-amber-400',
