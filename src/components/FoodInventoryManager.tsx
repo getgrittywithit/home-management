@@ -340,8 +340,8 @@ function MealPlanTab() {
         <MealAdminEditor />
       ) : (
         <>
-          <SnapBudgetCard month={month} />
           <WeeklyMealCalendar isParent />
+          <SnapBudgetCard month={month} />
           <RecipeSuggestions />
           <MealFeedbackAnalytics />
         </>

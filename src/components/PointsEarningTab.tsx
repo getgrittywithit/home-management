@@ -237,8 +237,9 @@ export default function PointsEarningTab() {
                         <td className="py-3 font-medium text-gray-900">
                           {KID_DISPLAY[kid.kid_name] || kid.kid_name}
                           {(sickDayCounts[kid.kid_name] || 0) >= 2 && (
-                            <span className="ml-2 text-amber-500" title="2+ sick days in last 30 days">
-                              <AlertTriangle className="w-4 h-4 inline" />
+                            <span className="ml-2 text-amber-500 text-xs font-normal inline-flex items-center gap-0.5">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              {sickDayCounts[kid.kid_name]} sick days
                             </span>
                           )}
                         </td>

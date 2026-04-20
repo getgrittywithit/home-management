@@ -7,6 +7,7 @@ import {
   MONTHLY_HABITS
 } from '@/lib/choresConfig'
 import { getCurrentZoneAssignments, getCurrentZoneWeek, getCurrentZoneWeekRange, type ZoneName } from '@/lib/zoneRotation'
+import VacationCoverageCard from './VacationCoverageCard'
 
 const ZONE_COLORS: Record<ZoneName, string> = {
   'Kitchen': 'bg-amber-100 text-amber-800',
@@ -231,6 +232,8 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
       </div>
 
       {/* Zone Photo Gallery — Parents Only */}
+      {isParent && <VacationCoverageCard />}
+
       {isParent && (
         <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
           <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
