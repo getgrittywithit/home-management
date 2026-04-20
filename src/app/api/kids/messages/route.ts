@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
           await createNotification({
             title: 'New message from Mom',
             message: reply.length > 80 ? reply.slice(0, 80) + '...' : reply,
-            source_type: 'message_reply', source_ref: `msg-reply-${origMsg[0].from_kid}`,
+            source_type: 'message_reply', source_ref: `msg-reply-${id}`,
             link_tab: 'requests', icon: '💬',
             target_role: 'kid', kid_name: origMsg[0].from_kid,
           }).catch(() => {})

@@ -113,18 +113,24 @@ export default function SiblingChat({ kidName }: Props) {
         })}
       </div>
 
-      {selectedSibling && (
-        <div className="flex gap-2">
-          <input value={newMsg} onChange={e => setNewMsg(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-            placeholder={`Message ${cap(selectedSibling)}...`}
-            className="flex-1 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none" />
-          <button onClick={sendMessage} disabled={sending || !newMsg.trim()}
-            className="bg-blue-500 text-white rounded-xl px-4 py-2.5 hover:bg-blue-600 disabled:opacity-50">
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+      <div className="flex gap-2">
+        {!selectedSibling && (
+          <select value="" onChange={e => { setSelectedSibling(e.target.value); fetchMessages(e.target.value) }}
+            className="border rounded-xl px-3 py-2.5 text-sm text-gray-500 focus:ring-2 focus:ring-blue-300 focus:outline-none">
+            <option value="" disabled>Send to...</option>
+            {siblings.map(sib => <option key={sib} value={sib}>{cap(sib)}</option>)}
+          </select>
+        )}
+        <input value={newMsg} onChange={e => setNewMsg(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+          placeholder={selectedSibling ? `Message ${cap(selectedSibling)}...` : 'Pick a sibling to message...'}
+          disabled={!selectedSibling}
+          className="flex-1 border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-300 focus:outline-none disabled:bg-gray-50" />
+        <button onClick={sendMessage} disabled={sending || !newMsg.trim() || !selectedSibling}
+          className="bg-blue-500 text-white rounded-xl px-4 py-2.5 hover:bg-blue-600 disabled:opacity-50">
+          <Send className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   )
 }
