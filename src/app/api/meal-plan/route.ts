@@ -46,6 +46,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ plans: rows, start, end, week_offset: weekOffset })
     }
 
+    if (action === 'get_pending_requests') {
+      const rows = await db.query(
+        `SELECT id, kid_name, meal_description, request_date, status FROM meal_requests WHERE status = 'pending' ORDER BY request_date`
+      ).catch(() => [])
+      return NextResponse.json({ requests: rows })
+    }
+
+    if (action === 'approve_request') {
+      const { id } = body
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(`UPDATE meal_requests SET status = 'approved' WHERE id = $1`, [id])
+      return NextResponse.json({ success: true })
+    }
+
+    if (action === 'deny_request') {
+      const { id } = body
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(`UPDATE meal_requests SET status = 'denied' WHERE id = $1`, [id])
+      return NextResponse.json({ success: true })
+    }
+
     // Default: upsert meal plan entry
     if (!date || !dish_name) {
       return NextResponse.json({ error: 'date and dish_name required' }, { status: 400 })

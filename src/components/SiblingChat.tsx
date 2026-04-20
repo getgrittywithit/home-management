@@ -53,17 +53,24 @@ export default function SiblingChat({ kidName }: Props) {
     return () => clearInterval(interval)
   }, [selectedSibling, kid])
 
+  const [sendError, setSendError] = useState(false)
+
   const sendMessage = async () => {
     if (!newMsg.trim() || !selectedSibling) return
     setSending(true)
+    setSendError(false)
     try {
-      await fetch('/api/social', {
+      const res = await fetch('/api/social', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'send_message', from_kid: kid, to_kid: selectedSibling, message: newMsg.trim() }),
       })
+      if (!res.ok) throw new Error('Send failed')
       setNewMsg('')
-      await fetchMessages()
-    } catch {} finally { setSending(false) }
+      await fetchMessages(selectedSibling)
+    } catch {
+      setSendError(true)
+      setTimeout(() => setSendError(false), 3000)
+    } finally { setSending(false) }
   }
 
   const selectSibling = (sib: string) => {
@@ -113,6 +120,9 @@ export default function SiblingChat({ kidName }: Props) {
         })}
       </div>
 
+      {sendError && (
+        <p className="text-xs text-red-500 text-center">Message didn&apos;t send. Try again.</p>
+      )}
       <div className="flex gap-2">
         {!selectedSibling && (
           <select value="" onChange={e => { setSelectedSibling(e.target.value); fetchMessages(e.target.value) }}
