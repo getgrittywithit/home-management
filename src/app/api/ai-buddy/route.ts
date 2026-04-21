@@ -534,7 +534,24 @@ async function getParentContext(): Promise<string> {
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
-  const { role, kid_name, message, conversation_id } = body
+  const { role, kid_name, message, conversation_id, action } = body
+
+  // Admin actions (no message required)
+  if (action === 'admin_review_flag') {
+    await db.query(`UPDATE buddy_moderation_flags SET parent_reviewed = TRUE, parent_notes = $2 WHERE id = $1`, [body.flag_id, body.parent_notes || null]).catch(() => {})
+    return NextResponse.json({ success: true })
+  }
+  if (action === 'admin_update_persona') {
+    await db.query(`UPDATE buddy_personas SET system_prompt = $2, updated_by = 'parent', updated_at = NOW() WHERE persona_key = $1`, [body.persona_key, body.system_prompt]).catch(() => {})
+    return NextResponse.json({ success: true })
+  }
+  if (action === 'admin_toggle_access') {
+    await db.query(
+      `UPDATE buddy_access_config SET access_enabled = $3, updated_at = NOW() WHERE kid_name = $1 AND persona_key = $2`,
+      [body.kid_name?.toLowerCase(), body.persona_key, body.access_enabled]
+    ).catch(() => {})
+    return NextResponse.json({ success: true })
+  }
 
   if (!message) return NextResponse.json({ error: 'message required' }, { status: 400 })
   if (!role || !['kid', 'parent'].includes(role)) return NextResponse.json({ error: 'role must be kid or parent' }, { status: 400 })
@@ -687,3 +704,49 @@ export async function POST(request: NextRequest) {
     })
   }
 }
+
+// Admin GET actions
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const action = searchParams.get('action') || ''
+
+  try {
+    if (action === 'admin_get_flags') {
+      const rows = await db.query(`SELECT * FROM buddy_moderation_flags ORDER BY created_at DESC LIMIT 50`).catch(() => [])
+      return NextResponse.json({ flags: rows })
+    }
+    if (action === 'admin_get_personas') {
+      const rows = await db.query(`SELECT * FROM buddy_personas ORDER BY persona_key`).catch(() => [])
+      return NextResponse.json({ personas: rows })
+    }
+    if (action === 'admin_get_access') {
+      const rows = await db.query(`SELECT * FROM buddy_access_config ORDER BY kid_name, persona_key`).catch(() => [])
+      return NextResponse.json({ configs: rows })
+    }
+    if (action === 'admin_get_conversations') {
+      const limit = parseInt(searchParams.get('limit') || '30')
+      const kid = searchParams.get('kid_name')
+      let sql = `SELECT * FROM ai_buddy_conversations`
+      const params: any[] = []
+      if (kid) { params.push(kid.toLowerCase()); sql += ` WHERE kid_name = $1` }
+      sql += ` ORDER BY created_at DESC LIMIT ${Math.min(limit, 100)}`
+      const rows = await db.query(sql, params).catch(() => [])
+      return NextResponse.json({ conversations: rows })
+    }
+    if (action === 'session_check') {
+      const kid = searchParams.get('kid_name')?.toLowerCase()
+      const persona = searchParams.get('persona_key')
+      if (!kid || !persona) return NextResponse.json({ error: 'kid_name + persona_key required' }, { status: 400 })
+      const { checkAccess } = await import('@/lib/buddySafety')
+      const result = await checkAccess(kid, persona)
+      return NextResponse.json(result)
+    }
+    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+  } catch (error: any) {
+    console.error('AI Buddy GET error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// Admin POST actions (append to existing POST switch — handled via action field)
+// These are checked BEFORE the main chat logic in the POST handler above
