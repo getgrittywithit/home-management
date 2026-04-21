@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Sun, ChevronDown, Plane, Users, Star, Calendar, AlertTriangle, Check, X, Loader2 } from 'lucide-react'
 import { ALL_KIDS, KID_DISPLAY, KID_SCHOOL_TYPE } from '@/lib/constants'
 import PlanTheWeekView from './PlanTheWeekView'
+import ExcuseEmailDraft from './ExcuseEmailDraft'
 
 const MODE_OPTIONS = [
   { value: 'normal', label: 'Normal', emoji: '📋', color: 'bg-gray-100 text-gray-700' },
@@ -42,6 +43,7 @@ export default function ParentDayModeWidget() {
   const [vacMode, setVacMode] = useState('vacation')
   const [showPlanWeek, setShowPlanWeek] = useState(false)
   const [bisdSuggestion, setBisdSuggestion] = useState<any>(null)
+  const [excuseEmail, setExcuseEmail] = useState<{ kid: string; mode: string; date: string; reason?: string } | null>(null)
 
   const fetchData = () => {
     fetch('/api/day-mode?action=get_today').then(r => r.json()).then(d => { setData(d); setLoading(false) }).catch(() => setLoading(false))
@@ -54,10 +56,15 @@ export default function ParentDayModeWidget() {
 
   const setMode = async (kidName: string, modeType: string) => {
     setUpdating(kidName)
-    await fetch('/api/day-mode', {
+    const isBisd = ['zoey', 'kaylee'].includes(kidName.toLowerCase())
+    const notifySchool = isBisd && ['sick_day', 'off_day', 'vacation', 'field_trip'].includes(modeType)
+    const res = await fetch('/api/day-mode', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_mode', kid_name: kidName, date: data?.date, mode_type: modeType, set_by: 'parent' }),
-    }).catch(() => {})
+      body: JSON.stringify({ action: 'set_mode', kid_name: kidName, date: data?.date, mode_type: modeType, set_by: 'parent', notify_school: notifySchool }),
+    }).then(r => r.json()).catch(() => ({}))
+    if (res.email_drafted) {
+      setExcuseEmail({ kid: kidName, mode: modeType, date: data?.date })
+    }
     await fetchData()
     setUpdating(null)
   }
@@ -218,6 +225,15 @@ export default function ParentDayModeWidget() {
       )}
 
       {showPlanWeek && <PlanTheWeekView onClose={() => { setShowPlanWeek(false); fetchData() }} />}
+      {excuseEmail && (
+        <ExcuseEmailDraft
+          kidName={excuseEmail.kid}
+          modeType={excuseEmail.mode}
+          date={excuseEmail.date}
+          reason={excuseEmail.reason}
+          onClose={() => setExcuseEmail(null)}
+        />
+      )}
     </div>
   )
 }

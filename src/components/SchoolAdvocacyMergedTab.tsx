@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { GraduationCap, Shield } from 'lucide-react'
 import SchoolTabWithSchedules from './SchoolTabWithSchedules'
 import AdvocacyDashboard from './parent/AdvocacyDashboard'
+import MakeupWorkCard from './MakeupWorkCard'
 
 type SubTab = 'school' | 'advocacy'
 
@@ -36,7 +37,12 @@ export default function SchoolAdvocacyMergedTab({ initialSubTab }: { initialSubT
         })}
       </div>
 
-      {subTab === 'school' && <SchoolTabWithSchedules />}
+      {subTab === 'school' && (
+        <>
+          <MakeupWorkCard />
+          <SchoolTabWithSchedules />
+        </>
+      )}
       {subTab === 'advocacy' && <AdvocacyDashboard />}
     </div>
   )
