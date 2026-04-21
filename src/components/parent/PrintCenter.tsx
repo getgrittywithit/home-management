@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import {
   Printer, FileText, ClipboardList, UtensilsCrossed, BookOpen,
-  GraduationCap, Home, Download, Loader2, AlertCircle
+  GraduationCap, Home, Download, Loader2, AlertCircle, LayoutDashboard
 } from 'lucide-react'
+import ReefNotesEditor from '../ReefNotesEditor'
 
 type Form = {
   id: string
@@ -58,6 +59,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
   GraduationCap,
   Home,
+  LayoutDashboard,
 }
 
 function getIcon(icon: string | null) {
@@ -65,11 +67,21 @@ function getIcon(icon: string | null) {
   return FileText
 }
 
+function getWeekStart(): string {
+  const d = new Date()
+  const dow = d.getDay()
+  if (dow === 0) d.setDate(d.getDate() + 1)
+  else if (dow === 6) d.setDate(d.getDate() + 2)
+  else d.setDate(d.getDate() - ((dow + 6) % 7))
+  return d.toLocaleDateString('en-CA')
+}
+
 export default function PrintCenter() {
   const [forms, setForms] = useState<Form[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [generating, setGenerating] = useState<string | null>(null)
+  const [showReefEditor, setShowReefEditor] = useState(false)
 
   useEffect(() => {
     loadForms()
@@ -98,7 +110,20 @@ export default function PrintCenter() {
       return
     }
 
-    // Dynamic — generate PDF
+    // Week at a Glance — opens ReefNotes editor first
+    if (form.data_source === 'week_at_a_glance_current') {
+      setShowReefEditor(true)
+      return
+    }
+
+    // Zone Checklist — opens print page directly
+    if (form.data_source === 'zone_checklist_current') {
+      const ws = getWeekStart()
+      window.open(`/api/print-center/zone-checklist?week_start=${ws}&format=print`, '_blank')
+      return
+    }
+
+    // Other dynamic — generate PDF
     if (!form.data_source) return
     setGenerating(form.id)
     try {
@@ -161,6 +186,17 @@ export default function PrintCenter() {
         <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg text-gray-500 text-center">
           No printable forms available yet.
         </div>
+      )}
+
+      {showReefEditor && (
+        <ReefNotesEditor
+          weekStart={getWeekStart()}
+          onClose={() => setShowReefEditor(false)}
+          onSaveAndPrint={() => {
+            setShowReefEditor(false)
+            window.open(`/api/print-center/week-at-a-glance?week_start=${getWeekStart()}&format=print`, '_blank')
+          }}
+        />
       )}
 
       {!loading && !error && forms.length > 0 && (
