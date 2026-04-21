@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Sun, ChevronDown, Plane, Users, Star, Calendar, AlertTriangle, Check, X, Loader2 } from 'lucide-react'
 import { ALL_KIDS, KID_DISPLAY, KID_SCHOOL_TYPE } from '@/lib/constants'
+import PlanTheWeekView from './PlanTheWeekView'
 
 const MODE_OPTIONS = [
   { value: 'normal', label: 'Normal', emoji: '📋', color: 'bg-gray-100 text-gray-700' },
@@ -39,9 +40,15 @@ export default function ParentDayModeWidget() {
   const [vacEnd, setVacEnd] = useState('')
   const [vacReason, setVacReason] = useState('')
   const [vacMode, setVacMode] = useState('vacation')
+  const [showPlanWeek, setShowPlanWeek] = useState(false)
+  const [bisdSuggestion, setBisdSuggestion] = useState<any>(null)
 
   const fetchData = () => {
     fetch('/api/day-mode?action=get_today').then(r => r.json()).then(d => { setData(d); setLoading(false) }).catch(() => setLoading(false))
+    const end = new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-CA')
+    fetch(`/api/day-mode?action=suggest_from_bisd&end=${end}`).then(r => r.json())
+      .then(d => { if (d.suggestions?.length > 0) setBisdSuggestion(d.suggestions[0]) })
+      .catch(() => {})
   }
   useEffect(() => { fetchData() }, [])
 
@@ -168,10 +175,24 @@ export default function ParentDayModeWidget() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-2 border-t">
+      {bisdSuggestion && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 flex items-center justify-between">
+          <span className="text-xs text-blue-800">🏫 {bisdSuggestion.title} ({new Date(bisdSuggestion.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}) — apply to homeschoolers too?</span>
+          <div className="flex gap-1.5">
+            <button onClick={async () => {
+              for (const kid of [...ALL_KIDS]) await setMode(kid, 'off_day')
+              setBisdSuggestion(null)
+            }} className="text-xs bg-blue-500 text-white px-2 py-1 rounded">Apply</button>
+            <button onClick={() => setBisdSuggestion(null)} className="text-xs text-gray-400">Dismiss</button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-2 border-t">
         <button onClick={() => bulkSetAll('off_day')} className="text-xs bg-green-50 text-green-700 py-2 rounded-lg hover:bg-green-100">🌿 Everyone off</button>
         <button onClick={() => { setMode('zoey', 'off_day'); setMode('kaylee', 'off_day') }} className="text-xs bg-blue-50 text-blue-700 py-2 rounded-lg hover:bg-blue-100">🎒 BISD off</button>
         <button onClick={() => setShowVacation(!showVacation)} className="text-xs bg-cyan-50 text-cyan-700 py-2 rounded-lg hover:bg-cyan-100">🏖 Vacation range</button>
+        <button onClick={() => setShowPlanWeek(true)} className="text-xs bg-indigo-50 text-indigo-700 py-2 rounded-lg hover:bg-indigo-100">📅 Plan the week</button>
       </div>
 
       {showVacation && (
@@ -195,6 +216,8 @@ export default function ParentDayModeWidget() {
           </button>
         </div>
       )}
+
+      {showPlanWeek && <PlanTheWeekView onClose={() => { setShowPlanWeek(false); fetchData() }} />}
     </div>
   )
 }

@@ -1,5 +1,4 @@
-// Server-only: this file imports database.ts (pg). Do NOT import from client components.
-// Use @/lib/dayModeTypes for client-safe types + MODE_EFFECTS.
+import 'server-only'
 import { db } from '@/lib/database'
 import type { DayMode, DayModeEffect, CoverageAssignment } from '@/types/dayMode'
 import { BELLE_WEEKDAY_MAP, BELLE_WEEKEND_ROTATION, BELLE_WEEKEND_ANCHOR, BELLE_KIDS, ALL_KIDS } from '@/lib/constants'
