@@ -52,7 +52,35 @@ export default function ExcuseEmailDraft({ kidName, modeType, date, reason, onCl
     `Hello Ms. ${lastName},\n\nPlease mark ${displayName} Moses (${grade}) as excused for ${dateDisplay}. ${reasonLine}\n\nPlease let me know if you need anything additional.\n\nThank you,\nLola Moses\n\n(Email reply preferred — hard of hearing)`
   )
   const [sent, setSent] = useState(false)
+  const [sentMethod, setSentMethod] = useState<'sent' | 'draft'>('draft')
   const [copied, setCopied] = useState(false)
+  const [sendEnabled, setSendEnabled] = useState(false)
+  const [sending, setSending] = useState(false)
+
+  useState(() => {
+    fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'check_send_scope' }),
+    }).then(r => r.json()).then(d => setSendEnabled(!!d.send_enabled)).catch(() => {})
+  })
+
+  const handleSend = async () => {
+    setSending(true)
+    const res = await fetch('/api/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'send_excuse_email', to, cc: includeCC && cc ? [cc] : [],
+        subject, body, kid_name: kid,
+      }),
+    }).then(r => r.json()).catch(() => ({ success: false }))
+    setSending(false)
+    if (res.success) {
+      setSentMethod('sent')
+      setSent(true)
+    } else {
+      await handleSaveDraft()
+    }
+  }
 
   const handleCopy = () => {
     navigator.clipboard.writeText(`To: ${to}${includeCC ? `\nCC: ${cc}` : ''}\nSubject: ${subject}\n\n${body}`)
@@ -86,8 +114,8 @@ export default function ExcuseEmailDraft({ kidName, modeType, date, reason, onCl
         {sent ? (
           <div className="p-8 text-center">
             <Check className="w-10 h-10 text-green-500 mx-auto mb-3" />
-            <p className="text-sm text-gray-700 font-medium">Draft saved!</p>
-            <p className="text-xs text-gray-500 mt-1">Review and send from mosesfamily2008@gmail.com</p>
+            <p className="text-sm text-gray-700 font-medium">{sentMethod === 'sent' ? `Sent to ${contact.primary.name}!` : 'Draft saved!'}</p>
+            <p className="text-xs text-gray-500 mt-1">{sentMethod === 'sent' ? 'Email delivered via mosesfamily2008@gmail.com' : 'Review and send from mosesfamily2008@gmail.com'}</p>
             <button onClick={onClose} className="mt-4 text-sm text-blue-600 hover:text-blue-700">Close</button>
           </div>
         ) : (
@@ -111,17 +139,26 @@ export default function ExcuseEmailDraft({ kidName, modeType, date, reason, onCl
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={8}
                 className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
+            {sendEnabled && (
+              <p className="text-[10px] text-green-600 text-center">Auto-send enabled</p>
+            )}
             <div className="flex gap-2 pt-2">
               <button onClick={handleCopy}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">
-                <Copy className="w-3.5 h-3.5" /> {copied ? 'Copied!' : 'Copy to clipboard'}
+                className="flex items-center justify-center gap-1.5 bg-gray-100 text-gray-700 py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-200">
+                <Copy className="w-3.5 h-3.5" /> {copied ? 'Copied!' : 'Copy'}
               </button>
               <button onClick={handleSaveDraft}
-                className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600">
+                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-300">
                 Save Draft
               </button>
+              <button onClick={handleSend} disabled={sending}
+                className="flex-1 bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50">
+                {sending ? 'Sending...' : 'Send Now'}
+              </button>
             </div>
-            <p className="text-[10px] text-gray-400 text-center">Gmail OAuth not configured — copy and send manually, or save as draft notification</p>
+            {!sendEnabled && (
+              <p className="text-[10px] text-gray-400 text-center">Gmail send not configured — Send will attempt delivery, falls back to draft if unavailable</p>
+            )}
           </div>
         )}
       </div>

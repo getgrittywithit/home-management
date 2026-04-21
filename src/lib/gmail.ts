@@ -320,3 +320,60 @@ export async function getGmailProfile(email?: string): Promise<{ emailAddress: s
   if (!res.ok) return null
   return res.json()
 }
+
+// ── Send Email ──
+
+function buildRawEmail(opts: { from: string; to: string; cc?: string[]; subject: string; body: string }): string {
+  const lines = [
+    `From: ${opts.from}`,
+    `To: ${opts.to}`,
+    ...(opts.cc?.length ? [`Cc: ${opts.cc.join(', ')}`] : []),
+    `Subject: ${opts.subject}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'MIME-Version: 1.0',
+    '',
+    opts.body,
+  ]
+  const raw = lines.join('\r\n')
+  return Buffer.from(raw).toString('base64url')
+}
+
+export async function sendEmail(opts: {
+  to: string
+  cc?: string[]
+  subject: string
+  body: string
+  fromAccount?: string
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const account = opts.fromAccount || 'mosesfamily2008@gmail.com'
+  const auth = await getValidToken(account)
+  if (!auth) return { success: false, error: 'No valid token for account. Re-authorize in Settings.' }
+
+  const tokenRow = await db.query(
+    `SELECT scopes FROM gmail_tokens WHERE account_email = $1`, [account]
+  ).catch(() => [])
+  const scopes = tokenRow[0]?.scopes || ''
+  if (!scopes.includes('gmail.send')) {
+    return { success: false, error: 'Send scope not authorized. Re-authorize in Settings.' }
+  }
+
+  const raw = buildRawEmail({ from: account, to: opts.to, cc: opts.cc, subject: opts.subject, body: opts.body })
+
+  try {
+    const res = await fetch(`${GMAIL_API}/messages/send`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raw }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.error('[gmail] Send failed:', res.status, err)
+      return { success: false, error: err.error?.message || `Gmail API error ${res.status}` }
+    }
+    const data = await res.json()
+    return { success: true, messageId: data.id }
+  } catch (e: any) {
+    console.error('[gmail] Send exception:', e.message)
+    return { success: false, error: e.message }
+  }
+}

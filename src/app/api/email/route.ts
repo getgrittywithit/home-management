@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import {
   getValidToken, fetchMessages, parseMessageHeaders, getConnectedAccounts,
-  getAllActiveAccounts, updateLastSync,
+  getAllActiveAccounts, updateLastSync, sendEmail,
 } from '@/lib/gmail'
 import { triageAndSave, matchSenderRule as matchSenderRuleLib } from '@/lib/emailTriage'
 
@@ -480,6 +480,31 @@ export async function POST(req: NextRequest) {
         if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         await db.query(`DELETE FROM email_sender_rules WHERE id = $1`, [id])
         return NextResponse.json({ success: true })
+      }
+
+      case 'send_excuse_email': {
+        const { to, cc, subject, body: emailBody, kid_name, day_mode_id } = body
+        if (!to || !subject || !emailBody) return NextResponse.json({ error: 'to, subject, body required' }, { status: 400 })
+
+        const result = await sendEmail({ to, cc: cc || [], subject, body: emailBody })
+
+        if (result.success && kid_name) {
+          await db.query(
+            `INSERT INTO teacher_communications (kid_name, direction, recipient, cc, subject, body_snippet, body_full, day_mode_id, message_id)
+             VALUES ($1, 'outbound', $2, $3, $4, $5, $6, $7, $8)`,
+            [kid_name.toLowerCase(), to, cc || null, subject, emailBody.substring(0, 300), emailBody, day_mode_id || null, result.messageId || null]
+          ).catch(e => console.error('[email] Log teacher comm failed:', e.message))
+        }
+
+        return NextResponse.json(result)
+      }
+
+      case 'check_send_scope': {
+        const rows = await db.query(
+          `SELECT scopes FROM gmail_tokens WHERE account_email = 'mosesfamily2008@gmail.com'`
+        ).catch(() => [])
+        const scopes = rows[0]?.scopes || ''
+        return NextResponse.json({ send_enabled: scopes.includes('gmail.send') })
       }
 
       default:
