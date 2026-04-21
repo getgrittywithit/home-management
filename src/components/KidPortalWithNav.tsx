@@ -1920,9 +1920,6 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
             <FlashcardTile kidName={profile.first_name || profile.name} />
             <HuddlePreSubmit kidName={profile.first_name || profile.name} />
             <RoutineChecklist kidName={profile.first_name || profile.name} />
-            {isHomeschool && (
-              <MySchoolDayCard kidName={profile.first_name || profile.name} />
-            )}
             <BelleCareCard childName={profile.first_name || ''} />
             <PetCareCard kidName={profile.first_name || ''} />
             <MyDayView
