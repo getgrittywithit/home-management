@@ -266,6 +266,32 @@ const PARENT_PUSH_SOURCES = new Set([
   'positive_approved',          // positive report approved
   'positive_catch',             // positive catch logged
   'kid_report',                 // kid report submitted
+  // D131 — AI Buddies
+  'buddy_crisis',               // crisis language in buddy chat
+  'buddy_moderation',           // moderation flag triggered
+  'buddy_ask_grownup',          // kid asked for grown-up help
+  'buddy_weekly_summary',       // weekly buddy report
+  'buddy_time_limit',           // kid hit daily buddy cap
+  // D132 — Living Library
+  'library_book_finished',      // kid finished a book
+  'library_book_started',       // kid started reading
+  'library_prompts_ready',      // AI prompts generated for book
+  'library_vocab_ready',        // vocab extracted from book
+  'library_weekly_highlights',  // weekly reading report
+  // D133 — Flashcards
+  'flashcard_review_done',      // daily review completed
+  'flashcard_streak',           // streak milestone
+  'flashcard_mastered',         // card reached Box 5
+  'flashcard_new_cards',        // new cards added to deck
+  'flashcard_low_accuracy',     // accuracy dropped
+  'flashcard_backlog',          // large backlog building
+  'speech_streak',              // speech practice streak
+  // D134 — TEKS
+  'teks_annual_report',         // annual PDF generated
+  'teks_gap_filled',            // gap activity completed
+  'teks_milestone',             // coverage milestone reached
+  'teks_ixl_import_done',       // IXL CSV imported
+  'teks_refresh_error',         // coverage refresh failed
 ])
 
 const KID_PUSH_SOURCES = new Set([
@@ -293,6 +319,13 @@ const KID_PUSH_SOURCES = new Set([
   'challenge_update',           // someone updated challenge progress
   'parent_nudge',               // parent nudge
   'break_acknowledged',         // break request acknowledged
+  // D131-D134 kid-facing
+  'fun_friday_earned',          // kid earned Fun Friday
+  'fun_friday_missed',          // kind "next week" message
+  'day_mode_confirmed',         // parent confirmed day mode
+  'flashcard_streak',           // streak milestone
+  'flashcard_mastered',         // mastered a card
+  'library_book_finished',      // finished a book
 ])
 
 const SILENT_SOURCES = new Set([

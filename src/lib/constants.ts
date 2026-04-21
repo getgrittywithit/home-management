@@ -70,6 +70,22 @@ export const KID_SCHOOL_TYPE: Record<string, 'homeschool' | 'public'> = {
   ellie: 'homeschool', wyatt: 'homeschool', hannah: 'homeschool',
 }
 
+// ── Feature Access (universal — no hardcoded kid exclusions) ──
+export const FEATURE_ACCESS = {
+  ai_buddies: ALL_KIDS,
+  living_library: ALL_KIDS,
+  flashcards: ALL_KIDS,
+  teks_dashboard_homeschool: HOMESCHOOL_KIDS,
+  teks_dashboard_staar_prep: PUBLIC_SCHOOL_KIDS,
+  daily_plan_full: HOMESCHOOL_KIDS,
+  daily_plan_opt_in: PUBLIC_SCHOOL_KIDS,
+  speech_practice_decks: ['amos', 'wyatt', 'hannah'] as const,
+} as const
+
+export function hasFeature(kid: string, feature: keyof typeof FEATURE_ACCESS): boolean {
+  return (FEATURE_ACCESS[feature] as readonly string[]).includes(kid.toLowerCase())
+}
+
 // ── Pet Care Constants ──
 export const PET_LIST = ['belle', 'spike', 'hades', 'midnight'] as const
 export type PetKey = typeof PET_LIST[number]
