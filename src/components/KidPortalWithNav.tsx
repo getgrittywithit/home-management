@@ -7,7 +7,7 @@ import {
   CheckCircle2, Circle, AlertCircle, Award, Home, BookOpen,
   Zap, Trophy, Target, Settings, ExternalLink, Phone, Mail,
   User, Heart, X, Shuffle, Dices, Sparkles,
-  ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library, MessageCircle, Flame
+  ChevronDown, ChevronUp, Loader2, Keyboard, DollarSign, Library, MessageCircle, Layers, Flame
 } from 'lucide-react'
 import { SAMPLE_SCHOOL_DATA, SchoolProfile } from '@/lib/schoolConfig'
 import { getScheduleForChild, getChildScheduleForDate, getAllTeachersForChild, SchedulePeriod } from '@/lib/scheduleConfig'
@@ -76,6 +76,7 @@ import SchoolQuickLaunch from './kid/SchoolQuickLaunch'
 import MySchoolToday from './kid/MySchoolToday'
 import MyBuddiesTile from './kid/MyBuddiesTile'
 import FlashcardTile from './kid/FlashcardTile'
+import FlashcardDeckList from './kid/FlashcardDeckList'
 import SpeechPractice from './kid/SpeechPractice'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
@@ -91,7 +92,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'habits' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'habits' | 'flashcards' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
 
 interface NavTab {
   id: TabId
@@ -133,6 +134,7 @@ const navSections: NavSection[] = [
   {
     label: 'FUN & GROWTH',
     tabs: [
+      { id: 'flashcards', name: 'Flashcards', icon: Layers, color: 'bg-purple-500' },
       { id: 'rewards-store', name: 'Rewards Store', icon: Star, color: 'bg-amber-500' },
       { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' },
       { id: 'typing-race', name: 'Typing Race', icon: Keyboard, color: 'bg-violet-500' },
@@ -1973,6 +1975,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return <GoalsTab childName={profile.first_name || profile.name} />
       case 'habits':
         return <HabitsTab />
+      case 'flashcards':
+        return <FlashcardDeckList kidName={profile.first_name || profile.name} />
       case 'opportunities':
         return <OpportunitiesTab childName={profile.first_name || profile.name} />
       case 'adventures':
