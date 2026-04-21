@@ -18,8 +18,9 @@ import HomeschoolScience from './homeschool/HomeschoolScience'
 import HomeschoolSocialStudies from './homeschool/HomeschoolSocialStudies'
 import TeacherResourceLibrary from './homeschool/TeacherResourceLibrary'
 import { ParentLibraryAdmin } from './HomeLibrary'
+import FunFridayAdmin from './FunFridayAdmin'
 
-type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library'
+type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library' | 'fun-friday'
 
 const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
@@ -35,6 +36,7 @@ const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'portfolio', label: 'Portfolio', icon: '🎨' },
   { id: 'units', label: 'Unit Studies', icon: '🔬' },
   { id: 'resources', label: 'Resources', icon: '📂' },
+  { id: 'fun-friday', label: 'Fun Friday', icon: '🌟' },
 ]
 
 export default function HomeschoolTab({ initialSubTab }: { initialSubTab?: SubTabId }) {
@@ -107,6 +109,8 @@ export default function HomeschoolTab({ initialSubTab }: { initialSubTab?: SubTa
         return <UnitsView units={units} />
       case 'library':
         return <ParentLibraryAdmin />
+      case 'fun-friday':
+        return <FunFridayAdmin />
       default:
         return <HomeschoolOverview students={students} taskProgress={taskProgress} selectedStudentId={null}
           onSelectStudent={setSelectedStudentId}
