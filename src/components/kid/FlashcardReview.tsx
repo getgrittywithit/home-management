@@ -54,8 +54,8 @@ export default function FlashcardReview({ kidName, onClose }: Props) {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl p-8 text-center max-w-sm">
         <Star className="w-10 h-10 text-amber-400 mx-auto mb-3" />
-        <p className="text-sm font-medium text-gray-900">No flashcards due today!</p>
-        <p className="text-xs text-gray-500 mt-1">You're all caught up. Check back tomorrow.</p>
+        <p className="text-sm font-medium text-gray-900">Your deck is waiting.</p>
+        <p className="text-xs text-gray-500 mt-1">Every word you meet here is one more you&apos;ll know forever. Check back tomorrow.</p>
         <button onClick={onClose} className="mt-4 text-sm text-purple-600">Close</button>
       </div>
     </div>

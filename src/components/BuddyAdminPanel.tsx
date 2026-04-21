@@ -75,7 +75,7 @@ export default function BuddyAdminPanel() {
       {tab === 'flags' && (
         <div className="bg-white rounded-xl border p-4 space-y-2">
           <h3 className="font-semibold text-sm text-gray-900">Moderation Flags</h3>
-          {flags.filter(f => !f.parent_reviewed).length === 0 && <p className="text-xs text-gray-400">No pending flags</p>}
+          {flags.filter(f => !f.parent_reviewed).length === 0 && <p className="text-xs text-gray-400">All calm on deck. Your buddies are doing their best work.</p>}
           {flags.filter(f => !f.parent_reviewed).map((f: any) => (
             <div key={f.id} className={`p-3 rounded-lg border ${f.severity === 'crisis' ? 'border-red-300 bg-red-50' : f.severity === 'high' ? 'border-orange-200 bg-orange-50' : 'border-gray-200'}`}>
               <div className="flex items-center justify-between mb-1">
@@ -94,7 +94,7 @@ export default function BuddyAdminPanel() {
       {tab === 'conversations' && (
         <div className="bg-white rounded-xl border p-4 space-y-2">
           <h3 className="font-semibold text-sm text-gray-900">Recent Conversations</h3>
-          {conversations.length === 0 && <p className="text-xs text-gray-400">No conversations yet</p>}
+          {conversations.length === 0 && <p className="text-xs text-gray-400">No chats yet. Ask your buddies anything when you&apos;re ready.</p>}
           {conversations.map((c: any) => (
             <div key={c.id} className="p-2 rounded border border-gray-100 text-xs">
               <div className="flex items-center justify-between">

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { BarChart2, ChevronRight, AlertTriangle, Download, RefreshCw, Loader2 } from 'lucide-react'
-import { HOMESCHOOL_KIDS, KID_DISPLAY, KID_GRADES } from '@/lib/constants'
+import { ALL_KIDS, KID_DISPLAY, KID_GRADES } from '@/lib/constants'
+import { hasFeature } from '@/lib/constants'
 
 const SUBJECT_COLORS: Record<string, { bg: string; bar: string; text: string }> = {
   ELAR: { bg: 'bg-purple-50', bar: 'bg-purple-500', text: 'text-purple-700' },
@@ -52,13 +53,18 @@ export default function TEKSCoverageDashboard() {
       </div>
 
       <div className="flex items-center justify-between">
-        <div className="flex gap-1">
-          {[...HOMESCHOOL_KIDS].map(k => (
-            <button key={k} onClick={() => setKid(k)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium ${kid === k ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
-              {KID_DISPLAY[k]} <span className="text-[9px] opacity-60">Gr.{KID_GRADES[k]}</span>
-            </button>
-          ))}
+        <div className="flex gap-1 flex-wrap">
+          {[...ALL_KIDS].filter(k => hasFeature(k, 'teks_dashboard_homeschool') || hasFeature(k, 'teks_dashboard_staar_prep')).map(k => {
+            const isBisd = hasFeature(k, 'teks_dashboard_staar_prep')
+            const hideGrade = k === 'amos'
+            const label = hideGrade ? KID_DISPLAY[k] : `${KID_DISPLAY[k]} Gr.${KID_GRADES[k]}`
+            return (
+              <button key={k} onClick={() => setKid(k)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium ${kid === k ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                {label} {isBisd && <span className="text-[9px] opacity-60">(STAAR)</span>}
+              </button>
+            )
+          })}
         </div>
         <button onClick={refresh} disabled={refreshing}
           className="text-xs text-emerald-600 flex items-center gap-1 hover:text-emerald-700 disabled:opacity-50">
@@ -129,7 +135,8 @@ export default function TEKSCoverageDashboard() {
 
           {Object.keys(subjects).length === 0 && (
             <div className="bg-gray-50 rounded-xl p-8 text-center">
-              <p className="text-sm text-gray-500">No coverage data yet. Click Refresh to compute coverage from activities.</p>
+              <p className="text-sm text-gray-600">Your coverage map is ready.</p>
+              <p className="text-xs text-gray-400 mt-1">Tap Refresh to see where you&apos;ve been — and where adventure waits next.</p>
             </div>
           )}
         </>
