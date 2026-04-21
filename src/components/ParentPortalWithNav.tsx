@@ -44,6 +44,7 @@ import DigestCard from './DigestCard'
 import KitchenMergedTab from './KitchenMergedTab'
 import SchoolAdvocacyMergedTab from './SchoolAdvocacyMergedTab'
 import ParentDayModeWidget from './ParentDayModeWidget'
+import ParentSchoolQuickLaunch from './ParentSchoolQuickLaunch'
 import { DashboardDataProvider, useDashboardData } from '@/context/DashboardDataContext'
 import { getAllFamilyData } from '@/lib/familyConfig'
 import {
@@ -477,6 +478,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
             <DigestCard />
             <ParentMyDayCard onNavigate={(tab) => setActiveTab(tab)} />
             <AvailabilityWidget />
+            <ParentSchoolQuickLaunch />
             <HomeschoolDashboardCard onNavigate={() => setActiveTab('homeschool')} />
             <CalendarDashboardCard onNavigate={() => setActiveTab('calendar')} />
             <RewardsDashboardCard onNavigate={() => setActiveTab('stars-rewards')} />
