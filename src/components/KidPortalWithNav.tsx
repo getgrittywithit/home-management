@@ -76,6 +76,7 @@ import SchoolQuickLaunch from './kid/SchoolQuickLaunch'
 import MySchoolToday from './kid/MySchoolToday'
 import MyBuddiesTile from './kid/MyBuddiesTile'
 import FlashcardTile from './kid/FlashcardTile'
+import SpeechPractice from './kid/SpeechPractice'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
@@ -1909,6 +1910,9 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
             <FunFridayTracker kidName={profile.first_name || profile.name} />
             <FridayMoveCard kidName={profile.first_name || profile.name} />
             <SchoolQuickLaunch kidName={profile.first_name || profile.name} />
+            {['amos', 'wyatt', 'hannah'].includes((profile.first_name || profile.name || '').toLowerCase()) && (
+              <SpeechPractice kidName={profile.first_name || profile.name} />
+            )}
             <MySchoolToday kidName={profile.first_name || profile.name} />
             <MyBuddiesTile kidName={profile.first_name || profile.name} />
             <FlashcardTile kidName={profile.first_name || profile.name} />

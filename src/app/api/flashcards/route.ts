@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { getReviewQueue, getDueCount, calculateNextReview } from '@/lib/leitner'
-import { HOMESCHOOL_KIDS } from '@/lib/constants'
+import { ALL_KIDS } from '@/lib/constants'
 
-const ALLOWED = new Set<string>([...HOMESCHOOL_KIDS])
+const ALLOWED = new Set<string>([...ALL_KIDS])
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -14,8 +14,21 @@ export async function GET(req: NextRequest) {
     if (action === 'review_queue') {
       if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
       const max = Math.min(parseInt(searchParams.get('max') || '10'), 15)
-      const cards = await getReviewQueue(kid, max)
-      return NextResponse.json({ cards, count: cards.length })
+      const deckType = searchParams.get('deck_type')
+      let cards
+      if (deckType) {
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+        cards = await db.query(
+          `SELECT fc.*, fd.deck_name, fd.deck_type FROM flashcard_cards fc
+           JOIN flashcard_decks fd ON fd.id = fc.deck_id
+           WHERE fd.kid_name = $1 AND fd.deck_type = $4 AND fc.active = TRUE AND fc.next_review_date <= $2
+           ORDER BY fc.leitner_box ASC LIMIT $3`,
+          [kid, today, max, deckType]
+        ).catch(() => [])
+      } else {
+        cards = await getReviewQueue(kid, max)
+      }
+      return NextResponse.json({ cards, count: (cards || []).length })
     }
 
     if (action === 'due_count') {
@@ -164,6 +177,30 @@ export async function POST(req: NextRequest) {
 
       case 'deactivate_card': {
         await db.query(`UPDATE flashcard_cards SET active = FALSE WHERE id = $1`, [body.card_id])
+        return NextResponse.json({ success: true })
+      }
+
+      case 'log_speech_session': {
+        const { kid_name, card_id, target_sound, kid_self_rating } = body
+        if (!kid_name || !card_id) return NextResponse.json({ error: 'kid_name + card_id required' }, { status: 400 })
+        await db.query(
+          `INSERT INTO speech_practice_sessions (kid_name, card_id, target_sound, kid_self_rating)
+           VALUES ($1, $2, $3, $4)`,
+          [kid_name.toLowerCase(), card_id, target_sound || null, kid_self_rating || null]
+        ).catch(() => {})
+        // Write to academic records + IEP progress
+        const { logAcademicRecord, recordIEPGoalProgress } = await import('@/lib/academicRecords')
+        await logAcademicRecord({
+          kid_name: kid_name.toLowerCase(), record_type: 'speech_practice', subject: 'speech',
+          details: { card_id, target_sound, self_rating: kid_self_rating },
+        })
+        if (target_sound?.includes('r')) {
+          await recordIEPGoalProgress({
+            kid_name: kid_name.toLowerCase(), goal_area: 'speech_articulation_r',
+            evidence_type: 'speech_practice_session', evidence_ref: String(card_id),
+            progress_value: 1, notes: `Self-rated: ${kid_self_rating}`,
+          })
+        }
         return NextResponse.json({ success: true })
       }
 
