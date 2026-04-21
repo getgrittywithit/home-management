@@ -73,6 +73,7 @@ import ModeBanner from './kid/ModeBanner'
 import FunFridayTracker from './kid/FunFridayTracker'
 import FridayMoveCard from './kid/FridayMoveCard'
 import SchoolQuickLaunch from './kid/SchoolQuickLaunch'
+import MySchoolToday from './kid/MySchoolToday'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
@@ -1906,6 +1907,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
             <FunFridayTracker kidName={profile.first_name || profile.name} />
             <FridayMoveCard kidName={profile.first_name || profile.name} />
             <SchoolQuickLaunch kidName={profile.first_name || profile.name} />
+            <MySchoolToday kidName={profile.first_name || profile.name} />
             <HuddlePreSubmit kidName={profile.first_name || profile.name} />
             <RoutineChecklist kidName={profile.first_name || profile.name} />
             {isHomeschool && (
