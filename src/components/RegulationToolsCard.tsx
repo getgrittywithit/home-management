@@ -36,7 +36,20 @@ export default function RegulationToolsCard({ kidName, proactive }: RegulationTo
     if (proactive) setOpenSection('personalized')
   }, [proactive])
 
-  const toggle = (section: string) => setOpenSection(prev => prev === section ? null : section)
+  const toggle = (section: string) => {
+    setOpenSection(prev => prev === section ? null : section)
+    if (section === 'crisis' && openSection !== 'crisis') {
+      fetch('/api/notifications', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create', title: `${kidName || 'A kid'} viewed crisis resources`,
+          message: 'Crisis resources section opened in Regulation Tools',
+          source_type: 'safety_event', source_ref: `crisis-view-${kidName}-${Date.now()}`,
+          icon: '🚨', link_tab: 'health',
+        }),
+      }).catch(() => {})
+    }
+  }
 
   const handleUse = async (id: number) => {
     setUsedId(id)
