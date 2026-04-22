@@ -43,25 +43,20 @@ export default function PetCareCard({ kidName }: PetCareCardProps) {
 
   const fetchStatus = useCallback(async () => {
     const completed: Record<string, Set<string>> = {}
-    for (const pet of myPets) {
-      try {
-        const res = await fetch('/api/kids/zone-tasks', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get_pet_care_today', pet_key: pet }),
-        })
-        const data = await res.json()
-        const tasks = new Set<string>()
-        for (const log of (data.care_logs || []) as CareLog[]) {
-          tasks.add(log.task_type)
-        }
-        // Also mark feeding as done if fed today
-        for (const f of (data.feedings || [])) {
-          tasks.add('feed')
-        }
-        completed[pet] = tasks
-      } catch {
-        completed[pet] = new Set()
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+    // Use new pet-care API for persistent state
+    try {
+      const res = await fetch(`/api/kids/pet-care?kid_name=${kid}&date=${today}`)
+      const data = await res.json()
+      for (const row of (data.tasks || [])) {
+        const petKey = (row.pet_name || '').toLowerCase()
+        if (!completed[petKey]) completed[petKey] = new Set()
+        completed[petKey].add(row.task)
       }
+    } catch {}
+    // Fill missing pets with empty sets
+    for (const pet of myPets) {
+      if (!completed[pet]) completed[pet] = new Set()
     }
     setCompletedTasks(completed)
 
@@ -92,19 +87,30 @@ export default function PetCareCard({ kidName }: PetCareCardProps) {
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
   const handleComplete = async (pet: string, taskKey: string) => {
+    const isCompleted = completedTasks[pet]?.has(taskKey)
+    // Optimistic update
+    setCompletedTasks(prev => {
+      const updated = { ...prev }
+      const tasks = new Set(updated[pet] || [])
+      if (isCompleted) tasks.delete(taskKey); else tasks.add(taskKey)
+      updated[pet] = tasks
+      return updated
+    })
     try {
-      await fetch('/api/kids/zone-tasks', {
+      await fetch('/api/kids/pet-care', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'log_pet_care', pet_key: pet, task_key: taskKey, completed_by: kid }),
+        body: JSON.stringify({ kid_name: kid, pet_name: pet, task: taskKey, completed: !isCompleted }),
       })
+    } catch {
+      // Rollback on failure
       setCompletedTasks(prev => {
         const updated = { ...prev }
         const tasks = new Set(updated[pet] || [])
-        tasks.add(taskKey)
+        if (isCompleted) tasks.add(taskKey); else tasks.delete(taskKey)
         updated[pet] = tasks
         return updated
       })
-    } catch {}
+    }
   }
 
   const handleLogFeeding = async () => {
