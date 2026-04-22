@@ -78,8 +78,8 @@ export async function GET(request: NextRequest) {
           || e.startsWith('evening-tidy') || e.startsWith('laundry-')) return 'zone'
         if (e.startsWith('belle-') || e.startsWith('spike-') || e.startsWith('hades-')
           || e.startsWith('midnight-') || e.startsWith('pet-')) return 'pet'
-        if (e.startsWith('hygiene-') || e.startsWith('med-') || e.startsWith('skincare-')
-          || e.startsWith('plant-patrol')) return 'care'
+        if (e.startsWith('plant-patrol')) return 'zone'
+        if (e.startsWith('hygiene-') || e.startsWith('med-') || e.startsWith('skincare-')) return 'care'
         return 'other'
       }
 
@@ -89,27 +89,6 @@ export async function GET(request: NextRequest) {
           `SELECT child_name, event_id, completed FROM kid_daily_checklist WHERE event_date >= $1 AND event_date <= $2`,
           [weekStart, weekEnd]
         )
-
-        // Expected task counts per kid for TODAY, split across the 4 buckets
-        const getExpected = (kid: string): { zone: number; care: number; pet: number } => {
-          let zone = 0
-          let care = 2 // Morning + Bedtime hygiene always
-          let pet = 0
-          if (getKidZone(kid.charAt(0).toUpperCase() + kid.slice(1))) zone += 2 // zone AM + PM
-          if (DISHES.breakfast.includes(kid)) zone++
-          if (DISHES.lunch.includes(kid)) zone++
-          if (DISHES.dinner.includes(kid)) zone++
-          if ((DINNER_MANAGER[dow] || []).includes(kid)) zone++
-          zone++ // Evening tidy (always)
-          if ((HOMESCHOOL_KIDS as readonly string[]).includes(kid) && isWeekday) zone++ // School room clean
-          if (belleHelper === kid) pet += 2 // Belle AM + PM
-          if (kid === 'amos') pet++ // Spike primary
-          if (kid === 'kaylee' || kid === 'wyatt') pet++ // Spike helper
-          if (kid === 'ellie') pet++ // Midnight primary
-          if (kid === 'hannah') pet++ // Midnight helper
-          if (kid === 'zoey') pet++ // Hades sole caretaker
-          return { zone, care, pet }
-        }
 
         // Fetch today's individual task details for the expanded detail panel
         const todayRows = await db.query(
@@ -152,10 +131,19 @@ export async function GET(request: NextRequest) {
         }
 
         // Build the list of expected routine tasks for a kid today, mirroring
-        // the generator used by Mode 2 (individual kid endpoint). This gives
-        // the parent detail panel the same source of truth as the bucket
-        // counts — no more summary/detail drift.
-        const buildExpectedRoutineTasks = (kid: string): Array<{ id: string; summary: string; category: 'zone' | 'care' | 'pet' | 'other' }> => {
+        // the generator used by Mode 2 (individual kid endpoint). Event IDs
+        // MUST match exactly so parent completion state reflects kid toggles.
+        // Fixed D152: Belle IDs now 4 granular tasks (feed/walk), laundry +
+        // Hannah skincare/plant patrol added — was causing phantom-task drift.
+        const LAUNDRY_SCHEDULE: Record<number, string[]> = {
+          1: ['levi'], 2: ['lola'], 3: ['kaylee', 'ellie', 'hannah'],
+          4: ['amos'], 5: ['kaylee', 'ellie', 'hannah'], 6: ['zoey'], 0: ['wyatt'],
+        }
+        const HANNAH_PLANT_DAYS: Record<number, string> = {
+          1: 'Front room / plant room / school room', 3: 'Kitchen + dining room',
+          5: 'Hallway + entryway + porch', 6: 'Master bathroom + master bedroom + backyard',
+        }
+        const buildExpectedRoutineTasks = (kid: string, pausedMedKeys?: Set<string>): Array<{ id: string; summary: string; category: 'zone' | 'care' | 'pet' | 'other' }> => {
           const tasks: Array<{ id: string; summary: string; category: 'zone' | 'care' | 'pet' | 'other' }> = []
           const cap = kid.charAt(0).toUpperCase() + kid.slice(1)
 
@@ -176,6 +164,11 @@ export async function GET(request: NextRequest) {
             tasks.push({ id: `dinner-manager-${today}`, summary: 'Dinner Manager', category: 'zone' })
           }
 
+          // Laundry (day-gated per fixed schedule)
+          if ((LAUNDRY_SCHEDULE[dow] || []).includes(kid)) {
+            tasks.push({ id: `laundry-${today}`, summary: 'Laundry Day', category: 'zone' })
+          }
+
           // Evening Tidy (daily for everyone)
           tasks.push({ id: `evening-tidy-${today}`, summary: 'Evening Tidy & Reset', category: 'zone' })
 
@@ -184,10 +177,12 @@ export async function GET(request: NextRequest) {
             tasks.push({ id: `school-clean-${today}`, summary: 'School Room Group Clean', category: 'zone' })
           }
 
-          // Belle care
+          // Belle care — 4 granular tasks matching kid endpoint IDs
           if (belleHelper === kid) {
-            tasks.push({ id: `belle-am-${today}`, summary: 'Belle Care — AM Feed + Walk', category: 'pet' })
-            tasks.push({ id: `belle-pm-${today}`, summary: 'Belle Care — PM Feed + Walk', category: 'pet' })
+            tasks.push({ id: `belle-am-feed-${today}`, summary: 'Belle Care — AM Feed', category: 'pet' })
+            tasks.push({ id: `belle-am-walk-${today}`, summary: 'Belle Care — AM Walk', category: 'pet' })
+            tasks.push({ id: `belle-pm-feed-${today}`, summary: 'Belle Care — PM Feed', category: 'pet' })
+            tasks.push({ id: `belle-pm-walk-${today}`, summary: 'Belle Care — PM Walk', category: 'pet' })
           }
 
           // Pet care — Spike, Hades, Midnight
@@ -200,18 +195,44 @@ export async function GET(request: NextRequest) {
           tasks.push({ id: `hygiene-morning-${today}`, summary: 'Morning Routine', category: 'care' })
           tasks.push({ id: `hygiene-bedtime-${today}`, summary: 'Bedtime Routine', category: 'care' })
 
-          // Meds (Amos + Wyatt only)
+          // Hannah: skincare + plant patrol
+          if (kid === 'hannah') {
+            tasks.push({ id: `skincare-am-${today}`, summary: '🧴 Morning Skincare Routine', category: 'care' })
+            tasks.push({ id: `skincare-pm-${today}`, summary: '🧴 Evening Skincare Routine', category: 'care' })
+            const plantArea = HANNAH_PLANT_DAYS[dow]
+            if (plantArea) {
+              tasks.push({ id: `plant-patrol-${today}`, summary: `🪴 Plant Patrol — ${plantArea}`, category: 'zone' })
+            }
+          }
+
+          // Meds (Amos + Wyatt only, skip if paused)
           if (kid === 'amos' || kid === 'wyatt') {
-            tasks.push({ id: `med-am-${today}`, summary: '💊 Morning Focalin', category: 'care' })
-            tasks.push({ id: `med-pm-${today}`, summary: '💊 Evening Clonidine', category: 'care' })
+            if (!pausedMedKeys || !pausedMedKeys.has('am')) {
+              tasks.push({ id: `med-am-${today}`, summary: '💊 Morning Focalin', category: 'care' })
+            }
+            if (!pausedMedKeys || !pausedMedKeys.has('pm')) {
+              tasks.push({ id: `med-pm-${today}`, summary: '💊 Evening Clonidine', category: 'care' })
+            }
           }
 
           return tasks
         }
 
+        // Fetch paused meds once for all kids (Amos + Wyatt)
+        let pausedMedsByKid: Record<string, Set<string>> = {}
+        try {
+          const pausedRows = await db.query(
+            `SELECT kid_name, med_key FROM paused_medications WHERE is_paused = true`
+          )
+          for (const r of (pausedRows as any[])) {
+            if (!pausedMedsByKid[r.kid_name]) pausedMedsByKid[r.kid_name] = new Set()
+            pausedMedsByKid[r.kid_name].add(r.med_key)
+          }
+        } catch { /* paused_medications table may not exist */ }
+
         const kids = ALL_KIDS.map(kid => {
           // Expected tasks for today (source of truth shared by summary + detail)
-          const expectedTasks = buildExpectedRoutineTasks(kid)
+          const expectedTasks = buildExpectedRoutineTasks(kid, pausedMedsByKid[kid])
 
           // Merge completion state from DB rows (today)
           const todayKidRows = (todayRows as any[]).filter((r: any) => r.child_name === kid)
