@@ -106,6 +106,48 @@ export async function POST(req: NextRequest) {
           [card_id, kid_name.toLowerCase(), result, time_seconds || null, card[0].leitner_box, new_box]
         )
 
+        // Mastery cascade — when card reaches Box 5
+        if (new_box === 5 && card[0].leitner_box < 5) {
+          const kid = kid_name.toLowerCase()
+          const cardDetail = await db.query(
+            `SELECT fc.front_text, fd.deck_type, fd.deck_name FROM flashcard_cards fc JOIN flashcard_decks fd ON fd.id = fc.deck_id WHERE fc.id = $1`, [card_id]
+          ).catch(() => [])
+
+          // 1. Academic records
+          const { logAcademicRecord, recordIEPGoalProgress } = await import('@/lib/academicRecords')
+          const subject = cardDetail[0]?.deck_type === 'math' ? 'math' : cardDetail[0]?.deck_type === 'speech_practice' ? 'speech' : 'ela'
+          await logAcademicRecord({
+            kid_name: kid, record_type: 'vocabulary_mastery', subject,
+            details: { word: cardDetail[0]?.front_text, deck: cardDetail[0]?.deck_name },
+            evidence_ref: String(card_id),
+          })
+
+          // 2. Stars + digi-pet
+          await db.query(
+            `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'earned', 10, $2)`,
+            [kid, `Mastered: ${cardDetail[0]?.front_text || 'a flashcard'}`]
+          ).catch(() => {})
+          await db.query(`UPDATE digi_pets SET happiness = LEAST(100, happiness + 2) WHERE kid_name = $1`, [kid]).catch(() => {})
+
+          // 3. Notification
+          const { createNotification } = await import('@/lib/notifications')
+          await createNotification({
+            title: `You mastered "${cardDetail[0]?.front_text}"!`,
+            message: 'That word is yours now.',
+            source_type: 'flashcard_mastered', source_ref: `mastery-${card_id}`,
+            icon: '🌟', target_role: 'kid', kid_name: kid,
+          }).catch(() => {})
+
+          // 4. IEP progress for speech decks
+          if (cardDetail[0]?.deck_type === 'speech_practice') {
+            await recordIEPGoalProgress({
+              kid_name: kid, goal_area: 'speech_articulation_r',
+              evidence_type: 'flashcard_mastery', evidence_ref: String(card_id),
+              progress_value: 1,
+            })
+          }
+        }
+
         return NextResponse.json({ new_box, next_review_date })
       }
 
