@@ -21,8 +21,9 @@ import { ParentLibraryAdmin } from './HomeLibrary'
 import FunFridayAdmin from './FunFridayAdmin'
 import BuddyAdminPanel from './BuddyAdminPanel'
 import TEKSCoverageDashboard from './TEKSCoverageDashboard'
+import VocabularyHub from './VocabularyHub'
 
-type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library' | 'fun-friday' | 'ai-buddies' | 'teks'
+type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library' | 'fun-friday' | 'ai-buddies' | 'teks' | 'vocabulary'
 
 const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
@@ -41,6 +42,7 @@ const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'fun-friday', label: 'Fun Friday', icon: '🌟' },
   { id: 'ai-buddies', label: 'AI Buddies', icon: '🤖' },
   { id: 'teks', label: 'TEKS Coverage', icon: '📊' },
+  { id: 'vocabulary', label: 'Vocabulary', icon: '📝' },
 ]
 
 export default function HomeschoolTab({ initialSubTab }: { initialSubTab?: SubTabId }) {
@@ -119,6 +121,8 @@ export default function HomeschoolTab({ initialSubTab }: { initialSubTab?: SubTa
         return <BuddyAdminPanel />
       case 'teks':
         return <TEKSCoverageDashboard />
+      case 'vocabulary':
+        return <VocabularyHub />
       default:
         return <HomeschoolOverview students={students} taskProgress={taskProgress} selectedStudentId={null}
           onSelectStudent={setSelectedStudentId}
