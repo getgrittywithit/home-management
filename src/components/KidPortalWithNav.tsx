@@ -77,6 +77,7 @@ import MySchoolToday from './kid/MySchoolToday'
 import MyBuddiesTile from './kid/MyBuddiesTile'
 import FlashcardTile from './kid/FlashcardTile'
 import FlashcardDeckList from './kid/FlashcardDeckList'
+import MyWords from './kid/MyWords'
 import SpeechPractice from './kid/SpeechPractice'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
@@ -92,7 +93,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'habits' | 'flashcards' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'habits' | 'flashcards' | 'my-words' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
 
 interface NavTab {
   id: TabId
@@ -135,6 +136,7 @@ const navSections: NavSection[] = [
     label: 'FUN & GROWTH',
     tabs: [
       { id: 'flashcards', name: 'Flashcards', icon: Layers, color: 'bg-purple-500' },
+      { id: 'my-words', name: 'My Words', icon: BookOpen, color: 'bg-indigo-500' },
       { id: 'rewards-store', name: 'Rewards Store', icon: Star, color: 'bg-amber-500' },
       { id: 'digi-pet', name: 'Digi-Pet', icon: Sparkles, color: 'bg-pink-500' },
       { id: 'typing-race', name: 'Typing Race', icon: Keyboard, color: 'bg-violet-500' },
@@ -1974,6 +1976,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return <HabitsTab />
       case 'flashcards':
         return <FlashcardDeckList kidName={profile.first_name || profile.name} />
+      case 'my-words':
+        return <MyWords kidName={profile.first_name || profile.name} />
       case 'opportunities':
         return <OpportunitiesTab childName={profile.first_name || profile.name} />
       case 'adventures':

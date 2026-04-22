@@ -292,6 +292,11 @@ const PARENT_PUSH_SOURCES = new Set([
   'teks_milestone',             // coverage milestone reached
   'teks_ixl_import_done',       // IXL CSV imported
   'teks_refresh_error',         // coverage refresh failed
+  // D141 — Vocabulary Hub
+  'vocab_weekly_milestone',     // kid mastered 10+ words this week
+  'vocab_low_accuracy_alert',   // accuracy dropped below 50%
+  'vocab_stuck_words',          // words stuck in Box 1 for 14+ days
+  'vocab_grade_bump_confirmed', // parent advanced kid's grade level
 ])
 
 const KID_PUSH_SOURCES = new Set([
@@ -326,6 +331,10 @@ const KID_PUSH_SOURCES = new Set([
   'flashcard_streak',           // streak milestone
   'flashcard_mastered',         // mastered a card
   'library_book_finished',      // finished a book
+  'vocab_word_mastered',        // mastered a vocabulary word
+  'vocab_quiz_complete',        // completed a vocab quiz
+  'vocab_streak',               // vocab streak milestone
+  'vocab_new_words_from_book',  // book completion added new words
 ])
 
 const SILENT_SOURCES = new Set([
