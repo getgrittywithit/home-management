@@ -297,6 +297,8 @@ const PARENT_PUSH_SOURCES = new Set([
   'vocab_low_accuracy_alert',   // accuracy dropped below 50%
   'vocab_stuck_words',          // words stuck in Box 1 for 14+ days
   'vocab_grade_bump_confirmed', // parent advanced kid's grade level
+  // D146 — Library content filtering
+  'book_pick_flagged',          // kid chose to read a flagged book
 ])
 
 const KID_PUSH_SOURCES = new Set([

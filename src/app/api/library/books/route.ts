@@ -89,6 +89,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ updated })
     }
 
+    if (action === 'acknowledge_warning') {
+      const { kid_name, book_id, shown_warnings, kid_chose_to_proceed, trigger_notes_snippet } = body
+      if (!kid_name || !book_id) return NextResponse.json({ error: 'kid_name + book_id required' }, { status: 400 })
+
+      await db.query(
+        `INSERT INTO kid_content_warning_acknowledgments (kid_name, book_id, shown_warnings, trigger_notes_snippet, kid_chose_to_proceed)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [kid_name.toLowerCase(), book_id, shown_warnings ? JSON.stringify(shown_warnings) : null, trigger_notes_snippet || null, kid_chose_to_proceed]
+      ).catch(() => {})
+
+      if (kid_chose_to_proceed) {
+        const { createNotification } = await import('@/lib/notifications')
+        const book = await db.query(`SELECT title FROM home_library WHERE id = $1`, [book_id]).catch(() => [])
+        const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
+        await createNotification({
+          title: `${cap(kid_name)} is reading ${book[0]?.title || 'a book'}`,
+          message: `Flagged for: ${(shown_warnings || []).join(', ')}`,
+          source_type: 'book_pick_flagged', source_ref: `book-flag-${kid_name}-${book_id}`,
+          icon: '📖', link_tab: 'homeschool',
+        }).catch(() => {})
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
