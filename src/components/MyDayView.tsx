@@ -540,7 +540,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
 
         {/* Meal picker */}
         <button
-          onClick={() => { try { window.dispatchEvent(new CustomEvent('kid-nav', { detail: { tab: 'my-day' } })) } catch {} }}
+          onClick={() => { const el = document.getElementById('kid-meal-picker'); el?.scrollIntoView({ behavior: 'smooth' }) }}
           className="bg-white rounded-xl border shadow-sm p-3 text-center hover:bg-gray-50 active:scale-95 transition-transform"
         >
           <div className="text-2xl">🍽️</div>
@@ -697,6 +697,7 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
       <style>{`@keyframes checkPop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }`}</style>
 
       {/* Meal Picker */}
+      <div id="kid-meal-picker" />
       <WeeklyMealCalendar key={mealRefreshKey} kidName={kidName} compact />
       <GroceryDeadlineBar kidName={kidName} />
       <KidMealPicker kidName={kidName} previewMode={previewMode} onPick={() => setMealRefreshKey(k => k + 1)} />
