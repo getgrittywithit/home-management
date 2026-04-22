@@ -79,6 +79,7 @@ import FlashcardTile from './kid/FlashcardTile'
 import FlashcardDeckList from './kid/FlashcardDeckList'
 import MyWords from './kid/MyWords'
 import MyShelf from './kid/MyShelf'
+import BookRecommendations from './kid/BookRecommendations'
 import SpeechPractice from './kid/SpeechPractice'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
@@ -1920,6 +1921,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
               <SpeechPractice kidName={profile.first_name || profile.name} />
             )}
             <MySchoolToday kidName={profile.first_name || profile.name} />
+            <BookRecommendations kidName={profile.first_name || profile.name} />
             <MyBuddiesTile kidName={profile.first_name || profile.name} />
             <FlashcardTile kidName={profile.first_name || profile.name} />
             <HuddlePreSubmit kidName={profile.first_name || profile.name} />
