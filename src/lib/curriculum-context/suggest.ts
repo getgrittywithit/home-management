@@ -73,7 +73,8 @@ export async function suggestUnits(kidName: string, month: string, subject: stri
     const objectives = buildObjectives(c, iep, reading, math, subject)
 
     // Abstract IEP-driven rationale (no raw medical text)
-    let rationale = `Aligns with ${kidName}'s interests`
+    const kidDisplay = kidName.charAt(0).toUpperCase() + kidName.slice(1).toLowerCase()
+    let rationale = `Aligns with ${kidDisplay}'s interests`
     if (interestOverlapCount(c.topics, interests) > 0) {
       rationale += ` (${c.topics.filter(t => interests.some(i => i.toLowerCase().includes(t.toLowerCase()))).join(', ')})`
     }

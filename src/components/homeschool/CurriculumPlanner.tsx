@@ -64,6 +64,13 @@ type KidSummary = {
   remaining: number; wishlist_count: number; item_count: number;
 }
 
+// Consistent currency formatting across the component.
+// Always returns "$1,234.56" — with comma thousands separator + 2 decimals.
+function fmtCurrency(n: number | string | null | undefined): string {
+  const num = n == null ? 0 : Number(n)
+  return num.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
 export default function CurriculumPlanner() {
   const [activeView, setActiveView] = useState<'outline' | 'budget' | 'library' | 'year_map'>('outline')
   const [openUnitId, setOpenUnitId] = useState<string | null>(null)
@@ -286,15 +293,15 @@ export default function CurriculumPlanner() {
                 <div className="flex gap-6 items-center">
                   <div>
                     <div className="text-xs text-slate-500 uppercase">Spent</div>
-                    <div className="text-lg font-bold text-red-600">${selectedKidSummary.spent.toFixed(2)}</div>
+                    <div className="text-lg font-bold text-red-600">{fmtCurrency(selectedKidSummary.spent)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 uppercase">Committed</div>
-                    <div className="text-lg font-bold text-amber-600">${selectedKidSummary.committed.toFixed(2)}</div>
+                    <div className="text-lg font-bold text-amber-600">{fmtCurrency(selectedKidSummary.committed)}</div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500 uppercase">Remaining</div>
-                    <div className="text-lg font-bold text-emerald-600">${selectedKidSummary.remaining.toFixed(2)}</div>
+                    <div className="text-lg font-bold text-emerald-600">{fmtCurrency(selectedKidSummary.remaining)}</div>
                   </div>
                 </div>
               </div>
@@ -306,7 +313,7 @@ export default function CurriculumPlanner() {
               {selectedKidSummary.remaining < 0 && (
                 <div className="mt-3 flex items-center gap-2 text-red-700 text-sm bg-red-50 rounded-lg p-2">
                   <AlertTriangle className="w-4 h-4" />
-                  Over budget by ${Math.abs(selectedKidSummary.remaining).toFixed(2)}
+                  Over budget by {fmtCurrency(Math.abs(selectedKidSummary.remaining))}
                 </div>
               )}
             </div>
@@ -486,9 +493,9 @@ function PurchaseRow({ purchase, onEdit, onStatusChange, onDelete }: {
         {purchase.item_description && <p className="text-sm text-slate-600 mt-1">{purchase.item_description}</p>}
       </div>
       <div className="text-right">
-        <div className="font-semibold text-slate-800">${cost.toFixed(2)}</div>
+        <div className="font-semibold text-slate-800">{fmtCurrency(cost)}</div>
         {actualCost != null && actualCost !== estimatedCost && (
-          <div className="text-xs text-slate-400 line-through">est ${estimatedCost.toFixed(2)}</div>
+          <div className="text-xs text-slate-400 line-through">est {fmtCurrency(estimatedCost)}</div>
         )}
       </div>
       <div className="flex flex-col gap-1">
