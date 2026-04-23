@@ -6,6 +6,7 @@ import FamilyLibrary from './FamilyLibrary'
 import YearMapView from './YearMapView'
 import UnitDetailView from './UnitDetailView'
 import SuggestionBanner from './SuggestionBanner'
+import PedagogyPresetPanel from './PedagogyPresetPanel'
 
 const HOMESCHOOL_KIDS = [
   { id: 'amos', label: 'Amos', grade: '10th', color: 'from-blue-500 to-indigo-500' },
@@ -67,6 +68,7 @@ export default function CurriculumPlanner() {
   const [activeView, setActiveView] = useState<'outline' | 'budget' | 'library' | 'year_map'>('outline')
   const [openUnitId, setOpenUnitId] = useState<string | null>(null)
   const [allKidsMode, setAllKidsMode] = useState(false)
+  const [showPhilosophy, setShowPhilosophy] = useState(false)
   const [selectedKid, setSelectedKid] = useState<string>('amos')
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [purchases, setPurchases] = useState<PurchaseItem[]>([])
@@ -110,7 +112,13 @@ export default function CurriculumPlanner() {
             <Sparkles className="w-5 h-5 text-purple-500" />
             Curriculum Planner
           </h2>
-          <p className="text-sm text-slate-500">Year outline + TEFA funding tracker · {SCHOOL_YEAR}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-slate-500">Year outline + TEFA funding tracker · {SCHOOL_YEAR}</p>
+            <button onClick={() => setShowPhilosophy(true)}
+              className="text-xs px-2 py-1 rounded border border-purple-200 text-purple-600 hover:bg-purple-50">
+              Philosophy
+            </button>
+          </div>
         </div>
         <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
           <button
@@ -441,6 +449,10 @@ export default function CurriculumPlanner() {
           onClose={() => setShowPurchaseForm(false)}
           onSaved={() => { setShowPurchaseForm(false); loadAll() }}
         />
+      )}
+
+      {showPhilosophy && (
+        <PedagogyPresetPanel onClose={() => setShowPhilosophy(false)} />
       )}
     </div>
   )

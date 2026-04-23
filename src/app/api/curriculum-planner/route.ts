@@ -199,6 +199,20 @@ export async function GET(request: NextRequest) {
     // ------------------------------------------------------------------
     // get_unit_detail — single unit with all children
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // get_pedagogy_prefs
+    // ------------------------------------------------------------------
+    case 'get_pedagogy_prefs': {
+      try {
+        const rows = await db.query(
+          `SELECT montessori_weight, waldorf_weight, charlotte_mason_weight, unschool_weight,
+                  classical_weight, hands_on_weight, literature_based_weight
+           FROM curriculum_pedagogy_preferences WHERE parent_name = 'lola' LIMIT 1`
+        )
+        return NextResponse.json({ prefs: rows[0] || null })
+      } catch { return NextResponse.json({ prefs: null }) }
+    }
+
     case 'get_unit_detail': {
       const unitId = searchParams.get('unit_id')
       if (!unitId) return NextResponse.json({ error: 'unit_id required' }, { status: 400 })
@@ -618,6 +632,90 @@ export async function POST(request: NextRequest) {
     // ------------------------------------------------------------------
     // Smart suggestions from Coral ecosystem
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Philosophy preferences
+    // ------------------------------------------------------------------
+    case 'save_pedagogy_prefs': {
+      const { montessori_weight, waldorf_weight, charlotte_mason_weight, unschool_weight,
+              classical_weight, hands_on_weight, literature_based_weight } = body
+      try {
+        await db.query(
+          `INSERT INTO curriculum_pedagogy_preferences
+             (parent_name, montessori_weight, waldorf_weight, charlotte_mason_weight, unschool_weight,
+              classical_weight, hands_on_weight, literature_based_weight)
+           VALUES ('lola', $1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (parent_name) DO UPDATE SET
+             montessori_weight=$1, waldorf_weight=$2, charlotte_mason_weight=$3, unschool_weight=$4,
+             classical_weight=$5, hands_on_weight=$6, literature_based_weight=$7, updated_at=NOW()`,
+          [montessori_weight ?? 25, waldorf_weight ?? 20, charlotte_mason_weight ?? 30,
+           unschool_weight ?? 10, classical_weight ?? 5, hands_on_weight ?? 70, literature_based_weight ?? 60]
+        )
+        return NextResponse.json({ success: true })
+      } catch (err) {
+        console.error('save_pedagogy_prefs error:', err)
+        return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // Complete unit → auto-log to Portfolio
+    // ------------------------------------------------------------------
+    case 'complete_unit': {
+      const { unit_id, actual_end_month } = body
+      if (!unit_id) return NextResponse.json({ error: 'unit_id required' }, { status: 400 })
+      try {
+        // Mark unit ended
+        const unitRows = await db.query(
+          `UPDATE curriculum_year_outline
+           SET ended_early = CASE WHEN $2 IS NOT NULL AND $2 != month THEN TRUE ELSE FALSE END,
+               actual_end_month = COALESCE($2, month)
+           WHERE id = $1 RETURNING *`,
+          [unit_id, actual_end_month || null]
+        )
+        const unit = unitRows[0]
+        if (!unit) return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
+
+        // Gather completed objectives
+        const objectives = await db.query(
+          `SELECT objective_text, completed FROM curriculum_unit_objectives WHERE unit_id = $1 ORDER BY sort_order`,
+          [unit_id]
+        ).catch(() => [])
+        const completedObjectives = objectives.filter((o: any) => o.completed).map((o: any) => o.objective_text)
+
+        // Gather completed assessments
+        const assessments = await db.query(
+          `SELECT title, score, completed FROM curriculum_unit_assessments WHERE unit_id = $1`,
+          [unit_id]
+        ).catch(() => [])
+
+        // Create portfolio entry
+        const description = [
+          unit.unit_description || '',
+          completedObjectives.length > 0 ? `\nObjectives met: ${completedObjectives.join('; ')}` : '',
+          assessments.filter((a: any) => a.completed).length > 0
+            ? `\nAssessments: ${assessments.filter((a: any) => a.completed).map((a: any) => `${a.title}${a.score ? ` (${a.score})` : ''}`).join('; ')}`
+            : '',
+        ].join('')
+
+        await db.query(
+          `INSERT INTO kid_portfolio_items (kid_name, title, item_type, subject, description, created_at)
+           VALUES ($1, $2, 'curriculum_unit', $3, $4, NOW())
+           ON CONFLICT DO NOTHING`,
+          [
+            unit.kid_name,
+            `${unit.unit_title} — ${unit.school_year}`,
+            unit.subject,
+            description.trim(),
+          ]
+        ).catch(() => {})
+
+        return NextResponse.json({ success: true, unit })
+      } catch (err) {
+        console.error('complete_unit error:', err)
+        return NextResponse.json({ error: 'Failed to complete unit' }, { status: 500 })
+      }
+    }
+
     case 'suggest_unit': {
       const { kid_name: sugKid, month: sugMonth, subject: sugSubject } = body
       if (!sugKid || !sugMonth || !sugSubject) {

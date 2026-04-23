@@ -124,6 +124,24 @@ export default function UnitDetailView({ unitId, onBack }: Props) {
             Also teaching this unit to: {siblings.map((s: any) => `${cap(s.kid_name)} (${s.month})`).join(', ')}
           </div>
         )}
+
+        {/* Complete Unit button */}
+        {!unit.actual_end_month && (
+          <button
+            onClick={async () => {
+              if (!confirm(`Mark "${unit.unit_title}" as complete? This will create a portfolio entry.`)) return
+              await post('complete_unit', { unit_id: unitId })
+            }}
+            className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 flex items-center gap-1.5"
+          >
+            <Check className="w-4 h-4" /> Mark Unit Complete
+          </button>
+        )}
+        {unit.actual_end_month && (
+          <div className="mt-4 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+            Completed ({unit.actual_end_month}) — logged to portfolio
+          </div>
+        )}
       </div>
 
       {/* Objectives */}
