@@ -191,14 +191,34 @@ export async function GET(request: NextRequest) {
         )
 
         // 2. Get ingredients for each meal and aggregate
+        // Priority: meal_ingredients (normalized) → meal_library.ingredients (jsonb fallback)
         const ingredientMap: Record<string, { name: string; quantity: number; unit: string; department: string; preferred_store: string }> = {}
         for (const meal of plannedMeals) {
           if (!meal.meal_id) continue
+          // Try normalized table first
           const ingredients = await db.query(
             `SELECT name, quantity, unit, department, preferred_store FROM meal_ingredients WHERE meal_id = $1`,
             [meal.meal_id]
           )
-          for (const ing of ingredients) {
+
+          let ingList = ingredients
+          // Fallback to jsonb if normalized table has no rows for this meal
+          if (!ingList || ingList.length === 0) {
+            try {
+              const jsonbRows = await db.query(
+                `SELECT ingredients FROM meal_library WHERE id = $1 AND ingredients IS NOT NULL AND ingredients != '[]'::jsonb`,
+                [meal.meal_id]
+              )
+              if (jsonbRows.length > 0 && Array.isArray(jsonbRows[0].ingredients)) {
+                ingList = jsonbRows[0].ingredients.map((i: any) => ({
+                  name: i.name, quantity: i.quantity, unit: i.unit,
+                  department: i.department || 'Other', preferred_store: 'either',
+                }))
+              }
+            } catch {}
+          }
+
+          for (const ing of ingList) {
             const key = (ing.name || '').toLowerCase().trim()
             if (!key) continue
             if (ingredientMap[key]) {

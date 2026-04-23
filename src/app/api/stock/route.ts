@@ -370,6 +370,32 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // ── Adjust quantity (add/subtract delta) ──
+      case 'adjust_quantity': {
+        const { stock_item_id, location_id, delta, reason } = body
+        if (!stock_item_id || !location_id || delta === undefined) {
+          return NextResponse.json({ error: 'stock_item_id, location_id, and delta required' }, { status: 400 })
+        }
+        try {
+          // Upsert current quantity with delta
+          const rows = await db.query(
+            `INSERT INTO stock_location_quantities (stock_item_id, location_id, current_quantity)
+             VALUES ($1, $2, GREATEST($3, 0))
+             ON CONFLICT (stock_item_id, location_id) DO UPDATE SET
+               current_quantity = GREATEST(stock_location_quantities.current_quantity + $3, 0),
+               updated_at = NOW()
+             RETURNING *`,
+            [stock_item_id, location_id, delta]
+          )
+          return NextResponse.json({ quantity: rows[0] })
+        } catch (err: any) {
+          if (err?.message?.includes('does not exist') || err?.code === '42P01') {
+            return NextResponse.json({ error: 'stock_location_quantities table does not exist' }, { status: 500 })
+          }
+          throw err
+        }
+      }
+
       // ── Add a new stock / pantry item ──
       case 'add_stock_item': {
         const { name, canonical_name, department, storage_location, preferred_store, unit, quantity, low_stock_threshold } = body
