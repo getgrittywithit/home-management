@@ -50,73 +50,91 @@ export async function POST(request: NextRequest) {
       }
 
       case 'generate_from_meals': {
-        // Get this week's meal plans with linked recipes
+        // Get this week's meal plans from the LIVE meal_week_plan table
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
         const d = new Date(today + 'T12:00:00')
         const dow = d.getDay()
         const monday = new Date(d)
         monday.setDate(d.getDate() - ((dow + 6) % 7))
-        const sunday = new Date(monday)
-        sunday.setDate(monday.getDate() + 6)
         const weekStart = monday.toLocaleDateString('en-CA')
-        const weekEnd = sunday.toLocaleDateString('en-CA')
 
+        // Pull planned meals + their ingredients (normalized OR jsonb fallback)
         const meals = await db.query(
-          `SELECT m.dish_name, m.ingredients, r.ingredients as recipe_ingredients
-           FROM meal_plans m LEFT JOIN recipes r ON m.recipe_id = r.id
-           WHERE m.date >= $1 AND m.date <= $2`,
-          [weekStart, weekEnd]
+          `SELECT DISTINCT mwp.meal_id, ml.name AS meal_name, ml.ingredients AS jsonb_ingredients
+           FROM meal_week_plan mwp
+           JOIN meal_library ml ON mwp.meal_id = ml.id
+           WHERE mwp.week_start = $1 AND mwp.meal_id IS NOT NULL`,
+          [weekStart]
         )
 
         const itemSet = new Set<string>()
-        const items: { name: string; category: string }[] = []
+        const items: { name: string; category: string; quantity: string | null }[] = []
 
         for (const meal of meals) {
-          // From recipe ingredients (JSONB array)
-          if (meal.recipe_ingredients) {
-            try {
-              const parsed = typeof meal.recipe_ingredients === 'string' ? JSON.parse(meal.recipe_ingredients) : meal.recipe_ingredients
-              for (const ing of parsed) {
-                const name = ing.item || ing.name || String(ing)
-                if (name && !itemSet.has(name.toLowerCase())) {
-                  itemSet.add(name.toLowerCase())
-                  items.push({ name, category: 'other' })
-                }
-              }
-            } catch { /* skip */ }
+          // Try normalized meal_ingredients first
+          let ings: any[] = []
+          try {
+            ings = await db.query(
+              `SELECT name, quantity, unit, department FROM meal_ingredients WHERE meal_id = $1`,
+              [meal.meal_id]
+            )
+          } catch {}
+
+          // Fallback to meal_library.ingredients jsonb
+          if (ings.length === 0 && meal.jsonb_ingredients) {
+            const parsed = Array.isArray(meal.jsonb_ingredients) ? meal.jsonb_ingredients : []
+            ings = parsed.filter((i: any) => i.name?.trim()).map((i: any) => ({
+              name: i.name, quantity: i.quantity, unit: i.unit, department: i.department || 'Other',
+            }))
           }
-          // From meal plan ingredients array
-          if (meal.ingredients && Array.isArray(meal.ingredients)) {
-            for (const ing of meal.ingredients) {
-              if (ing && !itemSet.has(String(ing).toLowerCase())) {
-                itemSet.add(String(ing).toLowerCase())
-                items.push({ name: String(ing), category: 'other' })
-              }
-            }
+
+          for (const ing of ings) {
+            const name = (ing.name || '').trim()
+            if (!name) continue
+            const key = name.toLowerCase()
+            if (itemSet.has(key)) continue
+            itemSet.add(key)
+            const qtyStr = ing.quantity && ing.unit
+              ? `${ing.quantity} ${ing.unit}`
+              : ing.quantity ? String(ing.quantity) : null
+            items.push({
+              name,
+              category: (ing.department || 'other').toLowerCase(),
+              quantity: qtyStr,
+            })
           }
         }
+
+        // Clear old meal_plan-generated items before inserting fresh
+        await db.query(`DELETE FROM shopping_list WHERE source = 'meal_plan'`)
 
         // Bulk insert
         for (const item of items) {
           await db.query(
-            `INSERT INTO shopping_list (item_name, category, source) VALUES ($1, $2, 'meal_plan')`,
-            [item.name, item.category]
+            `INSERT INTO shopping_list (item_name, quantity, category, source) VALUES ($1, $2, $3, 'meal_plan')`,
+            [item.name, item.quantity, item.category]
           )
         }
 
-        return NextResponse.json({ success: true, added: items.length })
+        return NextResponse.json({ success: true, added: items.length, meal_count: meals.length })
       }
 
       case 'add_low_supply': {
-        // Add all low-supply inventory items to shopping list
+        // Add low-supply items from inventory_items (the live source)
         const low = await db.query(
-          `SELECT name, unit FROM food_inventory WHERE min_quantity IS NOT NULL AND quantity <= min_quantity`
-        )
+          `SELECT name, unit, category FROM inventory_items
+           WHERE par_level IS NOT NULL AND current_stock <= par_level`
+        ).catch(() => [])
         let added = 0
         for (const item of low) {
+          const exists = await db.query(
+            `SELECT 1 FROM shopping_list WHERE LOWER(item_name) = LOWER($1) AND checked = FALSE LIMIT 1`,
+            [item.name]
+          ).catch(() => [])
+          if (exists.length > 0) continue // don't double-add
           await db.query(
-            `INSERT INTO shopping_list (item_name, quantity, category, source) VALUES ($1, $2, 'other', 'manual')`,
-            [item.name, item.unit || null]
+            `INSERT INTO shopping_list (item_name, category, source) VALUES ($1, $2, 'low_supply')`,
+            [item.name, (item.category || 'other').toLowerCase()]
           )
           added++
         }

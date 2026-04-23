@@ -63,17 +63,40 @@ export async function GET(request: NextRequest) {
       const mealRows = await db.query(
         `SELECT id, name, theme, description, prep_time_min, cook_time_min, servings, source,
                 recipe_steps, sides, notes, difficulty, tips,
-                kid_friendly_directions, adult_directions
+                kid_friendly_directions, adult_directions, ingredients
          FROM meal_library WHERE id = $1`,
         [mealId]
       )
       if (mealRows.length === 0) return NextResponse.json({ error: 'Meal not found' }, { status: 404 })
-      const ingredients = await db.query(
+      let ingredients = await db.query(
         `SELECT id, name, quantity, unit, department, preferred_store, notes
          FROM meal_ingredients WHERE meal_id = $1 ORDER BY department, name`,
         [mealId]
       )
-      return NextResponse.json({ meal: mealRows[0], ingredients })
+      // Fallback: if no normalized rows, use meal_library.ingredients jsonb
+      if ((!ingredients || ingredients.length === 0) && mealRows[0].ingredients) {
+        const jsonbIngs = Array.isArray(mealRows[0].ingredients) ? mealRows[0].ingredients : []
+        ingredients = jsonbIngs
+          .filter((i: any) => i.name?.trim())
+          .map((i: any, idx: number) => ({
+            id: `jsonb-${idx}`,
+            name: i.name,
+            quantity: i.quantity ?? null,
+            unit: i.unit ?? null,
+            department: i.department || 'Other',
+            preferred_store: 'either',
+            notes: i.notes || null,
+          }))
+      }
+      // Also: if recipe_steps is empty but adult_directions exists, build steps from it
+      const meal = mealRows[0]
+      if ((!meal.recipe_steps || (Array.isArray(meal.recipe_steps) && meal.recipe_steps.length === 0))
+          && meal.adult_directions && Array.isArray(meal.adult_directions) && meal.adult_directions.length > 0) {
+        meal.recipe_steps = meal.adult_directions.map((text: string, i: number) => ({
+          order: i + 1, text, group: 'cook',
+        }))
+      }
+      return NextResponse.json({ meal, ingredients })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
