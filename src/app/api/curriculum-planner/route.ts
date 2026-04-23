@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { HOMESCHOOL_KIDS } from '@/lib/constants'
+import { checkBudgetThresholds, notifyPurchaseReceived } from '@/lib/curriculumNotifications'
 
 const DEFAULT_SCHOOL_YEAR = '2026-27'
 const TEFA_ANNUAL_PER_KID = 2000
@@ -392,6 +393,25 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await db.query(`SELECT * FROM tefa_purchases WHERE id = $1`, [purchaseId])
+
+        // Fire budget threshold check (non-blocking)
+        try {
+          const budgetRows = await db.query(
+            `SELECT
+               COALESCE(SUM(CASE WHEN status IN ('received','in-use') THEN COALESCE(actual_cost,estimated_cost) ELSE 0 END),0) AS spent,
+               COALESCE(SUM(CASE WHEN status = 'ordered' THEN COALESCE(actual_cost,estimated_cost) ELSE 0 END),0) AS committed
+             FROM tefa_purchases WHERE kid_name = $1 AND school_year = $2`,
+            [kid_name.toLowerCase(), school_year || DEFAULT_SCHOOL_YEAR]
+          )
+          const b = budgetRows[0] || { spent: 0, committed: 0 }
+          checkBudgetThresholds(kid_name.toLowerCase(), Number(b.spent), Number(b.committed), school_year || DEFAULT_SCHOOL_YEAR).catch(() => {})
+        } catch {}
+
+        // Fire received notification if status is received
+        if ((status || 'wishlist') === 'received' && purchaseId) {
+          notifyPurchaseReceived(kid_name.toLowerCase(), item_name, purchaseId).catch(() => {})
+        }
+
         return NextResponse.json({ item: result[0] })
       } catch (err) {
         console.error('save_purchase error:', err)
@@ -412,7 +432,26 @@ export async function POST(request: NextRequest) {
           `UPDATE tefa_purchases SET status = $2 WHERE id = $1 RETURNING *`,
           [id, status]
         )
-        return NextResponse.json({ item: rows[0] })
+        const purchase = rows[0]
+        if (purchase) {
+          // Fire received notification
+          if (status === 'received') {
+            notifyPurchaseReceived(purchase.kid_name, purchase.item_name, purchase.id).catch(() => {})
+          }
+          // Budget threshold check
+          try {
+            const budgetRows = await db.query(
+              `SELECT
+                 COALESCE(SUM(CASE WHEN status IN ('received','in-use') THEN COALESCE(actual_cost,estimated_cost) ELSE 0 END),0) AS spent,
+                 COALESCE(SUM(CASE WHEN status = 'ordered' THEN COALESCE(actual_cost,estimated_cost) ELSE 0 END),0) AS committed
+               FROM tefa_purchases WHERE kid_name = $1 AND school_year = $2`,
+              [purchase.kid_name, purchase.school_year]
+            )
+            const b = budgetRows[0] || { spent: 0, committed: 0 }
+            checkBudgetThresholds(purchase.kid_name, Number(b.spent), Number(b.committed), purchase.school_year).catch(() => {})
+          } catch {}
+        }
+        return NextResponse.json({ item: purchase })
       } catch (err) {
         console.error('update_purchase_status error:', err)
         return NextResponse.json({ error: 'Failed to update status' }, { status: 500 })

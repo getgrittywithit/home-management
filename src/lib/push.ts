@@ -299,6 +299,16 @@ const PARENT_PUSH_SOURCES = new Set([
   'vocab_grade_bump_confirmed', // parent advanced kid's grade level
   // D146 — Library content filtering
   'book_pick_flagged',          // kid chose to read a flagged book
+  // D133 — Curriculum Planner
+  'curriculum_budget_50',       // kid hit 50% of TEFA budget
+  'curriculum_budget_75',       // 75%
+  'curriculum_budget_90',       // 90%
+  'curriculum_budget_100',      // over budget
+  'curriculum_unit_starts_soon',// unit starting in ≤7 days
+  'curriculum_unit_ended',      // unit month passed
+  'curriculum_purchase_ordered_stale', // ordered >14 days
+  'curriculum_purchase_received',// purchase received
+  'curriculum_consumable_low',  // consumable below reorder threshold
 ])
 
 const KID_PUSH_SOURCES = new Set([
