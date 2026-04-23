@@ -48,6 +48,7 @@ interface Props {
 export default function YearMapView({ schoolYear, selectedKid, allKidsMode, onOpenUnit, onAddUnit }: Props) {
   const [units, setUnits] = useState<MapUnit[]>([])
   const [loading, setLoading] = useState(true)
+  const [subjectFilter, setSubjectFilter] = useState<string>('')
 
   useEffect(() => {
     setLoading(true)
@@ -77,15 +78,24 @@ export default function YearMapView({ schoolYear, selectedKid, allKidsMode, onOp
         <h3 className="font-semibold text-slate-800 text-sm">
           Year Map {allKidsMode ? '(All Kids)' : ''}
         </h3>
-        {allKidsMode && (
-          <div className="flex gap-2">
-            {Object.entries(KID_COLOR).map(([kid, cls]) => (
-              <span key={kid} className={`text-[10px] px-1.5 py-0.5 rounded border ${cls}`}>
-                {kid.charAt(0).toUpperCase() + kid.slice(1)}
-              </span>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {allKidsMode && (
+            <>
+              <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)}
+                className="text-xs border rounded px-2 py-1">
+                <option value="">All Subjects</option>
+                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <div className="flex gap-1">
+                {Object.entries(KID_COLOR).map(([kid, cls]) => (
+                  <span key={kid} className={`text-[10px] px-1.5 py-0.5 rounded border ${cls}`}>
+                    {kid.charAt(0).toUpperCase() + kid.slice(1)}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -106,7 +116,7 @@ export default function YearMapView({ schoolYear, selectedKid, allKidsMode, onOp
           </div>
 
           {/* Subject rows */}
-          {SUBJECTS.map(subject => (
+          {SUBJECTS.filter(s => !subjectFilter || s === subjectFilter).map(subject => (
             <div key={subject} className="grid grid-cols-[120px_repeat(12,1fr)] border-b last:border-b-0 group">
               <div className="p-2 text-xs font-medium text-slate-700 bg-slate-50 border-r flex items-start">
                 {subject}

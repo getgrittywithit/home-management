@@ -1,8 +1,32 @@
 import 'server-only'
+import { db } from '@/lib/database'
 import {
   getKidAboutMe, getKidIEPGoals, getKidReadingLevel, getKidMathLevel,
   getKidSubjectHistory, getKidPortfolioHighlights, getFamilyLibraryMatches,
 } from './adapters'
+
+// ─── Pedagogy weight adapter ────────────────────────────────────────────────
+const PEDAGOGY_KEY_MAP: Record<string, string> = {
+  'montessori': 'montessori_weight', 'waldorf': 'waldorf_weight',
+  'charlotte mason': 'charlotte_mason_weight', 'unschool': 'unschool_weight',
+  'classical': 'classical_weight', 'hands-on': 'hands_on_weight',
+  'literature-based': 'literature_based_weight',
+}
+
+async function getPedagogyWeights(): Promise<Record<string, number>> {
+  const defaults: Record<string, number> = {
+    montessori_weight: 25, waldorf_weight: 20, charlotte_mason_weight: 30,
+    unschool_weight: 10, classical_weight: 5, hands_on_weight: 70, literature_based_weight: 60,
+  }
+  try {
+    const rows = await db.query(
+      `SELECT montessori_weight, waldorf_weight, charlotte_mason_weight, unschool_weight,
+              classical_weight, hands_on_weight, literature_based_weight
+       FROM curriculum_pedagogy_preferences WHERE parent_name = 'lola' LIMIT 1`
+    )
+    return rows.length > 0 ? rows[0] : defaults
+  } catch { return defaults }
+}
 
 export interface UnitSuggestion {
   unit_title: string
@@ -25,14 +49,14 @@ export interface PurchaseSuggestion {
 // ─── Unit Suggestion Engine ─────────────────────────────────────────────────
 export async function suggestUnits(kidName: string, month: string, subject: string): Promise<UnitSuggestion[]> {
   // Pull all context in parallel (each adapter has 200ms timeout)
-  const [aboutMe, iep, reading, math, history, portfolio, _] = await Promise.all([
+  const [aboutMe, iep, reading, math, history, portfolio, pedWeights] = await Promise.all([
     getKidAboutMe(kidName),
     getKidIEPGoals(kidName),
     getKidReadingLevel(kidName),
     getKidMathLevel(kidName),
     getKidSubjectHistory(kidName, subject),
     getKidPortfolioHighlights(kidName),
-    Promise.resolve(null), // placeholder
+    getPedagogyWeights(),
   ])
 
   const interests = aboutMe.data.interests
@@ -57,6 +81,13 @@ export async function suggestUnits(kidName: string, month: string, subject: stri
         c.topics.some(t => g.goal_text.toLowerCase().includes(t.toLowerCase()))
       )
       if (goalMatch) score += 20
+    }
+    // Pedagogy weight boost — weighted by Lola's philosophy slider values
+    for (const tag of c.pedagogy) {
+      const key = PEDAGOGY_KEY_MAP[tag.toLowerCase()]
+      if (key && pedWeights[key] !== undefined) {
+        score += (Number(pedWeights[key]) / 100) * 10 // max +10 per matching tag
+      }
     }
     // Novelty (not repeated) already filtered above
     return { ...c, score }

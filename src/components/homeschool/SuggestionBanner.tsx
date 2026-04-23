@@ -81,8 +81,8 @@ export default function SuggestionBanner({ kidName, month, subject, onAccept }: 
                 <p className="font-semibold text-slate-800">{top.unit_title}</p>
                 <p className="text-xs text-slate-500 mt-0.5">{top.description}</p>
               </div>
-              <span className="text-xs text-purple-500 group-hover:text-purple-700 flex items-center gap-1 flex-shrink-0 ml-2">
-                <Check className="w-3.5 h-3.5" /> Use this
+              <span className="text-xs text-purple-400 group-hover:text-purple-600 flex-shrink-0 ml-2">
+                <Check className="w-4 h-4" />
               </span>
             </div>
             {top.matched_assets.length > 0 && (

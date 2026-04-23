@@ -107,6 +107,65 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      // Curriculum: budget warnings (≥75%)
+      try {
+        const budgetKids = await db.query(
+          `SELECT kid_name,
+                  COALESCE(SUM(CASE WHEN status IN ('received','in-use') THEN COALESCE(actual_cost,estimated_cost) ELSE 0 END),0) AS spent,
+                  COALESCE(SUM(CASE WHEN status = 'ordered' THEN COALESCE(actual_cost,estimated_cost) ELSE 0 END),0) AS committed
+           FROM tefa_purchases WHERE school_year = '2026-27'
+           GROUP BY kid_name`
+        )
+        for (const k of budgetKids) {
+          const used = Number(k.spent) + Number(k.committed)
+          const pct = Math.round((used / 2000) * 100)
+          if (pct >= 75) {
+            const cap = k.kid_name.charAt(0).toUpperCase() + k.kid_name.slice(1)
+            autoTasks.push({
+              id: `auto-curriculum-budget-${k.kid_name}`,
+              title: `${cap}'s TEFA: ${pct}% used ($${(2000 - used).toFixed(0)} remaining)`,
+              source: 'curriculum_budget', time_block: 'morning', completed: false,
+            })
+          }
+        }
+      } catch {}
+
+      // Curriculum: stale ordered purchases (>14 days)
+      try {
+        const stalePurchases = await db.query(
+          `SELECT kid_name, item_name FROM tefa_purchases
+           WHERE status = 'ordered' AND created_at <= NOW() - INTERVAL '14 days'
+           LIMIT 3`
+        )
+        for (const p of stalePurchases) {
+          const cap = p.kid_name.charAt(0).toUpperCase() + p.kid_name.slice(1)
+          autoTasks.push({
+            id: `auto-curriculum-stale-${p.item_name}`,
+            title: `Check on ${cap}'s order: ${p.item_name} (ordered 2+ weeks ago)`,
+            source: 'curriculum_stale_order', time_block: 'afternoon', completed: false,
+          })
+        }
+      } catch {}
+
+      // Curriculum: upcoming units this month
+      try {
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December']
+        const curMonth = months[new Date().getMonth()]
+        const upcomingUnits = await db.query(
+          `SELECT kid_name, unit_title, subject FROM curriculum_year_outline
+           WHERE month = $1 AND school_year = '2026-27'
+           LIMIT 3`,
+          [curMonth]
+        )
+        if (upcomingUnits.length > 0) {
+          autoTasks.push({
+            id: 'auto-curriculum-units',
+            title: `${upcomingUnits.length} curriculum unit${upcomingUnits.length > 1 ? 's' : ''} active this month`,
+            source: 'curriculum_units', time_block: 'morning', completed: false,
+          })
+        }
+      } catch {}
+
       return NextResponse.json({
         manual_tasks: manualTasks,
         auto_tasks: autoTasks,

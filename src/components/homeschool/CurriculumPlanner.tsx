@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, DollarSign, Plus, X, CheckCircle2, Package, ShoppingCart, Sparkles, Trash2, AlertTriangle, BookOpen, Map, Users } from 'lucide-react'
+import { Calendar, DollarSign, Plus, X, CheckCircle2, Package, ShoppingCart, Sparkles, Trash2, AlertTriangle, BookOpen, Map, Users, RefreshCw } from 'lucide-react'
 import FamilyLibrary from './FamilyLibrary'
 import YearMapView from './YearMapView'
 import UnitDetailView from './UnitDetailView'
 import SuggestionBanner from './SuggestionBanner'
 import PedagogyPresetPanel from './PedagogyPresetPanel'
+import AddToLibraryModal from './AddToLibraryModal'
 
 const HOMESCHOOL_KIDS = [
   { id: 'amos', label: 'Amos', grade: '10th', color: 'from-blue-500 to-indigo-500' },
@@ -76,6 +77,10 @@ export default function CurriculumPlanner() {
   const [openUnitId, setOpenUnitId] = useState<string | null>(null)
   const [allKidsMode, setAllKidsMode] = useState(false)
   const [showPhilosophy, setShowPhilosophy] = useState(false)
+  const [quarterFilter, setQuarterFilter] = useState<'all' | 1 | 2 | 3 | 4>('all')
+  const [quarterGoal, setQuarterGoal] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const [libraryModalPurchase, setLibraryModalPurchase] = useState<{ id: string; name: string; category: string } | null>(null)
   const [selectedKid, setSelectedKid] = useState<string>('amos')
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [purchases, setPurchases] = useState<PurchaseItem[]>([])
@@ -124,6 +129,10 @@ export default function CurriculumPlanner() {
             <button onClick={() => setShowPhilosophy(true)}
               className="text-xs px-2 py-1 rounded border border-purple-200 text-purple-600 hover:bg-purple-50">
               Philosophy
+            </button>
+            <button onClick={async () => { setRefreshing(true); await loadAll(); setRefreshing(false) }}
+              className="text-xs p-1 rounded border border-slate-200 text-slate-500 hover:bg-slate-50" title="Refresh data">
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
@@ -176,7 +185,7 @@ export default function CurriculumPlanner() {
               >
                 <div className="text-xs uppercase tracking-wide opacity-90">{meta.label}</div>
                 <div className="text-xl font-bold">${k.remaining.toLocaleString()}</div>
-                <div className="text-xs mt-1 opacity-90">{pctUsed}% planned · {k.item_count} items</div>
+                <div className="text-xs mt-1 opacity-90">{pctUsed}% planned · {k.item_count} item{k.item_count === 1 ? '' : 's'}</div>
               </button>
             )
           })}
@@ -207,7 +216,7 @@ export default function CurriculumPlanner() {
         <div className="bg-white rounded-xl shadow border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-slate-800">
-              {selectedKidMeta.label}'s Year Outline
+              {selectedKidMeta.label}&apos;s Year Outline
               <span className="text-sm font-normal text-slate-500 ml-2">
                 {outline.length} unit{outline.length !== 1 ? 's' : ''} planned
               </span>
@@ -220,6 +229,16 @@ export default function CurriculumPlanner() {
             </button>
           </div>
 
+          {/* Quarter Tabs */}
+          <div className="flex gap-1 mb-4 bg-slate-100 rounded-lg p-1">
+            {([['all', 'All'] as const, [1, 'Q1 Aug–Oct'] as const, [2, 'Q2 Nov–Jan'] as const, [3, 'Q3 Feb–Apr'] as const, [4, 'Q4 May–Jul'] as const]).map(([q, label]) => (
+              <button key={String(q)} onClick={() => setQuarterFilter(q)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${quarterFilter === q ? 'bg-white shadow text-purple-700' : 'text-slate-600'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           {outline.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
               <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -228,7 +247,12 @@ export default function CurriculumPlanner() {
             </div>
           ) : (
             <div className="space-y-3">
-              {MONTHS.map(month => {
+              {MONTHS.map((month, mi) => {
+                // Quarter filter: Q1=Aug-Oct(0-2), Q2=Nov-Jan(3-5), Q3=Feb-Apr(6-8), Q4=May-Jul(9-11)
+                if (quarterFilter !== 'all') {
+                  const qStart = (quarterFilter - 1) * 3
+                  if (mi < qStart || mi >= qStart + 3) return null
+                }
                 const monthItems = outline.filter(o => o.month === month)
                 if (monthItems.length === 0) return null
                 return (
@@ -236,7 +260,9 @@ export default function CurriculumPlanner() {
                     <div className="text-sm font-semibold text-purple-700 mb-2">{month}</div>
                     <div className="space-y-2">
                       {monthItems.map(item => (
-                        <div key={item.id} className="bg-slate-50 rounded-lg p-3 flex items-start gap-3">
+                        <div key={item.id}
+                          onClick={() => item.id && setOpenUnitId(item.id)}
+                          className="bg-slate-50 rounded-lg p-3 flex items-start gap-3 cursor-pointer hover:bg-purple-50 transition-colors">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">{item.subject}</span>
@@ -251,7 +277,7 @@ export default function CurriculumPlanner() {
                               </div>
                             )}
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                             <button
                               onClick={() => { setEditingOutline(item); setShowOutlineForm(true) }}
                               className="text-xs text-slate-600 hover:text-purple-700 px-2 py-1"
@@ -362,6 +388,9 @@ export default function CurriculumPlanner() {
                               body: JSON.stringify({ action: 'update_purchase_status', id: p.id, status: newStatus }),
                             })
                             loadAll()
+                            if (newStatus === 'received') {
+                              setLibraryModalPurchase({ id: p.id!, name: p.item_name, category: p.tefa_category })
+                            }
                           }}
                           onDelete={async () => {
                             if (!confirm('Delete this item?')) return
@@ -460,6 +489,16 @@ export default function CurriculumPlanner() {
 
       {showPhilosophy && (
         <PedagogyPresetPanel onClose={() => setShowPhilosophy(false)} />
+      )}
+
+      {libraryModalPurchase && (
+        <AddToLibraryModal
+          purchaseId={libraryModalPurchase.id}
+          itemName={libraryModalPurchase.name}
+          tefaCategory={libraryModalPurchase.category}
+          onClose={() => setLibraryModalPurchase(null)}
+          onCreated={() => { setLibraryModalPurchase(null); loadAll() }}
+        />
       )}
     </div>
   )
