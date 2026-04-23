@@ -17,13 +17,14 @@ import AttendanceLogger from './homeschool/AttendanceLogger'
 import HomeschoolScience from './homeschool/HomeschoolScience'
 import HomeschoolSocialStudies from './homeschool/HomeschoolSocialStudies'
 import TeacherResourceLibrary from './homeschool/TeacherResourceLibrary'
+import CurriculumPlanner from './homeschool/CurriculumPlanner'
 import { ParentLibraryAdmin } from './HomeLibrary'
 import FunFridayAdmin from './FunFridayAdmin'
 import BuddyAdminPanel from './BuddyAdminPanel'
 import TEKSCoverageDashboard from './TEKSCoverageDashboard'
 import VocabularyHub from './VocabularyHub'
 
-type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library' | 'fun-friday' | 'ai-buddies' | 'teks' | 'vocabulary'
+type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library' | 'fun-friday' | 'ai-buddies' | 'teks' | 'vocabulary' | 'curriculum'
 
 const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
@@ -39,6 +40,7 @@ const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'portfolio', label: 'Portfolio', icon: '🎨' },
   { id: 'units', label: 'Unit Studies', icon: '🔬' },
   { id: 'resources', label: 'Resources', icon: '📂' },
+  { id: 'curriculum', label: 'Curriculum & TEFA', icon: '🗺️' },
   { id: 'fun-friday', label: 'Fun Friday', icon: '🌟' },
   { id: 'ai-buddies', label: 'AI Buddies', icon: '🤖' },
   { id: 'teks', label: 'TEKS Coverage', icon: '📊' },
@@ -123,6 +125,8 @@ export default function HomeschoolTab({ initialSubTab }: { initialSubTab?: SubTa
         return <TEKSCoverageDashboard />
       case 'vocabulary':
         return <VocabularyHub />
+      case 'curriculum':
+        return <CurriculumPlanner />
       default:
         return <HomeschoolOverview students={students} taskProgress={taskProgress} selectedStudentId={null}
           onSelectStudent={setSelectedStudentId}
