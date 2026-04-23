@@ -32,17 +32,28 @@ interface RecipeMeal {
   source: string | null
   sides: string | null
   notes: string | null
+  difficulty: string | null
+  tips: string | null
   recipe_steps: RecipeStep[]
+  kid_friendly_directions: string[]
+  adult_directions: string[]
 }
 
 interface Props {
   mealId: string
   mode?: 'full' | 'preview'
+  audience?: 'kid' | 'parent'  // Controls which directions + tips to show
   onClose: () => void
   dayLabel?: string
   onPick?: () => void          // Preview mode: turns footer into Pick / Back
   pickLabel?: string           // Override the default "Pick This Meal"
   picking?: boolean            // Shows spinner on pick button
+}
+
+const DIFFICULTY_BADGE: Record<string, { label: string; color: string }> = {
+  easy: { label: 'Easy', color: 'bg-green-100 text-green-700' },
+  medium: { label: 'Medium', color: 'bg-yellow-100 text-yellow-700' },
+  hard: { label: 'Hard', color: 'bg-red-100 text-red-700' },
 }
 
 const THEME_EMOJI: Record<string, string> = {
@@ -104,7 +115,7 @@ const MIN_SERVINGS = 4
 const MAX_SERVINGS = 32
 const BASE_DEFAULT = 8
 
-export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, onPick, pickLabel, picking }: Props) {
+export default function RecipeCard({ mealId, mode = 'full', audience = 'kid', onClose, dayLabel, onPick, pickLabel, picking }: Props) {
   const [meal, setMeal] = useState<RecipeMeal | null>(null)
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([])
   const [loading, setLoading] = useState(true)
@@ -131,6 +142,8 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
         const m = data.meal
         if (!m) throw new Error('Meal not found')
         const steps: RecipeStep[] = Array.isArray(m.recipe_steps) ? m.recipe_steps : []
+        const kidDirs: string[] = Array.isArray(m.kid_friendly_directions) ? m.kid_friendly_directions : []
+        const adultDirs: string[] = Array.isArray(m.adult_directions) ? m.adult_directions : []
         const normalized: RecipeMeal = {
           id: m.id,
           name: m.name,
@@ -142,6 +155,10 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
           source: m.source,
           sides: m.sides || null,
           notes: m.notes || null,
+          difficulty: m.difficulty || null,
+          tips: m.tips || null,
+          kid_friendly_directions: kidDirs,
+          adult_directions: adultDirs,
           recipe_steps: steps
             .map((s, i) => ({ order: s.order ?? i + 1, text: s.text || '', group: (s.group as StepGroup) || 'cook' }))
             .sort((a, b) => a.order - b.order),
@@ -232,7 +249,15 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
     )
   }
 
-  const hasSteps = meal.recipe_steps.length > 0
+  // Pick the right directions for this audience, with fallback chain
+  const audienceDirections: string[] = audience === 'kid'
+    ? (meal.kid_friendly_directions.length > 0 ? meal.kid_friendly_directions
+      : meal.adult_directions.length > 0 ? meal.adult_directions : [])
+    : (meal.adult_directions.length > 0 ? meal.adult_directions
+      : meal.kid_friendly_directions.length > 0 ? meal.kid_friendly_directions : [])
+
+  const hasAudienceDirections = audienceDirections.length > 0
+  const hasSteps = hasAudienceDirections || meal.recipe_steps.length > 0
   const hasIngredients = ingredients.length > 0
   const themeEmoji = THEME_EMOJI[meal.theme] || '🍽️'
   const themeLabel = THEME_LABEL[meal.theme] || meal.theme
@@ -270,6 +295,11 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
               <span className="recipe-servings-header">
                 <Users className="w-3 h-3 inline mr-0.5" />Serves: {servings}{multiplier !== 1 ? ` (${multiplierLabel})` : ''}
               </span>
+              {meal.difficulty && DIFFICULTY_BADGE[meal.difficulty] && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${DIFFICULTY_BADGE[meal.difficulty].color}`}>
+                  {DIFFICULTY_BADGE[meal.difficulty].label}
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -415,54 +445,101 @@ export default function RecipeCard({ mealId, mode = 'full', onClose, dayLabel, o
                 </div>
               )}
 
-              {/* Steps */}
+              {/* Steps — prefer audience-specific directions, fall back to grouped recipe_steps */}
               {hasSteps ? (
                 <div className="px-5 py-4 recipe-steps">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Steps</h3>
-                    <SpeakerButton steps={meal.recipe_steps.map(s => s.text)} size="sm" rate={0.9} />
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                      {audience === 'kid' ? 'How to Make It' : 'Directions'}
+                    </h3>
+                    <SpeakerButton
+                      steps={hasAudienceDirections ? audienceDirections : meal.recipe_steps.map(s => s.text)}
+                      size="sm"
+                      rate={0.9}
+                    />
                   </div>
-                  {STEP_GROUPS.map(group => {
-                    const groupSteps = meal.recipe_steps.filter(s => s.group === group.value)
-                    if (groupSteps.length === 0) return null
-                    return (
-                      <div key={group.value} className="mb-4 last:mb-0">
-                        <div className="text-[11px] uppercase tracking-wider font-semibold text-orange-600 mb-2">
-                          — {group.label} —
+
+                  {hasAudienceDirections ? (
+                    /* Audience-specific flat numbered list */
+                    <ol className="space-y-2.5">
+                      {audienceDirections.map((text, idx) => {
+                        const stepNum = idx + 1
+                        const checked = checkedStep.has(stepNum)
+                        return (
+                          <li key={stepNum} className="flex items-start gap-2 recipe-step-line">
+                            {mode === 'full' ? (
+                              <button
+                                onClick={() => toggleStep(stepNum)}
+                                className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 rounded transition-colors recipe-checkbox-print cursor-pointer ${
+                                  checked ? 'bg-orange-500 border-orange-500' : 'border-gray-300 hover:border-orange-400'
+                                }`}
+                                aria-label={checked ? 'Uncheck' : 'Check'}
+                              >
+                                {checked && (
+                                  <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            ) : null}
+                            <span className={`text-sm flex-1 leading-relaxed ${checked ? 'line-through text-gray-400 checked' : 'text-gray-800'}`}>
+                              <span className="font-bold text-gray-500 mr-1">{stepNum}.</span>
+                              {text}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  ) : (
+                    /* Legacy grouped recipe_steps fallback */
+                    STEP_GROUPS.map(group => {
+                      const groupSteps = meal.recipe_steps.filter(s => s.group === group.value)
+                      if (groupSteps.length === 0) return null
+                      return (
+                        <div key={group.value} className="mb-4 last:mb-0">
+                          <div className="text-[11px] uppercase tracking-wider font-semibold text-orange-600 mb-2">
+                            — {group.label} —
+                          </div>
+                          <ol className="space-y-2.5">
+                            {groupSteps.map(step => {
+                              const checked = checkedStep.has(step.order)
+                              return (
+                                <li key={step.order} className="flex items-start gap-2 recipe-step-line">
+                                  {mode === 'full' ? (
+                                    <button
+                                      onClick={() => toggleStep(step.order)}
+                                      className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 rounded transition-colors recipe-checkbox-print cursor-pointer ${
+                                        checked ? 'bg-orange-500 border-orange-500' : 'border-gray-300 hover:border-orange-400'
+                                      }`}
+                                      aria-label={checked ? 'Uncheck' : 'Check'}
+                                    >
+                                      {checked && (
+                                        <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  ) : null}
+                                  <span className={`text-sm flex-1 leading-relaxed ${checked ? 'line-through text-gray-400 checked' : 'text-gray-800'}`}>
+                                    <span className="font-bold text-gray-500 mr-1">{step.order}.</span>
+                                    {step.text}
+                                  </span>
+                                </li>
+                              )
+                            })}
+                          </ol>
                         </div>
-                        <ol className="space-y-2.5">
-                          {groupSteps.map(step => {
-                            const checked = checkedStep.has(step.order)
-                            return (
-                              <li key={step.order} className="flex items-start gap-2 recipe-step-line">
-                                {mode === 'full' ? (
-                                  <button
-                                    onClick={() => toggleStep(step.order)}
-                                    className={`mt-0.5 flex-shrink-0 w-4 h-4 border-2 rounded transition-colors recipe-checkbox-print cursor-pointer ${
-                                      checked
-                                        ? 'bg-orange-500 border-orange-500'
-                                        : 'border-gray-300 hover:border-orange-400'
-                                    }`}
-                                    aria-label={checked ? 'Uncheck' : 'Check'}
-                                  >
-                                    {checked && (
-                                      <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                ) : null}
-                                <span className={`text-sm flex-1 leading-relaxed ${checked ? 'line-through text-gray-400 checked' : 'text-gray-800'}`}>
-                                  <span className="font-bold text-gray-500 mr-1">{step.order}.</span>
-                                  {step.text}
-                                </span>
-                              </li>
-                            )
-                          })}
-                        </ol>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
+
+                  {/* Parent tips — only shown for parent audience */}
+                  {audience === 'parent' && meal.tips && (
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Tips</p>
+                      <p className="text-sm text-amber-800">{meal.tips}</p>
+                    </div>
+                  )}
                 </div>
               ) : hasIngredients ? (
                 <div className="px-5 py-4 recipe-no-steps">

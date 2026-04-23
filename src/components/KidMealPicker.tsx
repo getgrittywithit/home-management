@@ -205,6 +205,7 @@ export default function KidMealPicker({ kidName, previewMode, onPick }: KidMealP
         <RecipeCard
           mealId={previewMeal.id}
           mode="preview"
+          audience="kid"
           dayLabel={dayNames[myDowNum]}
           onClose={() => setPreviewMeal(null)}
           onPick={previewMode ? undefined : handleConfirmPick}

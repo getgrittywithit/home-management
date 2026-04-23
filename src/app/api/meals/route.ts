@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
       if (!mealId) return NextResponse.json({ error: 'meal_id required' }, { status: 400 })
       const mealRows = await db.query(
         `SELECT id, name, theme, description, prep_time_min, cook_time_min, servings, source,
-                recipe_steps, sides, notes
+                recipe_steps, sides, notes, difficulty, tips,
+                kid_friendly_directions, adult_directions
          FROM meal_library WHERE id = $1`,
         [mealId]
       )

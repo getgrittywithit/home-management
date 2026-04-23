@@ -396,6 +396,7 @@ export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: 
         <RecipeCard
           mealId={openRecipe.mealId}
           mode="full"
+          audience={isParent ? 'parent' : 'kid'}
           dayLabel={openRecipe.dayLabel}
           onClose={() => setOpenRecipe(null)}
         />
