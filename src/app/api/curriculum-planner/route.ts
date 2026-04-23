@@ -153,6 +153,88 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ------------------------------------------------------------------
+    // get_year_map — outline grouped for Gantt grid
+    // ------------------------------------------------------------------
+    case 'get_year_map': {
+      try {
+        const where = kid && HOMESCHOOL_KIDS.includes(kid as any)
+          ? `WHERE kid_name = '${kid}' AND school_year = '${schoolYear}'`
+          : `WHERE school_year = '${schoolYear}'`
+        const rows = await db.query(
+          `SELECT id, kid_name, month, subject, unit_title, duration_weeks,
+                  themes, pedagogy_tags, sort_order
+           FROM curriculum_year_outline ${where}
+           ORDER BY subject, kid_name,
+             CASE month
+               WHEN 'August' THEN 1 WHEN 'September' THEN 2 WHEN 'October' THEN 3
+               WHEN 'November' THEN 4 WHEN 'December' THEN 5 WHEN 'January' THEN 6
+               WHEN 'February' THEN 7 WHEN 'March' THEN 8 WHEN 'April' THEN 9
+               WHEN 'May' THEN 10 WHEN 'June' THEN 11 WHEN 'July' THEN 12
+             END`
+        )
+        return NextResponse.json({ units: rows })
+      } catch (err) {
+        console.error('get_year_map error:', err)
+        return NextResponse.json({ error: 'Failed to load year map' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // get_quarter_goals
+    // ------------------------------------------------------------------
+    case 'get_quarter_goals': {
+      if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `SELECT * FROM curriculum_quarter_goals WHERE kid_name = $1 AND school_year = $2 ORDER BY quarter`,
+          [kid, schoolYear]
+        )
+        return NextResponse.json({ goals: rows })
+      } catch { return NextResponse.json({ goals: [] }) }
+    }
+
+    // ------------------------------------------------------------------
+    // get_unit_detail — single unit with all children
+    // ------------------------------------------------------------------
+    case 'get_unit_detail': {
+      const unitId = searchParams.get('unit_id')
+      if (!unitId) return NextResponse.json({ error: 'unit_id required' }, { status: 400 })
+      try {
+        const unitRows = await db.query(`SELECT * FROM curriculum_year_outline WHERE id = $1`, [unitId])
+        if (unitRows.length === 0) return NextResponse.json({ error: 'Unit not found' }, { status: 404 })
+
+        const [objectives, extras, assessments, gaps, linkedAssets, siblings] = await Promise.all([
+          db.query(`SELECT * FROM curriculum_unit_objectives WHERE unit_id = $1 ORDER BY sort_order`, [unitId]).catch(() => []),
+          db.query(`SELECT * FROM curriculum_unit_extras WHERE unit_id = $1 ORDER BY created_at`, [unitId]).catch(() => []),
+          db.query(`SELECT * FROM curriculum_unit_assessments WHERE unit_id = $1 ORDER BY scheduled_date`, [unitId]).catch(() => []),
+          db.query(`SELECT * FROM curriculum_unit_gaps WHERE unit_id = $1 ORDER BY created_at`, [unitId]).catch(() => []),
+          db.query(
+            `SELECT fa.id, fa.asset_name, fa.asset_type, fa.condition, fa.topic_tags, faul.linked_at
+             FROM family_asset_unit_links faul
+             JOIN family_assets fa ON fa.id = faul.asset_id
+             WHERE faul.outline_id = $1
+             ORDER BY fa.asset_name`, [unitId]
+          ).catch(() => []),
+          // Find sibling units (same title+subject in other kids)
+          db.query(
+            `SELECT o.id, o.kid_name, o.month, o.duration_weeks
+             FROM curriculum_year_outline o
+             WHERE o.unit_title = $1 AND o.subject = $2 AND o.school_year = $3 AND o.id != $4`,
+            [unitRows[0].unit_title, unitRows[0].subject, unitRows[0].school_year, unitId]
+          ).catch(() => []),
+        ])
+
+        return NextResponse.json({
+          unit: unitRows[0], objectives, extras, assessments, gaps,
+          linked_assets: linkedAssets, siblings,
+        })
+      } catch (err) {
+        console.error('get_unit_detail error:', err)
+        return NextResponse.json({ error: 'Failed to load unit' }, { status: 500 })
+      }
+    }
+
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }
@@ -350,6 +432,147 @@ export async function POST(request: NextRequest) {
         console.error('delete_purchase error:', err)
         return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
       }
+    }
+
+    // ------------------------------------------------------------------
+    // Quarter goals
+    // ------------------------------------------------------------------
+    case 'save_quarter_goal': {
+      const { kid_name: qkid, school_year: qsy, quarter, goal_text } = body
+      if (!qkid || !quarter) return NextResponse.json({ error: 'kid_name + quarter required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `INSERT INTO curriculum_quarter_goals (kid_name, school_year, quarter, goal_text)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (kid_name, school_year, quarter) DO UPDATE SET goal_text = $4, updated_at = NOW()
+           RETURNING *`,
+          [qkid.toLowerCase(), qsy || DEFAULT_SCHOOL_YEAR, quarter, goal_text || null]
+        )
+        return NextResponse.json({ goal: rows[0] })
+      } catch (err) {
+        console.error('save_quarter_goal error:', err)
+        return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // Unit objectives
+    // ------------------------------------------------------------------
+    case 'save_objective': {
+      const { unit_id, objective_text, sort_order, id: objId } = body
+      if (!unit_id || !objective_text) return NextResponse.json({ error: 'unit_id + objective_text required' }, { status: 400 })
+      try {
+        if (objId) {
+          const rows = await db.query(
+            `UPDATE curriculum_unit_objectives SET objective_text = $2, sort_order = $3 WHERE id = $1 RETURNING *`,
+            [objId, objective_text, sort_order ?? 0]
+          )
+          return NextResponse.json({ objective: rows[0] })
+        }
+        const rows = await db.query(
+          `INSERT INTO curriculum_unit_objectives (unit_id, objective_text, sort_order) VALUES ($1, $2, $3) RETURNING *`,
+          [unit_id, objective_text, sort_order ?? 0]
+        )
+        return NextResponse.json({ objective: rows[0] })
+      } catch (err) { return NextResponse.json({ error: 'Failed to save' }, { status: 500 }) }
+    }
+    case 'toggle_objective': {
+      const { id: tId } = body
+      if (!tId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(`UPDATE curriculum_unit_objectives SET completed = NOT completed WHERE id = $1`, [tId])
+      return NextResponse.json({ success: true })
+    }
+    case 'delete_objective': {
+      const { id: dId } = body
+      if (!dId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(`DELETE FROM curriculum_unit_objectives WHERE id = $1`, [dId])
+      return NextResponse.json({ success: true })
+    }
+
+    // ------------------------------------------------------------------
+    // Unit extras (STEAM, experiments, field trips)
+    // ------------------------------------------------------------------
+    case 'save_extra': {
+      const { unit_id, title, description, extra_type, scheduled_date, status: exStatus, id: exId } = body
+      if (!unit_id || !title) return NextResponse.json({ error: 'unit_id + title required' }, { status: 400 })
+      try {
+        if (exId) {
+          const rows = await db.query(
+            `UPDATE curriculum_unit_extras SET title=$2, description=$3, extra_type=$4, scheduled_date=$5, status=$6 WHERE id=$1 RETURNING *`,
+            [exId, title, description || null, extra_type || 'experiment', scheduled_date || null, exStatus || 'planned']
+          )
+          return NextResponse.json({ extra: rows[0] })
+        }
+        const rows = await db.query(
+          `INSERT INTO curriculum_unit_extras (unit_id, title, description, extra_type, scheduled_date, status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+          [unit_id, title, description || null, extra_type || 'experiment', scheduled_date || null, exStatus || 'planned']
+        )
+        return NextResponse.json({ extra: rows[0] })
+      } catch (err) { return NextResponse.json({ error: 'Failed to save' }, { status: 500 }) }
+    }
+    case 'delete_extra': {
+      const { id: deId } = body
+      if (!deId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(`DELETE FROM curriculum_unit_extras WHERE id = $1`, [deId])
+      return NextResponse.json({ success: true })
+    }
+
+    // ------------------------------------------------------------------
+    // Unit assessments
+    // ------------------------------------------------------------------
+    case 'save_assessment': {
+      const { unit_id, title, description, assessment_type, scheduled_date, completed, score, id: aId } = body
+      if (!unit_id || !title) return NextResponse.json({ error: 'unit_id + title required' }, { status: 400 })
+      try {
+        if (aId) {
+          const rows = await db.query(
+            `UPDATE curriculum_unit_assessments SET title=$2, description=$3, assessment_type=$4, scheduled_date=$5, completed=$6, score=$7 WHERE id=$1 RETURNING *`,
+            [aId, title, description || null, assessment_type || 'quiz', scheduled_date || null, completed || false, score || null]
+          )
+          return NextResponse.json({ assessment: rows[0] })
+        }
+        const rows = await db.query(
+          `INSERT INTO curriculum_unit_assessments (unit_id, title, description, assessment_type, scheduled_date) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+          [unit_id, title, description || null, assessment_type || 'quiz', scheduled_date || null]
+        )
+        return NextResponse.json({ assessment: rows[0] })
+      } catch (err) { return NextResponse.json({ error: 'Failed to save' }, { status: 500 }) }
+    }
+    case 'delete_assessment': {
+      const { id: daId } = body
+      if (!daId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(`DELETE FROM curriculum_unit_assessments WHERE id = $1`, [daId])
+      return NextResponse.json({ success: true })
+    }
+
+    // ------------------------------------------------------------------
+    // Unit gaps (items needed → purchase plan)
+    // ------------------------------------------------------------------
+    case 'save_gap': {
+      const { unit_id, item_name, description } = body
+      if (!unit_id || !item_name) return NextResponse.json({ error: 'unit_id + item_name required' }, { status: 400 })
+      try {
+        const rows = await db.query(
+          `INSERT INTO curriculum_unit_gaps (unit_id, item_name, description) VALUES ($1, $2, $3) RETURNING *`,
+          [unit_id, item_name, description || null]
+        )
+        return NextResponse.json({ gap: rows[0] })
+      } catch (err) { return NextResponse.json({ error: 'Failed to save' }, { status: 500 }) }
+    }
+    case 'resolve_gap': {
+      const { id: gId, purchase_id } = body
+      if (!gId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(
+        `UPDATE curriculum_unit_gaps SET resolved = TRUE, purchase_id = $2 WHERE id = $1`,
+        [gId, purchase_id || null]
+      )
+      return NextResponse.json({ success: true })
+    }
+    case 'delete_gap': {
+      const { id: dgId } = body
+      if (!dgId) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      await db.query(`DELETE FROM curriculum_unit_gaps WHERE id = $1`, [dgId])
+      return NextResponse.json({ success: true })
     }
 
     default:

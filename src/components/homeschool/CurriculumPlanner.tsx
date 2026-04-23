@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, DollarSign, Plus, X, CheckCircle2, Package, ShoppingCart, Sparkles, Trash2, AlertTriangle, BookOpen } from 'lucide-react'
+import { Calendar, DollarSign, Plus, X, CheckCircle2, Package, ShoppingCart, Sparkles, Trash2, AlertTriangle, BookOpen, Map, Users } from 'lucide-react'
 import FamilyLibrary from './FamilyLibrary'
+import YearMapView from './YearMapView'
+import UnitDetailView from './UnitDetailView'
 
 const HOMESCHOOL_KIDS = [
   { id: 'amos', label: 'Amos', grade: '10th', color: 'from-blue-500 to-indigo-500' },
@@ -61,7 +63,9 @@ type KidSummary = {
 }
 
 export default function CurriculumPlanner() {
-  const [activeView, setActiveView] = useState<'outline' | 'budget' | 'library'>('outline')
+  const [activeView, setActiveView] = useState<'outline' | 'budget' | 'library' | 'year_map'>('outline')
+  const [openUnitId, setOpenUnitId] = useState<string | null>(null)
+  const [allKidsMode, setAllKidsMode] = useState(false)
   const [selectedKid, setSelectedKid] = useState<string>('amos')
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [purchases, setPurchases] = useState<PurchaseItem[]>([])
@@ -121,6 +125,12 @@ export default function CurriculumPlanner() {
             <DollarSign className="w-4 h-4" /> TEFA Budget
           </button>
           <button
+            onClick={() => setActiveView('year_map')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeView === 'year_map' ? 'bg-white shadow text-indigo-700' : 'text-slate-600'}`}
+          >
+            <Map className="w-4 h-4" /> Year Map
+          </button>
+          <button
             onClick={() => setActiveView('library')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeView === 'library' ? 'bg-white shadow text-teal-700' : 'text-slate-600'}`}
           >
@@ -177,7 +187,7 @@ export default function CurriculumPlanner() {
       {loading && <div className="text-sm text-slate-500">Loading...</div>}
 
       {/* YEAR OUTLINE VIEW */}
-      {!loading && activeView === 'outline' && (
+      {!loading && !openUnitId && activeView === 'outline' && (
         <div className="bg-white rounded-xl shadow border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-slate-800">
@@ -254,7 +264,7 @@ export default function CurriculumPlanner() {
       )}
 
       {/* BUDGET / PURCHASES VIEW */}
-      {!loading && activeView === 'budget' && (
+      {!loading && !openUnitId && activeView === 'budget' && (
         <div className="space-y-5">
           {/* Selected kid detailed card */}
           {selectedKidSummary && (
@@ -377,8 +387,37 @@ export default function CurriculumPlanner() {
         </div>
       )}
 
+      {/* UNIT DETAIL VIEW (takes over the page when a unit is selected) */}
+      {openUnitId && (
+        <UnitDetailView unitId={openUnitId} onBack={() => setOpenUnitId(null)} />
+      )}
+
+      {/* YEAR MAP VIEW */}
+      {!loading && !openUnitId && activeView === 'year_map' && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setAllKidsMode(!allKidsMode)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 ${
+                allKidsMode ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}>
+              <Users className="w-4 h-4" /> {allKidsMode ? 'All Kids' : 'Single Kid'}
+            </button>
+          </div>
+          <YearMapView
+            schoolYear={SCHOOL_YEAR}
+            selectedKid={selectedKid}
+            allKidsMode={allKidsMode}
+            onOpenUnit={(id) => setOpenUnitId(id)}
+            onAddUnit={(month, subject) => {
+              setEditingOutline({ kid_name: selectedKid, month, subject, unit_title: '' } as any)
+              setShowOutlineForm(true)
+            }}
+          />
+        </div>
+      )}
+
       {/* FAMILY LIBRARY VIEW */}
-      {!loading && activeView === 'library' && (
+      {!loading && !openUnitId && activeView === 'library' && (
         <FamilyLibrary />
       )}
 
