@@ -467,7 +467,10 @@ function PurchaseRow({ purchase, onEdit, onStatusChange, onDelete }: {
   onStatusChange: (s: PurchaseItem['status']) => void;
   onDelete: () => void;
 }) {
-  const cost = purchase.actual_cost ?? purchase.estimated_cost
+  // Coerce numeric fields from API (Postgres NUMERIC serializes as string)
+  const estimatedCost = Number(purchase.estimated_cost) || 0
+  const actualCost = purchase.actual_cost != null ? Number(purchase.actual_cost) : null
+  const cost = actualCost ?? estimatedCost
   const priorityColor = {
     high: 'bg-red-100 text-red-700', medium: 'bg-amber-100 text-amber-700', low: 'bg-slate-100 text-slate-600'
   }[purchase.priority]
@@ -484,8 +487,8 @@ function PurchaseRow({ purchase, onEdit, onStatusChange, onDelete }: {
       </div>
       <div className="text-right">
         <div className="font-semibold text-slate-800">${cost.toFixed(2)}</div>
-        {purchase.actual_cost != null && purchase.actual_cost !== purchase.estimated_cost && (
-          <div className="text-xs text-slate-400 line-through">est ${purchase.estimated_cost.toFixed(2)}</div>
+        {actualCost != null && actualCost !== estimatedCost && (
+          <div className="text-xs text-slate-400 line-through">est ${estimatedCost.toFixed(2)}</div>
         )}
       </div>
       <div className="flex flex-col gap-1">
