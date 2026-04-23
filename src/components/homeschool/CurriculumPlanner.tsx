@@ -5,6 +5,7 @@ import { Calendar, DollarSign, Plus, X, CheckCircle2, Package, ShoppingCart, Spa
 import FamilyLibrary from './FamilyLibrary'
 import YearMapView from './YearMapView'
 import UnitDetailView from './UnitDetailView'
+import SuggestionBanner from './SuggestionBanner'
 
 const HOMESCHOOL_KIDS = [
   { id: 'amos', label: 'Amos', grade: '10th', color: 'from-blue-500 to-indigo-500' },
@@ -534,6 +535,22 @@ function OutlineForm({ kid, initial, onClose, onSaved }: {
           <button onClick={onClose}><X className="w-5 h-5 text-slate-500" /></button>
         </div>
         <div className="p-5 space-y-3">
+          {/* Smart suggestions from Coral */}
+          {!initial && (
+            <SuggestionBanner
+              kidName={kid}
+              month={form.month}
+              subject={form.subject}
+              onAccept={(s) => setForm({
+                ...form,
+                unit_title: s.unit_title,
+                unit_description: s.description,
+                pedagogy_tags: s.pedagogy_tags,
+                themes: s.objectives, // store objectives as themes for now
+              })}
+            />
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-slate-600">Month</label>

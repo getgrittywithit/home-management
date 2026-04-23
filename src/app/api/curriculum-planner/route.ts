@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { HOMESCHOOL_KIDS } from '@/lib/constants'
 import { checkBudgetThresholds, notifyPurchaseReceived } from '@/lib/curriculumNotifications'
+import { suggestUnits, suggestPurchases } from '@/lib/curriculum-context/suggest'
 
 const DEFAULT_SCHOOL_YEAR = '2026-27'
 const TEFA_ANNUAL_PER_KID = 2000
@@ -612,6 +613,35 @@ export async function POST(request: NextRequest) {
       if (!dgId) return NextResponse.json({ error: 'id required' }, { status: 400 })
       await db.query(`DELETE FROM curriculum_unit_gaps WHERE id = $1`, [dgId])
       return NextResponse.json({ success: true })
+    }
+
+    // ------------------------------------------------------------------
+    // Smart suggestions from Coral ecosystem
+    // ------------------------------------------------------------------
+    case 'suggest_unit': {
+      const { kid_name: sugKid, month: sugMonth, subject: sugSubject } = body
+      if (!sugKid || !sugMonth || !sugSubject) {
+        return NextResponse.json({ error: 'kid_name, month, subject required' }, { status: 400 })
+      }
+      try {
+        const suggestions = await suggestUnits(sugKid.toLowerCase(), sugMonth, sugSubject)
+        return NextResponse.json({ suggestions })
+      } catch (err) {
+        console.error('suggest_unit error:', err)
+        return NextResponse.json({ suggestions: [] })
+      }
+    }
+
+    case 'suggest_purchases': {
+      const { kid_name: spKid, outline_id: spOutline } = body
+      if (!spKid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
+      try {
+        const suggestions = await suggestPurchases(spKid.toLowerCase(), spOutline)
+        return NextResponse.json({ suggestions })
+      } catch (err) {
+        console.error('suggest_purchases error:', err)
+        return NextResponse.json({ suggestions: [] })
+      }
     }
 
     default:
