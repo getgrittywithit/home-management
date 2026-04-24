@@ -18,7 +18,7 @@ export async function getReviewQueue(kidName: string, maxCards: number = 10) {
   return db.query(
     `SELECT fc.*, fd.deck_name, fd.deck_type FROM flashcard_cards fc
      JOIN flashcard_decks fd ON fd.id = fc.deck_id
-     WHERE fd.kid_name = $1 AND fc.active = TRUE AND fc.next_review_date <= $2
+     WHERE fd.kid_name = $1 AND fc.is_active = TRUE AND fc.next_review_date <= $2
      ORDER BY fc.leitner_box ASC, fc.next_review_date ASC
      LIMIT $3`,
     [kidName.toLowerCase(), today, maxCards]
@@ -30,7 +30,7 @@ export async function getDueCount(kidName: string) {
   const rows = await db.query(
     `SELECT COUNT(*)::int AS count FROM flashcard_cards fc
      JOIN flashcard_decks fd ON fd.id = fc.deck_id
-     WHERE fd.kid_name = $1 AND fc.active = TRUE AND fc.next_review_date <= $2`,
+     WHERE fd.kid_name = $1 AND fc.is_active = TRUE AND fc.next_review_date <= $2`,
     [kidName.toLowerCase(), today]
   ).catch(() => [{ count: 0 }])
   return rows[0]?.count || 0

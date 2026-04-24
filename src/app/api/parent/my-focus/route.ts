@@ -30,8 +30,12 @@ export async function GET(req: NextRequest) {
          LIMIT 20`
       ).catch(() => [])
 
-      const overdue = actionItems.filter((i: any) => i.due_date && new Date(i.due_date) < new Date(todayStr))
-      const dueToday = actionItems.filter((i: any) => i.due_date === todayStr || (!i.due_date && (i.priority === 'urgent' || i.priority === 'high')))
+      // Needs Attention only surfaces urgent/high priority items.
+      // Low-priority items (e.g. mis-tagged email noise) never bubble up here even if overdue —
+      // they live on their board and the user can browse to them, but they don't interrupt focus.
+      const isAttentionWorthy = (i: any) => i.priority === 'urgent' || i.priority === 'high'
+      const overdue = actionItems.filter((i: any) => i.due_date && new Date(i.due_date) < new Date(todayStr) && isAttentionWorthy(i))
+      const dueToday = actionItems.filter((i: any) => (i.due_date === todayStr || !i.due_date) && isAttentionWorthy(i))
       const quickWins = actionItems.filter((i: any) => !i.due_date && i.priority === 'normal')
 
       // 2. Today's calendar events

@@ -15,6 +15,16 @@ interface Task {
   duration_min: number
   stars_value: number
   completed: boolean
+  resource_url?: string | null
+}
+
+// "tab:foo" → switch kid portal tabs via custom event; full https → external new tab.
+function openTaskResource(url: string) {
+  if (url.startsWith('tab:')) {
+    window.dispatchEvent(new CustomEvent('tabChange', { detail: { tab: url.slice(4) } }))
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 }
 
 interface SubjectBlock {
@@ -297,32 +307,14 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
         }
       `}</style>
 
-      {/* Overall progress bar */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">
-            Today&apos;s Progress
-          </span>
-          <span className="text-sm text-gray-500">
-            {totalCompleted}/{totalTasks} tasks · {overallProgress}%
-          </span>
-        </div>
-        <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              overallProgress === 100 ? 'bg-green-500' :
-              overallProgress >= 50 ? 'bg-blue-500' :
-              overallProgress > 0 ? 'bg-amber-500' : 'bg-gray-200'
-            }`}
-            style={{ width: `${overallProgress}%` }}
-          />
-        </div>
-        {overallProgress === 100 && (
-          <p className="text-sm text-green-600 font-medium mt-2 flex items-center gap-1">
+      {/* "All done" celebration only — overall progress is shown by MySchoolDayCard above */}
+      {overallProgress === 100 && totalTasks > 0 && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+          <p className="text-sm text-green-700 font-medium flex items-center gap-1">
             <Sparkles className="w-4 h-4" /> All done for today! Great job!
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Subject blocks */}
       {blocks.map(block => {
@@ -379,10 +371,7 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
                         {task.task_label}
                       </span>
                       {task.task_description && !task.completed && (
-                        <div>
-                          <p className="text-xs text-gray-500 mt-0.5 truncate">{task.task_description}</p>
-                          <HelpDropdown instructions={task.task_description} compact />
-                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{task.task_description}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-gray-400 shrink-0">
@@ -392,6 +381,17 @@ export default function HomeschoolTaskBlock({ kidName, onStarEarned }: Homeschoo
                       <span className="flex items-center gap-0.5">
                         <Star className="w-3 h-3" /> {task.stars_value}
                       </span>
+                      {task.resource_url && !task.completed && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); openTaskResource(task.resource_url!) }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); openTaskResource(task.resource_url!) } }}
+                          className="ml-1 px-2 py-1 rounded-md bg-blue-500 text-white text-[11px] font-semibold hover:bg-blue-600 cursor-pointer transition-colors"
+                        >
+                          Do it now →
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}

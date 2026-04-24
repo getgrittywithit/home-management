@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
         cards = await db.query(
           `SELECT fc.*, fd.deck_name, fd.deck_type FROM flashcard_cards fc
            JOIN flashcard_decks fd ON fd.id = fc.deck_id
-           WHERE fd.kid_name = $1 AND fd.deck_type = $4 AND fc.active = TRUE AND fc.next_review_date <= $2
+           WHERE fd.kid_name = $1 AND fd.deck_type = $4 AND fc.is_active = TRUE AND fc.next_review_date <= $2
            ORDER BY fc.leitner_box ASC LIMIT $3`,
           [kid, today, max, deckType]
         ).catch(() => [])
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     if (action === 'decks') {
       if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
-      const decks = await db.query(`SELECT * FROM flashcard_decks WHERE kid_name = $1 AND active = TRUE`, [kid]).catch(() => [])
+      const decks = await db.query(`SELECT * FROM flashcard_decks WHERE kid_name = $1 AND is_active = TRUE ORDER BY deck_type, deck_name`, [kid]).catch(() => [])
       return NextResponse.json({ decks })
     }
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
       const boxCounts = await db.query(
         `SELECT fc.leitner_box, COUNT(*)::int AS count FROM flashcard_cards fc
-         JOIN flashcard_decks fd ON fd.id = fc.deck_id WHERE fd.kid_name = $1 AND fc.active = TRUE
+         JOIN flashcard_decks fd ON fd.id = fc.deck_id WHERE fd.kid_name = $1 AND fc.is_active = TRUE
          GROUP BY fc.leitner_box ORDER BY fc.leitner_box`, [kid]
       ).catch(() => [])
       const accuracy = await db.query(
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 'deactivate_card': {
-        await db.query(`UPDATE flashcard_cards SET active = FALSE WHERE id = $1`, [body.card_id])
+        await db.query(`UPDATE flashcard_cards SET is_active = FALSE WHERE id = $1`, [body.card_id])
         return NextResponse.json({ success: true })
       }
 
