@@ -18,17 +18,19 @@ import HomeschoolScience from './homeschool/HomeschoolScience'
 import HomeschoolSocialStudies from './homeschool/HomeschoolSocialStudies'
 import TeacherResourceLibrary from './homeschool/TeacherResourceLibrary'
 import CurriculumPlanner from './homeschool/CurriculumPlanner'
+import WeekPlanner from './homeschool/WeekPlanner'
 import { ParentLibraryAdmin } from './HomeLibrary'
 import FunFridayAdmin from './FunFridayAdmin'
 import BuddyAdminPanel from './BuddyAdminPanel'
 import TEKSCoverageDashboard from './TEKSCoverageDashboard'
 import VocabularyHub from './VocabularyHub'
 
-type SubTabId = 'overview' | 'daily-plan' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library' | 'fun-friday' | 'ai-buddies' | 'teks' | 'vocabulary' | 'curriculum'
+type SubTabId = 'overview' | 'daily-plan' | 'week-planner' | 'elar' | 'math' | 'science' | 'history' | 'enrichment' | 'records' | 'attendance' | 'portfolio' | 'units' | 'resources' | 'library' | 'fun-friday' | 'ai-buddies' | 'teks' | 'vocabulary' | 'curriculum'
 
 const SUB_TABS: { id: SubTabId; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
   { id: 'daily-plan', label: 'Daily Plan', icon: '📋' },
+  { id: 'week-planner', label: 'Week Planner', icon: '🗓️' },
   { id: 'elar', label: 'ELAR', icon: '📖' },
   { id: 'math', label: 'Math', icon: '🔢' },
   { id: 'science', label: 'Science', icon: '🔬' },
@@ -95,6 +97,8 @@ export default function HomeschoolTab({ initialSubTab }: { initialSubTab?: SubTa
           onOpenDailyPlan={() => setActiveSubTab('daily-plan')} />
       case 'daily-plan':
         return <HomeschoolDailyPlan students={students} />
+      case 'week-planner':
+        return <WeekPlanner />
       case 'elar':
         return <HomeschoolELAR students={students} familyBook={family_read_aloud} />
       case 'math':
