@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { MapPin, ThumbsUp, Clock, CheckCircle2, XCircle, HelpCircle, MessageSquare, ChevronRight, Plus, Send, Calendar, DollarSign, Users } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface HotEvent { id: number; title: string; event_date: string | null; category: string | null; cost: string | null; votes: number }
 interface PendingEvent { id: number; title: string; event_date: string | null }
@@ -30,7 +31,7 @@ const PERSON_DISPLAY: Record<string, string> = {
 
 function formatDate(d: string | null) {
   if (!d) return ''
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Chicago' })
+  return parseDateLocal(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'America/Chicago' })
 }
 
 export default function AdventureBoardParentTab() {

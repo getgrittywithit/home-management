@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 async function ensureTable() {
   await db.query(`
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     if (action === 'get_week') {
       if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
       const dateParam = searchParams.get('date')
-      const refDate = dateParam ? new Date(dateParam + 'T12:00:00') : new Date()
+      const refDate = dateParam ? parseDateLocal(dateParam) : new Date()
       const day = refDate.getDay()
       const monday = new Date(refDate)
       monday.setDate(refDate.getDate() - (day === 0 ? 6 : day - 1))

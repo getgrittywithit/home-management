@@ -5,6 +5,7 @@ import {
   UserPlus, MapPin, Phone, Mail, Users, Calendar, CheckCircle2,
   XCircle, HelpCircle, Loader2, ExternalLink, Clock, Car,
 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 type FriendRequest = {
   id: string; kid_name: string; friend_name: string; visit_type: string
@@ -22,7 +23,7 @@ type FriendRequest = {
 }
 
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
-const fmtDate = (d: string | null) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+const fmtDate = (d: string | null) => d ? parseDateLocal(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   pending: { label: 'Pending', color: 'bg-amber-100 text-amber-700', icon: <Clock className="w-3.5 h-3.5" /> },

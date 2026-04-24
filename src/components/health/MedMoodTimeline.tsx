@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2, AlertTriangle, TrendingUp, Pill } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ============================================================================
 // TYPES
@@ -74,12 +75,12 @@ const MOOD_EMOJI: Record<string, string> = {
 // ============================================================================
 
 function formatShortDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function formatWeekday(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   return d.toLocaleDateString('en-US', { weekday: 'short' })
 }
 

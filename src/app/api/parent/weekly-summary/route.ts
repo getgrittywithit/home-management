@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { ALL_KIDS, KID_DISPLAY as DISPLAY_NAMES } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 const CYCLE_KIDS = ['ellie', 'hannah', 'kaylee', 'zoey']
 const MOOD_EMOJIS: Record<number, string> = { 1: '😢', 2: '😕', 3: '😐', 4: '😊', 5: '😄' }
 
@@ -23,7 +24,7 @@ function getWeekRange(): { weekStart: string; weekEnd: string; weekOf: string } 
 export async function GET() {
   try {
     const { weekStart, weekEnd, weekOf } = getWeekRange()
-    const lastWeekStart = new Date(weekStart + 'T12:00:00')
+    const lastWeekStart = parseDateLocal(weekStart)
     lastWeekStart.setDate(lastWeekStart.getDate() - 7)
     const lastWeekStartStr = lastWeekStart.toLocaleDateString('en-CA')
     const lastWeekEndStr = new Date(lastWeekStart.getTime() + 6 * 86400000).toLocaleDateString('en-CA')
@@ -121,7 +122,7 @@ export async function GET() {
       }
 
       // Build Mon-Sun mood array
-      const weekStartDate = new Date(weekStart + 'T12:00:00')
+      const weekStartDate = parseDateLocal(weekStart)
       const scores: (number | null)[] = []
       for (let i = 0; i < 7; i++) {
         const d = new Date(weekStartDate.getTime() + i * 86400000).toLocaleDateString('en-CA')

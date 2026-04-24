@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Calendar, Clock, MapPin, ChevronRight, AlertTriangle } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface CalEvent {
   id: string
@@ -46,7 +47,7 @@ function formatTime(iso: string): string {
 }
 
 function formatDayLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const today = new Date()
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -58,7 +59,7 @@ function formatDayLabel(dateStr: string): string {
 }
 
 function daysUntil(dateStr: string): number {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
@@ -123,7 +124,7 @@ export default function CalendarDashboardCard({ onNavigate }: CalendarDashboardC
                   {formatDayLabel(day.date)}
                   <span className="text-gray-300 font-normal">
                     {day.date !== new Date().toLocaleDateString('en-CA') &&
-                      ` \u00b7 ${new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                      ` \u00b7 ${parseDateLocal(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                   </span>
                 </div>
                 <div className="space-y-1.5">

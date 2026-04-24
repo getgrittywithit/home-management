@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
 import { BELLE_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 // Weekday assignments — fixed, same every week
 const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -52,7 +53,7 @@ function getToday(): string {
 }
 
 function getDow(dateStr: string): number {
-  return new Date(dateStr + 'T12:00:00').getDay() // 0=Sun..6=Sat
+  return parseDateLocal(dateStr).getDay() // 0=Sun..6=Sat
 }
 
 function isWeekend(dateStr: string): boolean {
@@ -102,7 +103,7 @@ async function getEffectiveAssignee(dateStr: string): Promise<string> {
       if (swapRows.length > 0) return swapRows[0].covering_kid
     } else {
       const satDate = dow === 0
-        ? new Date(new Date(dateStr + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
+        ? new Date(parseDateLocal(dateStr).getTime() - 86400000).toLocaleDateString('en-CA')
         : dateStr
       const swapRows = await db.query(
         `SELECT covering_kid FROM belle_care_swaps WHERE swap_type = 'weekend' AND swap_date = $1 AND status = 'accepted'`,
@@ -136,7 +137,7 @@ function getSaturdayOfWeek(dateStr: string): string {
 }
 
 function getSundayOfWeek(satDate: string): string {
-  const d = new Date(satDate + 'T12:00:00')
+  const d = parseDateLocal(satDate)
   d.setDate(d.getDate() + 1)
   return d.toLocaleDateString('en-CA')
 }
@@ -208,7 +209,7 @@ export async function GET(request: NextRequest) {
         let grooming: any[] = []
         if (isWeekend(today) && assignee) {
           const satDate = getDow(today) === 0
-            ? new Date(new Date(today + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
+            ? new Date(parseDateLocal(today).getTime() - 86400000).toLocaleDateString('en-CA')
             : today
           await ensureGroomingRows(assignee, satDate)
           try {
@@ -232,7 +233,7 @@ export async function GET(request: NextRequest) {
         let grooming: any[] = []
         if (isWeekend(today)) {
           const satDate = getDow(today) === 0
-            ? new Date(new Date(today + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
+            ? new Date(parseDateLocal(today).getTime() - 86400000).toLocaleDateString('en-CA')
             : today
           await ensureGroomingRows(kid, satDate)
           try {
@@ -255,7 +256,7 @@ export async function GET(request: NextRequest) {
         const myWeekday = fixedDayNum ? DAY_NAMES[fixedDayNum] : null
 
         // Next occurrence of their weekday
-        const todayDate = new Date(today + 'T12:00:00')
+        const todayDate = parseDateLocal(today)
         let nextWeekdayDate: string | null = null
         if (fixedDayNum) {
           for (let i = 1; i <= 7; i++) {
@@ -264,7 +265,7 @@ export async function GET(request: NextRequest) {
           }
         }
         const daysUntilWeekday = nextWeekdayDate
-          ? Math.ceil((new Date(nextWeekdayDate + 'T12:00:00').getTime() - todayDate.getTime()) / 86400000)
+          ? Math.ceil((parseDateLocal(nextWeekdayDate).getTime() - todayDate.getTime()) / 86400000)
           : null
 
         // Next weekend for this kid (pure math, no DB)
@@ -272,7 +273,7 @@ export async function GET(request: NextRequest) {
         let nextWeekendSat: string | null = null
         let nextWeekendDaysAway: number | null = null
         for (let i = 0; i < 10; i++) {
-          const sat = new Date(new Date(thisWeekSat + 'T12:00:00').getTime() + i * 7 * 86400000)
+          const sat = new Date(parseDateLocal(thisWeekSat).getTime() + i * 7 * 86400000)
           const satStr = sat.toLocaleDateString('en-CA')
           if (satStr < today) continue
           const rotWeek = getRotationWeekNumber(satStr)
@@ -319,7 +320,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'get_weekly_overview': {
-        const d = new Date(today + 'T12:00:00')
+        const d = parseDateLocal(today)
         const dow = d.getDay()
         const monday = new Date(d)
         monday.setDate(d.getDate() - ((dow + 6) % 7))
@@ -340,7 +341,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'get_weekend_schedule': {
-        const d = new Date(today + 'T12:00:00')
+        const d = parseDateLocal(today)
         const dow = d.getDay()
         const nextSat = new Date(d)
         if (dow !== 6) nextSat.setDate(d.getDate() + ((6 - dow + 7) % 7))
@@ -488,8 +489,8 @@ export async function POST(request: NextRequest) {
         )
         if (existing.length > 0) return NextResponse.json({ error: 'Already have a pending swap request' }, { status: 400 })
 
-        const todayDate = new Date(today + 'T12:00:00')
-        const swapDateObj = new Date(swap_date + 'T12:00:00')
+        const todayDate = parseDateLocal(today)
+        const swapDateObj = parseDateLocal(swap_date)
         if (swap_type === 'weekday') {
           const daysDiff = Math.ceil((swapDateObj.getTime() - todayDate.getTime()) / 86400000)
           if (daysDiff < 0 || daysDiff > 5) return NextResponse.json({ error: 'Weekday swap must be this week, future day' }, { status: 400 })
@@ -543,8 +544,8 @@ export async function POST(request: NextRequest) {
         }
         // If no coverage_map provided, auto-distribute among remaining kids
         const coverageEntries: Array<{ date: string; kid: string }> = []
-        const startD = new Date(start_date + 'T12:00:00')
-        const endD = new Date(end_date + 'T12:00:00')
+        const startD = parseDateLocal(start_date)
+        const endD = parseDateLocal(end_date)
         const availableKids = BELLE_KIDS.filter(k => k !== absent_kid.toLowerCase())
 
         for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
@@ -574,7 +575,7 @@ export async function POST(request: NextRequest) {
       // ── Get helper log for a date range (for trend tracking) ──
       case 'get_care_history': {
         const { start_date, end_date } = body
-        const startD = start_date || new Date(new Date(today + 'T12:00:00').getTime() - 30 * 86400000).toLocaleDateString('en-CA')
+        const startD = start_date || new Date(parseDateLocal(today).getTime() - 30 * 86400000).toLocaleDateString('en-CA')
         const endD = end_date || today
 
         const logs = await db.query(
@@ -605,7 +606,7 @@ export async function POST(request: NextRequest) {
       }
 
       case 'flag_missed_grooming': {
-        const yesterday = new Date(new Date(today + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
+        const yesterday = new Date(parseDateLocal(today).getTime() - 86400000).toLocaleDateString('en-CA')
         if (getDow(yesterday) !== 0) return NextResponse.json({ success: true, message: 'Not a Sunday' })
         await db.query(
           `UPDATE belle_grooming_log SET missed_flag = TRUE WHERE due_date = $1 AND completed = FALSE`,

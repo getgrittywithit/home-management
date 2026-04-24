@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { generateMathTest, type MathSkill } from '@/lib/mathSpeedTest'
+import { parseDateLocal } from '@/lib/date-local'
 
 // D61 Weekly Assessment System
 // Actions:
@@ -20,7 +21,7 @@ import { generateMathTest, type MathSkill } from '@/lib/mathSpeedTest'
 
 // Convert any date-ish to Monday of that week (ISO Mon-Sun)
 function mondayOf(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const dow = d.getDay()
   const diff = (dow + 6) % 7
   d.setDate(d.getDate() - diff)
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
       const { week_start } = body
       if (!week_start) return NextResponse.json({ error: 'week_start required' }, { status: 400 })
       const mon = mondayOf(week_start)
-      const prevMon = new Date(mon + 'T12:00:00')
+      const prevMon = parseDateLocal(mon)
       prevMon.setDate(prevMon.getDate() - 7)
       const prevStr = prevMon.toLocaleDateString('en-CA')
 

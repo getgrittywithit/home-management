@@ -5,6 +5,7 @@ import {
   CreditCard, RefreshCw, Loader2, Check, AlertTriangle, Building2,
   Split, Eye, EyeOff, X, Plus,
 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 type Transaction = {
   id: string; date: string; merchant_name: string | null; description: string
@@ -26,7 +27,7 @@ const ENTITY_LABELS: Record<string, { label: string; color: string }> = {
 }
 
 function fmt(n: number) { return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) }
-function fmtDate(d: string) { return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
+function fmtDate(d: string) { return parseDateLocal(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
 function currentMonthKey() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` }
 
 export default function TransactionsTab() {

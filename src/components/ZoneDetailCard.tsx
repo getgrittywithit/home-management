@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, Info, Sparkles, Heart, Anchor, Plus } from 'lucide-react'
 import ZonePhotoUpload from './ZonePhotoUpload'
 import SpeakerButton from './SpeakerButton'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface ZoneTask {
   id: number
@@ -493,7 +494,7 @@ export default function ZoneDetailCard({ zoneKey, childName, onAllComplete }: Zo
             <div className="mt-2 space-y-1">
               {feedingHistory.map((f, i) => (
                 <div key={i} className="text-sm text-gray-600">
-                  <span className="font-medium">{new Date(f.fed_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  <span className="font-medium">{parseDateLocal(f.fed_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                   {' — '}{f.quantity} mice — {f.notes || 'no notes'}
                 </div>
               ))}

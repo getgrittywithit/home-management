@@ -6,6 +6,7 @@ import {
   Settings2, Filter, Utensils, GraduationCap, Heart, Eye, EyeOff,
   ChefHat, BookOpen, Stethoscope, Sun, Sunset, Moon
 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ function formatFullDate(iso: string): string {
 }
 
 function formatDayHeader(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const today = new Date()
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -587,7 +588,7 @@ export default function FamilyCalendarTab() {
             <div className="sticky top-0 z-10 bg-gray-100 px-3 py-2 rounded-lg font-semibold text-sm text-gray-700 border-b">
               {formatDayHeader(day.date)}
               <span className="text-gray-400 font-normal ml-2">
-                {new Date(day.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {parseDateLocal(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
             </div>
             <div className="space-y-1 py-1 pl-2">

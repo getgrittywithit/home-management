@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ── Zone key mapping from checklist event summaries ──
 const ZONE_KEY_MAP: Record<string, string> = {
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
         bathSchedule = bathRows[0] || null
       } catch { /* table may not exist */ }
 
-      const todayDate = new Date(dateParam + 'T12:00:00')
+      const todayDate = parseDateLocal(dateParam)
       const dayOfWeek = todayDate.getDay()
       const isBathDay = bathSchedule ? (bathSchedule.bath_days || []).includes(dayOfWeek) : false
 
@@ -424,7 +425,7 @@ export async function GET(request: NextRequest) {
           [kid]
         )
         if (rows.length === 0) return NextResponse.json({ is_laundry_day: false })
-        const todayDow = new Date(dateParam + 'T12:00:00').getDay()
+        const todayDow = parseDateLocal(dateParam).getDay()
         const isLaundryDay = (rows[0].laundry_days || []).includes(todayDow)
         return NextResponse.json({
           is_laundry_day: isLaundryDay,

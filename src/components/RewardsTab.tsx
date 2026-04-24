@@ -7,6 +7,7 @@ import {
   ChevronRight, Package, Edit2, Trash2, Save, X, User, AlertCircle
 } from 'lucide-react'
 import KidRewardProfile from './KidRewardProfile'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface KidBalance {
@@ -761,7 +762,7 @@ export default function RewardsTab() {
                       <span className="text-amber-600 font-semibold">{coinEmoji} {t.coin_reward}</span>
                       {t.due_date && (
                         <span className="text-gray-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Due {new Date(t.due_date + 'T12:00:00').toLocaleDateString()}
+                          <Clock className="w-3 h-3" /> Due {parseDateLocal(t.due_date).toLocaleDateString()}
                         </span>
                       )}
                       <span className="text-gray-400">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CalendarService } from '@/lib/google-calendar'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 export async function GET(request: NextRequest) {
   try {
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
       case 'get_week': {
         const weekStart = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-        const ws = new Date(weekStart + 'T12:00:00')
+        const ws = parseDateLocal(weekStart)
         ws.setDate(ws.getDate() + 6)
         const weekEnd = ws.toLocaleDateString('en-CA')
         const rows = await db.query(

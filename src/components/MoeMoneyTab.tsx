@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Upload, Download, MessageSquare, TrendingUp, DollarSign, Calendar, Search, Settings, BarChart3, Building2, Tag } from 'lucide-react'
 import MoeMoneySettings from './MoeMoneySettings'
 import MoeMoneyReports from './MoeMoneyReports'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface Transaction {
   id: string
@@ -562,7 +563,7 @@ This appears to be related to your spending patterns. Consider reviewing your ${
               {filteredTransactions.map(transaction => (
                 <tr key={transaction.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(transaction.date + 'T12:00:00').toLocaleDateString()}
+                    {parseDateLocal(transaction.date).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">{transaction.description}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

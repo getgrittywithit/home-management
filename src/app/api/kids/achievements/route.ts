@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { checkAchievements } from '@/lib/achievement-checker'
+import { parseDateLocal } from '@/lib/date-local'
 
 function getToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
@@ -41,8 +42,8 @@ export async function GET(request: NextRequest) {
       let rStreak = 0
       let check = today
       for (const d of readDates) {
-        if (d === check) { rStreak++; const dt = new Date(check + 'T12:00:00'); dt.setDate(dt.getDate() - 1); check = dt.toLocaleDateString('en-CA') }
-        else if (rStreak === 0) { const dt = new Date(today + 'T12:00:00'); dt.setDate(dt.getDate() - 1); if (d === dt.toLocaleDateString('en-CA')) { rStreak = 1; const dt2 = new Date(d + 'T12:00:00'); dt2.setDate(dt2.getDate() - 1); check = dt2.toLocaleDateString('en-CA') } else break }
+        if (d === check) { rStreak++; const dt = parseDateLocal(check); dt.setDate(dt.getDate() - 1); check = dt.toLocaleDateString('en-CA') }
+        else if (rStreak === 0) { const dt = parseDateLocal(today); dt.setDate(dt.getDate() - 1); if (d === dt.toLocaleDateString('en-CA')) { rStreak = 1; const dt2 = parseDateLocal(d); dt2.setDate(dt2.getDate() - 1); check = dt2.toLocaleDateString('en-CA') } else break }
         else break
       }
 

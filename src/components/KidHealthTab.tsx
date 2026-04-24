@@ -7,6 +7,7 @@ import {
   CheckCircle2, Circle, Pill, Sun, Moon, Flame, Dumbbell,
   Plus, Trash2
 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ============================================================================
 // TYPES
@@ -373,7 +374,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
                     {nextApt && (
                       <div className="flex items-center gap-1 mt-1 text-xs text-teal-700 bg-teal-50 rounded px-2 py-0.5 w-fit">
                         <Calendar className="w-3 h-3" />
-                        Next visit: {new Date(nextApt.appointment_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        Next visit: {parseDateLocal(nextApt.appointment_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                       </div>
                     )}
                   </div>
@@ -457,7 +458,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
                 {dental.nextDentalVisit && (
                   <div className="flex items-center gap-1 mt-1 text-xs text-cyan-700 bg-cyan-50 rounded px-2 py-0.5 w-fit">
                     <Calendar className="w-3 h-3" />
-                    Next visit: {new Date(dental.nextDentalVisit.appointment_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    Next visit: {parseDateLocal(dental.nextDentalVisit.appointment_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </div>
                 )}
               </div>
@@ -568,7 +569,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
                 <span className="text-xs text-gray-400 mr-1">This week:</span>
                 {fitness.moodHistory.map((m, i) => {
                   const moodInfo = MOODS.find(x => x.id === m.mood)
-                  const dayLabel = new Date(m.log_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+                  const dayLabel = parseDateLocal(m.log_date).toLocaleDateString('en-US', { weekday: 'short' })
                   return (
                     <div key={i} className="text-center" title={`${dayLabel}: ${moodInfo?.label}`}>
                       <div className="text-sm">{moodInfo?.emoji}</div>
@@ -718,7 +719,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
                   <div className="text-xs font-semibold text-gray-500 mb-2">This Week&apos;s Activity</div>
                   <div className="flex gap-1">
                     {fitness.wellness.weeklyActivities.map((day: any, i: number) => {
-                      const dayLabel = new Date(day.log_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })
+                      const dayLabel = parseDateLocal(day.log_date).toLocaleDateString('en-US', { weekday: 'short' })
                       const height = Math.min(100, Math.max(20, (day.total_minutes || 0) / 120 * 100))
                       return (
                         <div key={i} className="flex-1 text-center">
@@ -896,7 +897,7 @@ export default function KidHealthTab({ childName }: KidHealthTabProps) {
 // ============================================================================
 
 function CareCheckRow({ item, checked, onToggle }: { item: CareItem; checked: boolean; onToggle: () => void }) {
-  const parsedEnd = item.end_date ? new Date(item.end_date + 'T12:00:00') : null
+  const parsedEnd = item.end_date ? parseDateLocal(item.end_date) : null
   const endDateLabel = parsedEnd && !isNaN(parsedEnd.getTime())
     ? `Until ${parsedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : (item.end_date ? 'Ongoing' : null)
@@ -1093,8 +1094,8 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
   const lastStart = log.find((e: any) => e.event_type === 'start')
   const lastEnd = log.find((e: any) => e.event_type === 'end')
   const periodActive = !!(lastStart && (!lastEnd || lastStart.event_date > lastEnd.event_date))
-  const periodStartDate = periodActive && lastStart ? new Date(lastStart.event_date + 'T12:00:00') : null
-  const dayOfPeriod = periodStartDate ? Math.floor((new Date(today + 'T12:00:00').getTime() - periodStartDate.getTime()) / 86400000) + 1 : 0
+  const periodStartDate = periodActive && lastStart ? parseDateLocal(lastStart.event_date) : null
+  const dayOfPeriod = periodStartDate ? Math.floor((parseDateLocal(today).getTime() - periodStartDate.getTime()) / 86400000) + 1 : 0
 
   const startDatesSorted = log.filter((e: any) => e.event_type === 'start').map((e: any) => e.event_date).sort()
   const uniqueStartDates = Array.from(new Set(startDatesSorted)) as string[]
@@ -1105,19 +1106,19 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
   if (uniqueStartDates.length >= 2) {
     let totalDays = 0
     for (let i = 1; i < uniqueStartDates.length; i++) {
-      totalDays += (new Date(uniqueStartDates[i] + 'T12:00:00').getTime() - new Date(uniqueStartDates[i - 1] + 'T12:00:00').getTime()) / 86400000
+      totalDays += (parseDateLocal(uniqueStartDates[i]).getTime() - parseDateLocal(uniqueStartDates[i - 1]).getTime()) / 86400000
     }
     avgCycleLength = Math.round(totalDays / (uniqueStartDates.length - 1))
     if (lastStartDate && avgCycleLength > 0) {
-      const next = new Date(lastStartDate + 'T12:00:00'); next.setDate(next.getDate() + avgCycleLength); estimatedNext = next.toISOString().slice(0, 10)
+      const next = parseDateLocal(lastStartDate); next.setDate(next.getDate() + avgCycleLength); estimatedNext = next.toISOString().slice(0, 10)
     } else if (lastStartDate) {
-      const next = new Date(lastStartDate + 'T12:00:00'); next.setDate(next.getDate() + 28); estimatedNext = next.toISOString().slice(0, 10)
+      const next = parseDateLocal(lastStartDate); next.setDate(next.getDate() + 28); estimatedNext = next.toISOString().slice(0, 10)
     }
   } else if (lastStartDate) {
-    const next = new Date(lastStartDate + 'T12:00:00'); next.setDate(next.getDate() + 28); estimatedNext = next.toISOString().slice(0, 10)
+    const next = parseDateLocal(lastStartDate); next.setDate(next.getDate() + 28); estimatedNext = next.toISOString().slice(0, 10)
   }
 
-  const nearEstimated = estimatedNext && !periodActive ? Math.abs((new Date(estimatedNext + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime()) / 86400000) <= 2 : false
+  const nearEstimated = estimatedNext && !periodActive ? Math.abs((parseDateLocal(estimatedNext).getTime() - parseDateLocal(today).getTime()) / 86400000) <= 2 : false
   const showCheckin = periodActive || nearEstimated
   const todaySymptom = (cycle.symptoms || []).find((s: any) => toDateStr(s.log_date) === today)
   const startEntries = log.filter((e: any) => e.event_type === 'start').slice(0, 6)
@@ -1161,15 +1162,15 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
           <div>
             <div className="text-sm text-gray-700 mb-3">
               <span className="font-semibold text-rose-600">Day {dayOfPeriod}</span> of your current period
-              <span className="text-xs text-gray-500 ml-2">(started {new Date(lastStart.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span>
+              <span className="text-xs text-gray-500 ml-2">(started {parseDateLocal(lastStart.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span>
             </div>
             <button onClick={() => handleLogEvent('end')} className="px-4 py-2 bg-rose-100 text-rose-700 rounded-lg text-sm font-medium hover:bg-rose-200 transition">End Period</button>
           </div>
         ) : (
           <div>
-            {lastStartDate && <div className="text-sm text-gray-600 mb-1">Last period: {new Date(lastStartDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>}
+            {lastStartDate && <div className="text-sm text-gray-600 mb-1">Last period: {parseDateLocal(lastStartDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>}
             {estimatedNext && uniqueStartDates.length >= 2 ? (
-              <div className="text-sm text-gray-600 mb-3">Estimated next: <span className="font-medium text-rose-600">{new Date(estimatedNext + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</span></div>
+              <div className="text-sm text-gray-600 mb-3">Estimated next: <span className="font-medium text-rose-600">{parseDateLocal(estimatedNext).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</span></div>
             ) : uniqueStartDates.length < 2 ? <div className="text-xs text-gray-400 mb-3">Keep tracking to see your pattern</div> : null}
             <button onClick={() => handleLogEvent('start')} className="px-4 py-2 bg-rose-500 text-white rounded-lg text-sm font-medium hover:bg-rose-600 transition">Start Period</button>
           </div>
@@ -1248,11 +1249,11 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
           starts.forEach((s: any) => {
             const matchingEnd = ends.find((e: any) => e.event_date >= s.event_date)
             const endDate = matchingEnd ? matchingEnd.event_date : (periodActive && lastStart && s.event_date === lastStart.event_date ? today : s.event_date)
-            const start = new Date(s.event_date + 'T12:00:00'); const end = new Date(endDate + 'T12:00:00')
+            const start = parseDateLocal(s.event_date); const end = parseDateLocal(endDate)
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) { periodDays.add(d.toISOString().slice(0, 10)) }
           })
           const months: { label: string; days: string[] }[] = []
-          const now = new Date(today + 'T12:00:00')
+          const now = parseDateLocal(today)
           for (let m = 5; m >= 0; m--) {
             const monthDate = new Date(now.getFullYear(), now.getMonth() - m, 1)
             const label = monthDate.toLocaleDateString('en-US', { month: 'short' })
@@ -1265,9 +1266,9 @@ function CycleSection({ cycle, childKey, onRefresh, postAction }: {
         {startEntries.length > 0 ? (
           <div className="space-y-1.5 mb-3">
             {startEntries.slice(0, 3).map((s: any, i: number) => {
-              const matchEnd = endEntries.find((e: any) => e.event_date >= s.event_date && e.event_date <= new Date(new Date(s.event_date + 'T12:00:00').getTime() + 15 * 86400000).toISOString().slice(0, 10))
-              const duration = matchEnd ? Math.floor((new Date(matchEnd.event_date + 'T12:00:00').getTime() - new Date(s.event_date + 'T12:00:00').getTime()) / 86400000) + 1 : null
-              return (<div key={i} className="text-sm text-gray-600">Started {new Date(s.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{duration && <span className="text-gray-400">, lasted {duration} days</span>}</div>)
+              const matchEnd = endEntries.find((e: any) => e.event_date >= s.event_date && e.event_date <= new Date(parseDateLocal(s.event_date).getTime() + 15 * 86400000).toISOString().slice(0, 10))
+              const duration = matchEnd ? Math.floor((parseDateLocal(matchEnd.event_date).getTime() - parseDateLocal(s.event_date).getTime()) / 86400000) + 1 : null
+              return (<div key={i} className="text-sm text-gray-600">Started {parseDateLocal(s.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{duration && <span className="text-gray-400">, lasted {duration} days</span>}</div>)
             })}
           </div>
         ) : <p className="text-sm text-gray-400 mb-3">No cycles logged yet.</p>}

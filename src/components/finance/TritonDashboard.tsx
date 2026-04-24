@@ -5,6 +5,7 @@ import {
   Wrench, DollarSign, Loader2, Plus, ChevronDown, ChevronUp, X, Check, FileText,
 } from 'lucide-react'
 import EstimateBuilder from './EstimateBuilder'
+import { parseDateLocal } from '@/lib/date-local'
 
 type Job = {
   id: number; client_name: string; job_description: string | null
@@ -139,7 +140,7 @@ export default function TritonDashboard() {
           <div className="space-y-1">
             {data.triton_transactions.map((t: any) => (
               <div key={t.id} className="flex items-center gap-3 px-3 py-2 bg-white border rounded-lg text-sm">
-                <span className="text-xs text-gray-400 w-12">{new Date(t.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                <span className="text-xs text-gray-400 w-12">{parseDateLocal(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                 <span className="flex-1 truncate text-gray-700">{t.merchant_name || t.description}</span>
                 <span className="font-semibold text-gray-900">{fmt(t.amount)}</span>
               </div>

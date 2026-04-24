@@ -6,6 +6,7 @@ import { checkDailyPatterns, computeVelocity } from '@/lib/pattern-detection'
 import { checkAchievements } from '@/lib/achievement-checker'
 import { checkBonusStar } from '@/lib/bonus-stars'
 import { ALL_KIDS, HOMESCHOOL_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -342,7 +343,7 @@ export async function GET(request: NextRequest) {
     }
 
     const today = dateParam || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-    const todayDate = new Date(today + 'T12:00:00')
+    const todayDate = parseDateLocal(today)
     const dayOfWeek = todayDate.getDay()
     const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
 
@@ -626,7 +627,7 @@ export async function GET(request: NextRequest) {
         5: 'Hallway + entryway + porch',
         6: 'Master bathroom + master bedroom + backyard',
       }
-      const todayDow = new Date(today + 'T12:00:00').getDay()
+      const todayDow = parseDateLocal(today).getDay()
       const plantArea = HANNAH_PLANT_DAYS[todayDow]
       if (plantArea) {
         required.push({

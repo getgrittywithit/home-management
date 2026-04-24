@@ -12,6 +12,7 @@ import SchoolContactCards from './SchoolContactCards'
 import SchoolDocuments from './SchoolDocuments'
 import KidProgressDashboard from './school/KidProgressDashboard'
 import { getAllFamilyData } from '@/lib/familyConfig'
+import { parseDateLocal } from '@/lib/date-local'
 
 const ALL_KIDS = [
   { name: 'amos', display: 'Amos', grade: '10th', type: 'home', plan: 'IEP', color: 'bg-blue-500' },
@@ -283,7 +284,7 @@ function KidAttendanceView({ kidName }: { kidName: string }) {
         <div className="max-h-48 overflow-y-auto space-y-1">
           {records.slice(0, 20).map((r: any, i: number) => (
             <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-gray-100">
-              <span className="text-gray-600">{new Date(r.attendance_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              <span className="text-gray-600">{parseDateLocal(r.attendance_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
               <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
                 r.status === 'present' ? 'bg-green-100 text-green-700' : r.status === 'sick' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
               }`}>{r.status}</span>

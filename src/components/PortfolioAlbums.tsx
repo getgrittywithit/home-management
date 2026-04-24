@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { FolderOpen, Plus, Image, Trash2, ChevronLeft, Edit3, X, Camera, BookOpen, Beaker, Scissors, Sparkles, GraduationCap } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface Album {
   id: number
@@ -307,7 +308,7 @@ export default function PortfolioAlbums({ childName, lessonLogs = [] }: { childN
                       <span className="text-xs font-medium text-gray-700">{log.subject_name}</span>
                     </div>
                     {log.notes && <p className="text-xs text-gray-500 line-clamp-2">{log.notes}</p>}
-                    <p className="text-[10px] text-gray-400 mt-1">{new Date(log.log_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                    <p className="text-[10px] text-gray-400 mt-1">{parseDateLocal(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
                   </div>
                 </div>
               ))}
@@ -419,7 +420,7 @@ export default function PortfolioAlbums({ childName, lessonLogs = [] }: { childN
                     <span className="text-xs font-medium text-gray-700">{log.subject_name}</span>
                   </div>
                   {log.notes && <p className="text-xs text-gray-500 line-clamp-2">{log.notes}</p>}
-                  <p className="text-[10px] text-gray-400 mt-1">{new Date(log.log_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                  <p className="text-[10px] text-gray-400 mt-1">{parseDateLocal(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
                 </div>
               </div>
             ))}

@@ -6,6 +6,7 @@ import {
   Bell, MessageCircle, AlertTriangle, Heart, CheckCircle,
   Calendar, Dog, GraduationCap, X, ChevronRight, Zap, ChefHat, ChevronDown, FileText
 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface MealRequest {
   id: number
@@ -215,7 +216,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
         if (alreadyShown) return
 
         if (!m.next_meeting_date) return
-        const meetDate = new Date(m.next_meeting_date + 'T12:00:00')
+        const meetDate = parseDateLocal(m.next_meeting_date)
         if (isNaN(meetDate.getTime())) return
         const now = new Date()
         now.setHours(0, 0, 0, 0)
@@ -236,7 +237,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
     if (data.expiring_exemptions?.length > 0) {
       data.expiring_exemptions.forEach(ex => {
         if (!ex.vaccine_exemption_expiry) return
-        const expDate = new Date(ex.vaccine_exemption_expiry + 'T12:00:00')
+        const expDate = parseDateLocal(ex.vaccine_exemption_expiry)
         if (isNaN(expDate.getTime())) return
         const now = new Date()
         now.setHours(0, 0, 0, 0)
@@ -255,7 +256,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
     // Documents expiring
     if (data.expiring_documents?.length > 0) {
       data.expiring_documents.forEach(doc => {
-        const expDate = new Date(doc.expiration_date + 'T12:00:00')
+        const expDate = parseDateLocal(doc.expiration_date)
         const kidDisplay = doc.kid_name.charAt(0).toUpperCase() + doc.kid_name.slice(1)
         const docLabel = doc.doc_label || doc.doc_type || 'document'
         comingUp.push({
@@ -426,7 +427,7 @@ export default function FlagCenterPanel({ open, onClose, onNavigate }: Props) {
                     {section.title === 'Needs Attention Now' && data.meal_requests?.length > 0 && (
                       <div className="space-y-2 mt-2">
                         {data.meal_requests.map(mr => {
-                          const dateObj = new Date(mr.assigned_date + 'T12:00:00')
+                          const dateObj = parseDateLocal(mr.assigned_date)
                           const dateLabel = dateObj.toLocaleDateString('en-US', {
                             weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago'
                           })

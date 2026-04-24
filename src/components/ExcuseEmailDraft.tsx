@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Mail, X, Check, Copy } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 const SCHOOL_CONTACTS: Record<string, { primary: { name: string; email: string }; cc?: { name: string; email: string } }> = {
   zoey: {
@@ -42,7 +43,7 @@ export default function ExcuseEmailDraft({ kidName, modeType, date, reason, onCl
   const lastName = contact.primary.name.split(' ').pop()
   const reasonLine = REASON_LINES[modeType]?.(displayName, reason) || `${displayName} will be absent.`
 
-  const dateDisplay = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const dateDisplay = parseDateLocal(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
 
   const [to, setTo] = useState(contact.primary.email)
   const [cc, setCc] = useState(contact.cc?.email || '')

@@ -5,6 +5,7 @@ import {
   CheckCircle2, Clock, AlertTriangle, Inbox, Plus, Calendar, Mail,
   Loader2, ArrowRight, X, Wrench, Home, Users, Star,
 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 
@@ -306,7 +307,7 @@ function TaskRow({ item, onDone, onSnooze }: { item: any; onDone: () => void; on
         <div className="text-[11px] text-gray-500 mt-0.5">
           {item.board && <span className="mr-2">{BOARD_ICONS[item.board] || '📋'} {item.board}</span>}
           {item.due_date && <span className={overdue ? 'text-red-600 font-medium' : ''}>
-            {overdue ? 'Overdue' : 'Due'} {new Date(item.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {overdue ? 'Overdue' : 'Due'} {parseDateLocal(item.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </span>}
           {item.source_type === 'email' && <span className="ml-2">📧</span>}
         </div>

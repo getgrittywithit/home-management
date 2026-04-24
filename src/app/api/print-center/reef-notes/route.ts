@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 function getMonday(dateStr?: string): string {
-  const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
+  const d = dateStr ? parseDateLocal(dateStr) : new Date()
   const dow = d.getDay()
   // Sat/Sun → target upcoming Monday
   if (dow === 0) d.setDate(d.getDate() + 1)

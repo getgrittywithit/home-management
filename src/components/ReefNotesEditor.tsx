@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Save, ExternalLink, AlertTriangle, Calendar, Home } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface Props {
   weekStart: string
@@ -46,7 +47,7 @@ export default function ReefNotesEditor({ weekStart, onClose, onSaveAndPrint }: 
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between z-10">
-          <h3 className="font-semibold text-gray-900">Reef Notes — Week of {new Date(weekStart + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h3>
+          <h3 className="font-semibold text-gray-900">Reef Notes — Week of {parseDateLocal(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
         </div>
 

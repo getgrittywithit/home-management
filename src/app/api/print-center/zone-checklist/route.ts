@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { KID_DISPLAY } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 function getMonday(dateStr?: string): string {
-  const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
+  const d = dateStr ? parseDateLocal(dateStr) : new Date()
   const dow = d.getDay()
   if (dow === 0) d.setDate(d.getDate() + 1)
   else if (dow === 6) d.setDate(d.getDate() + 2)
@@ -14,7 +15,7 @@ function getMonday(dateStr?: string): string {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const weekStart = searchParams.get('week_start') || getMonday()
-  const sunday = new Date(new Date(weekStart + 'T12:00:00').getTime() + 6 * 86400000).toLocaleDateString('en-CA')
+  const sunday = new Date(parseDateLocal(weekStart).getTime() + 6 * 86400000).toLocaleDateString('en-CA')
 
   try {
     // Get assignments
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     // Zone cycle week
     const zoneEpoch = new Date(2026, 2, 16).getTime()
-    const mondayMs = new Date(weekStart + 'T12:00:00').getTime()
+    const mondayMs = parseDateLocal(weekStart).getTime()
     const zoneCycleWeek = (Math.floor((mondayMs - zoneEpoch) / (7 * 86400000)) % 6) + 1
 
     const weekNum = Math.ceil((mondayMs - new Date(2026, 0, 1).getTime()) / (7 * 86400000))

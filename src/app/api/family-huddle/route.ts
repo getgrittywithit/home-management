@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { ALL_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 const HOST_ROTATION = ['amos', 'kaylee', 'hannah', 'ellie', 'wyatt', 'zoey']
 const HOST_EPOCH = new Date('2026-04-05T12:00:00')
@@ -104,7 +105,7 @@ function getToday() {
 }
 
 function getWeeksSinceEpoch(date: string) {
-  const d = new Date(date + 'T12:00:00')
+  const d = parseDateLocal(date)
   const diff = d.getTime() - HOST_EPOCH.getTime()
   return Math.floor(diff / (7 * 24 * 60 * 60 * 1000))
 }
@@ -116,7 +117,7 @@ function getHostForDate(date: string) {
 }
 
 function getSundayOfWeek(dateStr: string) {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const day = d.getDay()
   d.setDate(d.getDate() - day)
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
@@ -386,7 +387,7 @@ export async function POST(req: NextRequest) {
         const icebreaker = await pickIcebreaker()
         await db.query(`UPDATE huddle_icebreakers SET used_count = used_count + 1, last_used_date = $1 WHERE id = $2`, [sunday, icebreaker.id]).catch(() => {})
 
-        const bonusType = getBonusType(new Date(sunday + 'T12:00:00'))
+        const bonusType = getBonusType(parseDateLocal(sunday))
 
         const rows = await db.query(
           `INSERT INTO family_huddle (huddle_date, week_number, host_kid, icebreaker_question, icebreaker_category, bonus_type)
@@ -617,7 +618,7 @@ export async function POST(req: NextRequest) {
         const { huddle_id } = body
         const today = getToday()
         const sunday = getSundayOfWeek(today)
-        const bonusType = getBonusType(new Date(sunday + 'T12:00:00'))
+        const bonusType = getBonusType(parseDateLocal(sunday))
 
         let content: any = { type: bonusType, kids: [...ALL_KIDS].map(k => cap(k)) }
 
@@ -677,7 +678,7 @@ export async function POST(req: NextRequest) {
         if (!kid_name) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
         // Find or create upcoming Sunday's huddle
         const today = getToday()
-        const todayDate = new Date(today + 'T12:00:00')
+        const todayDate = parseDateLocal(today)
         const dayOfWeek = todayDate.getDay()
         // Next Sunday (or today if it's Sunday)
         const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek
@@ -691,7 +692,7 @@ export async function POST(req: NextRequest) {
           const weekNum = getWeeksSinceEpoch(sundayStr) + 1
           const host = getHostForDate(sundayStr)
           const icebreaker = await pickIcebreaker()
-          const bonusType = getBonusType(new Date(sundayStr + 'T12:00:00'))
+          const bonusType = getBonusType(parseDateLocal(sundayStr))
           await db.query(`UPDATE huddle_icebreakers SET used_count = used_count + 1, last_used_date = $1 WHERE id = $2`, [sundayStr, icebreaker.id]).catch(() => {})
           const rows = await db.query(
             `INSERT INTO family_huddle (huddle_date, week_number, host_kid, icebreaker_question, icebreaker_category, bonus_type)
@@ -724,7 +725,7 @@ export async function POST(req: NextRequest) {
         const today = getToday()
         const sunday = getSundayOfWeek(today)
         // Also check next Sunday if it's Sat
-        const todayDate = new Date(today + 'T12:00:00')
+        const todayDate = parseDateLocal(today)
         const dayOfWeek = todayDate.getDay()
         const nextSunday = dayOfWeek === 0 ? sunday : (() => {
           const ns = new Date(todayDate)
@@ -837,7 +838,7 @@ export async function POST(req: NextRequest) {
         if (!spKid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
         // Find upcoming Sunday's huddle
         const spToday = getToday()
-        const spTodayDate = new Date(spToday + 'T12:00:00')
+        const spTodayDate = parseDateLocal(spToday)
         const spDow = spTodayDate.getDay()
         const spDaysUntil = spDow === 0 ? 0 : 7 - spDow
         const spNext = new Date(spTodayDate)
@@ -848,7 +849,7 @@ export async function POST(req: NextRequest) {
           const wn = getWeeksSinceEpoch(spSunday) + 1
           const host = getHostForDate(spSunday)
           const ice = await pickIcebreaker()
-          const bt = getBonusType(new Date(spSunday + 'T12:00:00'))
+          const bt = getBonusType(parseDateLocal(spSunday))
           await db.query(`UPDATE huddle_icebreakers SET used_count = used_count + 1, last_used_date = $1 WHERE id = $2`, [spSunday, ice.id]).catch(() => {})
           const rows = await db.query(
             `INSERT INTO family_huddle (huddle_date, week_number, host_kid, icebreaker_question, icebreaker_category, bonus_type) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
@@ -921,7 +922,7 @@ export async function POST(req: NextRequest) {
 // ── Build agenda from system data ──
 async function buildAgenda(sundayDate: string, huddleId?: number) {
   const normalized = normalizeDate(sundayDate)
-  const sunday = new Date(normalized + 'T12:00:00')
+  const sunday = parseDateLocal(normalized)
   const monday = new Date(sunday)
   monday.setDate(monday.getDate() + 1)
   const saturday = new Date(monday)

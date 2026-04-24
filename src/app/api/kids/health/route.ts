@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
+import { parseDateLocal } from '@/lib/date-local'
 
 export async function GET(request: NextRequest) {
   try {
@@ -175,7 +176,7 @@ export async function GET(request: NextRequest) {
       [child, today]
     )
     let activityStreak = 0
-    const checkDate = new Date(today + 'T12:00:00')
+    const checkDate = parseDateLocal(today)
     for (const row of activityDays) {
       const d = new Date(row.log_date).toISOString().slice(0, 10)
       const expected = new Date(checkDate)
@@ -435,7 +436,7 @@ export async function POST(request: NextRequest) {
           if (streakRow.length > 0) {
             const s = streakRow[0]
             const lastDate = s.last_completed_date ? new Date(s.last_completed_date).toISOString().slice(0, 10) : null
-            const yesterday = new Date(today + 'T12:00:00')
+            const yesterday = parseDateLocal(today)
             yesterday.setDate(yesterday.getDate() - 1)
             const yesterdayStr = yesterday.toISOString().slice(0, 10)
 

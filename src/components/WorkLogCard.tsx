@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Wrench, Plus, Clock, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 const WORK_KIDS = ['amos', 'wyatt']
 
@@ -284,7 +285,7 @@ export default function WorkLogCard({ kidName }: { kidName: string }) {
           {displayLogs.map((log: any) => (
             <div key={log.id} className="flex items-center gap-2 text-sm py-1.5 border-b border-gray-100 last:border-0 group">
               <span className="text-gray-500 w-16 flex-shrink-0">
-                {new Date(log.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {parseDateLocal(log.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
               <span className="font-medium text-orange-700 w-10">{log.billable_minutes ? minsToDisplay(log.billable_minutes) : `${log.hours}h`}</span>
               <span className="text-gray-700 flex-1 truncate">{log.job_name || 'General work'}</span>
