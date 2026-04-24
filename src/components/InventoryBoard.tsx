@@ -172,6 +172,7 @@ export default function InventoryBoard() {
               <button
                 key={cat.key}
                 onClick={() => { setActiveCategory(cat.key); setCollapsed(new Set()) }}
+                title={info ? `${info.total} item${info.total === 1 ? '' : 's'} tracked${info.low_stock > 0 ? ` · ${info.low_stock} below par level` : ''}` : cat.label}
                 className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
                   active
                     ? `${cat.color} border-2`
@@ -182,10 +183,13 @@ export default function InventoryBoard() {
                 {cat.label}
                 {info && (
                   <>
-                    <span className="text-[10px] text-gray-500 font-normal">{info.total}</span>
+                    <span className="text-[10px] text-gray-500 font-normal" title="Items tracked">{info.total}</span>
                     {info.low_stock > 0 && (
-                      <span className="text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5 font-bold">
-                        {info.low_stock}
+                      <span
+                        className="text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5 font-bold flex items-center gap-0.5"
+                        title={`${info.low_stock} below par level`}
+                      >
+                        ↓{info.low_stock}
                       </span>
                     )}
                   </>

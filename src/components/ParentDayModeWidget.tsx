@@ -117,7 +117,7 @@ export default function ParentDayModeWidget() {
         <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
           <Sun className="w-4 h-4 text-amber-500" /> Today&apos;s Day Mode
         </h3>
-        <span className="text-xs text-gray-400">{new Date(data.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+        <span className="text-xs text-gray-400">{new Date(data.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
       </div>
 
       {pending.length > 0 && (
