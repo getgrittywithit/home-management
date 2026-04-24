@@ -761,7 +761,7 @@ export default function RewardsTab() {
                       <span className="text-amber-600 font-semibold">{coinEmoji} {t.coin_reward}</span>
                       {t.due_date && (
                         <span className="text-gray-500 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Due {new Date(t.due_date).toLocaleDateString()}
+                          <Clock className="w-3 h-3" /> Due {new Date(t.due_date + 'T12:00:00').toLocaleDateString()}
                         </span>
                       )}
                       <span className="text-gray-400">
