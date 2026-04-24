@@ -533,8 +533,11 @@ export async function GET(request: NextRequest) {
         // tracked picked/completed as separate booleans; in the consolidated model, any
         // row with activity_source='enrichment' is a completion. We synthesize the
         // legacy columns so downstream UI keeps working without changes.
+        // Return log_date as a bare YYYY-MM-DD string (not a Date/timestamp) so the client's
+        // `new Date(entry.date + 'T12:00:00')` parses correctly in Chicago TZ. Postgres DATE
+        // columns auto-serialize to "2026-04-23T00:00:00.000Z" which breaks that concat.
         let sql = `SELECT kal.child_name AS kid_name,
-                          kal.log_date AS date,
+                          TO_CHAR(kal.log_date, 'YYYY-MM-DD') AS date,
                           TRUE AS picked,
                           TRUE AS completed,
                           COALESCE(ea.gem_reward, 1) AS stars_earned,
