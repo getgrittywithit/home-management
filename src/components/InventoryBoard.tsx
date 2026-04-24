@@ -58,6 +58,7 @@ interface CategoryCount {
   category: string
   total: number
   low_stock: number
+  untracked?: number
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────
@@ -172,7 +173,7 @@ export default function InventoryBoard() {
               <button
                 key={cat.key}
                 onClick={() => { setActiveCategory(cat.key); setCollapsed(new Set()) }}
-                title={info ? `${info.total} item${info.total === 1 ? '' : 's'} tracked${info.low_stock > 0 ? ` · ${info.low_stock} below par level` : ''}` : cat.label}
+                title={info ? `${info.total} item${info.total === 1 ? '' : 's'} tracked${info.low_stock > 0 ? ` · ${info.low_stock} below par level` : ''}${info.untracked ? ` · ${info.untracked} not yet stocked` : ''}` : cat.label}
                 className={`px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
                   active
                     ? `${cat.color} border-2`

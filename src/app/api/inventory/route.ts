@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
       if (category) { params.push(category); where.push(`category = $${params.length}`) }
       if (subCategory) { params.push(subCategory); where.push(`sub_category = $${params.length}`) }
       if (store) { params.push(store); where.push(`preferred_store = $${params.length}`) }
-      if (lowStockOnly) { where.push('current_stock < par_level') }
+      // "Low stock" means below par AND we've actually owned this item.
+      // Items with current_stock=0 AND last_purchased IS NULL are scaffolded
+      // but never physically counted in — those are "untracked," not low.
+      if (lowStockOnly) { where.push('current_stock < par_level AND last_purchased IS NOT NULL') }
       if (search) {
         params.push(`%${search}%`)
         where.push(`(LOWER(name) LIKE $${params.length} OR canonical_name LIKE $${params.length})`)
@@ -48,10 +51,15 @@ export async function GET(request: NextRequest) {
     }
 
     if (action === 'category_counts') {
+      // "low_stock" requires a real purchase history — otherwise items
+      // seeded with par_level set but never physically counted in (most
+      // of the inventory) would show as low and bury real signal.
+      // "untracked" surfaces the gap so the UI can show it separately.
       const rows = await db.query(
         `SELECT category,
                 COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE current_stock < par_level)::int AS low_stock
+                COUNT(*) FILTER (WHERE current_stock < par_level AND last_purchased IS NOT NULL)::int AS low_stock,
+                COUNT(*) FILTER (WHERE current_stock = 0 AND last_purchased IS NULL)::int AS untracked
          FROM inventory_items
          WHERE active = TRUE
          GROUP BY category
@@ -65,7 +73,7 @@ export async function GET(request: NextRequest) {
         `SELECT id, name, category, sub_category, preferred_store, par_level, current_stock,
                 par_level - current_stock AS deficit
          FROM inventory_items
-         WHERE active = TRUE AND current_stock <= reorder_threshold
+         WHERE active = TRUE AND current_stock <= reorder_threshold AND last_purchased IS NOT NULL
          ORDER BY deficit DESC, category, name`
       )
       return NextResponse.json({ items: rows })
@@ -77,7 +85,7 @@ export async function GET(request: NextRequest) {
         `SELECT id, name, category, sub_category, preferred_store, available_stores,
                 par_level, current_stock, (par_level - current_stock) AS deficit, par_unit
          FROM inventory_items
-         WHERE active = TRUE AND current_stock < par_level
+         WHERE active = TRUE AND current_stock < par_level AND last_purchased IS NOT NULL
          ORDER BY
            CASE category
              WHEN 'Medicine Cabinet' THEN 1
