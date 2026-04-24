@@ -684,10 +684,12 @@ export default function MyDayView({ kidName, previewMode, onStarEarned }: MyDayV
               </div>
             </div>
 
-            {/* Enrichment trigger after school */}
+            {/* Enrichment trigger after school — show for active subjects, not just math */}
             {block === 'school' && schoolDone && (
-              <div className="mt-2">
-                <EnrichmentCard kidName={kidName} subject="math" onStarEarned={onStarEarned} />
+              <div className="mt-2 space-y-2">
+                {['math', 'elar', 'science', 'art'].map(subj => (
+                  <EnrichmentCard key={subj} kidName={kidName} subject={subj} onStarEarned={onStarEarned} />
+                ))}
               </div>
             )}
           </div>

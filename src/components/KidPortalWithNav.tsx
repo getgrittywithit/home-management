@@ -81,6 +81,7 @@ import MyWords from './kid/MyWords'
 import MyShelf from './kid/MyShelf'
 import BookRecommendations from './kid/BookRecommendations'
 import SpeechPractice from './kid/SpeechPractice'
+import KidEnrichmentView from './kid/KidEnrichmentView'
 import WorkLogCard from './WorkLogCard'
 import { KidDashboardDataProvider, useKidDashboardData } from '@/context/KidDashboardDataContext'
 
@@ -95,7 +96,7 @@ interface KidPortalProps {
   previewMode?: boolean
 }
 
-type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'habits' | 'flashcards' | 'my-words' | 'my-shelf' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures'
+type TabId = 'my-day' | 'dashboard' | 'calendar' | 'checklist' | 'school' | 'portfolio' | 'about' | 'about-me' | 'health' | 'achievements' | 'goals' | 'opportunities' | 'requests' | 'messages' | 'challenges' | 'habits' | 'flashcards' | 'my-words' | 'my-shelf' | 'digi-pet' | 'rewards-store' | 'library' | 'typing-race' | 'financial-literacy' | 'my-vibe' | 'adventures' | 'enrichment'
 
 interface NavTab {
   id: TabId
@@ -150,6 +151,7 @@ const navSections: NavSection[] = [
       { id: 'goals', name: 'Goals', icon: Target, color: 'bg-pink-500' },
       { id: 'habits', name: 'My Habits', icon: Flame, color: 'bg-orange-500' },
       { id: 'opportunities', name: 'Opportunities', icon: Trophy, color: 'bg-amber-500' },
+      { id: 'enrichment', name: 'Enrichment', icon: Sparkles, color: 'bg-violet-500' },
     ],
   },
   {
@@ -2006,6 +2008,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
         return <StarRewardsTab childName={profile.first_name || profile.name} />
       case 'digi-pet':
         return <DigiPetTab childName={profile.first_name || profile.name} />
+      case 'enrichment':
+        return <KidEnrichmentView kidName={profile.first_name || profile.name} />
       default:
         return renderDashboard()
     }
@@ -2024,6 +2028,7 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
   }
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [expandedSection, setExpandedSection] = useState<number | null>(null)
 
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">
@@ -2089,31 +2094,41 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
 
         {/* Navigation Tabs — sectioned */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          {navSections.map((section, si) => (
-            <div key={si}>
-              {section.label && (
-                <div className={`text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 ${si > 0 ? 'pt-3 mt-1 border-t border-gray-100' : ''} pb-1`}>
-                  {section.label}
-                </div>
-              )}
-              {section.tabs.map(tab => {
-                const Icon = tab.icon
-                const isActive = activeTab === tab.id
-                return (
+          {navSections.map((section, si) => {
+            const hasLabel = !!section.label
+            const isExpanded = !hasLabel || expandedSection === si ||
+              section.tabs.some(t => t.id === activeTab) // auto-expand section with active tab
+            return (
+              <div key={si}>
+                {hasLabel ? (
                   <button
-                    key={tab.id}
-                    onClick={() => { setActiveTab(tab.id); setSidebarOpen(false) }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors text-sm ${
-                      isActive ? `${tab.color} text-white shadow-md` : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                    onClick={() => setExpandedSection(expandedSection === si ? null : si)}
+                    className={`w-full text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 ${si > 0 ? 'pt-3 mt-1 border-t border-gray-100' : ''} pb-1 hover:text-gray-600 flex items-center justify-between`}
+                    aria-expanded={isExpanded}
                   >
-                    <Icon className="w-4.5 h-4.5" />
-                    <span className="font-medium">{tab.name}</span>
+                    {section.label}
+                    <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                   </button>
-                )
-              })}
-            </div>
-          ))}
+                ) : null}
+                {isExpanded && section.tabs.map(tab => {
+                  const Icon = tab.icon
+                  const isActive = activeTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setActiveTab(tab.id); setSidebarOpen(false) }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors text-sm ${
+                        isActive ? `${tab.color} text-white shadow-md` : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Icon className="w-4.5 h-4.5" />
+                      <span className="font-medium">{tab.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })}
         </nav>
       </div>
 
