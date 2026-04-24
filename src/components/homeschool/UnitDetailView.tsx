@@ -305,9 +305,31 @@ export default function UnitDetailView({ unitId, onBack }: Props) {
               {g.resolved && <Check className="w-3.5 h-3.5 inline mr-1 text-green-600" />}
               <span className={g.resolved ? 'line-through text-slate-400' : 'text-slate-800'}>{g.item_name}</span>
             </span>
-            {!g.resolved && (
+            {!g.resolved && !g.purchase_id && (
+              <button onClick={() => {
+                // Open purchase form pre-filled from gap
+                const url = new URL(window.location.href)
+                url.searchParams.set('prefill_purchase', JSON.stringify({
+                  item_name: g.item_name,
+                  kid_name: unit.kid_name,
+                  linked_outline_id: unitId,
+                  gap_id: g.id,
+                }))
+                // Use a simple approach: save to sessionStorage and let parent handle
+                sessionStorage.setItem('curriculum_gap_purchase', JSON.stringify({
+                  item_name: g.item_name, kid_name: unit.kid_name,
+                  linked_outline_id: unitId, gap_id: g.id,
+                }))
+                alert(`To plan a purchase for "${g.item_name}", go to the TEFA Budget tab and click Add Purchase. The form will be pre-filled.`)
+              }}
+                className="text-xs text-orange-600 hover:underline whitespace-nowrap">Plan Purchase</button>
+            )}
+            {!g.resolved && g.purchase_id && (
+              <span className="text-[10px] text-blue-600">Linked to purchase</span>
+            )}
+            {!g.resolved && !g.purchase_id && (
               <button onClick={() => post('resolve_gap', { id: g.id })}
-                className="text-xs text-emerald-600 hover:underline">Mark resolved</button>
+                className="text-xs text-emerald-600 hover:underline">Resolve</button>
             )}
             <button onClick={() => post('delete_gap', { id: g.id })}
               className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-red-500">

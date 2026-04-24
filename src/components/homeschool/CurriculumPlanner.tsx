@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, DollarSign, Plus, X, CheckCircle2, Package, ShoppingCart, Sparkles, Trash2, AlertTriangle, BookOpen, Map, Users, RefreshCw } from 'lucide-react'
+import { Calendar, DollarSign, Plus, X, CheckCircle2, Package, ShoppingCart, Sparkles, Trash2, AlertTriangle, BookOpen, Map, Users, RefreshCw, Upload } from 'lucide-react'
 import FamilyLibrary from './FamilyLibrary'
 import YearMapView from './YearMapView'
 import UnitDetailView from './UnitDetailView'
 import SuggestionBanner from './SuggestionBanner'
 import PedagogyPresetPanel from './PedagogyPresetPanel'
 import AddToLibraryModal from './AddToLibraryModal'
+import AmazonImportModal from './AmazonImportModal'
 
 const HOMESCHOOL_KIDS = [
   { id: 'amos', label: 'Amos', grade: '10th', color: 'from-blue-500 to-indigo-500' },
@@ -81,6 +82,7 @@ export default function CurriculumPlanner() {
   const [quarterGoal, setQuarterGoal] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [libraryModalPurchase, setLibraryModalPurchase] = useState<{ id: string; name: string; category: string } | null>(null)
+  const [showAmazonImport, setShowAmazonImport] = useState(false)
   const [selectedKid, setSelectedKid] = useState<string>('amos')
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [purchases, setPurchases] = useState<PurchaseItem[]>([])
@@ -354,12 +356,20 @@ export default function CurriculumPlanner() {
                   {purchases.length} item{purchases.length !== 1 ? 's' : ''}
                 </span>
               </h3>
-              <button
-                onClick={() => { setEditingPurchase(null); setShowPurchaseForm(true) }}
-                className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm flex items-center gap-1.5 hover:bg-emerald-700"
-              >
-                <Plus className="w-4 h-4" /> Add Item
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAmazonImport(true)}
+                  className="px-3 py-2 rounded-lg border border-orange-300 text-orange-700 text-sm flex items-center gap-1.5 hover:bg-orange-50"
+                >
+                  <Upload className="w-4 h-4" /> Amazon Import
+                </button>
+                <button
+                  onClick={() => { setEditingPurchase(null); setShowPurchaseForm(true) }}
+                  className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm flex items-center gap-1.5 hover:bg-emerald-700"
+                >
+                  <Plus className="w-4 h-4" /> Add Item
+                </button>
+              </div>
             </div>
 
             {purchases.length === 0 ? (
@@ -489,6 +499,13 @@ export default function CurriculumPlanner() {
 
       {showPhilosophy && (
         <PedagogyPresetPanel onClose={() => setShowPhilosophy(false)} />
+      )}
+
+      {showAmazonImport && (
+        <AmazonImportModal
+          onClose={() => setShowAmazonImport(false)}
+          onImported={() => { setShowAmazonImport(false); loadAll() }}
+        />
       )}
 
       {libraryModalPurchase && (

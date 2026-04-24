@@ -112,6 +112,10 @@ export default function AddToLibraryModal({ purchaseId, itemName, tefaCategory, 
                   <div>
                     <p className="font-medium text-slate-800">Create new asset</p>
                     <p className="text-xs text-slate-500">Add to your permanent Family Library</p>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      This becomes a family resource — any kid can use it in any unit, now or in future years.
+                      You paid for it on one kid&apos;s TEFA account (that&apos;s the rule), but it&apos;s yours forever.
+                    </p>
                   </div>
                 </div>
               </button>

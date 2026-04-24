@@ -213,6 +213,17 @@ export async function GET(request: NextRequest) {
       } catch { return NextResponse.json({ prefs: null }) }
     }
 
+    case 'get_alert_prefs': {
+      try {
+        const rows = await db.query(
+          `SELECT budget_warning_threshold, budget_critical_threshold, unit_starts_soon_days,
+                  stale_order_days, asset_unused_days
+           FROM curriculum_alert_preferences WHERE parent_name = 'lola' LIMIT 1`
+        )
+        return NextResponse.json({ prefs: rows[0] || null })
+      } catch { return NextResponse.json({ prefs: null }) }
+    }
+
     case 'get_unit_detail': {
       const unitId = searchParams.get('unit_id')
       if (!unitId) return NextResponse.json({ error: 'unit_id required' }, { status: 400 })
@@ -635,6 +646,25 @@ export async function POST(request: NextRequest) {
     // ------------------------------------------------------------------
     // Philosophy preferences
     // ------------------------------------------------------------------
+    case 'save_alert_prefs': {
+      const { budget_warning_threshold, budget_critical_threshold, unit_starts_soon_days,
+              stale_order_days, asset_unused_days } = body
+      try {
+        await db.query(
+          `INSERT INTO curriculum_alert_preferences
+             (parent_name, budget_warning_threshold, budget_critical_threshold, unit_starts_soon_days,
+              stale_order_days, asset_unused_days)
+           VALUES ('lola', $1, $2, $3, $4, $5)
+           ON CONFLICT (parent_name) DO UPDATE SET
+             budget_warning_threshold=$1, budget_critical_threshold=$2, unit_starts_soon_days=$3,
+             stale_order_days=$4, asset_unused_days=$5, updated_at=NOW()`,
+          [budget_warning_threshold ?? 75, budget_critical_threshold ?? 90,
+           unit_starts_soon_days ?? 7, stale_order_days ?? 14, asset_unused_days ?? 60]
+        )
+        return NextResponse.json({ success: true })
+      } catch (err) { return NextResponse.json({ error: 'Failed to save' }, { status: 500 }) }
+    }
+
     case 'save_pedagogy_prefs': {
       const { montessori_weight, waldorf_weight, charlotte_mason_weight, unschool_weight,
               classical_weight, hands_on_weight, literature_based_weight } = body
