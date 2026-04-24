@@ -63,12 +63,24 @@ export async function POST(req: NextRequest) {
         is_required: true, status: 'pending', source_type: 'library', generated_by: 'daily_plan_generator',
       })
 
-      // Enrichment — 1 activity
+      // Enrichment — 1 activity from the shared library.
+      // enrichment_activities is a shared library (no kid_name column). Filter by
+      // grade range so the pick matches this kid's level, and exclude anything that
+      // already landed in their daily task list in the past 7 days.
+      const kidGrade = (await import('@/lib/constants')).KID_GRADES[kid] || 5
       const enrichment = await db.query(
-        `SELECT title FROM enrichment_activities WHERE kid_name = $1 AND NOT EXISTS (
-           SELECT 1 FROM homeschool_daily_tasks WHERE kid_name = $1 AND task_title = enrichment_activities.title AND task_date > CURRENT_DATE - 7
-         ) ORDER BY RANDOM() LIMIT 1`,
-        [kid]
+        `SELECT title FROM enrichment_activities ea
+         WHERE ea.active = TRUE
+           AND (ea.grade_min IS NULL OR ea.grade_min <= $2)
+           AND (ea.grade_max IS NULL OR ea.grade_max >= $2)
+           AND NOT EXISTS (
+             SELECT 1 FROM homeschool_daily_tasks
+             WHERE kid_name = $1
+               AND title = ea.title
+               AND task_date > CURRENT_DATE - 7
+           )
+         ORDER BY RANDOM() LIMIT 1`,
+        [kid, kidGrade]
       ).catch(() => [])
       if (enrichment[0]) {
         tasks.push({

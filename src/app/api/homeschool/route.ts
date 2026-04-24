@@ -481,10 +481,16 @@ export async function GET(request: NextRequest) {
           for (const c of (conflictMap[f] || [])) blockedConflicts.add(c)
         }
 
-        // Get recently shown activities (last 5 days)
+        // D140: read from the canonical kid_activity_log (kid_enrichment_log was dropped).
+        // This now filters by COMPLETED activities only — the "shown but not picked" state
+        // isn't tracked anymore, which is a small UX degradation but no data loss.
         const recentIds = await db.query(
-          `SELECT DISTINCT activity_id FROM kid_enrichment_log
-           WHERE kid_name = $1 AND date >= CURRENT_DATE - INTERVAL '5 days'`,
+          `SELECT DISTINCT source_id AS activity_id
+           FROM kid_activity_log
+           WHERE child_name = $1
+             AND activity_source = 'enrichment'
+             AND source_id IS NOT NULL
+             AND log_date >= CURRENT_DATE - INTERVAL '5 days'`,
           [kid]
         )
         const recentIdSet = new Set(recentIds.map((r: any) => r.activity_id))
@@ -523,18 +529,29 @@ export async function GET(request: NextRequest) {
       const days = parseInt(searchParams.get('days') || '7', 10)
 
       try {
-        let sql = `SELECT l.kid_name, l.date, l.picked, l.completed, l.stars_earned,
-                          a.title, a.subject, a.duration_min
-                   FROM kid_enrichment_log l
-                   JOIN enrichment_activities a ON l.activity_id = a.id
-                   WHERE l.date >= CURRENT_DATE - $1 * INTERVAL '1 day'`
+        // D140: migrated from kid_enrichment_log → kid_activity_log. The old schema
+        // tracked picked/completed as separate booleans; in the consolidated model, any
+        // row with activity_source='enrichment' is a completion. We synthesize the
+        // legacy columns so downstream UI keeps working without changes.
+        let sql = `SELECT kal.child_name AS kid_name,
+                          kal.log_date AS date,
+                          TRUE AS picked,
+                          TRUE AS completed,
+                          COALESCE(ea.gem_reward, 1) AS stars_earned,
+                          ea.title,
+                          ea.subject,
+                          ea.duration_min
+                   FROM kid_activity_log kal
+                   LEFT JOIN enrichment_activities ea ON ea.id = kal.source_id
+                   WHERE kal.activity_source = 'enrichment'
+                     AND kal.log_date >= CURRENT_DATE - $1 * INTERVAL '1 day'`
         const params: any[] = [days]
 
         if (kidName) {
-          sql += ` AND l.kid_name = $2`
+          sql += ` AND kal.child_name = $2`
           params.push(kidName.toLowerCase())
         }
-        sql += ` ORDER BY l.date DESC, l.shown_at DESC`
+        sql += ` ORDER BY kal.log_date DESC, kal.created_at DESC`
 
         const logs = await db.query(sql, params)
 
@@ -1146,23 +1163,15 @@ export async function POST(request: NextRequest) {
     // log_enrichment_pick — kid picked an enrichment activity
     // ------------------------------------------------------------------
     case 'log_enrichment_pick': {
+      // D140: "picked but not completed" state isn't tracked in the consolidated model —
+      // we only write to kid_activity_log when the kid actually completes. This action
+      // is preserved as a no-op for backwards compatibility with callers that invoke it
+      // before calling log_enrichment_complete.
       const { kid_name, activity_id } = data
       if (!kid_name || !activity_id) {
         return NextResponse.json({ error: 'kid_name and activity_id required' }, { status: 400 })
       }
-
-      try {
-        const result = await db.query(
-          `INSERT INTO kid_enrichment_log (kid_name, activity_id, picked, date)
-           VALUES ($1, $2, TRUE, CURRENT_DATE)
-           RETURNING *`,
-          [kid_name.toLowerCase(), activity_id]
-        )
-        return NextResponse.json({ log: result[0] }, { status: 201 })
-      } catch (error) {
-        console.error('log_enrichment_pick error:', error)
-        return NextResponse.json({ error: 'Failed to log enrichment pick' }, { status: 500 })
-      }
+      return NextResponse.json({ log: null, note: 'pick not persisted; complete to log' }, { status: 200 })
     }
 
     // ------------------------------------------------------------------
@@ -1175,29 +1184,39 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        // Update existing log entry or create new one
+        // D140: consolidated into kid_activity_log with activity_source='enrichment'.
+        // Avoid double-writes if the same kid completes the same activity twice in one day.
         const existing = await db.query(
-          `SELECT id FROM kid_enrichment_log
-           WHERE kid_name = $1 AND activity_id = $2 AND date = CURRENT_DATE AND picked = TRUE
+          `SELECT id FROM kid_activity_log
+           WHERE child_name = $1
+             AND activity_source = 'enrichment'
+             AND source_id = $2
+             AND log_date = CURRENT_DATE
            LIMIT 1`,
           [kid_name.toLowerCase(), activity_id]
         )
 
-        let result
         if (existing[0]) {
-          result = await db.query(
-            `UPDATE kid_enrichment_log SET completed = TRUE, stars_earned = 1
-             WHERE id = $1 RETURNING *`,
-            [existing[0].id]
-          )
-        } else {
-          result = await db.query(
-            `INSERT INTO kid_enrichment_log (kid_name, activity_id, picked, completed, stars_earned, date)
-             VALUES ($1, $2, TRUE, TRUE, 1, CURRENT_DATE)
-             RETURNING *`,
-            [kid_name.toLowerCase(), activity_id]
-          )
+          return NextResponse.json({ log: existing[0], note: 'already logged today' })
         }
+
+        // Pull library row for accurate activity_type (subject) + duration.
+        const lib = await db.query(
+          `SELECT subject, duration_min, gem_reward, title FROM enrichment_activities WHERE id = $1`,
+          [activity_id]
+        )
+        const subj = lib[0]?.subject || 'enrichment'
+        const dur = lib[0]?.duration_min || null
+        const title = lib[0]?.title || null
+
+        const result = await db.query(
+          `INSERT INTO kid_activity_log
+             (child_name, activity_type, duration_minutes, notes, log_date,
+              activity_source, source_id)
+           VALUES ($1, $2, $3, $4, CURRENT_DATE, 'enrichment', $5)
+           RETURNING *`,
+          [kid_name.toLowerCase(), subj, dur, title, activity_id]
+        )
         return NextResponse.json({ log: result[0] })
       } catch (error) {
         console.error('log_enrichment_complete error:', error)
@@ -1209,24 +1228,14 @@ export async function POST(request: NextRequest) {
     // log_enrichment_shown — record that options were shown (not picked)
     // ------------------------------------------------------------------
     case 'log_enrichment_shown': {
+      // D140: "shown but not picked" state removed from the consolidated log schema.
+      // Preserved as a no-op — the recent-activity filter upstream now filters on
+      // completions only, which means shown-but-skipped items may reappear.
       const { kid_name, activity_ids } = data
       if (!kid_name || !activity_ids || !activity_ids.length) {
         return NextResponse.json({ error: 'kid_name and activity_ids required' }, { status: 400 })
       }
-
-      try {
-        for (const aid of activity_ids) {
-          await db.query(
-            `INSERT INTO kid_enrichment_log (kid_name, activity_id, picked, date)
-             VALUES ($1, $2, FALSE, CURRENT_DATE)`,
-            [kid_name.toLowerCase(), aid]
-          )
-        }
-        return NextResponse.json({ ok: true })
-      } catch (error) {
-        console.error('log_enrichment_shown error:', error)
-        return NextResponse.json({ error: 'Failed to log shown activities' }, { status: 500 })
-      }
+      return NextResponse.json({ ok: true, note: 'shown-not-picked not persisted' })
     }
 
     // ------------------------------------------------------------------

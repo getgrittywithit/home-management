@@ -4,27 +4,29 @@ import { useState, useEffect } from 'react'
 import { Loader2, Play, Check, Star, X } from 'lucide-react'
 import SpeakerButton from '../SpeakerButton'
 
+// Subjects must match the seeded enrichment_activities library. Do not invent new ones —
+// if a chip doesn't exist in the library, it will always show "no activities".
 const CATEGORIES = [
   { value: '', label: 'All', emoji: '✨' },
-  { value: 'math', label: 'Math', emoji: '🔢' },
   { value: 'elar', label: 'Reading', emoji: '📚' },
+  { value: 'math', label: 'Math', emoji: '🔢' },
   { value: 'science', label: 'Science', emoji: '🔬' },
   { value: 'social_studies', label: 'History', emoji: '🌍' },
+  { value: 'financial_literacy', label: 'Money', emoji: '💰' },
   { value: 'art', label: 'Art', emoji: '🎨' },
-  { value: 'music', label: 'Music', emoji: '🎵' },
-  { value: 'pe', label: 'PE', emoji: '⚽' },
+  { value: 'pe_outdoor', label: 'PE / Outdoor', emoji: '🏃' },
   { value: 'life_skills', label: 'Life Skills', emoji: '🏠' },
-  { value: 'stem', label: 'STEM', emoji: '🧪' },
-  { value: 'nature', label: 'Nature', emoji: '🌿' },
 ]
 
 interface Activity {
   id: string
   title: string
   description: string
-  category: string
-  duration_minutes: number
-  kid_name?: string
+  subject: string
+  duration_min: number
+  gem_reward?: number
+  grade_min?: number | null
+  grade_max?: number | null
 }
 
 interface Props {
@@ -40,42 +42,35 @@ export default function KidEnrichmentView({ kidName }: Props) {
   const [justCompleted, setJustCompleted] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/enrichment?action=get_activities&kid_name=${kidName}`)
+    setLoading(true)
+    const qs = new URLSearchParams({ action: 'get_activities', kid_name: kidName })
+    if (filter) qs.set('subject', filter)
+    fetch(`/api/enrichment?${qs.toString()}`)
       .then(r => r.json())
       .then(d => setActivities(d.activities || []))
       .catch(() => setActivities([]))
       .finally(() => setLoading(false))
-  }, [kidName])
+  }, [kidName, filter])
 
-  const filtered = filter
-    ? activities.filter(a => a.category === filter)
-    : activities
+  // Server already filters by subject + kid grade; nothing more to do client-side.
+  const filtered = activities
 
   const handleFinish = async (activity: Activity) => {
     setCompleting(true)
     try {
-      // Log to kid_activity_log
+      // Canonical: one write into kid_activity_log (activity_source='enrichment', source_id=activity.id).
+      // The route also awards gems and records a gem_transaction — no other side-writes needed.
       await fetch('/api/enrichment', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'log_activity',
           kid_name: kidName,
-          category: activity.category,
+          activity_id: activity.id,
           title: activity.title,
-          duration_minutes: activity.duration_minutes,
+          subject: activity.subject,
+          duration_minutes: activity.duration_min,
         }),
       })
-
-      // Also log to canonical kid_activity_log with source
-      await fetch('/api/kids/checklist', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'toggle',
-          child: kidName,
-          eventId: `enrichment-${activity.id}-${new Date().toLocaleDateString('en-CA')}`,
-          eventSummary: `Enrichment: ${activity.title}`,
-        }),
-      }).catch(() => {})
 
       // Award star
       await fetch('/api/digi-pet', {
@@ -148,15 +143,15 @@ export default function KidEnrichmentView({ kidName }: Props) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.slice(0, 24).map(activity => {
-            const catInfo = CATEGORIES.find(c => c.value === activity.category) || CATEGORIES[0]
+            const catInfo = CATEGORIES.find(c => c.value === activity.subject) || CATEGORIES[0]
             const done = justCompleted === activity.id
             return (
               <div key={activity.id}
                 className={`bg-white rounded-xl border p-4 transition-shadow ${done ? 'border-emerald-300 bg-emerald-50' : 'hover:shadow-md'}`}>
                 <div className="flex items-start justify-between">
                   <span className="text-2xl">{catInfo.emoji}</span>
-                  {activity.duration_minutes > 0 && (
-                    <span className="text-xs text-gray-400">{activity.duration_minutes} min</span>
+                  {activity.duration_min > 0 && (
+                    <span className="text-xs text-gray-400">{activity.duration_min} min</span>
                   )}
                 </div>
                 <h3 className="font-semibold text-gray-800 mt-2 text-sm">{activity.title}</h3>
@@ -190,8 +185,8 @@ export default function KidEnrichmentView({ kidName }: Props) {
             </div>
             <div className="p-5 space-y-3">
               <p className="text-sm text-gray-700">{selectedActivity.description}</p>
-              {selectedActivity.duration_minutes > 0 && (
-                <p className="text-xs text-gray-500">About {selectedActivity.duration_minutes} minutes</p>
+              {selectedActivity.duration_min > 0 && (
+                <p className="text-xs text-gray-500">About {selectedActivity.duration_min} minutes</p>
               )}
               <div className="flex items-center gap-2 bg-amber-50 rounded-lg px-3 py-2 text-xs text-amber-700">
                 <Star className="w-3.5 h-3.5" /> You will earn 1 star when you finish!

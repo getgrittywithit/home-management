@@ -29,8 +29,18 @@ export async function GET(req: NextRequest) {
       monday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
       const weekStart = monday.toLocaleDateString('en-CA')
 
+      // D140 consolidation: activity_logs dropped, reads from kid_activity_log.
+      // Column mapping: kid_name→child_name, logged_at→log_date (date, not timestamp).
       const logs = await db.query(
-        `SELECT * FROM activity_logs WHERE kid_name = $1 AND logged_at >= $2 ORDER BY logged_at DESC`,
+        `SELECT id,
+                child_name AS kid_name,
+                activity_type,
+                duration_minutes,
+                notes,
+                log_date AS logged_at
+         FROM kid_activity_log
+         WHERE child_name = $1 AND log_date >= $2::date
+         ORDER BY log_date DESC, created_at DESC`,
         [kidName, weekStart]
       ).catch(() => [])
       const goal = await db.query(
@@ -119,9 +129,15 @@ export async function POST(req: NextRequest) {
       case 'log_activity': {
         const { kid_name, activity_type, duration_minutes, notes } = body
         if (!kid_name || !activity_type) return NextResponse.json({ error: 'kid_name + activity_type required' }, { status: 400 })
+        // D140 consolidation: activity_logs dropped. Write to kid_activity_log with activity_source='routine'
+        // so routine-sourced logs can be distinguished from enrichment/library picks.
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
         const rows = await db.query(
-          `INSERT INTO activity_logs (kid_name, activity_type, duration_minutes, notes) VALUES ($1, $2, $3, $4) RETURNING *`,
-          [kid_name.toLowerCase(), activity_type, duration_minutes || null, notes || null]
+          `INSERT INTO kid_activity_log
+             (child_name, activity_type, duration_minutes, notes, log_date, activity_source)
+           VALUES ($1, $2, $3, $4, $5, 'routine')
+           RETURNING id, child_name AS kid_name, activity_type, duration_minutes, notes, log_date AS logged_at`,
+          [kid_name.toLowerCase(), activity_type, duration_minutes || null, notes || null, today]
         )
         return NextResponse.json({ log: rows[0] }, { status: 201 })
       }

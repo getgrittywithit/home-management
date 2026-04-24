@@ -1,18 +1,21 @@
 -- ============================================================================
 -- Dispatch 140 — Kid Portal Log Consolidation + Enrichment
 -- ============================================================================
+-- Existing kid_activity_log columns (confirmed via information_schema):
+--   id integer, child_name text NOT NULL, activity_type text NOT NULL,
+--   duration_minutes integer, notes text, log_date date NOT NULL, created_at timestamptz
+-- We keep `child_name` and `log_date` (D115 will rename project-wide later).
 
--- Extend kid_activity_log as the canonical log table
+-- Add polymorphism columns for activity_source + source_id + rating.
 ALTER TABLE kid_activity_log
   ADD COLUMN IF NOT EXISTS activity_source TEXT,
   ADD COLUMN IF NOT EXISTS source_id UUID,
-  ADD COLUMN IF NOT EXISTS duration_minutes INTEGER,
-  ADD COLUMN IF NOT EXISTS rating INTEGER CHECK (rating BETWEEN 1 AND 5),
-  ADD COLUMN IF NOT EXISTS notes TEXT;
+  ADD COLUMN IF NOT EXISTS rating INTEGER CHECK (rating BETWEEN 1 AND 5);
 
-CREATE INDEX IF NOT EXISTS idx_kal_kid_source ON kid_activity_log(kid_name, activity_source);
-CREATE INDEX IF NOT EXISTS idx_kal_recorded ON kid_activity_log(recorded_at DESC);
+-- Indexes aligned with real column names.
+CREATE INDEX IF NOT EXISTS idx_kal_child_source ON kid_activity_log(child_name, activity_source);
+CREATE INDEX IF NOT EXISTS idx_kal_log_date ON kid_activity_log(log_date DESC);
 
--- Drop empty parallel tables (both confirmed 0 rows)
+-- Drop the two empty parallel tables (confirmed 0 rows each).
 DROP TABLE IF EXISTS activity_logs;
 DROP TABLE IF EXISTS kid_enrichment_log;
