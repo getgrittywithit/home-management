@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 function getWeekRange(dateStr: string) {
-  const date = new Date(dateStr + 'T12:00:00')
+  const date = parseDateLocal(dateStr)
   const day = date.getDay()
   const start = new Date(date)
   start.setDate(date.getDate() - day) // Sunday
@@ -14,7 +15,7 @@ function getWeekRange(dateStr: string) {
 }
 
 function getMonthRange(dateStr: string) {
-  const date = new Date(dateStr + 'T12:00:00')
+  const date = parseDateLocal(dateStr)
   const start = new Date(date.getFullYear(), date.getMonth(), 1)
   const end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999)
   return { start, end }

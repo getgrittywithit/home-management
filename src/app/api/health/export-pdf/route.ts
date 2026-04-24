@@ -4,6 +4,7 @@ import {
   createPDF, addHeader, addFooter, addSectionTitle, addKeyValue,
   addTable, addMoodChart, addAdherenceGrid, pdfToUint8Array,
 } from '@/lib/pdf/generate'
+import { parseDateLocal } from '@/lib/date-local'
 
 const KID_INFO: Record<string, { dob: string; grade: string; school: string }> = {
   amos: { dob: '2008-09-15', grade: '10th', school: 'Homeschool' },
@@ -316,7 +317,7 @@ export async function POST(request: NextRequest) {
       y = addSectionTitle(doc, 'Sick Days', y)
       y = addTable(doc, ['Date', 'Status', 'Parent Confirmed'],
         sickDays.map((s: any) => [
-          new Date(s.sick_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          parseDateLocal(s.sick_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           s.status || 'active',
           s.parent_confirmed ? 'Yes' : 'No',
         ]),
@@ -334,7 +335,7 @@ export async function POST(request: NextRequest) {
       y = addSectionTitle(doc, 'Behavioral Observations (ABC Format)', y)
       y = addTable(doc, ['Date', 'Antecedent', 'Behavior', 'Consequence', 'Intensity'],
         behaviors.map((b: any) => [
-          new Date(b.observation_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          parseDateLocal(b.observation_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           b.antecedent || '', b.behavior || '', b.consequence || '', b.intensity || '',
         ]),
         y, [25, 40, 40, 40, 25])
@@ -430,11 +431,11 @@ export async function POST(request: NextRequest) {
           const sd = toStr(s.event_date)
           const matchEnd = ends.find((e: any) => toStr(e.event_date) >= sd)
           const ed = matchEnd ? toStr(matchEnd.event_date) : 'Ongoing'
-          const dur = matchEnd ? Math.round((new Date(toStr(matchEnd.event_date) + 'T12:00:00').getTime() - new Date(sd + 'T12:00:00').getTime()) / 86400000) + 1 : '-'
+          const dur = matchEnd ? Math.round((parseDateLocal(toStr(matchEnd.event_date)).getTime() - parseDateLocal(sd).getTime()) / 86400000) + 1 : '-'
           let cycLen = '-'
           if (i > 0) {
             const prevStart = toStr(starts[i-1].event_date)
-            cycLen = String(Math.round((new Date(sd + 'T12:00:00').getTime() - new Date(prevStart + 'T12:00:00').getTime()) / 86400000))
+            cycLen = String(Math.round((parseDateLocal(sd).getTime() - parseDateLocal(prevStart).getTime()) / 86400000))
           }
           return [sd, ed === 'Ongoing' ? 'Ongoing' : ed, String(dur), cycLen]
         })

@@ -2,6 +2,7 @@ import 'server-only'
 import { db } from '@/lib/database'
 import type { DayMode, DayModeEffect, CoverageAssignment } from '@/types/dayMode'
 import { BELLE_WEEKDAY_MAP, BELLE_WEEKEND_ROTATION, BELLE_WEEKEND_ANCHOR, BELLE_KIDS, ALL_KIDS } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 export { MODE_EFFECTS, resolveDayEffect } from '@/lib/dayModeTypes'
 
 export async function getDayMode(kidName: string, date: string): Promise<DayMode | null> {
@@ -22,7 +23,7 @@ const LAUNDRY_DOW: Record<number, string | string[]> = {
 }
 
 function getBelleAssignee(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const dow = d.getDay()
   if (dow >= 1 && dow <= 5) return BELLE_WEEKDAY_MAP[dow] || ''
   const sat = dow === 0 ? new Date(d.getTime() - 86400000) : d
@@ -33,7 +34,7 @@ function getBelleAssignee(dateStr: string): string {
 
 export async function autoAssignCoverage(modeId: number, kidName: string, dateStr: string): Promise<CoverageAssignment[]> {
   const assignments: CoverageAssignment[] = []
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const dow = d.getDay()
 
   const otherModes = await db.query(

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Sparkles, BookOpen, Beaker, Globe, DollarSign, Palette, TreePine, Calculator, BarChart2 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface EnrichmentEntry {
   kid_name: string
@@ -138,7 +139,7 @@ export default function ParentEnrichmentSummary() {
                       <div key={i} className="flex items-center gap-2 text-xs">
                         <span className={`w-1.5 h-1.5 rounded-full ${entry.completed ? 'bg-green-500' : entry.picked ? 'bg-yellow-500' : 'bg-gray-300'}`} />
                         <span className="text-gray-600 flex-1 truncate">{entry.title}</span>
-                        <span className="text-gray-400">{new Date(entry.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        <span className="text-gray-400">{parseDateLocal(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                         {entry.stars_earned > 0 && (
                           <span className="text-yellow-600">+{entry.stars_earned}</span>
                         )}

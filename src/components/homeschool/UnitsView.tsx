@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, X, CheckCircle2 } from 'lucide-react'
 import { UnitStudy } from './types'
+import { parseDateLocal } from '@/lib/date-local'
 
 export default function UnitsView({ units: initialUnits }: { units: UnitStudy[] }) {
   const [units, setUnits] = useState(initialUnits)
@@ -73,7 +74,7 @@ export default function UnitsView({ units: initialUnits }: { units: UnitStudy[] 
                 ))}
               </div>
               {unit.student_names && <p className="text-xs text-gray-400 mt-2">Students: {(unit.student_names || []).map((n: string) => n.charAt(0).toUpperCase() + n.slice(1)).join(', ')}</p>}
-              <p className="text-xs text-gray-400 mt-1">Started {new Date(typeof unit.start_date === 'string' ? unit.start_date.slice(0, 10) + 'T12:00:00' : unit.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+              <p className="text-xs text-gray-400 mt-1">Started {parseDateLocal(unit.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
             </div>
           ))}
         </div>

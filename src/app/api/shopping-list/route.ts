@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ── Shopping list dedup helpers (T-FOOD-1) ───────────────────────────────
 
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       case 'generate_from_meals': {
         // Get this week's meal plans from the LIVE meal_week_plan table
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-        const d = new Date(today + 'T12:00:00')
+        const d = parseDateLocal(today)
         const dow = d.getDay()
         const monday = new Date(d)
         monday.setDate(d.getDate() - ((dow + 6) % 7))

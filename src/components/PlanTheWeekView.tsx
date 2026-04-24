@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Calendar, Loader2 } from 'lucide-react'
 import { ALL_KIDS, KID_DISPLAY, KID_SCHOOL_TYPE } from '@/lib/constants'
 import { MODE_EFFECTS } from '@/lib/dayModeTypes'
+import { parseDateLocal } from '@/lib/date-local'
 
 const MODE_PILLS: Record<string, { label: string; emoji: string; bg: string }> = {
   normal:     { label: 'Normal',     emoji: '📋', bg: 'bg-gray-100 text-gray-700' },
@@ -160,7 +161,7 @@ export default function PlanTheWeekView({ onClose }: Props) {
                     <button onClick={() => setBulkConfirm({ type: 'col', key: date, mode: 'off_day' })}
                       className="hover:bg-gray-100 rounded px-1 py-0.5 w-full">
                       <span className="block text-gray-500">{DAYS[i]}</span>
-                      <span className="block text-gray-400 text-[10px]">{new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span className="block text-gray-400 text-[10px]">{parseDateLocal(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                       {bisdDates.has(date) && <span className="text-[10px]" title="BISD event">🏫</span>}
                     </button>
                   </th>
@@ -211,7 +212,7 @@ export default function PlanTheWeekView({ onClose }: Props) {
             <div className="space-y-1">
               {bisd.map((s: any, i: number) => (
                 <div key={i} className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-1.5 text-xs">
-                  <span className="text-blue-800">🏫 {s.title} ({new Date(s.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span>
+                  <span className="text-blue-800">🏫 {s.title} ({parseDateLocal(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</span>
                   <button onClick={() => applyBisdSuggestion(s)} className="text-blue-600 font-medium hover:text-blue-700">Apply</button>
                 </div>
               ))}
@@ -223,7 +224,7 @@ export default function PlanTheWeekView({ onClose }: Props) {
           <div className="fixed inset-0 bg-black/30 z-[60] flex items-center justify-center" onClick={() => setBulkConfirm(null)}>
             <div className="bg-white rounded-xl p-5 shadow-xl max-w-sm" onClick={e => e.stopPropagation()}>
               <p className="text-sm text-gray-900 font-medium mb-3">
-                Apply <span className="font-bold">Off Day</span> to {bulkConfirm.type === 'col' ? `all 6 kids on ${new Date(bulkConfirm.key + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}` : `${KID_DISPLAY[bulkConfirm.key]}'s whole week`}?
+                Apply <span className="font-bold">Off Day</span> to {bulkConfirm.type === 'col' ? `all 6 kids on ${parseDateLocal(bulkConfirm.key).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}` : `${KID_DISPLAY[bulkConfirm.key]}'s whole week`}?
               </p>
               <div className="flex gap-2">
                 <select value={bulkConfirm.mode} onChange={e => setBulkConfirm({ ...bulkConfirm, mode: e.target.value })}

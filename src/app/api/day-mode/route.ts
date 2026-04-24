@@ -3,6 +3,7 @@ import { db } from '@/lib/database'
 import { getDayMode, resolveDayEffect, autoAssignCoverage, writeAttendance, MODE_EFFECTS } from '@/lib/dayMode'
 import { createNotification } from '@/lib/notifications'
 import { ALL_KIDS, KID_DISPLAY, KID_SCHOOL_TYPE } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 const PUBLIC_KIDS = new Set(['zoey', 'kaylee'])
@@ -142,8 +143,8 @@ export async function POST(req: NextRequest) {
 
         const modes: any[] = []
         const allCoverage: any[] = []
-        const startD = new Date(start + 'T12:00:00')
-        const endD = new Date(end + 'T12:00:00')
+        const startD = parseDateLocal(start)
+        const endD = parseDateLocal(end)
 
         for (const kid of kid_names) {
           for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {

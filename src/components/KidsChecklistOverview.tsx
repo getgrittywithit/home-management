@@ -6,6 +6,7 @@ import {
   Sparkles, Home, BookOpen, Dog, Thermometer, PlusCircle, CheckCheck,
 } from 'lucide-react'
 import { useDashboardData } from '@/context/DashboardDataContext'
+import { parseDateLocal } from '@/lib/date-local'
 
 const KID_DISPLAY: Record<string, string> = { amos: 'Amos', ellie: 'Ellie', wyatt: 'Wyatt', hannah: 'Hannah', zoey: 'Zoey', kaylee: 'Kaylee' }
 const ALL_KIDS = ['amos', 'ellie', 'wyatt', 'hannah', 'zoey', 'kaylee']
@@ -100,8 +101,8 @@ export default function KidsChecklistOverview() {
   })
 
   const weekOf = kidsChecklist?.weekOf || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-  const weekEnd = weekOf ? new Date(new Date(weekOf + 'T12:00:00').getTime() + 6 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
-  const weekStart = weekOf ? new Date(weekOf + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+  const weekEnd = weekOf ? new Date(parseDateLocal(weekOf).getTime() + 6 * 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+  const weekStart = weekOf ? parseDateLocal(weekOf).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Chicago' })
 
   const flashToast = (msg: string) => {

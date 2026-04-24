@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { BELLE_WEEKDAY_MAP, BELLE_WEEKEND_ROTATION, BELLE_WEEKEND_ANCHOR, KID_DISPLAY } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const DINNER_MGR: Record<number, string> = { 0: 'Kaylee', 1: 'Zoey', 2: 'Wyatt', 3: 'Amos', 4: 'Ellie & Hannah', 5: 'Parents', 6: 'Parents' }
@@ -23,7 +24,7 @@ const DISH_DUTY = {
 }
 
 function getMonday(dateStr?: string): Date {
-  const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
+  const d = dateStr ? parseDateLocal(dateStr) : new Date()
   const dow = d.getDay()
   if (dow === 0) d.setDate(d.getDate() + 1)
   else if (dow === 6) d.setDate(d.getDate() + 2)

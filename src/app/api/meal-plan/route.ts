@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     if (action === 'get_week_plan') {
       const weekOffset = body.week_offset || 0
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-      const startDate = new Date(today + 'T12:00:00')
+      const startDate = parseDateLocal(today)
       startDate.setDate(startDate.getDate() - startDate.getDay() + 1 + (weekOffset * 7))
       const endDate = new Date(startDate)
       endDate.setDate(endDate.getDate() + 6)

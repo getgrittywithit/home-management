@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { ClipboardList, Save, TrendingUp } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface ScoreRow {
   id: string
@@ -21,7 +22,7 @@ interface ScoreRow {
 const KIDS = ['Amos', 'Ellie', 'Wyatt', 'Hannah']
 
 function mondayOf(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const dow = d.getDay()
   const diff = (dow + 6) % 7
   d.setDate(d.getDate() - diff)
@@ -114,8 +115,8 @@ export default function AssessmentScoreEntry() {
 
   // Build 8-week history matrix for vocab scores
   const weeks: string[] = []
-  const today = new Date(todayStr + 'T12:00:00')
-  const thisMon = new Date(mondayOf(todayStr) + 'T12:00:00')
+  const today = parseDateLocal(todayStr)
+  const thisMon = parseDateLocal(mondayOf(todayStr))
   for (let i = 7; i >= 0; i--) {
     const d = new Date(thisMon)
     d.setDate(d.getDate() - i * 7)
@@ -227,7 +228,7 @@ export default function AssessmentScoreEntry() {
                     <th className="text-left py-1.5 pr-2">Kid</th>
                     {weeks.map(w => (
                       <th key={w} className="text-center py-1.5 px-1 font-normal text-gray-500">
-                        {new Date(w + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                        {parseDateLocal(w).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                       </th>
                     ))}
                   </tr>

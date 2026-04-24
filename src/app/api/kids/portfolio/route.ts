@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 function getToday(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
@@ -27,23 +28,23 @@ function calcStreak(dates: string[], today: string): number {
   // Allow starting from today or yesterday
   if (sorted[0] === check) {
     streak = 1
-    const d = new Date(check + 'T12:00:00')
+    const d = parseDateLocal(check)
     d.setDate(d.getDate() - 1)
     check = d.toLocaleDateString('en-CA')
   } else {
-    const d = new Date(check + 'T12:00:00')
+    const d = parseDateLocal(check)
     d.setDate(d.getDate() - 1)
     check = d.toLocaleDateString('en-CA')
     if (sorted[0] !== check) return 0
     streak = 1
-    const d2 = new Date(check + 'T12:00:00')
+    const d2 = parseDateLocal(check)
     d2.setDate(d2.getDate() - 1)
     check = d2.toLocaleDateString('en-CA')
   }
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i] === check) {
       streak++
-      const d = new Date(check + 'T12:00:00')
+      const d = parseDateLocal(check)
       d.setDate(d.getDate() - 1)
       check = d.toLocaleDateString('en-CA')
     } else break

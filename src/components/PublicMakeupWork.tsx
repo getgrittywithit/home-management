@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, Check, X } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 const PUBLIC_SCHOOL = ['zoey', 'kaylee']
 const KID_DISPLAY: Record<string, string> = { zoey: 'Zoey', kaylee: 'Kaylee' }
@@ -107,11 +108,11 @@ export default function PublicMakeupWork() {
                   </span>
                 )}
                 <span className="text-xs text-gray-500">
-                  Absent: {new Date(first.sick_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  Absent: {parseDateLocal(first.sick_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </span>
                 {first.due_date && (
                   <span className={`text-xs ml-auto ${overdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                    Due: {new Date(first.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    Due: {parseDateLocal(first.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     {overdue && ' OVERDUE'}
                   </span>
                 )}
@@ -143,7 +144,7 @@ export default function PublicMakeupWork() {
           {completed.slice(0, 5).map(w => (
             <div key={w.id} className="text-xs text-gray-400 py-0.5 flex items-center gap-2">
               <span>{w.status === 'complete' ? '✅' : '🔸'}</span>
-              <span>{w.subject} — {new Date(w.sick_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              <span>{w.subject} — {parseDateLocal(w.sick_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             </div>
           ))}
         </div>

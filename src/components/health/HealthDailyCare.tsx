@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface HealthDailyCareProps {
   careItems: any[]
@@ -132,7 +133,7 @@ export default function HealthDailyCare({ careItems, onRefresh, onError, themeCo
                 {items.map((item: any) => {
                   const timeLabel = item.time_of_day === 'both' ? '☀️🌙' : item.time_of_day === 'morning' ? '☀️' : '🌙'
                   const catLabel = item.category === 'skincare' ? '🧴' : '💊'
-                  const parsedEnd = item.end_date ? new Date(item.end_date + 'T12:00:00') : null
+                  const parsedEnd = item.end_date ? parseDateLocal(item.end_date) : null
                   const endStr = parsedEnd && !isNaN(parsedEnd.getTime()) ? ` · Until ${parsedEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : (item.end_date ? ' · Ongoing' : '')
                   return (
                     <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg group">

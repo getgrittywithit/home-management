@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface CalEvent { id: string; summary: string; start: string; end: string; location: string | null }
 
@@ -68,7 +69,7 @@ export default function KidCalendarTab({ childName }: { childName: string }) {
         <div className="space-y-4">
           {Object.entries(grouped).map(([dateStr, dayEvents]) => {
             const isToday = dateStr === today
-            const d = new Date(dateStr + 'T12:00:00')
+            const d = parseDateLocal(dateStr)
             const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
             return (
               <div key={dateStr}>

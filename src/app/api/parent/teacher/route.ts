@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { ALL_KIDS, HOMESCHOOL_KIDS as HOMESCHOOL } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 const PUBLIC_SCHOOL = ['zoey', 'kaylee']
 const FULL_NAMES: Record<string, string> = { zoey: 'Zoey Moses', kaylee: 'Kaylee Moses' }
 const MAKEUP_SUBJECTS = ['Math', 'ELAR/Writing', 'Science/SS', 'Reading']
@@ -9,7 +10,7 @@ function getToday(): string { return new Date().toLocaleDateString('en-CA', { ti
 
 function generateExcuseLetter(kid: string, date: string, symptoms: string, doctorVisit: boolean, contact: any): string {
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-  const sickDate = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const sickDate = parseDateLocal(date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   const fullName = FULL_NAMES[kid] || kid
   const contactName = contact?.attendance_contact || 'Attendance Office'
   const schoolName = contact?.school_name || 'School'
@@ -187,7 +188,7 @@ export async function POST(request: NextRequest) {
 
         // 3. Homeschool: create make-up work
         if (HOMESCHOOL.includes(kid)) {
-          const dueDate = new Date(new Date(sickDateStr + 'T12:00:00').getTime() + 3 * 86400000).toLocaleDateString('en-CA')
+          const dueDate = new Date(parseDateLocal(sickDateStr).getTime() + 3 * 86400000).toLocaleDateString('en-CA')
           for (const subject of MAKEUP_SUBJECTS) {
             try {
               await db.query(
@@ -380,7 +381,7 @@ export async function POST(request: NextRequest) {
       case 'set_ab_pattern': {
         const { kid, start_date, starting_type } = body
         if (!kid || !start_date || !starting_type) return NextResponse.json({ error: 'kid, start_date, starting_type required' }, { status: 400 })
-        const startD = new Date(start_date + 'T12:00:00')
+        const startD = parseDateLocal(start_date)
         let currentType = starting_type as string
         for (let i = 0; i < 40; i++) { // 8 weeks of weekdays
           const d = new Date(startD.getTime() + i * 86400000)
@@ -412,7 +413,7 @@ export async function POST(request: NextRequest) {
       case 'create_public_makeup': {
         const { kid, sick_date, ab_day, subject, description, due_date } = body
         if (!kid || !sick_date || !subject) return NextResponse.json({ error: 'kid, sick_date, subject required' }, { status: 400 })
-        const dueD = due_date || new Date(new Date(sick_date + 'T12:00:00').getTime() + 7 * 86400000).toLocaleDateString('en-CA')
+        const dueD = due_date || new Date(parseDateLocal(sick_date).getTime() + 7 * 86400000).toLocaleDateString('en-CA')
         await db.query(
           `INSERT INTO kid_public_makeup (kid_name, sick_date, ab_day, subject, description, due_date) VALUES ($1,$2,$3,$4,$5,$6)`,
           [kid.toLowerCase(), sick_date, ab_day || null, subject, description || null, dueD]

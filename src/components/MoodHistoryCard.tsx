@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { parseDateLocal } from '@/lib/date-local'
 
 const MOOD_EMOJIS: Record<number, string> = { 1: '😔', 2: '😕', 3: '😐', 4: '🙂', 5: '😄' }
 const MOOD_COLORS: Record<number, string> = {
@@ -63,8 +64,8 @@ export default function MoodHistoryCard({ childName }: { childName: string }) {
           })}
         </div>
         <div className="flex justify-between text-xs text-gray-400 mt-1">
-          <span>{chartEntries.length > 0 ? new Date(chartEntries[0].log_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
-          <span>{chartEntries.length > 0 ? new Date(chartEntries[chartEntries.length - 1].log_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+          <span>{chartEntries.length > 0 ? parseDateLocal(chartEntries[0].log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+          <span>{chartEntries.length > 0 ? parseDateLocal(chartEntries[chartEntries.length - 1].log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
         </div>
       </div>
 
@@ -75,7 +76,7 @@ export default function MoodHistoryCard({ childName }: { childName: string }) {
             <div className="text-center flex-shrink-0 w-12">
               <span className="text-xl">{MOOD_EMOJIS[entry.mood_score]}</span>
               <p className="text-xs text-gray-400">
-                {new Date(entry.log_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {parseDateLocal(entry.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </p>
             </div>
             <div className="flex-1 min-w-0 space-y-0.5">

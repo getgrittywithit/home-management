@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
 import { KID_FLAGS, KID_GRADES } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ============================================================================
 // GET /api/homeschool?action=...
@@ -534,7 +535,7 @@ export async function GET(request: NextRequest) {
         // row with activity_source='enrichment' is a completion. We synthesize the
         // legacy columns so downstream UI keeps working without changes.
         // Return log_date as a bare YYYY-MM-DD string (not a Date/timestamp) so the client's
-        // `new Date(entry.date + 'T12:00:00')` parses correctly in Chicago TZ. Postgres DATE
+        // `parseDateLocal(entry.date)` parses correctly in Chicago TZ. Postgres DATE
         // columns auto-serialize to "2026-04-23T00:00:00.000Z" which breaks that concat.
         let sql = `SELECT kal.child_name AS kid_name,
                           TO_CHAR(kal.log_date, 'YYYY-MM-DD') AS date,

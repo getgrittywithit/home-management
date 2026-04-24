@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 const HOUSEHOLD_CALENDAR_ID = 'family05780461431364461113@group.calendar.google.com'
 
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
       const DINNER_MANAGER: Record<number, string[]> = {
         0: ['Levi'], 1: ['Kaylee'], 2: ['Zoey'], 3: ['Wyatt'], 4: ['Amos'], 5: ['Ellie', 'Hannah'], 6: ['Lola'],
       }
-      const dow = new Date(today + 'T12:00:00').getDay()
+      const dow = parseDateLocal(today).getDay()
       const managers = DINNER_MANAGER[dow] || []
       try {
         const rows = await db.query(

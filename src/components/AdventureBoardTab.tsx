@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { MapPin, Send, MessageCircle, ChevronLeft, Plus, X, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 const CATEGORIES = ['all', 'outdoors', 'arts', 'food', 'sports', 'animals', 'science', 'music', 'festival', 'market', 'other'] as const
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -129,7 +130,7 @@ export default function AdventureBoardTab({ childName }: { childName: string }) 
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="font-bold text-lg text-gray-900">{CATEGORY_EMOJI[ev.category || 'other'] || '📍'} {ev.title}</h2>
-                {ev.event_date && <p className="text-sm text-gray-600 mt-1">{new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}{ev.event_time ? ` · ${ev.event_time}` : ''}</p>}
+                {ev.event_date && <p className="text-sm text-gray-600 mt-1">{parseDateLocal(ev.event_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}{ev.event_time ? ` · ${ev.event_time}` : ''}</p>}
                 {ev.location && <p className="text-sm text-gray-500">{ev.location}</p>}
               </div>
               {ev.cost && <span className={`px-2 py-1 rounded-full text-xs font-medium ${ev.cost === 'free' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{COST_LABEL[ev.cost] || ev.cost}</span>}
@@ -288,7 +289,7 @@ export default function AdventureBoardTab({ childName }: { childName: string }) 
                         </h3>
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                        {ev.event_date && <span>{new Date(ev.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                        {ev.event_date && <span>{parseDateLocal(ev.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                         {ev.location && <span>· {ev.location}</span>}
                         {ev.cost && ev.cost !== 'free' && <span>· {ev.cost}</span>}
                         {ev.cost === 'free' && <span className="text-green-600 font-medium">· Free</span>}

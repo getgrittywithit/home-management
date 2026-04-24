@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ClipboardList, Check, AlertTriangle } from 'lucide-react'
 import { KID_DISPLAY } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface MakeupItem {
   id: number
@@ -74,7 +75,7 @@ export default function MakeupWorkCard() {
                 <p className="text-xs text-gray-500">
                   {item.assignment_description || 'Makeup assignment'}
                   {item.due_date && <span className={`ml-1 ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
-                    · Due {new Date(item.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    · Due {parseDateLocal(item.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>}
                 </p>
               </div>

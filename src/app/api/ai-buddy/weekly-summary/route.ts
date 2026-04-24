@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { HOMESCHOOL_KIDS, KID_DISPLAY } from '@/lib/constants'
 import { sendEmail } from '@/lib/gmail'
+import { parseDateLocal } from '@/lib/date-local'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
     const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7)
     return d.toLocaleDateString('en-CA')
   })()
-  const weekEnd = new Date(new Date(weekStart + 'T12:00:00').getTime() + 6 * 86400000).toLocaleDateString('en-CA')
+  const weekEnd = new Date(parseDateLocal(weekStart).getTime() + 6 * 86400000).toLocaleDateString('en-CA')
 
   try {
     const summary: any[] = []

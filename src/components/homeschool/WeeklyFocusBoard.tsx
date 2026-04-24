@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { BookOpen, Calculator, Microscope, Globe, Printer, Save, ClipboardCheck, RefreshCw } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface Book {
   id: string
@@ -51,7 +52,7 @@ const SKILL_OPTIONS = [
 ]
 
 function mondayOf(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   const dow = d.getDay()
   const diff = (dow + 6) % 7
   d.setDate(d.getDate() - diff)
@@ -59,7 +60,7 @@ function mondayOf(dateStr: string): string {
 }
 
 function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr + 'T12:00:00')
+  const d = parseDateLocal(dateStr)
   d.setDate(d.getDate() + days)
   return d.toLocaleDateString('en-CA')
 }
@@ -200,7 +201,7 @@ export default function WeeklyFocusBoard() {
     window.open(`/assessments/math-test?kids=${kids}&test_date=${testDate}`, '_blank')
   }
 
-  const weekLabel = new Date(weekStart + 'T12:00:00').toLocaleDateString('en-US', {
+  const weekLabel = parseDateLocal(weekStart).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric',
   })
 

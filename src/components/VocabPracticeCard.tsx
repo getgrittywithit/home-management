@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { BookOpen, ChevronLeft, ChevronRight, RotateCw, Check } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface VocabWord {
   id: string
@@ -56,7 +57,7 @@ export default function VocabPracticeCard({ kidName }: Props) {
   }
 
   const testDate = focus.vocab_test_date
-    ? new Date(focus.vocab_test_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+    ? parseDateLocal(focus.vocab_test_date).toLocaleDateString('en-US', { weekday: 'long' })
     : 'Friday'
 
   if (mode === 'flashcard') {

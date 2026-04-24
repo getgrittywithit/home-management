@@ -5,6 +5,7 @@ import { Users, Shuffle, Star, CheckCircle2, Calendar, Utensils, Dog, MessageSqu
 import ParentPrep from './huddle/ParentPrep'
 import HuddleMiniGame from './huddle/HuddleMiniGame'
 import HuddleBonusRound from './huddle/HuddleBonusRound'
+import { parseDateLocal } from '@/lib/date-local'
 
 const KIDS = ['amos', 'zoey', 'kaylee', 'ellie', 'wyatt', 'hannah']
 const KID_EMOJIS: Record<string, string> = {
@@ -253,7 +254,7 @@ export default function FamilyHuddle() {
             <div key={h.id} className="bg-white rounded-lg border p-4 flex items-center justify-between">
               <div>
                 <p className="font-medium text-gray-900">
-                  {new Date(h.huddle_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {parseDateLocal(h.huddle_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   {' \u2014 '} Host: {cap(h.host_kid)} {KID_EMOJIS[h.host_kid] || ''}
                 </p>
                 {h.icebreaker_question && <p className="text-xs text-gray-500 italic mt-0.5">&quot;{decodeEntities(h.icebreaker_question)}&quot;</p>}

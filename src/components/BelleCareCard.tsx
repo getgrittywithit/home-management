@@ -5,6 +5,7 @@ import { CheckCircle2, Circle, X } from 'lucide-react'
 import HelpDropdown from './HelpDropdown'
 import SpeakerButton from './SpeakerButton'
 import { KID_DISPLAY, BELLE_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ── Hardcoded Belle assignment logic (mirrors API, zero DB calls) ──
 const ZOEY_WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -13,7 +14,7 @@ const ZOEY_MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000
 
 function zoeyGetTodayAssignee(): { name: string; isWeekend: boolean } {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-  const d = new Date(today + 'T12:00:00')
+  const d = parseDateLocal(today)
   const dow = d.getDay() // 0=Sun, 6=Sat
   if (dow >= 1 && dow <= 5) {
     return { name: ZOEY_WEEKDAY_MAP[dow] || '', isWeekend: false }
@@ -116,7 +117,7 @@ export default function BelleCareCard({ childName }: { childName: string }) {
   const toggleGrooming = async (taskKey: string, completed: boolean) => {
     setGrooming(prev => prev.map(t => t.key === taskKey ? { ...t, completed: !completed } : t))
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-    const d = new Date(today + 'T12:00:00')
+    const d = parseDateLocal(today)
     const dow = d.getDay()
     const satDate = dow === 0 ? new Date(d.getTime() - 86400000).toLocaleDateString('en-CA') : today
     await fetch('/api/kids/belle', {
@@ -370,7 +371,7 @@ const WEEKDAY_ORDER = [
 
 function WeeklyBelleSchedule({ highlightKid }: { highlightKid: string }) {
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-  const todayDate = new Date(todayStr + 'T12:00:00')
+  const todayDate = parseDateLocal(todayStr)
   const todayDow = todayDate.getDay()
   // Weekend assignee
   const { name: weekendKid } = zoeyGetTodayAssignee()

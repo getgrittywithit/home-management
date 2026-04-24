@@ -5,6 +5,7 @@ import { Sun, ChevronDown, Plane, Users, Star, Calendar, AlertTriangle, Check, X
 import { ALL_KIDS, KID_DISPLAY, KID_SCHOOL_TYPE } from '@/lib/constants'
 import PlanTheWeekView from './PlanTheWeekView'
 import ExcuseEmailDraft from './ExcuseEmailDraft'
+import { parseDateLocal } from '@/lib/date-local'
 
 const MODE_OPTIONS = [
   { value: 'normal', label: 'Normal', emoji: '📋', color: 'bg-gray-100 text-gray-700' },
@@ -117,7 +118,7 @@ export default function ParentDayModeWidget() {
         <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
           <Sun className="w-4 h-4 text-amber-500" /> Today&apos;s Day Mode
         </h3>
-        <span className="text-xs text-gray-400">{new Date(data.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+        <span className="text-xs text-gray-400">{parseDateLocal(data.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
       </div>
 
       {pending.length > 0 && (
@@ -184,7 +185,7 @@ export default function ParentDayModeWidget() {
 
       {bisdSuggestion && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 flex items-center justify-between">
-          <span className="text-xs text-blue-800">🏫 {bisdSuggestion.title} ({new Date(bisdSuggestion.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}) — apply to homeschoolers too?</span>
+          <span className="text-xs text-blue-800">🏫 {bisdSuggestion.title} ({parseDateLocal(bisdSuggestion.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}) — apply to homeschoolers too?</span>
           <div className="flex gap-1.5">
             <button onClick={async () => {
               for (const kid of [...ALL_KIDS]) await setMode(kid, 'off_day')

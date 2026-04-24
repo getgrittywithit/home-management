@@ -6,6 +6,7 @@ import {
   addTable, addMoodChart, pdfToUint8Array,
 } from '@/lib/pdf/generate'
 import { syncFoodBudget } from '@/lib/budget'
+import { parseDateLocal } from '@/lib/date-local'
 
 function monthFromDate(dateStr: string): string {
   // Accept 'YYYY-MM-DD' or ISO — take first 7 chars
@@ -1151,7 +1152,7 @@ export async function POST(request: NextRequest) {
         // Return current week's meal rotation from family-huddle style calculation
         const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
         const weekOffset = body.week_offset || 0
-        const startDate = new Date(today + 'T12:00:00')
+        const startDate = parseDateLocal(today)
         startDate.setDate(startDate.getDate() - startDate.getDay() + 1 + (weekOffset * 7)) // Monday
         const endDate = new Date(startDate)
         endDate.setDate(endDate.getDate() + 6) // Sunday

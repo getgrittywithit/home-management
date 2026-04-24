@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ── Fixed schedules — pure constants, zero DB ──
 
@@ -81,7 +82,7 @@ function getToday(): string {
 
 function getTodayDow(): number {
   const today = getToday()
-  return new Date(today + 'T12:00:00').getDay()
+  return parseDateLocal(today).getDay()
 }
 
 async function creditPoints(kid: string, pts: number, reason: string) {

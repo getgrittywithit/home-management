@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 interface HealthCycleTrackerProps {
   overview: any
@@ -158,13 +159,13 @@ export default function HealthCycleTracker({ overview, onRefresh, onError }: Hea
     if (starts.length < 2) return `${capName} \u2014 Cycle Summary\n\nNot enough data yet \u2014 keep tracking and this report will fill in over time.`
 
     let totalGap = 0
-    for (let i = 1; i < starts.length; i++) { totalGap += (new Date(starts[i] + 'T12:00:00').getTime() - new Date(starts[i-1] + 'T12:00:00').getTime()) / 86400000 }
+    for (let i = 1; i < starts.length; i++) { totalGap += (parseDateLocal(starts[i]).getTime() - parseDateLocal(starts[i-1]).getTime()) / 86400000 }
     const avgCycle = Math.round(totalGap / (starts.length - 1))
 
     let totalDur = 0, durCount = 0
     starts.forEach((st: string) => {
       const end = ends.find((e: string) => e >= st)
-      if (end) { totalDur += (new Date(end + 'T12:00:00').getTime() - new Date(st + 'T12:00:00').getTime()) / 86400000 + 1; durCount++ }
+      if (end) { totalDur += (parseDateLocal(end).getTime() - parseDateLocal(st).getTime()) / 86400000 + 1; durCount++ }
     })
     const avgDur = durCount > 0 ? Math.round(totalDur / durCount) : (s?.avg_period_duration || 5)
     const regLabel = s?.cycle_regularity === 'regular' ? 'Regular' : s?.cycle_regularity === 'irregular' ? 'Irregular' : s?.cycle_regularity === 'varies' ? 'Varies' : 'Unknown'
@@ -284,7 +285,7 @@ export default function HealthCycleTracker({ overview, onRefresh, onError }: Hea
                     <div key={entry.id} className="flex items-center justify-between text-sm text-gray-600 group">
                       <span>
                         {entry.event_type === 'start' ? '\uD83D\uDD34 Started' : '\u26AA Ended'}{' '}
-                        {new Date(entry.event_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {parseDateLocal(entry.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                       <button onClick={() => handleDeleteEntry(entry.id)}
                         className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition" title="Delete this entry">

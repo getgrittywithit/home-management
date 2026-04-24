@@ -2,26 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
 import { HOMESCHOOL_KIDS, KID_DISPLAY } from '@/lib/constants'
+import { parseDateLocal } from '@/lib/date-local'
 
 const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : ''
 const ALLOWED_KIDS = new Set<string>([...HOMESCHOOL_KIDS])
 
 function getMonday(date?: string): string {
-  const d = date ? new Date(date + 'T12:00:00') : new Date()
+  const d = date ? parseDateLocal(date) : new Date()
   const dow = d.getDay()
   d.setDate(d.getDate() - ((dow + 6) % 7))
   return d.toLocaleDateString('en-CA')
 }
 
 function getFriday(monday: string): string {
-  const d = new Date(monday + 'T12:00:00')
+  const d = parseDateLocal(monday)
   d.setDate(d.getDate() + 4)
   return d.toLocaleDateString('en-CA')
 }
 
 function getWeekDates(monday: string): string[] {
   return [0, 1, 2, 3].map(i => {
-    const d = new Date(monday + 'T12:00:00')
+    const d = parseDateLocal(monday)
     d.setDate(d.getDate() + i)
     return d.toLocaleDateString('en-CA')
   })

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { BookOpen, Check } from 'lucide-react'
+import { parseDateLocal } from '@/lib/date-local'
 
 export default function SchoolMakeupCard({ childName }: { childName: string }) {
   const [work, setWork] = useState<any[]>([])
@@ -44,7 +45,7 @@ export default function SchoolMakeupCard({ childName }: { childName: string }) {
                 <span className="font-medium">{w.subject}</span>
                 {w.due_date && (
                   <span className={`text-xs ml-2 ${overdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-                    due {new Date(w.due_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    due {parseDateLocal(w.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     {overdue && ' ⚠️'}
                   </span>
                 )}
