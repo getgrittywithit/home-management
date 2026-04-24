@@ -79,13 +79,17 @@ function fmtDayHeader(iso: string): string {
 }
 
 function fmtRange(startIso: string): string {
+  // D166 BUG 1: toLocaleDateString('en-US', { day, year }) without a month
+  // produces an ugly fallback like "2026 (day: 26)" in some engines. Format
+  // the same-month end as "day, year" manually to avoid that branch.
   const start = parseDateLocal(startIso)
   const end = parseDateLocal(addDays(startIso, 6))
-  const sameMonth = start.getMonth() === end.getMonth()
+  const sameMonthYear =
+    start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
   const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const endStr = end.toLocaleDateString('en-US', sameMonth
-    ? { day: 'numeric', year: 'numeric' }
-    : { month: 'short', day: 'numeric', year: 'numeric' })
+  const endStr = sameMonthYear
+    ? `${end.getDate()}, ${end.getFullYear()}`
+    : end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   return `${startStr} – ${endStr}`
 }
 
@@ -444,22 +448,28 @@ function AddTaskModal({
           </label>
 
           {/* Template quick-picks */}
-          {matchingTemplates.length > 0 && (
+          {selectedSubject && (
             <div>
               <span className="text-xs font-semibold text-gray-600">Quick-pick from library</span>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {matchingTemplates.slice(0, 6).map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => applyTemplate(t)}
-                    className="text-[11px] px-2 py-1 border border-gray-200 rounded hover:bg-teal-50 hover:border-teal-300 text-gray-700"
-                    title={t.task_description || ''}
-                  >
-                    {t.task_label}
-                    {t.duration_min ? <span className="text-gray-400 ml-1">· {t.duration_min}m</span> : null}
-                  </button>
-                ))}
-              </div>
+              {matchingTemplates.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {matchingTemplates.slice(0, 6).map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => applyTemplate(t)}
+                      className="text-[11px] px-2 py-1 border border-gray-200 rounded hover:bg-teal-50 hover:border-teal-300 text-gray-700"
+                      title={t.task_description || ''}
+                    >
+                      {t.task_label}
+                      {t.duration_min ? <span className="text-gray-400 ml-1">· {t.duration_min}m</span> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-1 text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded p-2">
+                  No library templates for <strong>{selectedSubject.subject_name}</strong> yet — type a title below.
+                </div>
+              )}
             </div>
           )}
 

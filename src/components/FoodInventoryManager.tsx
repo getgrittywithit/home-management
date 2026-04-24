@@ -72,10 +72,15 @@ export default function FoodInventoryManager() {
     try {
       const res = await fetch('/api/inventory?action=category_counts')
       const data = await res.json()
-      const counts: Array<{ category: string; total: number; low_stock: number }> = data.counts || []
+      // D164 Bug 2: align with 5759d91's last_purchased IS NOT NULL filter.
+      // "untracked" = scaffolded items with par_level set but never physically
+      // counted in (current_stock=0, last_purchased IS NULL). They shouldn't
+      // inflate "In Stock" just because low_stock stopped counting them.
+      const counts: Array<{ category: string; total: number; low_stock: number; untracked?: number }> = data.counts || []
       const total = counts.reduce((sum, c) => sum + (c.total || 0), 0)
       const lowStock = counts.reduce((sum, c) => sum + (c.low_stock || 0), 0)
-      setInventoryTotals({ total, inStock: total - lowStock })
+      const untracked = counts.reduce((sum, c) => sum + (c.untracked || 0), 0)
+      setInventoryTotals({ total, inStock: Math.max(0, total - lowStock - untracked) })
     } catch (error) {
       console.error('Error loading inventory totals:', error)
     }

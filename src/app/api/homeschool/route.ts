@@ -398,24 +398,27 @@ export async function GET(request: NextRequest) {
     // get_task_progress — all kids' task progress for today (parent view)
     // ------------------------------------------------------------------
     case 'get_task_progress': {
+      // H1 (D166): Parent Homeschool → Overview reads per-kid progress from
+      // homeschool_daily_tasks (what Week Planner writes), not from the
+      // template library homeschool_tasks. After the D159 wipe, only the
+      // daily-tasks table holds today's actual schedule. focus_mins prefers
+      // time_spent_min (if the kid ran the focus timer) and falls back to
+      // the planned duration_min for completed tasks.
       try {
-        const days = ['sun','mon','tue','wed','thu','fri','sat']
-        const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
-        const dayOfWeek = days[now.getDay()]
-
         const progress = await db.query(`
-          SELECT t.kid_name,
-                 COUNT(t.id)::int AS total_tasks,
-                 COUNT(c.id)::int AS completed_tasks,
-                 COALESCE(SUM(CASE WHEN c.id IS NOT NULL THEN t.duration_min ELSE 0 END), 0)::int AS focus_mins
-          FROM homeschool_tasks t
-          LEFT JOIN homeschool_task_completions c
-            ON c.task_id = t.id AND c.kid_name = t.kid_name AND c.task_date = CURRENT_DATE
-          WHERE t.active = true
-            AND (t.is_recurring = false OR $1 = ANY(t.recurrence_days))
-          GROUP BY t.kid_name
-          ORDER BY t.kid_name
-        `, [dayOfWeek])
+          SELECT kid_name,
+                 COUNT(*)::int AS total_tasks,
+                 COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_tasks,
+                 COALESCE(
+                   SUM(COALESCE(time_spent_min, duration_min, 0))
+                     FILTER (WHERE status = 'completed'),
+                   0
+                 )::int AS focus_mins
+          FROM homeschool_daily_tasks
+          WHERE task_date = CURRENT_DATE
+          GROUP BY kid_name
+          ORDER BY kid_name
+        `)
 
         return NextResponse.json({ progress })
       } catch (error) {
