@@ -2,21 +2,48 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { KID_GRADES } from '@/lib/constants'
 
+// Per-kid reading-level overrides for vocab. Use the kid's READING grade
+// rather than enrolled grade. Amos is enrolled in 10th but reads at ~3rd
+// grade level per his IEP/profile, and the bank has no grade 10 anyway.
+const VOCAB_GRADE_OVERRIDE: Record<string, number> = { amos: 3 }
+
 export async function GET(req: NextRequest) {
   const kid = new URL(req.url).searchParams.get('kid_name')?.toLowerCase()
   if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
-  const grade = KID_GRADES[kid] || 5
+  const requestedGrade = VOCAB_GRADE_OVERRIDE[kid] ?? (KID_GRADES[kid] || 5)
 
   try {
-    const words = await db.query(
+    let words = await db.query(
       `SELECT gvb.*, kvp.status AS progress_status, kvp.leitner_box, kvp.mastered_at
        FROM grade_vocabulary_bank gvb
        LEFT JOIN kid_vocabulary_progress kvp ON kvp.word_id = gvb.id AND kvp.kid_name = $1
        WHERE gvb.grade_level = $2 AND gvb.is_active = TRUE
        ORDER BY gvb.difficulty_tier, gvb.word`,
-      [kid, grade]
+      [kid, requestedGrade]
     ).catch(() => [])
-    return NextResponse.json({ words, grade, kid_name: kid })
+
+    // Fallback: if no words at requested grade, walk down to nearest available grade
+    let actualGrade = requestedGrade
+    if (words.length === 0) {
+      const fallback = await db.query(
+        `SELECT MAX(grade_level) AS g FROM grade_vocabulary_bank WHERE grade_level <= $1 AND is_active = TRUE`,
+        [requestedGrade]
+      ).catch(() => [])
+      const fallbackGrade = fallback[0]?.g
+      if (fallbackGrade != null && fallbackGrade !== requestedGrade) {
+        actualGrade = fallbackGrade
+        words = await db.query(
+          `SELECT gvb.*, kvp.status AS progress_status, kvp.leitner_box, kvp.mastered_at
+           FROM grade_vocabulary_bank gvb
+           LEFT JOIN kid_vocabulary_progress kvp ON kvp.word_id = gvb.id AND kvp.kid_name = $1
+           WHERE gvb.grade_level = $2 AND gvb.is_active = TRUE
+           ORDER BY gvb.difficulty_tier, gvb.word`,
+          [kid, fallbackGrade]
+        ).catch(() => [])
+      }
+    }
+
+    return NextResponse.json({ words, grade: actualGrade, requested_grade: requestedGrade, kid_name: kid })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
