@@ -43,11 +43,18 @@ export default function HomeschoolEnrichment({ students }: Props) {
   const [saving, setSaving] = useState(false)
   // Library = curated enrichment_activities rows. Logs = kid_activity_log entries.
   const [recentLogs, setRecentLogs] = useState<any[]>([])
+  // True per-subject library counts (uncapped by get_activities' LIMIT 100).
+  const [subjectCounts, setSubjectCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
     fetch('/api/enrichment?action=get_activities').then(r => r.json()).then(d => setActivities(d.activities || [])).catch(() => {})
     fetch('/api/enrichment?action=get_monthly_summary').then(r => r.json()).then(d => setMonthlySummary(d.summary || [])).catch(() => {})
     fetch('/api/enrichment?action=get_recent_all_kids').then(r => r.json()).then(d => setRecentLogs(d.activities || [])).catch(() => {})
+    fetch('/api/enrichment?action=get_subject_counts').then(r => r.json()).then(d => {
+      const map: Record<string, number> = {}
+      for (const row of (d.counts || [])) map[row.subject] = row.count
+      setSubjectCounts(map)
+    }).catch(() => {})
   }, [])
 
   const handleLogActivity = async () => {
@@ -137,10 +144,10 @@ export default function HomeschoolEnrichment({ students }: Props) {
             </div>
           )}
 
-          {/* Categories Grid — counts come from library size per subject + month rollup from logs */}
+          {/* Categories Grid — counts from get_subject_counts (uncapped), month rollup from logs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {CATEGORIES.map(cat => {
-              const catActivities = activities.filter((a: any) => a.subject === cat.id)
+              const libCount = subjectCounts[cat.id] || 0
               const catSummary = monthlySummary.filter((s: any) => s.subject === cat.id)
               const totalMins = catSummary.reduce((s: number, r: any) => s + (Number(r.total_minutes) || 0), 0)
               return (
@@ -148,7 +155,7 @@ export default function HomeschoolEnrichment({ students }: Props) {
                   <span className="text-3xl block mb-2">{cat.icon}</span>
                   <h4 className="text-sm font-semibold text-gray-900">{cat.label}</h4>
                   <p className="text-xs text-gray-500 mt-1">
-                    {catActivities.length > 0 ? `${catActivities.length} in library` : 'No library items'}
+                    {libCount > 0 ? `${libCount} in library` : 'No library items'}
                   </p>
                   {totalMins > 0 && <p className="text-xs text-emerald-600 font-medium mt-0.5">{totalMins} min this month</p>}
                 </div>

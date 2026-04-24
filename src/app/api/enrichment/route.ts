@@ -26,6 +26,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ categories: SUBJECTS, subjects: SUBJECTS })
     }
 
+    if (action === 'get_subject_counts') {
+      // True library counts per subject, without the LIMIT 100 row cap that get_activities uses.
+      // Parent side uses this for the summary grid so counts reflect the full seeded library.
+      const rows = await db.query(
+        `SELECT subject, COUNT(*)::int AS count
+         FROM enrichment_activities
+         WHERE active = TRUE
+         GROUP BY subject`
+      ).catch((e) => { console.error('enrichment subject_counts error:', e); return [] })
+      return NextResponse.json({ counts: rows })
+    }
+
     if (action === 'get_activities') {
       // enrichment_activities is a SHARED LIBRARY (not per-kid). Filter by subject
       // and grade range if a kid is supplied. Only return active rows.
