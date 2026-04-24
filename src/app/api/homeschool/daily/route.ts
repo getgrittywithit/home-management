@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
+import { parseDateLocal } from '@/lib/date-local'
 
 // ============================================================================
 // Homeschool Daily Engine — per-kid subjects + per-date task instances
@@ -155,6 +156,49 @@ export async function GET(req: NextRequest) {
           [kidName]
         )
         return NextResponse.json({ templates: rows })
+      }
+
+      case 'list_library_tasks': {
+        // Task templates from homeschool_tasks (the "library"). Used by the
+        // Week Planner modal for quick-pick buttons. Returns all homeschool
+        // kids in one call to avoid N+1 on modal open.
+        const kids = ['amos', 'ellie', 'wyatt', 'hannah']
+        const rows = await db.query(
+          `SELECT id, kid_name, subject, task_label, task_description, duration_min
+           FROM homeschool_tasks
+           WHERE kid_name = ANY($1::text[]) AND active = TRUE
+           ORDER BY kid_name, subject, sort_order, task_label`,
+          [kids]
+        )
+        return NextResponse.json({ tasks: rows })
+      }
+
+      case 'week_grid': {
+        // Returns all homeschool_daily_tasks rows for the 4 homeschool kids
+        // across Mon–Sun of the target week. Used by the Week Planner grid.
+        //
+        // `start` is the Monday of the target week (YYYY-MM-DD). Defaults to
+        // the Monday of the current Chicago-local week.
+        const kids = ['amos', 'ellie', 'wyatt', 'hannah']
+        const start = searchParams.get('start') || (() => {
+          const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+          const d = parseDateLocal(today)
+          const day = d.getDay()
+          const mondayOffset = day === 0 ? -6 : 1 - day
+          d.setDate(d.getDate() + mondayOffset)
+          return d.toLocaleDateString('en-CA')
+        })()
+        const tasks = await db.query(
+          `SELECT id, kid_name, task_date::text, subject_id, subject_name, subject_icon,
+                  title, description, duration_min, sort_order, resource_url, is_required, status
+           FROM homeschool_daily_tasks
+           WHERE kid_name = ANY($1::text[])
+             AND task_date >= $2::date
+             AND task_date < ($2::date + INTERVAL '7 days')
+           ORDER BY kid_name, task_date, sort_order, created_at`,
+          [kids, start]
+        )
+        return NextResponse.json({ start, tasks })
       }
 
       default:
@@ -416,6 +460,47 @@ export async function POST(req: NextRequest) {
           [kid_name.toLowerCase(), source_date, target_date]
         )
         return NextResponse.json({ tasks: rows, copied: rows.length })
+      }
+
+      case 'replicate_week': {
+        // Take all tasks in the week starting at source_start (Monday) and
+        // copy them forward into the next `weeks_forward` weeks (same weekday
+        // offsets preserved: Mon→Mon, Tue→Tue, etc.). Used by the Week Planner
+        // "Apply pattern to next N weeks" button — T-CURR-2 summer unlock.
+        const { source_start, weeks_forward } = data
+        if (!source_start || !weeks_forward) {
+          return NextResponse.json({ error: 'source_start and weeks_forward required' }, { status: 400 })
+        }
+        const n = Number(weeks_forward)
+        if (!Number.isInteger(n) || n < 1 || n > 52) {
+          return NextResponse.json({ error: 'weeks_forward must be 1..52' }, { status: 400 })
+        }
+        // Generate N copies. Postgres can do this in one statement via
+        // generate_series, keeping weekday offsets by adding N*7 days.
+        const rows = await db.query(
+          `WITH src AS (
+             SELECT kid_name, subject_id, subject_name, subject_icon, task_date,
+                    title, description, duration_min, sort_order, resource_url, is_required
+             FROM homeschool_daily_tasks
+             WHERE task_date >= $1::date
+               AND task_date < ($1::date + INTERVAL '7 days')
+           ),
+           offsets AS (
+             SELECT generate_series(1, $2::int) AS n
+           )
+           INSERT INTO homeschool_daily_tasks (
+             kid_name, subject_id, subject_name, subject_icon, task_date,
+             title, description, duration_min, sort_order, resource_url, is_required
+           )
+           SELECT src.kid_name, src.subject_id, src.subject_name, src.subject_icon,
+                  (src.task_date + (offsets.n * 7) * INTERVAL '1 day')::date,
+                  src.title, src.description, src.duration_min, src.sort_order,
+                  src.resource_url, src.is_required
+           FROM src, offsets
+           RETURNING id`,
+          [source_start, n]
+        )
+        return NextResponse.json({ copied: rows.length, weeks_forward: n })
       }
 
       case 'apply_subject_template': {
