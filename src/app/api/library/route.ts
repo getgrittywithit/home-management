@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
+import { KID_GRADES } from '@/lib/constants'
 
 // Accessibility warning tips
 const ACCESSIBILITY_TIPS: Record<string, Record<string, string[]>> = {
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
       const filterType = searchParams.get('filter_type')
       const subject = searchParams.get('subject')
       const kidName = searchParams.get('kid_name')
+      const ownerSegment = searchParams.get('owner_segment')
 
       try {
         let sql = `SELECT * FROM home_library WHERE active = TRUE AND archived = FALSE`
@@ -81,6 +83,13 @@ export async function GET(request: NextRequest) {
         if (kidName) {
           sql += ` AND $${params.length + 1} = ANY(who_uses)`
           params.push(kidName.toLowerCase())
+        }
+        // LIB-1 (D24): explicit owner_segment filter — used by parent Library
+        // tab toggle (Kids / Family / My Books / Professional). Kid views
+        // never set this; they use sort-only segmentation in get_library_browse.
+        if (ownerSegment) {
+          sql += ` AND owner_segment = $${params.length + 1}`
+          params.push(ownerSegment)
         }
 
         sql += ` ORDER BY item_type, title`
@@ -277,6 +286,11 @@ export async function GET(request: NextRequest) {
       const maxAge = searchParams.get('max_age')
       const minRating = searchParams.get('min_rating')
       const sort = searchParams.get('sort') || 'title'
+      // LIB-1 (D24): owner_segment is sort-only for kids by default. browseMore
+      // flips the soft-segment sort so a kid can surface non-kids books on top.
+      // ownerSegment is an explicit hard filter (parent toggle).
+      const ownerSegment = searchParams.get('owner_segment')
+      const browseMore = searchParams.get('browse_more') === 'true'
 
       try {
         const params: any[] = []
@@ -287,9 +301,26 @@ export async function GET(request: NextRequest) {
         if (genre) { params.push(genre); where += ` AND $${params.length} = ANY(h.genres)` }
         if (minAge) { params.push(parseInt(minAge)); where += ` AND (h.age_range_max IS NULL OR h.age_range_max >= $${params.length})` }
         if (maxAge) { params.push(parseInt(maxAge)); where += ` AND (h.age_range_min IS NULL OR h.age_range_min <= $${params.length})` }
+        if (ownerSegment) { params.push(ownerSegment); where += ` AND h.owner_segment = $${params.length}` }
 
+        // When a kid is browsing without an explicit segment override, surface
+        // books in this priority: kids-segment first → their personal
+        // recommended_for matches → in their reading-grade band → title.
+        // browseMore flips just the first key so they can find Lola's books.
         let orderBy = 'h.title'
-        if (sort === 'recent') orderBy = 'h.added_at DESC NULLS LAST, h.title'
+        const useKidSoftSort = kidName && !ownerSegment
+        if (useKidSoftSort) {
+          const segDir = browseMore ? 'ASC' : 'DESC'
+          params.push(kidName)
+          const recForIdx = params.length
+          let gradeBandSort = ''
+          const kidGrade = KID_GRADES[kidName as keyof typeof KID_GRADES]
+          if (typeof kidGrade === 'number') {
+            params.push(kidGrade)
+            gradeBandSort = `, (h.reading_grade_min IS NOT NULL AND h.reading_grade_max IS NOT NULL AND h.reading_grade_min <= $${params.length} AND h.reading_grade_max >= $${params.length}) DESC`
+          }
+          orderBy = `(h.owner_segment = 'kids') ${segDir}, (h.recommended_for @> ARRAY[$${recForIdx}::text]) DESC${gradeBandSort}, h.title`
+        } else if (sort === 'recent') orderBy = 'h.added_at DESC NULLS LAST, h.title'
         else if (sort === 'rating') orderBy = 'avg_rating DESC NULLS LAST, h.title'
         else if (sort === 'reviews') orderBy = 'review_count DESC, h.title'
 

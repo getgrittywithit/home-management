@@ -1375,9 +1375,14 @@ export async function POST(request: NextRequest) {
           )
           const starsValue = taskRows[0]?.stars_value || 1
 
+          // SCHED-1 (D24): UNIQUE (task_id, kid_name, task_date) is enforced
+          // at the schema level. ON CONFLICT DO NOTHING makes this robust
+          // against double-fire races (e.g. parent + kid toggling the same
+          // task milliseconds apart) without raising a 500.
           await db.query(
             `INSERT INTO homeschool_task_completions (task_id, kid_name, task_date, stars_earned)
-             VALUES ($1, $2, CURRENT_DATE, $3)`,
+             VALUES ($1, $2, CURRENT_DATE, $3)
+             ON CONFLICT (task_id, kid_name, task_date) DO NOTHING`,
             [task_id, kid, starsValue]
           )
 

@@ -46,6 +46,14 @@ interface LibraryItem {
   rating_count?: number
   review_count?: number
   kid_read_status?: string | null
+  // Reading-level fields (LIB-7)
+  reading_grade_min?: number | null
+  reading_grade_max?: number | null
+  lexile_level?: number | null
+  ar_level?: number | string | null
+  reading_level_tag?: string | null
+  guided_reading_level?: string | null
+  dra_level?: number | null
 }
 
 interface ReadStatus {
@@ -208,11 +216,44 @@ function ItemCard({ item, onClick, compact }: { item: LibraryItem; onClick?: () 
 }
 
 // ============================================================================
+// Reading-level helpers (LIB-7)
+// ============================================================================
+//
+// Primary chip: best available grade range, preferring reading_grade_min/max
+// (which carry the curated reading-level data) over generic grade_min/max.
+// Details: every populated secondary metric — Lexile / AR / F&P / DRA.
+function readingLevelPrimary(item: LibraryItem): string | null {
+  const min = item.reading_grade_min ?? item.grade_min
+  const max = item.reading_grade_max ?? item.grade_max
+  if (min != null && max != null) {
+    return min === max ? `Grade ${min}` : `Grade ${min}–${max}`
+  }
+  if (min != null) return `Grade ${min}+`
+  if (max != null) return `Up to grade ${max}`
+  return null
+}
+
+function readingLevelDetails(item: LibraryItem): { label: string; value: string }[] {
+  const out: { label: string; value: string }[] = []
+  if (item.lexile_level != null) out.push({ label: 'Lexile', value: `${item.lexile_level}L` })
+  if (item.ar_level != null && item.ar_level !== '') out.push({ label: 'AR', value: String(item.ar_level) })
+  const fp = item.guided_reading_level || item.reading_level_tag
+  if (fp) out.push({ label: 'F&P', value: fp })
+  if (item.dra_level != null) out.push({ label: 'DRA', value: String(item.dra_level) })
+  return out
+}
+
+// ============================================================================
 // Book Card — rich grid card with cover, rating, read-status badge
 // ============================================================================
 function BookCard({ item, onClick }: { item: LibraryItem; onClick: () => void }) {
   const avg = item.avg_rating != null ? Number(item.avg_rating) : null
   const statusMeta = item.kid_read_status ? READ_STATUS_META[item.kid_read_status] : null
+  const levelPrimary = readingLevelPrimary(item)
+  const levelDetails = readingLevelDetails(item)
+  const levelHover = levelDetails.length > 0
+    ? `${levelPrimary || 'Reading level'} · ${levelDetails.map(d => `${d.label} ${d.value}`).join(' · ')}`
+    : levelPrimary || ''
   return (
     <button
       onClick={onClick}
@@ -240,6 +281,17 @@ function BookCard({ item, onClick }: { item: LibraryItem; onClick: () => void })
         {item.favorite_flag && (
           <div className="absolute top-1.5 left-1.5">
             <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 drop-shadow" />
+          </div>
+        )}
+        {/* LIB-7: reading-level chip — primary on card, details in title attr */}
+        {levelPrimary && (
+          <div
+            className="absolute bottom-1.5 left-1.5"
+            title={levelHover}
+          >
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-white/90 text-teal-700 border border-teal-200 shadow-sm backdrop-blur">
+              {levelPrimary}
+            </span>
           </div>
         )}
       </div>
@@ -729,9 +781,8 @@ function BookDetailView({
   const ageLabel = item.age_range_min != null && item.age_range_max != null
     ? `Ages ${item.age_range_min}–${item.age_range_max}`
     : item.age_range_min != null ? `Ages ${item.age_range_min}+` : null
-  const gradeLabel = item.grade_min != null && item.grade_max != null
-    ? `Grades ${item.grade_min}–${item.grade_max}`
-    : item.grade_min != null ? `Grade ${item.grade_min}+` : null
+  const gradeLabel = readingLevelPrimary(item)
+  const detailLevels = readingLevelDetails(item)
   const whatsItAbout = item.hook || item.description
 
   return (
@@ -772,8 +823,8 @@ function BookDetailView({
               <p className="text-sm text-gray-500 mt-0.5">by {item.author_or_publisher}</p>
             )}
 
-            {/* Age / Grade badges */}
-            {(ageLabel || gradeLabel) && (
+            {/* Age / Grade / reading-level badges (LIB-7) */}
+            {(ageLabel || gradeLabel || detailLevels.length > 0) && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {ageLabel && (
                   <span className="text-xs px-2 py-0.5 bg-cyan-50 text-cyan-700 rounded-full border border-cyan-100">
@@ -785,6 +836,15 @@ function BookDetailView({
                     {gradeLabel}
                   </span>
                 )}
+                {detailLevels.map((d) => (
+                  <span
+                    key={d.label}
+                    className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100"
+                    title={`${d.label} reading-level system`}
+                  >
+                    {d.label} {d.value}
+                  </span>
+                ))}
               </div>
             )}
 
@@ -1076,6 +1136,8 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null)
   const [warnings, setWarnings] = useState<AccessibilityWarning[]>([])
   const [showBulkScan, setShowBulkScan] = useState(false)
+  // LIB-1: kid books surface first by default; toggle flips so Mom's books surface first
+  const [browseMore, setBrowseMore] = useState(false)
 
   const loadItems = useCallback(async () => {
     setLoading(true)
@@ -1090,6 +1152,7 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
         if (filterSubject) params.set('subject', filterSubject)
         if (filterGenre) params.set('genre', filterGenre)
         if (filterReadStatus) params.set('read_status', filterReadStatus)
+        if (browseMore) params.set('browse_more', 'true')
         const res = await fetch(`/api/library?${params.toString()}`)
         const json = await res.json()
         setItems(json.items || [])
@@ -1106,7 +1169,7 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
     } finally {
       setLoading(false)
     }
-  }, [filterType, filterSubject, filterGenre, filterReadStatus, sortBy, kidName])
+  }, [filterType, filterSubject, filterGenre, filterReadStatus, sortBy, kidName, browseMore])
 
   useEffect(() => { loadItems() }, [loadItems])
 
@@ -1334,8 +1397,8 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
         </button>
       </div>
 
-      {/* Type filters */}
-      <div className="flex gap-2">
+      {/* Type filters + Browse More toggle (LIB-1) */}
+      <div className="flex gap-2 flex-wrap items-center">
         {[null, 'book', 'game', 'toy', 'resource'].map((type) => (
           <button
             key={type || 'all'}
@@ -1349,6 +1412,21 @@ export function KidLibraryView({ kidName }: { kidName: string }) {
             {type ? `${type.charAt(0).toUpperCase()}${type.slice(1)}s` : 'All'}
           </button>
         ))}
+        {(filterType === 'book' || !filterType) && (
+          <button
+            onClick={() => setBrowseMore((v) => !v)}
+            className={`ml-auto px-3 py-1.5 rounded-lg text-xs font-medium border ${
+              browseMore
+                ? 'bg-purple-100 text-purple-700 border-purple-300'
+                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+            }`}
+            title={browseMore
+              ? "You're seeing all books — Mom's, family read-alouds, and yours"
+              : "Want to see Mom's books and other shelves first?"}
+          >
+            {browseMore ? '✨ Browse more' : 'Browse more →'}
+          </button>
+        )}
       </div>
 
       {/* Interest / Vibe filter */}
@@ -1490,6 +1568,8 @@ export function ParentLibraryAdmin() {
   const [items, setItems] = useState<LibraryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filterType, setFilterType] = useState<string | null>(null)
+  // LIB-1: parent segment toggle — explicit hard filter on owner_segment
+  const [filterSegment, setFilterSegment] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingItem, setEditingItem] = useState<LibraryItem | null>(null)
   const [usageStats, setUsageStats] = useState<any[]>([])
@@ -1532,6 +1612,7 @@ export function ParentLibraryAdmin() {
     try {
       let url = '/api/library?action=get_all_items'
       if (filterType) url += `&filter_type=${filterType}`
+      if (filterSegment) url += `&owner_segment=${filterSegment}`
       const res = await fetch(url)
       const json = await res.json()
       setItems(json.items || [])
@@ -1540,7 +1621,7 @@ export function ParentLibraryAdmin() {
     } finally {
       setLoading(false)
     }
-  }, [filterType])
+  }, [filterType, filterSegment])
 
   useEffect(() => { loadItems() }, [loadItems])
 
@@ -2179,6 +2260,29 @@ export function ParentLibraryAdmin() {
         >
           {'\u{1F3AF}'} Discovery
         </button>
+      </div>
+
+      {/* Owner-segment toggle (LIB-1) — explicit hard filter */}
+      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+        {[
+          { id: null, label: 'All shelves', emoji: '📚' },
+          { id: 'kids', label: 'Kids', emoji: '🎒' },
+          { id: 'family', label: 'Family Read-Aloud', emoji: '🛋️' },
+          { id: 'parent', label: 'My Books', emoji: '📖' },
+          { id: 'professional', label: 'Professional Reference', emoji: '🧠' },
+        ].map((seg) => (
+          <button
+            key={seg.id || 'all'}
+            onClick={() => setFilterSegment(seg.id)}
+            className={`shrink-0 text-xs px-2.5 py-1 rounded-lg font-medium border ${
+              filterSegment === seg.id
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            {seg.emoji} {seg.label}
+          </button>
+        ))}
       </div>
 
       {/* Subject / Vibe filter */}
