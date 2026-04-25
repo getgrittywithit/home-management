@@ -300,16 +300,24 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
                     {isExpanded && (
                       <div className="mt-3 space-y-3">
                         {/* Photo — fetched as real bytes via the proxy route so iOS
-                            renders cleanly. Tap thumbnail to open the lightbox. */}
-                        <div className="rounded-lg overflow-hidden border max-w-sm">
+                            renders cleanly. Wrap in a button so the click target is
+                            the full thumbnail bounds + we get keyboard focus for free. */}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setLightboxPhotoId(photo.id) }}
+                          className="block rounded-lg overflow-hidden border max-w-sm group focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          aria-label={`Open ${kidDisplay}'s ${photo.zone_name} photo full size`}
+                        >
                           <img
                             src={`/api/parent/zone-photos?action=get_image_bytes&id=${photo.id}`}
                             alt={`${kidDisplay}'s ${photo.zone_name} zone`}
-                            className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition"
-                            onClick={() => setLightboxPhotoId(photo.id)}
+                            className="w-full h-auto max-h-64 object-cover group-hover:opacity-90 transition pointer-events-none"
                             loading="lazy"
                           />
-                        </div>
+                          <span className="block text-[11px] text-gray-500 bg-gray-50 px-2 py-1 text-center">
+                            Tap to enlarge
+                          </span>
+                        </button>
                         {/* Parent note (if redo) */}
                         {photo.parent_note && (
                           <p className="text-xs text-gray-600 bg-gray-50 rounded px-3 py-2">
