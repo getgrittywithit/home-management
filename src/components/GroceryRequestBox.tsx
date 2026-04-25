@@ -2,17 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { Send, Plus, List, X } from 'lucide-react'
+import { GROCERY_REQUEST_CATEGORIES, GROCERY_CATEGORY_LABELS } from '@/lib/constants'
 
-const CATEGORIES = [
-  { value: 'meal', label: 'Meal / Cooking' },
-  { value: 'snack', label: 'Snack / Drink' },
-  { value: 'personal_care', label: 'Personal Care' },
-  { value: 'household', label: 'Household' },
-  { value: 'pet_care', label: 'Pet Care' },
-  { value: 'school', label: 'School' },
-  { value: 'wishlist', label: 'Wish List' },
-  { value: 'other', label: 'Other' },
-]
+// P1-C: dropdown is bound to the canonical enum from constants.ts so the
+// kid form, parent display, and DB CHECK constraint all share one source.
+const CATEGORIES = GROCERY_REQUEST_CATEGORIES.map(value => ({ value, label: GROCERY_CATEGORY_LABELS[value] }))
 
 interface GroceryRequest {
   id: number
@@ -28,7 +22,7 @@ interface GroceryRequest {
 export default function GroceryRequestBox({ kidName }: { kidName: string }) {
   const [requests, setRequests] = useState<GroceryRequest[]>([])
   const [itemName, setItemName] = useState('')
-  const [category, setCategory] = useState('meal')
+  const [category, setCategory] = useState<string>('meal_cooking')
   const [quantity, setQuantity] = useState('')
   const [reason, setReason] = useState('')
   const [sending, setSending] = useState(false)

@@ -173,3 +173,52 @@ export const KID_FLAGS: Record<string, string[]> = {
   wyatt: ['speech_delay','adhd','color_vision'],
   hannah: ['speech_delay','stutter'],
 }
+
+// ============================================================================
+// Grocery request categories (Kitchen P1-C, D24/25)
+// ============================================================================
+// Canonical enum used by:
+//   - kid_grocery_requests.category (DB CHECK constraint)
+//   - /api/grocery submit_grocery_request + submit_bulk_grocery_requests
+//   - GroceryRequestBox kid form dropdown
+//   - GroceryRequestReview parent display
+// Pre-existing kid form categories pet_care/school/wishlist preserved on
+// top of Lola's spec'd 10 to keep semantic distinction Hannah uses for
+// plant supplies, school lists, and kids' wish-list items.
+export const GROCERY_REQUEST_CATEGORIES = [
+  'meal_cooking',
+  'snack_drink',
+  'produce',
+  'snacks',
+  'dairy',
+  'frozen',
+  'pantry',
+  'household',
+  'personal_care',
+  'pet_care',
+  'school',
+  'wishlist',
+  'other',
+] as const
+
+export type GroceryRequestCategory = typeof GROCERY_REQUEST_CATEGORIES[number]
+
+export const GROCERY_CATEGORY_LABELS: Record<GroceryRequestCategory, string> = {
+  meal_cooking: 'Meal / Cooking',
+  snack_drink: 'Snack / Drink',
+  produce: 'Produce',
+  snacks: 'Snacks',
+  dairy: 'Dairy',
+  frozen: 'Frozen',
+  pantry: 'Pantry',
+  household: 'Household',
+  personal_care: 'Personal Care',
+  pet_care: 'Pet Care',
+  school: 'School',
+  wishlist: 'Wish List',
+  other: 'Other',
+}
+
+export function isGroceryRequestCategory(v: unknown): v is GroceryRequestCategory {
+  return typeof v === 'string' && (GROCERY_REQUEST_CATEGORIES as readonly string[]).includes(v)
+}
