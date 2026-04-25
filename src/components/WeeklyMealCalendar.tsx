@@ -163,6 +163,24 @@ export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: 
 
   const expandedDay = expandedDow != null ? week.days.find(d => d.day_of_week === expandedDow) : null
 
+  // P1-B: today's-dinner-not-picked banner. Triggers when viewing this week,
+  // today's slot has no meal yet, status isn't off-night, and it's still
+  // before 8pm Chicago (after that, planning the day is moot).
+  const todayDay = viewing === 'this' ? week.days.find(d => d.day_of_week === todayDow) : null
+  const chicagoHour = (() => {
+    try {
+      // Hour-of-day in Chicago, 0-23
+      return parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }))
+    } catch {
+      return new Date().getHours()
+    }
+  })()
+  const showPickBanner = !!todayDay
+    && !todayDay.meal_id
+    && todayDay.status !== 'off_night'
+    && chicagoHour < 20
+  const todayManagedByParent = !!todayDay && /parent|lola|levi/i.test(todayDay.kid_name || '')
+
   const handlePrintWeek = () => {
     document.body.classList.add('printing-weekly')
     const cleanup = () => {
@@ -189,6 +207,33 @@ export default function WeeklyMealCalendar({ isParent, compact, onViewRecipe }: 
             className={`text-xs px-2 py-1 rounded ${viewing === 'next' ? 'bg-orange-200 text-orange-800 font-medium' : 'text-gray-500'}`}>Next</button>
         </div>
       </div>
+
+      {/* P1-B: today's-dinner-not-picked banner */}
+      {showPickBanner && todayDay && (
+        <div className="px-4 py-3 border-b bg-amber-50 border-amber-200 recipe-card-hide-print">
+          <div className="flex items-start gap-3">
+            <span className="text-lg leading-none mt-0.5">🍽️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-900">
+                Today&rsquo;s dinner isn&rsquo;t picked yet.
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                {todayDay.day_name}&rsquo;s theme: {THEME_EMOJI[todayDay.theme] || '🍽️'} {THEME_LABEL[todayDay.theme] || todayDay.theme}
+                {' · '}
+                {todayManagedByParent
+                  ? 'Lola or Levi to pick.'
+                  : `${todayDay.manager_display || todayDay.kid_name} is set to pick.`}
+              </p>
+            </div>
+            <button
+              onClick={() => { setViewing('this'); setExpandedDow(todayDow) }}
+              className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded bg-amber-600 text-white hover:bg-amber-700"
+            >
+              {todayManagedByParent ? `Pick ${todayDay.day_name}'s meal →` : 'Open'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 7-day grid */}
       <div className="grid grid-cols-7 divide-x text-center recipe-card-hide-print">

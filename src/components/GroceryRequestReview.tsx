@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Check, X, ChevronDown, ChevronUp, ShoppingCart, Loader2 } from 'lucide-react'
+import { GROCERY_CATEGORY_LABELS } from '@/lib/constants'
 
 interface GroceryRequest {
   id: number
@@ -16,16 +17,10 @@ interface GroceryRequest {
   created_at: string
 }
 
-const CAT_LABELS: Record<string, string> = {
-  meal: 'Meal / Cooking', snack: 'Snack / Drink',
-  personal_care: 'Personal Care', household: 'Household',
-  pet_care: 'Pet Care', school: 'School',
-  wishlist: 'Wish List', other: 'Other',
-  // Legacy values from before category update
-  drink: 'Snack / Drink', meal_ingredient: 'Meal / Cooking',
-  school_supply: 'School', pet_supply: 'Pet Care',
-  cleaning: 'Household', general: 'Other',
-}
+// P1-C: read labels from the canonical map. Pre-migration data was
+// already collapsed into the new enum (see migrations/kitchen_p1_quick_wins.sql),
+// so no legacy fallbacks needed here.
+const CAT_LABELS: Record<string, string> = GROCERY_CATEGORY_LABELS
 
 export default function GroceryRequestReview() {
   const [pending, setPending] = useState<GroceryRequest[]>([])

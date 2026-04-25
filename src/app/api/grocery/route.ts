@@ -7,6 +7,7 @@ import {
 } from '@/lib/pdf/generate'
 import { syncFoodBudget } from '@/lib/budget'
 import { parseDateLocal } from '@/lib/date-local'
+import { isGroceryRequestCategory } from '@/lib/constants'
 
 function monthFromDate(dateStr: string): string {
   // Accept 'YYYY-MM-DD' or ISO — take first 7 chars
@@ -973,15 +974,18 @@ export async function POST(request: NextRequest) {
         if (!kidName || !itemName) return NextResponse.json({ error: 'kidName and itemName required' }, { status: 400 })
         await db.query(`CREATE TABLE IF NOT EXISTS kid_grocery_requests (
           id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, item_name TEXT NOT NULL,
-          category TEXT DEFAULT 'general', quantity TEXT, reason TEXT,
+          category TEXT DEFAULT 'other', quantity TEXT, reason TEXT,
           status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'denied')),
           parent_note TEXT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`)
         const kid = kidName.toLowerCase()
         const kidDisplay = kid.charAt(0).toUpperCase() + kid.slice(1)
+        // P1-C: validate against the canonical enum; reject early on bad
+        // categories so the DB CHECK doesn't 500 on the client.
+        const safeCategory = isGroceryRequestCategory(category) ? category : 'other'
         const rows = await db.query(
           `INSERT INTO kid_grocery_requests (kid_name, item_name, category, quantity, reason)
            VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [kid, itemName.trim(), category || 'general', quantity || null, reason || null]
+          [kid, itemName.trim(), safeCategory, quantity || null, reason || null]
         )
         await createNotification({
           title: `${kidDisplay} requested: ${itemName.trim()}`,
@@ -1022,7 +1026,7 @@ export async function POST(request: NextRequest) {
         }
         await db.query(`CREATE TABLE IF NOT EXISTS kid_grocery_requests (
           id SERIAL PRIMARY KEY, kid_name TEXT NOT NULL, item_name TEXT NOT NULL,
-          category TEXT DEFAULT 'general', quantity TEXT, reason TEXT,
+          category TEXT DEFAULT 'other', quantity TEXT, reason TEXT,
           status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'denied')),
           parent_note TEXT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW())`)
         const kid = kidName.toLowerCase()
@@ -1030,10 +1034,12 @@ export async function POST(request: NextRequest) {
         const inserted: any[] = []
         for (const item of items) {
           if (!item.name?.trim()) continue
+          // P1-C: validate each item's category individually
+          const safeCategory = isGroceryRequestCategory(item.category) ? item.category : 'other'
           const rows = await db.query(
             `INSERT INTO kid_grocery_requests (kid_name, item_name, category, quantity, reason)
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [kid, item.name.trim(), item.category || 'produce', item.quantity || null, item.reason || null]
+            [kid, item.name.trim(), safeCategory, item.quantity || null, item.reason || null]
           )
           if (rows[0]) inserted.push(rows[0])
         }

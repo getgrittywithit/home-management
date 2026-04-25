@@ -163,6 +163,11 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'name, category, sub_category required' }, { status: 400 })
         }
         const canonical = String(name).toLowerCase().trim()
+        // P1-A (Kitchen Quick Wins): new items default to "in stock at par"
+        // instead of 0/out. Maintaining 683 explicit counts on a family of 8
+        // isn't realistic; flipping the default makes current_stock=0 mean
+        // "I marked it out," not "I haven't recorded it yet."
+        const resolvedPar = par_level ?? 1
         const rows = await db.query(
           `INSERT INTO inventory_items
              (name, canonical_name, category, sub_category, preferred_store, available_stores,
@@ -173,9 +178,9 @@ export async function POST(request: NextRequest) {
             name.trim(), canonical, category, sub_category,
             preferred_store || null,
             preferred_store ? [preferred_store] : [],
-            par_level ?? 1,
+            resolvedPar,
             par_unit || 'item',
-            current_stock ?? 0,
+            current_stock ?? resolvedPar,
             location || null,
             notes || null,
           ]
