@@ -35,7 +35,10 @@ interface PhotoSubmission {
   id: string
   kid_name: string
   zone_name: string
-  photo_url: string
+  // photo_url is no longer returned by the list endpoints — the frontend
+  // fetches bytes per-row via /api/parent/zone-photos?action=get_image_bytes&id=…
+  // (kept optional for backwards compat with older response shapes)
+  photo_url?: string
   submitted_at: string
   status: string
   parent_note: string | null
@@ -54,6 +57,8 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
   const [photoTotal, setPhotoTotal] = useState(0)
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
+  // Lightbox: when set, fullscreen the photo for the given submission id
+  const [lightboxPhotoId, setLightboxPhotoId] = useState<string | null>(null)
 
   const zoneWeek = getCurrentZoneWeek()
   const { start, end } = getCurrentZoneWeekRange()
@@ -294,13 +299,17 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
 
                     {isExpanded && (
                       <div className="mt-3 space-y-3">
-                        {/* Photo */}
-                        {photo.photo_url && (
-                          <div className="rounded-lg overflow-hidden border max-w-sm">
-                            <img src={photo.photo_url} alt={`${kidDisplay}'s ${photo.zone_name} zone`}
-                              className="w-full h-auto max-h-64 object-cover" />
-                          </div>
-                        )}
+                        {/* Photo — fetched as real bytes via the proxy route so iOS
+                            renders cleanly. Tap thumbnail to open the lightbox. */}
+                        <div className="rounded-lg overflow-hidden border max-w-sm">
+                          <img
+                            src={`/api/parent/zone-photos?action=get_image_bytes&id=${photo.id}`}
+                            alt={`${kidDisplay}'s ${photo.zone_name} zone`}
+                            className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-90 transition"
+                            onClick={() => setLightboxPhotoId(photo.id)}
+                            loading="lazy"
+                          />
+                        </div>
                         {/* Parent note (if redo) */}
                         {photo.parent_note && (
                           <p className="text-xs text-gray-600 bg-gray-50 rounded px-3 py-2">
@@ -337,6 +346,28 @@ export default function ChoresTab({ familyMembers = [], isParent = true }: Chore
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Lightbox modal — fullscreen photo viewer (iOS pinch-to-zoom works inside) */}
+      {lightboxPhotoId && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxPhotoId(null)}
+        >
+          <button
+            onClick={() => setLightboxPhotoId(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 text-white text-xl font-bold hover:bg-white/30 transition flex items-center justify-center"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+          <img
+            src={`/api/parent/zone-photos?action=get_image_bytes&id=${lightboxPhotoId}`}
+            alt="Zone photo full view"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
