@@ -88,6 +88,16 @@ interface BookRecommendation {
   cover_image_url: string | null
   item_type: string
   score: number
+  // Reading-level fields for the grade chip on rec cards (P2-B)
+  reading_grade_min?: number | null
+  reading_grade_max?: number | null
+  grade_min?: number | null
+  grade_max?: number | null
+  lexile_level?: number | null
+  ar_level?: number | string | null
+  reading_level_tag?: string | null
+  guided_reading_level?: string | null
+  dra_level?: number | null
 }
 
 interface BookDetailPayload {
@@ -222,7 +232,19 @@ function ItemCard({ item, onClick, compact }: { item: LibraryItem; onClick?: () 
 // Primary chip: best available grade range, preferring reading_grade_min/max
 // (which carry the curated reading-level data) over generic grade_min/max.
 // Details: every populated secondary metric — Lexile / AR / F&P / DRA.
-function readingLevelPrimary(item: LibraryItem): string | null {
+type ReadingLevelFields = {
+  reading_grade_min?: number | null
+  reading_grade_max?: number | null
+  grade_min?: number | null
+  grade_max?: number | null
+  lexile_level?: number | null
+  ar_level?: number | string | null
+  reading_level_tag?: string | null
+  guided_reading_level?: string | null
+  dra_level?: number | null
+}
+
+function readingLevelPrimary(item: ReadingLevelFields): string | null {
   const min = item.reading_grade_min ?? item.grade_min
   const max = item.reading_grade_max ?? item.grade_max
   if (min != null && max != null) {
@@ -233,7 +255,7 @@ function readingLevelPrimary(item: LibraryItem): string | null {
   return null
 }
 
-function readingLevelDetails(item: LibraryItem): { label: string; value: string }[] {
+function readingLevelDetails(item: ReadingLevelFields): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = []
   if (item.lexile_level != null) out.push({ label: 'Lexile', value: `${item.lexile_level}L` })
   if (item.ar_level != null && item.ar_level !== '') out.push({ label: 'AR', value: String(item.ar_level) })
@@ -1075,29 +1097,48 @@ function BookDetailView({
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h4 className="text-sm font-semibold text-gray-900 mb-3">You might also like...</h4>
           <div className="flex gap-3 overflow-x-auto pb-2">
-            {detail.recommendations.map((rec) => (
-              <button
-                key={rec.id}
-                onClick={() => onOpenBook(rec.id)}
-                className="shrink-0 w-28 text-left hover:opacity-80 transition-opacity"
-              >
-                {rec.cover_image_url ? (
-                  <img
-                    src={rec.cover_image_url}
-                    alt={rec.title}
-                    className="w-28 h-40 object-cover rounded-lg border border-gray-200"
-                  />
-                ) : (
-                  <div className="w-28 h-40 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50">
-                    <BookOpen className="w-8 h-8 text-gray-300" />
+            {detail.recommendations.map((rec) => {
+              // P2-B: surface the same grade chip as main library cards so
+              // kids don't lose at-a-glance reading-level info when browsing recs.
+              const recLevel = readingLevelPrimary(rec)
+              const recDetails = readingLevelDetails(rec)
+              const recHover = recDetails.length > 0
+                ? `${recLevel || 'Reading level'} · ${recDetails.map(d => `${d.label} ${d.value}`).join(' · ')}`
+                : recLevel || ''
+              return (
+                <button
+                  key={rec.id}
+                  onClick={() => onOpenBook(rec.id)}
+                  className="shrink-0 w-28 text-left hover:opacity-80 transition-opacity"
+                >
+                  <div className="relative w-28 h-40">
+                    {rec.cover_image_url ? (
+                      <img
+                        src={rec.cover_image_url}
+                        alt={rec.title}
+                        className="w-full h-full object-cover rounded-lg border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-full h-full rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-gray-50">
+                        <BookOpen className="w-8 h-8 text-gray-300" />
+                      </div>
+                    )}
+                    {recLevel && (
+                      <div className="absolute bottom-1.5 left-1.5" title={recHover}>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-white/90 text-teal-700 border border-teal-200 shadow-sm backdrop-blur">
+                          {recLevel}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-                <p className="text-xs font-medium text-gray-900 mt-1.5 line-clamp-2">{rec.title}</p>
-                {rec.author_or_publisher && (
-                  <p className="text-[10px] text-gray-500 line-clamp-1">{rec.author_or_publisher}</p>
-                )}
-              </button>
-            ))}
+                  {/* P2-C: line-clamp-2 lets long titles like "Dog Man: For Whom the Ball Rolls" wrap instead of truncating */}
+                  <p className="text-xs font-medium text-gray-900 mt-1.5 line-clamp-2 leading-tight">{rec.title}</p>
+                  {rec.author_or_publisher && (
+                    <p className="text-[10px] text-gray-500 line-clamp-1 mt-0.5">{rec.author_or_publisher}</p>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

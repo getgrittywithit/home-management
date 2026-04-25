@@ -236,6 +236,9 @@ export async function GET(request: NextRequest) {
           )
           SELECT h.id, h.title, h.author_or_publisher, h.cover_image_url, h.item_type,
                  h.subject_tags, h.genres, h.topics,
+                 h.reading_grade_min, h.reading_grade_max, h.grade_min, h.grade_max,
+                 h.lexile_level, h.ar_level, h.reading_level_tag,
+                 h.guided_reading_level, h.dra_level,
                  (
                    CASE WHEN h.author_or_publisher IS NOT NULL
                              AND h.author_or_publisher = (SELECT author_or_publisher FROM target)
