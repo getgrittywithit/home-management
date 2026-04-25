@@ -5,6 +5,16 @@ import { Activity, Check } from 'lucide-react'
 
 const SUGGESTIONS = ['Bike ride', 'Trampoline time', 'Walk to the park', 'Backyard games', 'Dance break', 'Yoga stretches']
 
+// Deterministic per-day per-kid index — same kid sees the same suggestion
+// all day Friday so they don't get told "Bike ride" then come back to find
+// "Trampoline time" after a refresh.
+function suggestionFor(date: string, kidName: string): string {
+  const seed = `${date}-${kidName.toLowerCase()}`
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0
+  return SUGGESTIONS[Math.abs(h) % SUGGESTIONS.length]
+}
+
 interface Props { kidName: string }
 
 export default function FridayMoveCard({ kidName }: Props) {
@@ -31,7 +41,7 @@ export default function FridayMoveCard({ kidName }: Props) {
     )
   }
 
-  const suggestion = SUGGESTIONS[Math.floor(Math.random() * SUGGESTIONS.length)]
+  const suggestion = suggestionFor(today, kidName)
   const isWyatt = kidName.toLowerCase() === 'wyatt'
 
   return (
