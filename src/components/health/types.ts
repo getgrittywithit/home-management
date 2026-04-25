@@ -1,5 +1,15 @@
+export type InsuranceStatus = 'active' | 'pending' | 'uninsured' | 'terminated'
+
 export interface InsurancePlan {
   id: string; plan_name: string; plan_type: 'private' | 'medicaid'; member_group: 'parents' | 'kids'
+  // P1-D: status + application tracking. Pending state means an application
+  // has been submitted but the decision letter hasn't arrived; uninsured
+  // means no coverage at all.
+  status: InsuranceStatus
+  application_id?: string | null
+  application_submitted_date?: string | null
+  decision_expected_date?: string | null
+  application_notes?: string | null
   subscriber_name?: string; member_id?: string; group_number?: string; plan_phone?: string; plan_website?: string
   copay_primary?: string; copay_specialist?: string; copay_urgent_care?: string; copay_er?: string
   deductible?: string; out_of_pocket_max?: string; pharmacy_coverage?: string; dental_coverage?: string

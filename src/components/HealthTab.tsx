@@ -21,11 +21,19 @@ import ShareWithProviderModal from './health/ShareWithProviderModal'
 // TYPE DEFINITIONS
 // ============================================================================
 
+type InsuranceStatus = 'active' | 'pending' | 'uninsured' | 'terminated'
+
 interface InsurancePlan {
   id: string
   plan_name: string
   plan_type: 'private' | 'medicaid'
   member_group: 'parents' | 'kids'
+  // P1-D
+  status: InsuranceStatus
+  application_id?: string | null
+  application_submitted_date?: string | null
+  decision_expected_date?: string | null
+  application_notes?: string | null
   subscriber_name?: string
   member_id?: string
   group_number?: string
@@ -158,6 +166,55 @@ interface HealthTabProps {
 // ============================================================================
 
 // Constants moved to extracted sub-tab components
+
+// ============================================================================
+// P1-D: insurance status banner — shows above the tab content when the
+// member group's insurance is mid-application or fully uninsured. Click
+// jumps to the Providers tab so Lola can update the status when the
+// decision letter arrives.
+// ============================================================================
+function InsuranceStatusBanner({
+  plan, memberGroup, onJump,
+}: {
+  plan: InsurancePlan
+  memberGroup: 'parents' | 'kids'
+  onJump: () => void
+}) {
+  const isPending = plan.status === 'pending'
+  const wrap = isPending
+    ? 'bg-amber-50 border-amber-300 text-amber-900'
+    : 'bg-red-50 border-red-300 text-red-900'
+  const fmt = (iso?: string | null) => {
+    if (!iso) return null
+    const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso)
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  const groupNoun = memberGroup === 'kids' ? "Kids'" : "Parents'"
+  return (
+    <div className={`border rounded-lg p-4 flex items-start gap-3 ${wrap}`}>
+      <span className="text-lg leading-none mt-0.5">{isPending ? '⏳' : '⚠️'}</span>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold">
+          {groupNoun} insurance: {isPending ? 'application submitted (pending decision)' : 'no active coverage'}
+        </p>
+        <p className="text-sm mt-0.5 opacity-90">
+          {plan.application_id && <>App #{plan.application_id} · </>}
+          {plan.application_submitted_date && <>Submitted {fmt(plan.application_submitted_date)} · </>}
+          {plan.decision_expected_date && <>Decision expected ~{fmt(plan.decision_expected_date)}</>}
+          {!plan.application_id && !plan.application_submitted_date && plan.application_notes && plan.application_notes}
+        </p>
+      </div>
+      <button
+        onClick={onJump}
+        className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded ${
+          isPending ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-red-600 text-white hover:bg-red-700'
+        }`}
+      >
+        Update status →
+      </button>
+    </div>
+  )
+}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -344,6 +401,18 @@ export default function HealthTab({ memberGroup }: HealthTabProps) {
             <X className="w-5 h-5" />
           </button>
         </div>
+      )}
+
+      {/* P1-D: top-of-tab insurance status banner. Surfaces pending /
+          uninsured states so Lola doesn't have to remember the kids are
+          mid-application every time she's about to authorize a doctor
+          visit. Hidden when status is 'active' or null. */}
+      {insurancePlan && (insurancePlan.status === 'pending' || insurancePlan.status === 'uninsured') && (
+        <InsuranceStatusBanner
+          plan={insurancePlan}
+          memberGroup={memberGroup}
+          onJump={() => setActiveSection('insurance')}
+        />
       )}
 
       {/* Sub-Navigation — 8 tabs matching health/ sub-tab structure */}

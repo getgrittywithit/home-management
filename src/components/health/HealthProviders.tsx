@@ -3,18 +3,97 @@
 import { useState } from 'react'
 import {
   Building2, Phone, MapPin, Globe, DollarSign, AlertCircle,
-  Plus, Edit2, Trash2, User, Stethoscope
+  Plus, Edit2, Trash2, User, Stethoscope, Clock, CheckCircle, XCircle
 } from 'lucide-react'
+
+// P1-D helpers — render the insurance status pill + pending-application card
+const STATUS_META: Record<InsuranceStatus, { label: string; emoji: string; className: string; Icon: any }> = {
+  active:     { label: 'Active',                emoji: '✓', className: 'bg-green-100 text-green-700 border-green-200',  Icon: CheckCircle },
+  pending:    { label: 'Pending Decision',      emoji: '⏳', className: 'bg-amber-100 text-amber-700 border-amber-200',  Icon: Clock },
+  uninsured:  { label: 'No Active Coverage',    emoji: '❌', className: 'bg-red-100 text-red-700 border-red-200',        Icon: XCircle },
+  terminated: { label: 'Terminated',            emoji: '✕', className: 'bg-gray-100 text-gray-700 border-gray-200',     Icon: XCircle },
+}
+
+function InsuranceStatusPill({ status }: { status: InsuranceStatus }) {
+  const meta = STATUS_META[status] ?? STATUS_META.active
+  const Icon = meta.Icon
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${meta.className}`}>
+      <Icon className="w-3 h-3" />
+      {meta.label}
+    </span>
+  )
+}
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function PendingApplicationCard({ plan }: { plan: InsurancePlan }) {
+  const isUninsured = plan.status === 'uninsured'
+  const wrap = isUninsured
+    ? 'bg-red-50 border-red-200'
+    : 'bg-amber-50 border-amber-200'
+  const text = isUninsured ? 'text-red-800' : 'text-amber-800'
+  const subText = isUninsured ? 'text-red-700' : 'text-amber-700'
+  return (
+    <div className={`rounded-lg border p-4 ${wrap}`}>
+      <div className={`flex items-center gap-2 mb-2 ${text}`}>
+        {isUninsured ? <XCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+        <h3 className="font-semibold">
+          {isUninsured ? 'No active coverage' : 'Application submitted — awaiting decision'}
+        </h3>
+      </div>
+      <div className={`grid grid-cols-1 md:grid-cols-3 gap-3 text-sm ${subText}`}>
+        {plan.application_id && (
+          <div>
+            <p className="text-xs opacity-75">Application #</p>
+            <p className="font-semibold">{plan.application_id}</p>
+          </div>
+        )}
+        {plan.application_submitted_date && (
+          <div>
+            <p className="text-xs opacity-75">Submitted</p>
+            <p className="font-semibold">{fmtDate(plan.application_submitted_date)}</p>
+          </div>
+        )}
+        {plan.decision_expected_date && (
+          <div>
+            <p className="text-xs opacity-75">Decision expected</p>
+            <p className="font-semibold">{fmtDate(plan.decision_expected_date)}</p>
+          </div>
+        )}
+      </div>
+      {plan.application_notes && (
+        <p className={`text-xs mt-3 ${subText}`}>{plan.application_notes}</p>
+      )}
+      <p className={`text-xs mt-3 italic ${subText}`}>
+        Tap <strong>Edit</strong> above to update the status when the letter arrives.
+      </p>
+    </div>
+  )
+}
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
+
+type InsuranceStatus = 'active' | 'pending' | 'uninsured' | 'terminated'
 
 interface InsurancePlan {
   id: string
   plan_name: string
   plan_type: 'private' | 'medicaid'
   member_group: 'parents' | 'kids'
+  // P1-D
+  status: InsuranceStatus
+  application_id?: string | null
+  application_submitted_date?: string | null
+  decision_expected_date?: string | null
+  application_notes?: string | null
   subscriber_name?: string
   member_id?: string
   group_number?: string
@@ -207,7 +286,11 @@ export default function HealthProviders({
                 }`} />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">{insurancePlan.plan_name}</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-bold text-gray-900">{insurancePlan.plan_name}</h2>
+                  {/* P1-D status pill — single source of truth on the card */}
+                  <InsuranceStatusPill status={insurancePlan.status} />
+                </div>
                 <p className="text-sm text-gray-600 capitalize">{insurancePlan.plan_type}</p>
               </div>
             </div>
@@ -233,6 +316,12 @@ export default function HealthProviders({
             />
           ) : (
             <div className="space-y-4">
+              {/* P1-D: pending application detail block. Replaces the
+                  copay/deductible tiles (which are misleading when no
+                  coverage is actually in force yet). */}
+              {(insurancePlan.status === 'pending' || insurancePlan.status === 'uninsured') && (
+                <PendingApplicationCard plan={insurancePlan} />
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {insurancePlan.subscriber_name && (
                   <div>
@@ -260,6 +349,9 @@ export default function HealthProviders({
                 )}
               </div>
 
+              {/* P1-D: copays/deductibles only meaningful while coverage is
+                  actually in force. Suppress when pending/uninsured/terminated. */}
+              {insurancePlan.status === 'active' && (
               <div className="bg-gray-50 rounded-lg p-4 mt-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-green-600" />
@@ -306,6 +398,7 @@ export default function HealthProviders({
                   )}
                 </div>
               </div>
+              )}
 
               <div className="space-y-2 pt-2">
                 {insurancePlan.plan_phone && (
@@ -629,34 +722,107 @@ function HealthProfileForm({ form, setForm, onSave, onCancel, isEditing, themeCo
 function InsurancePlanEditForm({ plan, onSave, onCancel, themeColor }: {
   plan: InsurancePlan; onSave: (updates: Partial<InsurancePlan>) => void; onCancel: () => void; themeColor: string
 }) {
+  // P1-D: status, application fields, and identity fields all editable now.
+  // Empty string is sent to the API so it can clear values explicitly.
   const [updates, setUpdates] = useState<Partial<InsurancePlan>>({
-    copay_primary: plan.copay_primary, copay_specialist: plan.copay_specialist,
-    copay_urgent_care: plan.copay_urgent_care, copay_er: plan.copay_er,
-    deductible: plan.deductible, out_of_pocket_max: plan.out_of_pocket_max, notes: plan.notes
+    status: plan.status,
+    subscriber_name: plan.subscriber_name ?? '',
+    member_id: plan.member_id ?? '',
+    group_number: plan.group_number ?? '',
+    application_id: plan.application_id ?? '',
+    application_submitted_date: plan.application_submitted_date ?? '',
+    decision_expected_date: plan.decision_expected_date ?? '',
+    application_notes: plan.application_notes ?? '',
+    copay_primary: plan.copay_primary ?? '',
+    copay_specialist: plan.copay_specialist ?? '',
+    copay_urgent_care: plan.copay_urgent_care ?? '',
+    copay_er: plan.copay_er ?? '',
+    deductible: plan.deductible ?? '',
+    out_of_pocket_max: plan.out_of_pocket_max ?? '',
+    notes: plan.notes ?? '',
   })
+  const isPendingOrUninsured = updates.status === 'pending' || updates.status === 'uninsured'
 
   return (
-    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <input type="text" placeholder="Primary Care Copay" value={updates.copay_primary || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_primary: e.target.value })}
+    <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+      {/* Status + identity */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label className="block text-xs font-semibold text-gray-600">
+          Coverage Status
+          <select value={updates.status || 'active'}
+            onChange={(e) => setUpdates({ ...updates, status: e.target.value as InsuranceStatus })}
+            className="mt-1 block w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="active">Active</option>
+            <option value="pending">Pending Decision</option>
+            <option value="uninsured">No Active Coverage</option>
+            <option value="terminated">Terminated</option>
+          </select>
+        </label>
+        <input type="text" placeholder="Subscriber name" value={updates.subscriber_name || ''}
+          onChange={(e) => setUpdates({ ...updates, subscriber_name: e.target.value })}
+          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 self-end" />
+        <input type="text" placeholder="Member ID" value={updates.member_id || ''}
+          onChange={(e) => setUpdates({ ...updates, member_id: e.target.value })}
           className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Specialist Copay" value={updates.copay_specialist || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_specialist: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Urgent Care Copay" value={updates.copay_urgent_care || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_urgent_care: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="ER Copay" value={updates.copay_er || ''}
-          onChange={(e) => setUpdates({ ...updates, copay_er: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Deductible" value={updates.deductible || ''}
-          onChange={(e) => setUpdates({ ...updates, deductible: e.target.value })}
-          className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <input type="text" placeholder="Out of Pocket Max" value={updates.out_of_pocket_max || ''}
-          onChange={(e) => setUpdates({ ...updates, out_of_pocket_max: e.target.value })}
+        <input type="text" placeholder="Group number" value={updates.group_number || ''}
+          onChange={(e) => setUpdates({ ...updates, group_number: e.target.value })}
           className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
+
+      {/* Application fields surface only when relevant */}
+      {isPendingOrUninsured && (
+        <div className="border-t pt-3 space-y-3">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Application tracking</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input type="text" placeholder="Application #" value={updates.application_id || ''}
+              onChange={(e) => setUpdates({ ...updates, application_id: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            <label className="block text-xs font-semibold text-gray-600">
+              Submitted
+              <input type="date" value={updates.application_submitted_date || ''}
+                onChange={(e) => setUpdates({ ...updates, application_submitted_date: e.target.value })}
+                className="mt-1 block w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </label>
+            <label className="block text-xs font-semibold text-gray-600">
+              Decision expected
+              <input type="date" value={updates.decision_expected_date || ''}
+                onChange={(e) => setUpdates({ ...updates, decision_expected_date: e.target.value })}
+                className="mt-1 block w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            </label>
+          </div>
+          <textarea placeholder="Application notes" value={updates.application_notes || ''}
+            onChange={(e) => setUpdates({ ...updates, application_notes: e.target.value })}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none" rows={2} />
+        </div>
+      )}
+
+      {/* Copays only meaningful while active */}
+      {updates.status === 'active' && (
+        <div className="border-t pt-3 space-y-3">
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Copays &amp; coverage</p>
+          <div className="grid grid-cols-2 gap-3">
+            <input type="text" placeholder="Primary Care Copay" value={updates.copay_primary || ''}
+              onChange={(e) => setUpdates({ ...updates, copay_primary: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="Specialist Copay" value={updates.copay_specialist || ''}
+              onChange={(e) => setUpdates({ ...updates, copay_specialist: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="Urgent Care Copay" value={updates.copay_urgent_care || ''}
+              onChange={(e) => setUpdates({ ...updates, copay_urgent_care: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="ER Copay" value={updates.copay_er || ''}
+              onChange={(e) => setUpdates({ ...updates, copay_er: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="Deductible" value={updates.deductible || ''}
+              onChange={(e) => setUpdates({ ...updates, deductible: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="Out of Pocket Max" value={updates.out_of_pocket_max || ''}
+              onChange={(e) => setUpdates({ ...updates, out_of_pocket_max: e.target.value })}
+              className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+      )}
+
       <textarea placeholder="Notes" value={updates.notes || ''}
         onChange={(e) => setUpdates({ ...updates, notes: e.target.value })}
         className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} />
