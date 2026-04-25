@@ -127,30 +127,44 @@ export async function POST(request: NextRequest) {
         const { id, ...updates } = data
         if (!id) return NextResponse.json({ error: 'Missing plan ID' }, { status: 400 })
 
+        // P1-D: surface every editable field. Use IS NULL semantics on the
+        // CASE so the client can explicitly clear a value (send empty
+        // string → store NULL) instead of being stuck with COALESCE always
+        // preserving a stale value. status is enum-validated by the DB
+        // CHECK constraint.
+        const norm = (v: unknown) => v === '' ? null : v
+        const fields: Array<[string, unknown]> = [
+          ['plan_name', updates.plan_name],
+          ['status', updates.status],
+          ['subscriber_name', norm(updates.subscriber_name)],
+          ['member_id', norm(updates.member_id)],
+          ['group_number', norm(updates.group_number)],
+          ['application_id', norm(updates.application_id)],
+          ['application_submitted_date', norm(updates.application_submitted_date)],
+          ['decision_expected_date', norm(updates.decision_expected_date)],
+          ['application_notes', norm(updates.application_notes)],
+          ['copay_primary', updates.copay_primary],
+          ['copay_specialist', updates.copay_specialist],
+          ['copay_urgent_care', updates.copay_urgent_care],
+          ['copay_er', updates.copay_er],
+          ['deductible', updates.deductible],
+          ['out_of_pocket_max', updates.out_of_pocket_max],
+          ['notes', updates.notes],
+        ]
+        const setParts: string[] = []
+        const params: any[] = [id]
+        for (const [col, val] of fields) {
+          if (val === undefined) continue
+          params.push(val)
+          setParts.push(`${col} = $${params.length}`)
+        }
+        if (setParts.length === 0) {
+          return NextResponse.json({ error: 'no fields to update' }, { status: 400 })
+        }
+        setParts.push('updated_at = NOW()')
         const result = await query(
-          `UPDATE insurance_plans
-           SET plan_name = COALESCE($2, plan_name),
-               copay_primary = COALESCE($3, copay_primary),
-               copay_specialist = COALESCE($4, copay_specialist),
-               copay_urgent_care = COALESCE($5, copay_urgent_care),
-               copay_er = COALESCE($6, copay_er),
-               deductible = COALESCE($7, deductible),
-               out_of_pocket_max = COALESCE($8, out_of_pocket_max),
-               notes = COALESCE($9, notes),
-               updated_at = NOW()
-           WHERE id = $1
-           RETURNING *`,
-          [
-            id,
-            updates.plan_name,
-            updates.copay_primary,
-            updates.copay_specialist,
-            updates.copay_urgent_care,
-            updates.copay_er,
-            updates.deductible,
-            updates.out_of_pocket_max,
-            updates.notes
-          ]
+          `UPDATE insurance_plans SET ${setParts.join(', ')} WHERE id = $1 RETURNING *`,
+          params
         )
         return NextResponse.json(result[0])
       }
