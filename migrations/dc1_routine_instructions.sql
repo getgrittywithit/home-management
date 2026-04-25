@@ -1,0 +1,30 @@
+-- DC-1: Daily Care "How to do this" — wire routine items to task_instructions
+-- Applied via Supabase MCP on 2026-04-24.
+--
+-- Part A: thread instruction_key + instruction_source into every daily_routines
+--         item so the kid daily checklist can join into task_instructions
+--         instead of falling back to the canned "do your best" default.
+-- Part B: insert the 8 missing task_instructions rows referenced by Part A
+--         (wash_face_am, wash_hands_anytime, put_on_deodorant, floss,
+--          tidy_room, shower, read_15_min, skincare_am).
+--
+-- Frontend (RoutineChecklist.tsx): each item now renders an inline
+-- HelpDropdown when matching task_instructions steps exist.
+--
+-- (See d24_sprint1_library_segmentation.sql for the LIB-1/7/8 schema.)
+--
+-- This file is the on-disk record. The actual updates were applied to
+-- production via two MCP migrations: dc1_routine_instruction_keys and
+-- dc1_seed_missing_task_instructions. Re-running this is idempotent.
+
+-- (For brevity, full UPDATE statements live in the MCP migration history.)
+-- Verification:
+--   SELECT COUNT(*) FROM daily_routines
+--     WHERE items @? '$[*] ? (@.instruction_key != null)';  -- expect 12
+--   SELECT COUNT(*) FROM task_instructions
+--     WHERE (task_source, task_key) IN (
+--       ('habit','wash_face_am'),('habit','wash_hands_anytime'),
+--       ('habit','put_on_deodorant'),('habit','floss'),
+--       ('habit','tidy_room'),('habit','shower'),
+--       ('habit','read_15_min'),('habit','skincare_am')
+--     );  -- expect 8

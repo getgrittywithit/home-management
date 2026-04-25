@@ -3,11 +3,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Check, Sun, Moon, Flame } from 'lucide-react'
 import SpeakerButton from './SpeakerButton'
+import HelpDropdown from './HelpDropdown'
 
 interface RoutineItem {
   name: string
   type: string
   order: number
+  // DC-1: routine items now carry an instruction_key so the kid can expand
+  // "How to do this" per item instead of seeing the canned fallback. Mapped to
+  // task_instructions via (instruction_source, instruction_key).
+  instruction_key?: string | null
+  instruction_source?: string | null
 }
 
 interface RoutineChecklistProps {
@@ -27,13 +33,29 @@ export default function RoutineChecklist({ kidName }: RoutineChecklistProps) {
   const [completed, setCompleted] = useState<Record<string, Set<string>>>({})
   const [streaks, setStreaks] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  // DC-1: instruction map keyed by `${task_source}:${task_key}` → steps[]
+  const [instructions, setInstructions] = useState<Record<string, string[]>>({})
 
   const kid = kidName.toLowerCase()
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(`/api/routines?action=get_routine&kid_name=${kid}`)
-      const data = await res.json()
+      const [routineRes, instrRes] = await Promise.all([
+        fetch(`/api/routines?action=get_routine&kid_name=${kid}`),
+        fetch('/api/homeschool?action=get_task_instructions'),
+      ])
+      const data = await routineRes.json()
+
+      // Build instruction map
+      try {
+        const instrData = await instrRes.json()
+        const map: Record<string, string[]> = {}
+        for (const r of (instrData.instructions || [])) {
+          const key = `${r.task_source}:${r.task_key}`
+          map[key] = Array.isArray(r.steps) ? r.steps : []
+        }
+        setInstructions(map)
+      } catch { /* non-fatal — items render without expand */ }
 
       const routineMap: Record<string, RoutineItem[]> = {}
       for (const r of (data.routines || [])) {
@@ -146,20 +168,32 @@ export default function RoutineChecklist({ kidName }: RoutineChecklistProps) {
           {items.map(item => {
             const isDone = done.has(item.name)
             const emoji = TYPE_EMOJI[item.type] || '📌'
+            const instrKey = item.instruction_key && item.instruction_source
+              ? `${item.instruction_source}:${item.instruction_key}`
+              : null
+            const itemSteps = instrKey ? instructions[instrKey] : null
             return (
-              <div key={item.name} className={`flex items-center gap-3 py-2 px-3 rounded-lg ${isDone ? 'bg-green-50/50' : 'bg-gray-50'}`}>
-                <button
-                  onClick={() => toggleItem(type, item.name)}
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition flex-shrink-0 ${
-                    isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'
-                  }`}
-                >
-                  {isDone && <Check className="w-3.5 h-3.5" />}
-                </button>
-                <span className={`text-sm flex-1 ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                  {emoji} {item.name}
-                </span>
-                {!isDone && <SpeakerButton text={item.name} size="sm" rate={0.9} />}
+              <div key={item.name} className={`rounded-lg ${isDone ? 'bg-green-50/50' : 'bg-gray-50'}`}>
+                <div className="flex items-center gap-3 py-2 px-3">
+                  <button
+                    onClick={() => toggleItem(type, item.name)}
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition flex-shrink-0 ${
+                      isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-green-400'
+                    }`}
+                  >
+                    {isDone && <Check className="w-3.5 h-3.5" />}
+                  </button>
+                  <span className={`text-sm flex-1 ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                    {emoji} {item.name}
+                  </span>
+                  {!isDone && <SpeakerButton text={item.name} size="sm" rate={0.9} />}
+                </div>
+                {/* DC-1: per-item "How to do this" — rendered only when steps exist */}
+                {itemSteps && itemSteps.length > 0 && (
+                  <div className="px-3 pb-2 pl-12">
+                    <HelpDropdown instructions={itemSteps} compact />
+                  </div>
+                )}
               </div>
             )
           })}
