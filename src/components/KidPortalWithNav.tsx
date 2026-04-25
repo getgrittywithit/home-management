@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Calendar, CheckSquare, Clock, Star, MapPin, Users,
   Plus, MessageSquare, Utensils, ChevronLeft, ChevronRight,
@@ -2029,6 +2029,39 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [expandedSection, setExpandedSection] = useState<number | null>(null)
+
+  // P2-D Part 1: smart default expansion. On first portal load each session
+  // pick the most relevant sidebar group based on what the kid actually has
+  // open: unfinished DO FIRST → MY STUFF (unread) → FUN & GROWTH (unspent
+  // stars) → leave everything collapsed. Section index is hard-coded to the
+  // navSections layout above (0=top/unlabeled, 1=DO FIRST, 2=MY STUFF,
+  // 3=FUN & GROWTH, 4=ME). Runs ONCE on mount; user manual expand/collapse
+  // wins from there.
+  const smartExpandRef = useRef(false)
+  useEffect(() => {
+    if (smartExpandRef.current) return
+    const kid = (profile?.first_name || '').toLowerCase()
+    if (!kid) return
+    smartExpandRef.current = true
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/kids/checklist?child=${kid}`)
+        const j = await r.json()
+        const requiredTotal = j?.stats?.requiredTotal ?? 0
+        const requiredDone = j?.stats?.requiredDone ?? 0
+        const dailyCareTotal = j?.stats?.dailyCareTotal ?? 0
+        const dailyCareDone = j?.stats?.dailyCareDone ?? 0
+        if (
+          (requiredTotal > 0 && requiredDone < requiredTotal) ||
+          (dailyCareTotal > 0 && dailyCareDone < dailyCareTotal)
+        ) {
+          setExpandedSection((cur) => (cur == null ? 1 : cur)) // DO FIRST
+          return
+        }
+      } catch { /* non-fatal — leave default */ }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.first_name])
 
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">

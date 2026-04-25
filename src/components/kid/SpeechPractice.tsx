@@ -149,11 +149,11 @@ export default function SpeechPractice({ kidName, onClose }: Props) {
           <div className="flex gap-3 justify-center pt-2">
             <button onClick={() => rate('like_mom')}
               className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-green-100">
-              <Check className="w-4 h-4" /> Sounded like Mom&apos;s
+              <Check className="w-4 h-4" /> Nailed it!
             </button>
             <button onClick={() => rate('still_practicing')}
               className="flex items-center gap-1.5 bg-gray-50 text-gray-600 border border-gray-200 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-100">
-              <RotateCcw className="w-4 h-4" /> Still practicing
+              <RotateCcw className="w-4 h-4" /> Try again
             </button>
           </div>
         ) : (
