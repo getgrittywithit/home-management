@@ -2030,13 +2030,34 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [expandedSection, setExpandedSection] = useState<number | null>(null)
 
-  // P2-D Part 1: smart default expansion. On first portal load each session
-  // pick the most relevant sidebar group based on what the kid actually has
-  // open: unfinished DO FIRST → MY STUFF (unread) → FUN & GROWTH (unspent
-  // stars) → leave everything collapsed. Section index is hard-coded to the
-  // navSections layout above (0=top/unlabeled, 1=DO FIRST, 2=MY STUFF,
-  // 3=FUN & GROWTH, 4=ME). Runs ONCE on mount; user manual expand/collapse
-  // wins from there.
+  // P2-D Part 1+2: smart default expansion + per-kid persistence.
+  // Section index ↔ group string mapping for /api/kids/ui-state. The
+  // unlabeled top section (0) and ME (4) are also valid targets but
+  // only do_first/my_stuff/fun_growth get used by the smart-default
+  // logic. ME is included so a manual expand persists too.
+  const INDEX_TO_GROUP: Record<number, string> = { 1: 'do_first', 2: 'my_stuff', 3: 'fun_growth', 4: 'me' }
+  const GROUP_TO_INDEX: Record<string, number> = { do_first: 1, my_stuff: 2, fun_growth: 3, me: 4 }
+
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const persistExpandedGroup = (idx: number | null) => {
+    const kid = (profile?.first_name || '').toLowerCase()
+    if (!kid) return
+    const group = idx == null ? null : (INDEX_TO_GROUP[idx] ?? null)
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+    persistTimerRef.current = setTimeout(() => {
+      fetch('/api/kids/ui-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kid_name: kid, last_expanded_group: group }),
+      }).catch(() => { /* non-blocking — UI state isn't critical */ })
+    }, 300)
+  }
+
+  // P2-D smart-default effect: on first portal mount, restore the kid's
+  // last-expanded group from kid_ui_state if `updated_at` is today's
+  // Chicago date. Otherwise fall back to Part 1's logic (DO FIRST when
+  // unfinished items, else everything collapsed). Runs ONCE per mount;
+  // after that, manual expand/collapse wins (and gets persisted).
   const smartExpandRef = useRef(false)
   useEffect(() => {
     if (smartExpandRef.current) return
@@ -2044,6 +2065,24 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
     if (!kid) return
     smartExpandRef.current = true
     ;(async () => {
+      // Part 2 — try restoring from persisted UI state first
+      try {
+        const r = await fetch(`/api/kids/ui-state?kid_name=${encodeURIComponent(kid)}`)
+        const j = await r.json()
+        if (j?.last_expanded_group && j?.updated_at) {
+          const updated = new Date(j.updated_at).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+          const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+          if (updated === today) {
+            const idx = GROUP_TO_INDEX[j.last_expanded_group]
+            if (idx != null) {
+              setExpandedSection(idx)
+              return
+            }
+          }
+        }
+      } catch { /* fall through to Part 1 */ }
+
+      // Part 1 fallback — pick the most relevant section by kid state
       try {
         const r = await fetch(`/api/kids/checklist?child=${kid}`)
         const j = await r.json()
@@ -2056,9 +2095,8 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
           (dailyCareTotal > 0 && dailyCareDone < dailyCareTotal)
         ) {
           setExpandedSection((cur) => (cur == null ? 1 : cur)) // DO FIRST
-          return
         }
-      } catch { /* non-fatal — leave default */ }
+      } catch { /* non-fatal — leave default collapsed */ }
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.first_name])
@@ -2135,7 +2173,11 @@ function KidPortalInner({ kidData, previewMode }: KidPortalProps) {
               <div key={si}>
                 {hasLabel ? (
                   <button
-                    onClick={() => setExpandedSection(expandedSection === si ? null : si)}
+                    onClick={() => {
+                      const next = expandedSection === si ? null : si
+                      setExpandedSection(next)
+                      persistExpandedGroup(next)
+                    }}
                     className={`w-full text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 ${si > 0 ? 'pt-3 mt-1 border-t border-gray-100' : ''} pb-1 hover:text-gray-600 flex items-center justify-between`}
                     aria-expanded={isExpanded}
                   >
