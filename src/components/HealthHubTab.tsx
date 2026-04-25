@@ -508,8 +508,16 @@ function EpisodesSection() {
       {active.length === 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
           <Shield className="w-8 h-8 text-green-400 mx-auto mb-2" />
-          <p className="text-green-700 font-medium">Everyone is healthy!</p>
-          <p className="text-sm text-green-600">No active illness episodes.</p>
+          <p className="text-green-700 font-medium">No new acute episodes.</p>
+          {/* P1.5: prior copy ("Everyone is healthy!") read as a confidence-killer
+              when ongoing treatment plans (allergies, mental-health med titration,
+              cycle care) are actively being managed — those don't live in this
+              card. Be honest about the scope. */}
+          <p className="text-sm text-green-600">
+            This card tracks acute illness — colds, infections, injuries.
+            <br />
+            Ongoing treatment plans live with the relevant person&apos;s health profile.
+          </p>
         </div>
       )}
 

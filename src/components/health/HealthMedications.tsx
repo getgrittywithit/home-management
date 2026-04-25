@@ -276,12 +276,22 @@ export default function HealthMedications({
                             <span>{med.frequency}</span>
                           </div>
                         )}
-                        {med.prescribing_doctor && (
-                          <div className="flex items-center gap-2">
-                            <Stethoscope className="w-3.5 h-3.5" />
+                        <div className="flex items-center gap-2">
+                          <Stethoscope className="w-3.5 h-3.5" />
+                          {med.prescribing_doctor ? (
                             <span>{med.prescribing_doctor}</span>
-                          </div>
-                        )}
+                          ) : (
+                            // P1-C: actively prompt Lola to fill in real prescriber
+                            // when the field is null (after the Sarah Chen scrub)
+                            <button
+                              type="button"
+                              onClick={() => startEdit(med)}
+                              className="text-xs text-gray-400 hover:text-gray-600 underline decoration-dotted"
+                            >
+                              + Add prescriber
+                            </button>
+                          )}
+                        </div>
                         {med.pharmacy && (
                           <div className="flex items-center gap-2">
                             <Building2 className="w-3.5 h-3.5" />
