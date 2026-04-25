@@ -460,6 +460,9 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        // P1-B (D24): force lowercase family_member_name. The DB CHECK
+        // constraint medications_family_member_name_lowercase enforces
+        // this; doing it here too keeps client errors out of the response.
         const result = await query(
           `INSERT INTO medications (
             family_member_name, member_group, medication_name, dosage,
@@ -468,7 +471,7 @@ export async function POST(request: NextRequest) {
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
            RETURNING *`,
           [
-            data.family_member_name,
+            String(data.family_member_name).toLowerCase(),
             data.member_group,
             data.medication_name,
             data.dosage || null,

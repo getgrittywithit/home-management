@@ -91,13 +91,18 @@ export async function GET(req: NextRequest) {
       )`).catch(() => {})
 
       for (const m of MEDICATIONS) {
-        const existing = await db.query(`SELECT id FROM medications WHERE family_member_name = $1 AND medication_name = $2`, [m.family_member_name, m.medication_name]).catch(() => [])
+        // P1-B: lowercase family_member_name on read AND write so the seed
+        // matches existing rows (which the DB CHECK now enforces lowercase)
+        // instead of creating capitalized duplicates like the historical
+        // 'Amos'/'Wyatt'/'Zoey' rows that triggered this dispatch.
+        const memberKey = String(m.family_member_name).toLowerCase()
+        const existing = await db.query(`SELECT id FROM medications WHERE family_member_name = $1 AND medication_name = $2`, [memberKey, m.medication_name]).catch(() => [])
         if (existing.length === 0) {
           await db.query(`INSERT INTO medications (family_member_name, member_group, medication_name, dosage, frequency, purpose, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [m.family_member_name, m.member_group, m.medication_name, (m as any).dosage || null, m.frequency, m.purpose, m.is_active])
-          results.push(`Med added: ${m.family_member_name} - ${m.medication_name}`)
+            [memberKey, m.member_group, m.medication_name, (m as any).dosage || null, m.frequency, m.purpose, m.is_active])
+          results.push(`Med added: ${memberKey} - ${m.medication_name}`)
         } else {
-          results.push(`Med exists: ${m.family_member_name} - ${m.medication_name}`)
+          results.push(`Med exists: ${memberKey} - ${m.medication_name}`)
         }
       }
     }
