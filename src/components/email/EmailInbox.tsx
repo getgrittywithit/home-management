@@ -107,6 +107,9 @@ export default function EmailInbox() {
   const [accountSyncing, setAccountSyncing] = useState<string | null>(null)
   const [taskForm, setTaskForm] = useState<TaskForm | null>(null)
   const [taskSubmitting, setTaskSubmitting] = useState(false)
+  // P0-1: per-account sync errors (with needs_reauth flag) so we can
+  // render an actionable "Re-authorize" CTA instead of silent failure.
+  const [syncErrors, setSyncErrors] = useState<Record<string, { message: string; needs_reauth: boolean }>>({})
 
   const fetchAccounts = async () => {
     try {
@@ -174,6 +177,19 @@ export default function EmailInbox() {
         body: JSON.stringify({ action: 'sync_inbox', ...(accountEmail ? { account_email: accountEmail } : {}) }),
       })
       const data = await res.json()
+      // P0-1: capture per-account error state so we can render an
+      // actionable Re-authorize CTA. Successful accounts are removed
+      // from the error map.
+      if (Array.isArray(data?.accounts)) {
+        setSyncErrors(prev => {
+          const next = { ...prev }
+          for (const a of data.accounts) {
+            if (a.error) next[a.email] = { message: a.error, needs_reauth: !!a.needs_reauth }
+            else delete next[a.email]
+          }
+          return next
+        })
+      }
       if (data.success) {
         fetchInbox()
         fetchAccounts()
@@ -446,13 +462,32 @@ export default function EmailInbox() {
               <Plus className="w-3 h-3" /> Connect Another
             </a>
           </div>
+
+          {/* P0-1: stale-sync banner. Triggers when ANY account hasn't
+              synced in >24h or hit a needs_reauth error. The Re-authorize
+              link reuses the same OAuth connect flow per account. */}
+          {(Object.values(syncErrors).some(e => e.needs_reauth)
+            || accounts.some(a => a.is_active && a.last_sync_at && (Date.now() - new Date(a.last_sync_at).getTime()) > 24 * 60 * 60 * 1000)) && (
+            <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+              <p className="font-semibold mb-1">⚠️ Email sync is behind</p>
+              <p className="text-xs">
+                One or more accounts need re-authorization (Google access tokens expire after a few hours and require a refresh — if Google revoked the refresh token, you&rsquo;ll need to re-connect once).
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-2 sm:grid-cols-2">
             {accounts.map((acc) => {
               const recent = isRecentSync(acc.last_sync_at)
-              const dotColor = !acc.is_active ? 'bg-gray-300' : recent ? 'bg-green-500' : 'bg-amber-400'
+              const stale = !!acc.last_sync_at && (Date.now() - new Date(acc.last_sync_at).getTime()) > 24 * 60 * 60 * 1000
+              const err = syncErrors[acc.email]
+              const dotColor = !acc.is_active ? 'bg-gray-300'
+                : err?.needs_reauth ? 'bg-red-500'
+                : stale || !recent ? 'bg-amber-400'
+                : 'bg-green-500'
               return (
-                <div key={acc.email} className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+                <div key={acc.email} className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${err?.needs_reauth ? 'border-red-200 bg-red-50/50' : 'border-gray-100 bg-gray-50/60'}`}>
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${dotColor}`} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-medium text-gray-900 truncate">
@@ -464,6 +499,19 @@ export default function EmailInbox() {
                     </div>
                     <div className="text-[11px] text-gray-500 truncate">{acc.email}</div>
                     <div className="text-[10px] text-gray-400">{formatLastSync(acc.last_sync_at)}</div>
+                    {err?.needs_reauth && (
+                      <a
+                        href={`/api/auth/gmail?action=connect&email=${encodeURIComponent(acc.email)}`}
+                        className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 hover:text-red-900 underline"
+                      >
+                        Re-authorize Google →
+                      </a>
+                    )}
+                    {err && !err.needs_reauth && (
+                      <div className="mt-1 text-[10px] text-red-600 truncate" title={err.message}>
+                        Sync error: {err.message}
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => handleSync(false, acc.email)} disabled={accountSyncing === acc.email}
                     title="Sync this account"

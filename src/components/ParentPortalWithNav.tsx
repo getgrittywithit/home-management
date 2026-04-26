@@ -217,6 +217,37 @@ function SickAlertBanner() {
   )
 }
 
+// P1-2: when the parent enters any Kitchen surface, stamp meal_requests
+// AND kid_grocery_requests as viewed, optimistically zero the kitchen
+// badge, and refresh flagsData so the next render of BadgeCountSync
+// agrees (otherwise BadgeCountSync's stale data would override our
+// optimistic clear, which is what made the badge "return on navigation"
+// even though server-side state was already 0). Lives inside the
+// DashboardDataProvider so it can read refresh().
+function KitchenViewMarker({
+  activeTab, setBadgeCounts,
+}: {
+  activeTab: string
+  setBadgeCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>
+}) {
+  const { refresh } = useDashboardData()
+  useEffect(() => {
+    const KITCHEN_TABS = new Set(['kitchen', 'food-inventory', 'recipe-import', 'shopping', 'needs-list'])
+    if (!KITCHEN_TABS.has(activeTab)) return
+    fetch('/api/parent/flags', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mark_viewed_kitchen' }),
+    })
+      .then(() => {
+        setBadgeCounts(prev => ({ ...prev, kitchen: 0 }))
+        refresh()
+      })
+      .catch(() => { /* non-blocking */ })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+  return null
+}
+
 function BadgeCountSync({ setBadgeCounts, setFlagBadgeCount }: {
   setBadgeCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>
   setFlagBadgeCount: React.Dispatch<React.SetStateAction<number>>
@@ -320,18 +351,9 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     return () => clearInterval(interval)
   }, [])
 
-  // Item 1.2: when the Kitchen tab (or any of its sub-tabs) becomes active,
-  // mark pending meal_requests as viewed so the badge clears. Items remain
-  // in their list views — only the unread badge count drops to zero. Fires
-  // once per entry into the kitchen tab cluster.
-  useEffect(() => {
-    const KITCHEN_TABS = new Set(['kitchen', 'food-inventory', 'recipe-import', 'shopping', 'needs-list'])
-    if (!KITCHEN_TABS.has(activeTab)) return
-    fetch('/api/parent/flags', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'mark_viewed_kitchen' }),
-    }).catch(() => { /* non-blocking */ })
-  }, [activeTab])
+  // KitchenViewMarker (below) handles the badge mark-as-read flow. It
+  // lives inside DashboardDataProvider so it can call refresh(); the
+  // main component is rendered ABOVE the provider here, so it can't.
 
   // Badge counts derived from DashboardDataContext — no independent API calls
 
@@ -553,6 +575,7 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
   return (
     <DashboardDataProvider>
     <BadgeCountSync setBadgeCounts={setBadgeCounts} setFlagBadgeCount={setFlagBadgeCount} />
+    <KitchenViewMarker activeTab={activeTab} setBadgeCounts={setBadgeCounts} />
     <div className="min-h-screen bg-gray-50 flex">
       {/* Mobile header bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b flex items-center justify-between px-4 py-2">
