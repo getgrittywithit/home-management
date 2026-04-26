@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Package, Plus, Edit3, Trash2, ChevronDown, ChevronRight,
   ShoppingCart, FileText, Upload, AlertTriangle, Store, X,
-  BarChart3, ListChecks, Settings, LayoutGrid, ChefHat, Pill, BookOpen
+  BarChart3, ListChecks, Settings, LayoutGrid, ChefHat, Pill, BookOpen, Search
 } from 'lucide-react'
 import SpendingDashboard from './SpendingDashboard'
 import WeeklyListGenerator from './WeeklyListGenerator'
@@ -76,7 +76,9 @@ const STORE_LABELS: Record<string, string> = {
   heb: 'H-E-B',
 }
 
-const FILTER_PILLS = ['All', 'Low Stock', 'Meat', 'Frozen', 'Pantry', 'Produce', 'Dairy'] as const
+// Item 1.3 (Pantry Stock): chips are derived from the actual department
+// values present in pantryItems instead of a 7-value hardcoded list.
+// 'All' and 'Low Stock' are synthetic chips that always lead the row.
 
 // ── Component ──
 
@@ -86,6 +88,7 @@ export default function GroceryTab() {
 
   // Pantry state
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([])
+  const [pantrySearch, setPantrySearch] = useState('')
   const [pantryLoading, setPantryLoading] = useState(true)
   const [pantryFilter, setPantryFilter] = useState('All')
   const [editingPantryId, setEditingPantryId] = useState<string | null>(null)
@@ -258,8 +261,36 @@ export default function GroceryTab() {
     }
   }
 
+  // Item 1.3: dynamic chip list derived from actual departments present
+  // in pantryItems, plus 'All' and 'Low Stock' synthetic leaders.
+  const pantryChips = useMemo(() => {
+    const lowStockCount = pantryItems.filter(i =>
+      i.low_stock_threshold != null && i.quantity <= i.low_stock_threshold
+    ).length
+    const byDept = new Map<string, number>()
+    for (const i of pantryItems) {
+      const d = i.department || 'Other'
+      byDept.set(d, (byDept.get(d) || 0) + 1)
+    }
+    // Sort by count DESC for predictable ordering
+    const deptChips = Array.from(byDept.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => ({ key, count }))
+    return [
+      { key: 'All', count: pantryItems.length },
+      { key: 'Low Stock', count: lowStockCount },
+      ...deptChips,
+    ]
+  }, [pantryItems])
+
   // ── Filtered pantry ──
   const filteredPantry = pantryItems.filter(item => {
+    // Item 1.3: case-insensitive search across name + department
+    if (pantrySearch.trim()) {
+      const q = pantrySearch.trim().toLowerCase()
+      const hay = `${item.name} ${item.department || ''}`.toLowerCase()
+      if (!hay.includes(q)) return false
+    }
     if (pantryFilter === 'All') return true
     if (pantryFilter === 'Low Stock') return item.low_stock_threshold != null && item.quantity <= item.low_stock_threshold
     return item.department === pantryFilter
@@ -322,34 +353,56 @@ export default function GroceryTab() {
       {/* ── Pantry Stock ── */}
       {subTab === 'pantry' && (
         <div className="space-y-4">
-          {/* Filter pills */}
+          {/* Item 1.3: search input above the chip row */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                type="text"
+                value={pantrySearch}
+                onChange={e => setPantrySearch(e.target.value)}
+                placeholder="Search pantry items..."
+                className="w-full pl-7 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              {pantrySearch && (
+                <button
+                  onClick={() => setPantrySearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowAddPantry(!showAddPantry)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Item
+            </button>
+          </div>
+
+          {/* Item 1.3: dynamic filter pills with counts */}
           <div className="flex items-center gap-2 flex-wrap">
-            {FILTER_PILLS.map(pill => (
+            {pantryChips.map(({ key, count }) => (
               <button
-                key={pill}
-                onClick={() => setPantryFilter(pill)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  pantryFilter === pill
+                key={key}
+                onClick={() => setPantryFilter(key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1 ${
+                  pantryFilter === key
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {pill}
-                {pill === 'Low Stock' && (() => {
-                  const count = pantryItems.filter(i => i.low_stock_threshold != null && i.quantity <= i.low_stock_threshold).length
-                  return count > 0 ? ` (${count})` : ''
-                })()}
+                {key}
+                {count > 0 && (
+                  <span className={`text-[10px] font-normal ${pantryFilter === key ? 'opacity-90' : 'text-gray-500'}`}>
+                    {count}
+                  </span>
+                )}
               </button>
             ))}
-            <div className="ml-auto">
-              <button
-                onClick={() => setShowAddPantry(!showAddPantry)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Item
-              </button>
-            </div>
           </div>
 
           {/* Add pantry item form */}
