@@ -192,7 +192,13 @@ export async function getValidToken(email?: string): Promise<{ token: string; em
         expires_in: refreshed.expires_in,
       })
       return { token: refreshed.access_token, email: account.account_email }
-    } catch {
+    } catch (err) {
+      // P0-1: previously swallowed silently — log so the sync route can
+      // surface a needs-reauth state to the UI. The most common cause is
+      // a revoked refresh token (user changed password, hit Google's
+      // 6-month-inactivity limit, or revoked Hub access). Returning null
+      // makes fetchMessages throw 'No valid Gmail token' downstream.
+      console.warn(`[gmail] refresh failed for ${account.account_email}: ${err instanceof Error ? err.message : 'unknown'}`)
       return null
     }
   }

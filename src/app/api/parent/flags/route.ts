@@ -222,12 +222,16 @@ export async function POST(request: NextRequest) {
     const { action } = body
 
     if (action === 'mark_viewed_kitchen') {
-      // Item 1.2: parent opened the Kitchen tab — stamp pending meal
-      // requests so they stop counting toward the unread tab badge. New
-      // requests created AFTER this timestamp will still trigger badges.
-      await db.query(
-        `UPDATE meal_requests SET last_viewed_at = NOW() WHERE status = 'pending'`
-      ).catch(() => {})
+      // Item 1.2 + P1-2: stamp BOTH meal_requests and kid_grocery_requests
+      // when the parent opens any kitchen surface. Originally only
+      // meal_requests was stamped, but the kitchen tab cluster also lists
+      // kid grocery requests; stamping both together keeps the two queues
+      // aligned regardless of which feeds the badge count today (or in
+      // the future).
+      await Promise.all([
+        db.query(`UPDATE meal_requests SET last_viewed_at = NOW() WHERE status = 'pending'`).catch(() => {}),
+        db.query(`UPDATE kid_grocery_requests SET last_viewed_at = NOW() WHERE status = 'pending'`).catch(() => {}),
+      ])
       return NextResponse.json({ success: true })
     }
 

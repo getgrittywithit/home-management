@@ -295,12 +295,18 @@ export async function POST(req: NextRequest) {
             perAccount.push({ email: targetEmail, synced, skipped })
           } catch (err) {
             console.error(`Gmail sync error for ${targetEmail}:`, err)
+            const message = err instanceof Error ? err.message : 'Unknown error'
+            // P0-1: tag accounts whose refresh token is no longer valid
+            // so the UI can render a per-account "Re-authorize" CTA
+            // instead of the silent failure we had before.
+            const needs_reauth = /no valid gmail token|invalid_grant|invalid_token|unauthorized/i.test(message)
             perAccount.push({
               email: targetEmail,
               synced,
               skipped,
-              error: err instanceof Error ? err.message : 'Unknown error',
-            })
+              error: message,
+              needs_reauth,
+            } as any)
           }
         }
 
@@ -310,6 +316,10 @@ export async function POST(req: NextRequest) {
             success: false,
             connected: true,
             accounts: perAccount,
+            // P0-1: explicit summary so the UI can decide whether to show
+            // "Sync failed" vs "Re-authorize required" without inspecting
+            // each account individually.
+            needs_reauth: perAccount.some((a: any) => a.needs_reauth),
             message: `Sync failed for all ${perAccount.length} account(s)`,
           }, { status: 500 })
         }

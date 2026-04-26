@@ -367,11 +367,17 @@ function ShoppingListView() {
   const [newQty, setNewQty] = useState('')
   const [newCat, setNewCat] = useState('other')
   const [generating, setGenerating] = useState(false)
-  // Item 1.1: visible feedback for the two action buttons (which were silent)
-  const [toast, setToast] = useState<{ msg: string; tone: 'ok' | 'error' } | null>(null)
-  const flashToast = (msg: string, tone: 'ok' | 'error' = 'ok') => {
-    setToast({ msg, tone })
-    setTimeout(() => setToast(prev => (prev?.msg === msg ? null : prev)), 3000)
+  // P1-1 (PR15): match the working flashToast pattern from
+  // HouseholdNeedsTab exactly — simple string state, no object wrapper,
+  // identical className. Previous version (object {msg, tone}) was on
+  // disk after PR #13 but produced zero toast divs in the DOM per
+  // live verification. Suspect was either (a) React batching with the
+  // try/finally + loadItems() racing against setToast, or (b) the
+  // shallow-compare in the setTimeout callback. Going simple.
+  const [toast, setToast] = useState<string | null>(null)
+  const flashToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(t => (t === msg ? null : t)), 2500)
   }
 
   useEffect(() => { loadItems() }, [])
@@ -418,12 +424,12 @@ function ShoppingListView() {
       const data = await res.json()
       if (data?.success) {
         const skip = data.skipped ? ` · skipped ${data.skipped} dup${data.skipped === 1 ? '' : 's'}` : ''
-        flashToast(`Added ${data.added} item${data.added === 1 ? '' : 's'} from ${data.meal_count} meal${data.meal_count === 1 ? '' : 's'}${skip}`)
+        flashToast(`✅ Added ${data.added} item${data.added === 1 ? '' : 's'} from ${data.meal_count} meal${data.meal_count === 1 ? '' : 's'}${skip}`)
       } else {
-        flashToast(data?.error || 'Generate failed', 'error')
+        flashToast(`❌ ${data?.error || 'Generate failed'}`)
       }
     } catch {
-      flashToast('Generate failed — check connection', 'error')
+      flashToast('❌ Generate failed — check connection')
     } finally {
       setGenerating(false)
       loadItems()
@@ -440,12 +446,12 @@ function ShoppingListView() {
       if (data?.success) {
         // 0 added is honest signal — no par_levels populated yet (PR2 will fix)
         const skip = data.skipped ? ` · skipped ${data.skipped} already on list` : ''
-        flashToast(`Added ${data.added} low-supply item${data.added === 1 ? '' : 's'}${skip}`)
+        flashToast(`✅ Added ${data.added} low-supply item${data.added === 1 ? '' : 's'}${skip}`)
       } else {
-        flashToast(data?.error || 'Failed to add low-supply items', 'error')
+        flashToast(`❌ ${data?.error || 'Failed to add low-supply items'}`)
       }
     } catch {
-      flashToast('Failed to add low-supply items', 'error')
+      flashToast('❌ Failed to add low-supply items')
     } finally {
       loadItems()
     }
@@ -459,15 +465,11 @@ function ShoppingListView() {
 
   return (
     <div className="space-y-4">
-      {/* Item 1.1: visible feedback when the action buttons fire */}
+      {/* P1-1: visible feedback when the action buttons fire — same
+          className + position as the working toast in HouseholdNeedsTab. */}
       {toast && (
-        <div
-          className={`fixed top-4 right-4 z-50 text-sm px-4 py-2 rounded-lg shadow-lg ${
-            toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'
-          }`}
-          role="status"
-        >
-          {toast.msg}
+        <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
+          {toast}
         </div>
       )}
       <div className="flex items-center justify-between">
