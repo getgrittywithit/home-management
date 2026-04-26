@@ -320,6 +320,19 @@ export default function ParentPortalWithNav({ initialData }: ParentPortalWithNav
     return () => clearInterval(interval)
   }, [])
 
+  // Item 1.2: when the Kitchen tab (or any of its sub-tabs) becomes active,
+  // mark pending meal_requests as viewed so the badge clears. Items remain
+  // in their list views — only the unread badge count drops to zero. Fires
+  // once per entry into the kitchen tab cluster.
+  useEffect(() => {
+    const KITCHEN_TABS = new Set(['kitchen', 'food-inventory', 'recipe-import', 'shopping', 'needs-list'])
+    if (!KITCHEN_TABS.has(activeTab)) return
+    fetch('/api/parent/flags', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mark_viewed_kitchen' }),
+    }).catch(() => { /* non-blocking */ })
+  }, [activeTab])
+
   // Badge counts derived from DashboardDataContext — no independent API calls
 
   const renderFamilyTab = () => (

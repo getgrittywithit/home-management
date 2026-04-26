@@ -367,6 +367,12 @@ function ShoppingListView() {
   const [newQty, setNewQty] = useState('')
   const [newCat, setNewCat] = useState('other')
   const [generating, setGenerating] = useState(false)
+  // Item 1.1: visible feedback for the two action buttons (which were silent)
+  const [toast, setToast] = useState<{ msg: string; tone: 'ok' | 'error' } | null>(null)
+  const flashToast = (msg: string, tone: 'ok' | 'error' = 'ok') => {
+    setToast({ msg, tone })
+    setTimeout(() => setToast(prev => (prev?.msg === msg ? null : prev)), 3000)
+  }
 
   useEffect(() => { loadItems() }, [])
 
@@ -404,20 +410,45 @@ function ShoppingListView() {
 
   const generate = async () => {
     setGenerating(true)
-    await fetch('/api/shopping-list', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'generate_from_meals' })
-    })
-    setGenerating(false)
-    loadItems()
+    try {
+      const res = await fetch('/api/shopping-list', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate_from_meals' })
+      })
+      const data = await res.json()
+      if (data?.success) {
+        const skip = data.skipped ? ` · skipped ${data.skipped} dup${data.skipped === 1 ? '' : 's'}` : ''
+        flashToast(`Added ${data.added} item${data.added === 1 ? '' : 's'} from ${data.meal_count} meal${data.meal_count === 1 ? '' : 's'}${skip}`)
+      } else {
+        flashToast(data?.error || 'Generate failed', 'error')
+      }
+    } catch {
+      flashToast('Generate failed — check connection', 'error')
+    } finally {
+      setGenerating(false)
+      loadItems()
+    }
   }
 
   const addLowSupply = async () => {
-    await fetch('/api/shopping-list', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'add_low_supply' })
-    })
-    loadItems()
+    try {
+      const res = await fetch('/api/shopping-list', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add_low_supply' })
+      })
+      const data = await res.json()
+      if (data?.success) {
+        // 0 added is honest signal — no par_levels populated yet (PR2 will fix)
+        const skip = data.skipped ? ` · skipped ${data.skipped} already on list` : ''
+        flashToast(`Added ${data.added} low-supply item${data.added === 1 ? '' : 's'}${skip}`)
+      } else {
+        flashToast(data?.error || 'Failed to add low-supply items', 'error')
+      }
+    } catch {
+      flashToast('Failed to add low-supply items', 'error')
+    } finally {
+      loadItems()
+    }
   }
 
   if (!loaded) return <div className="text-center py-8 text-gray-400">Loading...</div>
@@ -428,6 +459,17 @@ function ShoppingListView() {
 
   return (
     <div className="space-y-4">
+      {/* Item 1.1: visible feedback when the action buttons fire */}
+      {toast && (
+        <div
+          className={`fixed top-4 right-4 z-50 text-sm px-4 py-2 rounded-lg shadow-lg ${
+            toast.tone === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'
+          }`}
+          role="status"
+        >
+          {toast.msg}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Shopping List</h3>
         <div className="flex gap-2">

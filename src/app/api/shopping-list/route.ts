@@ -182,39 +182,59 @@ export async function POST(request: NextRequest) {
           quantity: combineQuantities(agg.byUnit),
         }))
 
-        // Clear old meal_plan-generated items before inserting fresh
-        await db.query(`DELETE FROM shopping_list WHERE source = 'meal_plan'`)
+        // Item 1.4: refresh the meal_plan-sourced rows but preserve user
+        // checkmarks. Old approach was DELETE + INSERT, which nuked rows
+        // Lola had already checked off and let the same item land twice
+        // when it also matched a low_supply or manual entry. New approach:
+        // - drop only unchecked meal_plan rows (stale week's auto-pulls)
+        // - skip inserts where the item already exists in any unchecked row
+        //   (so a low_supply entry for "milk" doesn't get a duplicate
+        //   meal_plan entry for "milk")
+        await db.query(`DELETE FROM shopping_list WHERE source = 'meal_plan' AND checked = FALSE`)
 
+        const existingRows = await db.query(
+          `SELECT LOWER(item_name) AS name FROM shopping_list WHERE checked = FALSE`
+        ).catch(() => [])
+        const existingNames = new Set<string>(existingRows.map((r: any) => r.name))
+
+        let added = 0
+        let skipped = 0
         for (const item of items) {
+          const key = item.name.toLowerCase()
+          if (existingNames.has(key)) { skipped++; continue }
           await db.query(
             `INSERT INTO shopping_list (item_name, quantity, category, source) VALUES ($1, $2, $3, 'meal_plan')`,
             [item.name, item.quantity, item.category]
           )
+          existingNames.add(key)
+          added++
         }
 
-        return NextResponse.json({ success: true, added: items.length, meal_count: meals.length })
+        return NextResponse.json({ success: true, added, skipped, meal_count: meals.length })
       }
 
       case 'add_low_supply': {
-        // Add low-supply items from inventory_items (the live source)
+        // Add low-supply items from inventory_items (the live source).
+        // Returns skipped count so the toast can read "Added 3, skipped 2".
         const low = await db.query(
-          `SELECT name, unit, category FROM inventory_items
+          `SELECT name, category FROM inventory_items
            WHERE par_level IS NOT NULL AND current_stock <= par_level`
         ).catch(() => [])
         let added = 0
+        let skipped = 0
         for (const item of low) {
           const exists = await db.query(
             `SELECT 1 FROM shopping_list WHERE LOWER(item_name) = LOWER($1) AND checked = FALSE LIMIT 1`,
             [item.name]
           ).catch(() => [])
-          if (exists.length > 0) continue // don't double-add
+          if (exists.length > 0) { skipped++; continue }
           await db.query(
             `INSERT INTO shopping_list (item_name, category, source) VALUES ($1, $2, 'low_supply')`,
             [item.name, (item.category || 'other').toLowerCase()]
           )
           added++
         }
-        return NextResponse.json({ success: true, added })
+        return NextResponse.json({ success: true, added, skipped })
       }
 
       default:

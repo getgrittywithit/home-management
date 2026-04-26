@@ -116,12 +116,16 @@ export async function GET(request: NextRequest) {
           [today]
         ).catch(() => [{ total: 0 }]),
 
-        // Pending meal requests
+        // Pending meal requests — only those NEWER than the last time
+        // the parent opened the Kitchen tab (Item 1.2). Existing requests
+        // already viewed stay in their list views (they show up via the
+        // direct meal-requests endpoint) but stop inflating the tab badge.
         db.query(
           `SELECT mr.id, mr.kid_name, mr.assigned_date, ml.name as meal_name, ml.theme
            FROM meal_requests mr
            JOIN meal_library ml ON mr.meal_id = ml.id
            WHERE mr.status = 'pending'
+             AND (mr.last_viewed_at IS NULL OR mr.created_at > mr.last_viewed_at)
            ORDER BY mr.assigned_date`
         ).catch(() => []),
 
@@ -216,6 +220,16 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { action } = body
+
+    if (action === 'mark_viewed_kitchen') {
+      // Item 1.2: parent opened the Kitchen tab — stamp pending meal
+      // requests so they stop counting toward the unread tab badge. New
+      // requests created AFTER this timestamp will still trigger badges.
+      await db.query(
+        `UPDATE meal_requests SET last_viewed_at = NOW() WHERE status = 'pending'`
+      ).catch(() => {})
+      return NextResponse.json({ success: true })
+    }
 
     if (action === 'acknowledge_sick') {
       const { kid_name, sick_date } = body
