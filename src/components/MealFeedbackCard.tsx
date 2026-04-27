@@ -36,9 +36,13 @@ const TAG_LABELS: Record<string, string> = {
 
 interface FeedbackPrompt {
   meal_name: string
-  meal_id: number | null
-  meal_request_id: number
+  // PR2 Item 2.2: ratings can now come from meal_week_plan (no request id)
+  // or the legacy meal_requests path (no meal_id required). At least one
+  // must be present, but neither is mandatory.
+  meal_id: string | number | null
+  meal_request_id: string | number | null
   date: string
+  source?: 'meal_request' | 'meal_week_plan'
 }
 
 export default function MealFeedbackCard({ childName }: { childName: string }) {

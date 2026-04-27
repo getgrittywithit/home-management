@@ -1,0 +1,25 @@
+-- Kitchen UX Overhaul PR2 — Item 2.1: cleaning items baseline seed
+-- Applied via Supabase MCP on 2026-04-27.
+--
+-- Investigation findings:
+--   - stock_par_levels was empty (0 rows). ParLevelBoard reads from this
+--     joined to pantry_stock LEFT JOIN stock_par_levels.
+--   - pantry_stock has 172 active rows but ZERO with department='Cleaning'
+--     (departments are food-only: Spices, Baking, Produce, Meds, etc.).
+--   - The "No par level items in 'Cleaning'" empty state Lola screenshotted
+--     was a never-populated category, not lost data — Lola hadn't entered
+--     cleaning items into pantry_stock yet.
+--   - inventory_items.par_level (682 rows) is a different domain — general
+--     household inventory, separate from the per-location ParLevelBoard model.
+--
+-- Per Lola's redirect: seed 14 common cleaning items as a baseline so
+-- the Cleaning chip isn't blank on first open. Lola adjusts thresholds
+-- and adds locations via the existing UI ("+ Add Item" button —
+-- ParLevelBoard has it; the bug fix in this PR makes that button work).
+--
+-- Each item gets a starting per-location par at its most-likely primary
+-- spot. Multiple-location pars (e.g., toilet paper in each bathroom) can
+-- be added later via the UI without rerunning this seed.
+
+-- (Full INSERT body lives in the MCP migration history; re-running is
+-- not idempotent — pantry_stock has no name UNIQUE — so don't replay.)
