@@ -8,43 +8,89 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action')
 
     // ── S7: Get feedback prompt for a kid ──
+    // Item 2.2 (PR2): the prompt previously queried only `meal_requests`
+    // (the kid-suggested-meal-with-approval flow), which is largely
+    // unused day-to-day. The actual dinner plan lives in `meal_week_plan`.
+    // Now: try `meal_requests` first (legacy, in case it's used) and
+    // fall back to `meal_week_plan` when there's no approved request for
+    // today. Either path returns a prompt the kid can rate.
     if (action === 'get_prompt') {
       const kid = searchParams.get('kid')
       if (!kid) return NextResponse.json({ error: 'kid required' }, { status: 400 })
 
       try {
-        // Find an approved meal for today that this kid hasn't rated yet
-        const today = new Date().toISOString().split('T')[0]
-        const rows = await db.query(
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+
+        // Path A: legacy meal_requests path
+        const requestRows = await db.query(
           `SELECT mr.id as meal_request_id, ml.name as meal_name, ml.id as meal_id, mr.assigned_date as request_date
            FROM meal_requests mr
            LEFT JOIN meal_library ml ON ml.id = mr.meal_id
            WHERE mr.assigned_date = $1
              AND mr.status = 'approved'
              AND mr.id NOT IN (
-               SELECT mf.meal_request_id FROM meal_feedback mf WHERE mf.kid_name = $2
+               SELECT mf.meal_request_id FROM meal_feedback mf
+               WHERE mf.kid_name = $2 AND mf.meal_request_id IS NOT NULL
              )
            ORDER BY mr.created_at DESC
            LIMIT 1`,
           [today, kid]
         )
 
-        if (rows.length === 0) {
-          return NextResponse.json({ prompt: null })
+        if (requestRows.length > 0) {
+          return NextResponse.json({
+            prompt: {
+              meal_name: requestRows[0].meal_name,
+              meal_id: requestRows[0].meal_id,
+              meal_request_id: requestRows[0].meal_request_id,
+              date: requestRows[0].request_date?.toString().split('T')[0] || today,
+            }
+          })
+        }
+
+        // Path B: meal_week_plan fallback. Compute Chicago-local Monday
+        // of this week and the day_of_week (0=Mon..6=Sun) for today.
+        const todayD = new Date(today + 'T12:00:00')
+        const dow = (todayD.getDay() + 6) % 7  // 0=Mon..6=Sun
+        const monday = new Date(todayD)
+        monday.setDate(todayD.getDate() - dow)
+        const weekStart = monday.toLocaleDateString('en-CA')
+
+        const planRows = await db.query(
+          `SELECT mwp.meal_id, ml.name as meal_name
+           FROM meal_week_plan mwp
+           LEFT JOIN meal_library ml ON ml.id = mwp.meal_id
+           WHERE mwp.week_start = $1::date
+             AND mwp.day_of_week = $2
+             AND mwp.meal_id IS NOT NULL
+             AND mwp.status NOT IN ('off_night', 'skipped')
+             AND mwp.meal_id NOT IN (
+               SELECT mf.meal_id FROM meal_feedback mf
+               WHERE mf.kid_name = $3 AND mf.meal_date = $4 AND mf.meal_id IS NOT NULL
+             )
+           ORDER BY mwp.created_at DESC
+           LIMIT 1`,
+          [weekStart, dow, kid, today]
+        )
+
+        if (planRows.length === 0) {
+          return NextResponse.json({ prompt: null, debug: { source: 'no-match', today, weekStart, dow } })
         }
 
         return NextResponse.json({
           prompt: {
-            meal_name: rows[0].meal_name,
-            meal_id: rows[0].meal_id,
-            meal_request_id: rows[0].meal_request_id,
-            date: rows[0].request_date?.toString().split('T')[0] || today,
+            meal_name: planRows[0].meal_name,
+            meal_id: planRows[0].meal_id,
+            meal_request_id: null,
+            date: today,
+            source: 'meal_week_plan',
           }
         })
       } catch (err: any) {
         if (err?.message?.includes('does not exist') || err?.code === '42P01') {
           return NextResponse.json({ prompt: null })
         }
+        console.error('feedback get_prompt error:', err)
         throw err
       }
     }
@@ -190,8 +236,11 @@ export async function POST(request: NextRequest) {
     if (action === 'submit') {
       const { meal_id, meal_request_id, kid_name, rating, tags, free_text, meal_date } = body
 
-      if (!kid_name || !rating || !meal_request_id) {
-        return NextResponse.json({ error: 'kid_name, rating, and meal_request_id required' }, { status: 400 })
+      // Item 2.2 (PR2): meal_request_id is no longer required — ratings
+      // sourced from meal_week_plan have no request id. Need EITHER a
+      // request id OR a meal id so the rating is tied to something.
+      if (!kid_name || !rating || (!meal_request_id && !meal_id)) {
+        return NextResponse.json({ error: 'kid_name, rating, and (meal_request_id or meal_id) required' }, { status: 400 })
       }
 
       try {
@@ -200,12 +249,12 @@ export async function POST(request: NextRequest) {
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             meal_id || null,
-            meal_request_id,
+            meal_request_id || null,
             kid_name,
             rating,
             tags ? JSON.stringify(tags) : '[]',
             free_text || null,
-            meal_date || new Date().toISOString().split('T')[0],
+            meal_date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }),
           ]
         )
         // NOTIFY-FIX-1b #2: Notify parent if meal rating ≤1

@@ -92,16 +92,25 @@ export default function ParLevelBoard() {
   const addItem = async () => {
     if (!newItemName.trim()) return
     try {
-      await fetch('/api/stock', {
+      // PR2 (Item 2.1): action name was 'add_par_item' but the API only
+      // implements 'add_stock_item'. fetch() doesn't throw on a 400, so
+      // the success toast fired even though no row was inserted. Now we
+      // call the real action and check res.ok before claiming success.
+      const res = await fetch('/api/stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'add_par_item',
+          action: 'add_stock_item',
           name: newItemName.trim(),
           department: newItemDept,
           unit: newItemUnit || null,
         }),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        showToast(err.error ? `Failed: ${err.error}` : 'Failed to add item')
+        return
+      }
       setNewItemName('')
       setNewItemUnit('')
       setShowAddItem(false)
@@ -115,14 +124,20 @@ export default function ParLevelBoard() {
   const addLocation = async () => {
     if (!newLocationName.trim()) return
     try {
-      await fetch('/api/stock', {
+      // Same fix as addItem — was calling 'add_par_location', API has 'add_location'.
+      const res = await fetch('/api/stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'add_par_location',
+          action: 'add_location',
           name: newLocationName.trim(),
         }),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        showToast(err.error ? `Failed: ${err.error}` : 'Failed to add location')
+        return
+      }
       setNewLocationName('')
       setShowAddLocation(false)
       fetchBoard()
