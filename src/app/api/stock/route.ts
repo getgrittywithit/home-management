@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
         if (department) {
           itemsQuery = `
-            SELECT DISTINCT ps.id, ps.name, ps.department, ps.preferred_store
+            SELECT DISTINCT ps.id, ps.name, ps.department, ps.preferred_store, ps.unit
             FROM pantry_stock ps
             LEFT JOIN stock_par_levels spl ON spl.stock_item_id = ps.id
             WHERE ps.active = true
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
           itemsParams = [department]
         } else {
           itemsQuery = `
-            SELECT DISTINCT ps.id, ps.name, ps.department, ps.preferred_store
+            SELECT DISTINCT ps.id, ps.name, ps.department, ps.preferred_store, ps.unit
             FROM pantry_stock ps
             JOIN stock_par_levels spl ON spl.stock_item_id = ps.id
             WHERE ps.active = true
@@ -101,18 +101,18 @@ export async function GET(request: NextRequest) {
           const itemPar = parMap.get(item.id) || new Map()
           const itemQty = qtyMap.get(item.id) || new Map()
 
-          const levels: Record<string, { required: number; current: number }> = {}
-          let totalRequired = 0
-          let totalOnHand = 0
+          const cells: Record<string, { item_id: string; location_id: string; par_level: number; current_qty: number }> = {}
+          let totalPar = 0
+          let totalHave = 0
 
           for (const loc of locations) {
             const req = itemPar.get(loc.id) || 0
             const cur = itemQty.get(loc.id) || 0
             if (req > 0 || cur > 0) {
-              levels[loc.id] = { required: req, current: cur }
+              cells[loc.id] = { item_id: item.id, location_id: loc.id, par_level: req, current_qty: cur }
             }
-            totalRequired += req
-            totalOnHand += cur
+            totalPar += req
+            totalHave += cur
           }
 
           return {
@@ -120,10 +120,11 @@ export async function GET(request: NextRequest) {
             name: item.name,
             department: item.department,
             preferred_store: item.preferred_store,
-            levels,
-            total_required: totalRequired,
-            total_on_hand: totalOnHand,
-            shortfall: Math.max(0, totalRequired - totalOnHand),
+            unit: item.unit ?? null,
+            cells,
+            total_par: totalPar,
+            total_have: totalHave,
+            shortfall: Math.max(0, totalPar - totalHave),
           }
         })
 
