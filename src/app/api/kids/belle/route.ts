@@ -416,7 +416,10 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error('Belle GET error:', error)
-    return NextResponse.json({ error: 'Failed to load belle data' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to load belle data', detail: errorDetail(error) },
+      { status: 500 }
+    )
   }
 }
 
@@ -643,6 +646,18 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Belle POST error:', error)
-    return NextResponse.json({ error: 'Failed to process belle action' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to process belle action', detail: errorDetail(error) },
+      { status: 500 }
+    )
   }
+}
+
+// Surface error messages outside of production so verification doesn't have to
+// roundtrip through Postgres logs. Vercel sets VERCEL_ENV to 'preview' on
+// preview deploys and 'production' on prod URLs.
+function errorDetail(error: unknown): string | undefined {
+  if (process.env.VERCEL_ENV === 'production') return undefined
+  if (error instanceof Error) return error.message
+  return String(error)
 }
