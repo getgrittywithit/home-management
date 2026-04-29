@@ -334,20 +334,23 @@ export async function logZoneCompleteAll(opts: LogZoneCompleteAllOpts): Promise<
 
 async function runZoneSubtaskFlip(rotationId: number, completed: boolean): Promise<ZoneSubtaskResult> {
   return transaction(async (q) => {
+    // Cast assigned_date in SQL to a YYYY-MM-DD string. Without to_char,
+    // the pg driver hydrates DATE columns as JS Date objects, and
+    // String(dateObj) produces "Wed Apr 29 2026 ..." (weekday-first), which
+    // gets rejected when fed back into the next UPSERT against a DATE column.
     const rows = await q(
       `UPDATE zone_task_rotation
           SET completed = $2,
               completed_at = CASE WHEN $2 THEN NOW() ELSE NULL END
         WHERE id = $1
-       RETURNING kid_name, zone_key, assigned_date`,
+       RETURNING kid_name, zone_key, to_char(assigned_date, 'YYYY-MM-DD') AS assigned_date`,
       [rotationId, completed]
     )
     if (rows.length === 0) {
       throw new Error(`zone_task_rotation row ${rotationId} not found`)
     }
     const { kid_name, zone_key, assigned_date } = rows[0]
-    const date = String(assigned_date).slice(0, 10)
-    return syncZoneParentRollup(q, kid_name, zone_key, date)
+    return syncZoneParentRollup(q, kid_name, zone_key, assigned_date)
   })
 }
 
