@@ -3,6 +3,7 @@ import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
 import { BELLE_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 import { parseDateLocal } from '@/lib/date-local'
+import { logTaskCompletion, unlogTaskCompletion } from '@/lib/task-completion'
 
 // Weekday assignments — fixed, same every week
 const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -431,37 +432,49 @@ export async function POST(request: NextRequest) {
         const { kid_name, task } = body
         if (!kid_name || !task) return NextResponse.json({ error: 'kid_name and task required' }, { status: 400 })
         const kn = kid_name.toLowerCase()
-        await db.query(
-          `INSERT INTO belle_care_log (kid_name, care_date, task, completed, completed_at) VALUES ($1, $2, $3, TRUE, NOW())
-           ON CONFLICT (care_date, task) DO UPDATE SET completed = TRUE, completed_at = NOW(), kid_name = $1`,
-          [kn, today, task]
-        )
+
+        // Fanout: writes belle_care_log + kid_daily_checklist atomically.
+        // Returns category_complete using getDailyTasks(date).length as denominator,
+        // fixing the "All 1 Belle care tasks done" bug (#6 in Apr 28 audit).
+        const eventId = `belle-${task.replace(/_/g, '-')}-${today}`
+        const eventSummary = `Belle Care — ${TASK_INFO[task]?.label || task}`
+        const progress = await logTaskCompletion({
+          kid: kn,
+          category: 'belle_care',
+          taskKey: task,
+          parentEventId: eventId,
+          parentEventSummary: eventSummary,
+          date: today,
+        })
+
         const pts = TASK_POINTS[task] || 5
         await creditPoints(kn, pts, `Belle: ${TASK_INFO[task]?.label || task}`)
 
-        const allTasks = getDailyTasks(today)
-        const completedRows = await db.query(
-          `SELECT task FROM belle_care_log WHERE care_date = $1 AND completed = TRUE`, [today]
-        ).catch(() => [])
-        const completedSet = new Set(completedRows.map((r: any) => r.task))
-        if (allTasks.every(t => completedSet.has(t))) {
+        if (progress.category_complete) {
           const cap = kn.charAt(0).toUpperCase() + kn.slice(1)
           await createNotification({
             title: `🐾 ${cap} finished all Belle tasks!`,
-            message: `All ${allTasks.length} tasks done for today`,
+            message: `All ${progress.category_total} tasks done for today`,
             source_type: 'belle_complete',
             source_ref: `belle_complete_${kn}_${today}`,
             icon: '🐾',
           }).catch(() => {})
         }
 
-        return NextResponse.json({ success: true, points: pts })
+        return NextResponse.json({ success: true, points: pts, progress })
       }
 
       case 'uncomplete_task': {
         const { kid_name, task } = body
         if (!task) return NextResponse.json({ error: 'task required' }, { status: 400 })
-        await db.query(`UPDATE belle_care_log SET completed = FALSE, completed_at = NULL WHERE care_date = $1 AND task = $2`, [today, task])
+        const eventId = `belle-${task.replace(/_/g, '-')}-${today}`
+        await unlogTaskCompletion({
+          kid: kid_name?.toLowerCase() || '',
+          category: 'belle_care',
+          taskKey: task,
+          parentEventId: eventId,
+          date: today,
+        })
         const pts = TASK_POINTS[task] || 5
         if (kid_name) await debitPoints(kid_name.toLowerCase(), pts, `Unchecked Belle: ${TASK_INFO[task]?.label || task}`)
         return NextResponse.json({ success: true })
@@ -470,12 +483,22 @@ export async function POST(request: NextRequest) {
       case 'complete_grooming_task': {
         const { kid_name, task, weekend_start } = body
         if (!kid_name || !task || !weekend_start) return NextResponse.json({ error: 'kid_name, task, weekend_start required' }, { status: 400 })
-        await db.query(
-          `UPDATE belle_grooming_log SET completed = TRUE, completed_at = NOW(), kid_name = $1 WHERE weekend_start = $2 AND task = $3`,
-          [kid_name.toLowerCase(), weekend_start, task]
-        )
+        const kn = kid_name.toLowerCase()
+
+        const eventId = `belle-grooming-${task.replace(/_/g, '-')}-${weekend_start}`
+        const eventSummary = `Belle Grooming — ${GROOMING_INFO[task]?.label || task}`
+        await logTaskCompletion({
+          kid: kn,
+          category: 'belle_grooming',
+          taskKey: task,
+          parentEventId: eventId,
+          parentEventSummary: eventSummary,
+          date: weekend_start,
+          meta: { weekend_start },
+        })
+
         const pts = TASK_POINTS[task] || 10
-        await creditPoints(kid_name.toLowerCase(), pts, `Belle grooming: ${GROOMING_INFO[task]?.label || task}`)
+        await creditPoints(kn, pts, `Belle grooming: ${GROOMING_INFO[task]?.label || task}`)
         return NextResponse.json({ success: true, points: pts })
       }
 

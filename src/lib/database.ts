@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { Pool } from 'pg'
+import { Pool, PoolClient } from 'pg'
 
 // Supabase client configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vhqgzgqklwrjmglaezmh.supabase.co'
@@ -45,6 +45,28 @@ export async function query(text: string, params?: any[]) {
 // Single query helper that manages its own connection
 async function singleQuery(text: string, params?: any[]): Promise<any[]> {
   return query(text, params)
+}
+
+// Transaction-scoped query function: same shape as `query`, but bound to a single client.
+export type TxQuery = (text: string, params?: any[]) => Promise<any[]>
+
+// Run a function inside a single-client BEGIN/COMMIT transaction. The function
+// receives a `q` helper bound to the same client so all writes share the txn.
+// Throws cause ROLLBACK; the original error propagates.
+export async function transaction<T>(fn: (q: TxQuery, client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pgPool.connect()
+  try {
+    await client.query('BEGIN')
+    const q: TxQuery = async (text, params) => (await client.query(text, params)).rows
+    const result = await fn(q, client)
+    await client.query('COMMIT')
+    return result
+  } catch (err) {
+    try { await client.query('ROLLBACK') } catch { /* connection may already be aborted */ }
+    throw err
+  } finally {
+    client.release()
+  }
 }
 
 // Database helper functions
@@ -483,7 +505,10 @@ export const db = {
   },
 
   // Direct query method for custom queries (use sparingly)
-  query: singleQuery
+  query: singleQuery,
+
+  // Transaction wrapper — see `transaction()` export above.
+  transaction,
 }
 
 // Cleanup function for graceful shutdown
