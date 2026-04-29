@@ -1,0 +1,40 @@
+-- Med adherence data hygiene — wipe synthetic seed rows.
+--
+-- Applied: 2026-04-29 via Supabase MCP apply_migration
+-- Migration name: incident_med_adherence_wipe_synthetic_seed
+--
+-- Background: 448 rows accumulated in med_adherence_log across three
+-- one-shot synthetic seed events plus a handful of real toggle taps
+-- from this audit's verification testing. None represent actual
+-- medication adherence — all of it is either fabricated or test-tap.
+--
+-- Synthetic seed events identified:
+--   1. logged_at = 2026-04-04 22:31:45.642648+00 — 28 rows mass-insert
+--      (likely HEALTH-EXPORT-1 demo seed for Provider PDF testing).
+--   2. log_date Apr 5-18 daily at exact 08:00:00 + 20:30:00 UTC clock
+--      times — 28 rows. Per-day backfill that looks legitimate but
+--      clock-perfect timestamps are implausible for real morning/evening
+--      med taps.
+--   3. logged_at = 2026-04-19 22:12:07.460416+00 — 364 rows mass-insert
+--      including 364 days of future-dated taken=true rows extending
+--      through Jul 19, 2026 (90 days into the future). Aligns with
+--      Dispatch 9 / MED-MOOD-1 shipping date — likely a demo seed for
+--      testing the Med Mood Timeline UI that was never cleaned up.
+--
+-- Real-tap rows (~4) from Apr 27-29 toggle action testing also wiped.
+--
+-- Clinical exposure assessment:
+--   Q1 — Provider PDF shared externally? NO.
+--   Q2 — Med decisions based on in-app grid? NO (trial mode).
+--   Result: data hygiene, not clinical incident.
+--
+-- Sole writer in repo: src/app/api/kids/checklist/route.ts:891 (toggle
+-- action on med-am-* / med-pm-* event_ids). Confirmed no scheduled task,
+-- demo seed in scripts/, or other writer exists. Nothing will
+-- re-fabricate after this wipe.
+--
+-- Pre-state: 448 rows.
+-- Post-state: 0 rows. Verified.
+-- Real-tap data starts populating from the next AM/PM med tap forward.
+
+DELETE FROM med_adherence_log;
