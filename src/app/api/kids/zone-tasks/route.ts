@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
 import { parseDateLocal } from '@/lib/date-local'
+import { logZoneSubtask, unlogZoneSubtask, logZoneCompleteAll } from '@/lib/task-completion'
+import { errorDetail } from '@/lib/route-errors'
 
 // ── Zone key mapping from checklist event summaries ──
 const ZONE_KEY_MAP: Record<string, string> = {
@@ -543,12 +545,14 @@ export async function POST(request: NextRequest) {
       case 'complete_task': {
         const { rotation_id } = body
         if (!rotation_id) return NextResponse.json({ error: 'rotation_id required' }, { status: 400 })
-        const row = await db.query(
-          `UPDATE zone_task_rotation SET completed = TRUE, completed_at = NOW() WHERE id = $1 RETURNING kid_name`,
-          [rotation_id]
-        )
-        // ZONE-2: Award points for zone completion
-        const kidName = row[0]?.kid_name
+
+        // Fanout: updates zone_task_rotation + recomputes parent rollup in
+        // kid_daily_checklist for both zone-morning and zone-afternoon slots.
+        // Auto-flips parent ✅ when this completes the last sub-task.
+        const result = await logZoneSubtask({ rotationId: rotation_id })
+
+        // Award points for zone task completion
+        const kidName = result.kid
         if (kidName) {
           await db.query(
             `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'earned', 10, 'Zone chore completed')`,
@@ -559,13 +563,27 @@ export async function POST(request: NextRequest) {
             [kidName]
           ).catch(() => {})
         }
-        // ZONE-3: Return balance
+
+        // Fire "zone complete" notification with the correct denominator
+        // (zone_task_rotation count for the kid+zone+date, NOT a count of
+        // zone-prefixed kid_daily_checklist rows). Fixes Apr 28 audit bug #7.
+        if (result.zone_complete && kidName) {
+          const cap = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+          await createNotification({
+            title: `🧹 ${cap} finished all zone tasks!`,
+            message: `All ${result.zone_total} ${result.zone_key.replace(/_/g, ' ')} tasks done for today`,
+            source_type: 'zone_complete',
+            source_ref: `zone_complete_${kidName}_${result.zone_key}_${result.date}`,
+            icon: '🧹',
+          }).catch(() => {})
+        }
+
         let newBalance = 0
         try {
           const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])
           newBalance = bal[0]?.balance || 0
         } catch {}
-        return NextResponse.json({ success: true, points_awarded: 10, new_balance: newBalance })
+        return NextResponse.json({ success: true, points_awarded: 10, new_balance: newBalance, progress: result })
       }
 
       // PHOTO-1: Submit zone photo
@@ -595,24 +613,28 @@ export async function POST(request: NextRequest) {
       case 'uncomplete_task': {
         const { rotation_id } = body
         if (!rotation_id) return NextResponse.json({ error: 'rotation_id required' }, { status: 400 })
-        await db.query(
-          `UPDATE zone_task_rotation SET completed = FALSE, completed_at = NULL WHERE id = $1`,
-          [rotation_id]
-        )
-        return NextResponse.json({ success: true })
+        const result = await unlogZoneSubtask({ rotationId: rotation_id })
+        return NextResponse.json({ success: true, progress: result })
       }
 
       // ── Complete all tasks for a zone/kid/date ──
       case 'complete_all': {
         const { zone_key, kid, date } = body
         if (!zone_key || !kid) return NextResponse.json({ error: 'zone_key and kid required' }, { status: 400 })
-        const today = date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-        await db.query(
-          `UPDATE zone_task_rotation SET completed = TRUE, completed_at = NOW()
-           WHERE zone_key = $1 AND kid_name = $2 AND assigned_date = $3 AND completed = FALSE`,
-          [zone_key, kid.toLowerCase(), today]
-        )
-        return NextResponse.json({ success: true })
+        const result = await logZoneCompleteAll({ kid, zoneKey: zone_key, date })
+
+        if (result.zone_complete) {
+          const cap = result.kid.charAt(0).toUpperCase() + result.kid.slice(1)
+          await createNotification({
+            title: `🧹 ${cap} finished all zone tasks!`,
+            message: `All ${result.zone_total} ${result.zone_key.replace(/_/g, ' ')} tasks done for today`,
+            source_type: 'zone_complete',
+            source_ref: `zone_complete_${result.kid}_${result.zone_key}_${result.date}`,
+            icon: '🧹',
+          }).catch(() => {})
+        }
+
+        return NextResponse.json({ success: true, progress: result })
       }
 
       // ── Log bonus task ──
@@ -912,7 +934,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Zone tasks POST error:', error)
-    return NextResponse.json({ error: 'Failed to process' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to process', detail: errorDetail(error) }, { status: 500 })
   }
 }
 

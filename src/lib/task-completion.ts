@@ -273,6 +273,127 @@ function saturdayOfWeek(dateStr: string): string {
 // Re-export the kid-name column map so seed/migration code can reference it.
 export const COMPLETION_KID_COLUMN = KID_COLUMN
 
+// ── Zone sub-task fanout ──
+//
+// Zones use a different shape than the other categories: one row in
+// zone_task_rotation per (zone, task, kid, date) — that's the per-sub-task
+// truth. The kid_daily_checklist parent rollup ("zone-morning-${date}" and
+// "zone-afternoon-${date}") auto-flips when ALL sub-tasks are done. Manual
+// parent tap from the daily list is a separate path (logTaskCompletion
+// category='zone') that flips just the parent — sub-tasks stay actual.
+
+export interface ZoneSubtaskResult {
+  kid: string
+  zone_key: string
+  date: string
+  zone_complete: boolean
+  zone_total: number
+  zone_done: number
+}
+
+interface LogZoneSubtaskOpts {
+  rotationId: number  // zone_task_rotation.id
+}
+
+interface LogZoneCompleteAllOpts {
+  kid: string
+  zoneKey: string
+  date?: string
+}
+
+/**
+ * Mark a single zone sub-task complete. Updates zone_task_rotation, then
+ * recomputes the parent rollup in kid_daily_checklist (auto-flip on
+ * last sub-task).
+ */
+export async function logZoneSubtask(opts: LogZoneSubtaskOpts): Promise<ZoneSubtaskResult> {
+  return runZoneSubtaskFlip(opts.rotationId, true)
+}
+
+export async function unlogZoneSubtask(opts: LogZoneSubtaskOpts): Promise<ZoneSubtaskResult> {
+  return runZoneSubtaskFlip(opts.rotationId, false)
+}
+
+/**
+ * Bulk-complete all uncompleted sub-tasks for a kid + zone + date.
+ * Replaces the existing complete_all action's raw UPDATE so the parent
+ * rollup stays in sync atomically.
+ */
+export async function logZoneCompleteAll(opts: LogZoneCompleteAllOpts): Promise<ZoneSubtaskResult> {
+  const date = opts.date || todayChicago()
+  const kid = opts.kid.toLowerCase()
+  return transaction(async (q) => {
+    await q(
+      `UPDATE zone_task_rotation SET completed = TRUE, completed_at = NOW()
+        WHERE zone_key = $1 AND kid_name = $2 AND assigned_date = $3 AND completed = FALSE`,
+      [opts.zoneKey, kid, date]
+    )
+    return syncZoneParentRollup(q, kid, opts.zoneKey, date)
+  })
+}
+
+async function runZoneSubtaskFlip(rotationId: number, completed: boolean): Promise<ZoneSubtaskResult> {
+  return transaction(async (q) => {
+    const rows = await q(
+      `UPDATE zone_task_rotation
+          SET completed = $2,
+              completed_at = CASE WHEN $2 THEN NOW() ELSE NULL END
+        WHERE id = $1
+       RETURNING kid_name, zone_key, assigned_date`,
+      [rotationId, completed]
+    )
+    if (rows.length === 0) {
+      throw new Error(`zone_task_rotation row ${rotationId} not found`)
+    }
+    const { kid_name, zone_key, assigned_date } = rows[0]
+    const date = String(assigned_date).slice(0, 10)
+    return syncZoneParentRollup(q, kid_name, zone_key, date)
+  })
+}
+
+async function syncZoneParentRollup(
+  q: TxQuery, kid: string, zoneKey: string, date: string
+): Promise<ZoneSubtaskResult> {
+  const counts = await q(
+    `SELECT COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE completed = TRUE)::int AS done
+       FROM zone_task_rotation
+      WHERE kid_name = $1 AND zone_key = $2 AND assigned_date = $3
+        AND bonus_task IS NOT TRUE`,
+    [kid, zoneKey, date]
+  )
+  const total = counts[0]?.total ?? 0
+  const done = counts[0]?.done ?? 0
+  const allDone = total > 0 && done >= total
+
+  // Look up display name; fall back to a humanized zone_key on miss.
+  const zd = await q(`SELECT display_name FROM zone_definitions WHERE zone_key = $1`, [zoneKey])
+  const displayName: string = zd[0]?.display_name || humanizeZoneKey(zoneKey)
+  const completedAt = allDone ? new Date().toISOString() : null
+
+  for (const slot of ['morning', 'afternoon'] as const) {
+    const eventId = `zone-${slot}-${date}`
+    const slotLabel = slot[0].toUpperCase() + slot.slice(1)
+    const summary = `${slotLabel} Zone Chores: ${displayName}`
+    await q(
+      `INSERT INTO kid_daily_checklist (child_name, event_date, event_id, event_summary, completed, completed_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (child_name, event_date, event_id)
+       DO UPDATE SET completed = EXCLUDED.completed,
+                     completed_at = CASE WHEN EXCLUDED.completed
+                                         THEN COALESCE(kid_daily_checklist.completed_at, EXCLUDED.completed_at)
+                                         ELSE NULL END`,
+      [kid, date, eventId, summary, allDone, completedAt]
+    )
+  }
+
+  return { kid, zone_key: zoneKey, date, zone_complete: allDone, zone_total: total, zone_done: done }
+}
+
+function humanizeZoneKey(key: string): string {
+  return key.split('_').map(s => s ? s[0].toUpperCase() + s.slice(1) : s).join(' ')
+}
+
 // ── Event-id → category resolver ──
 
 export interface ResolvedChecklistEvent {

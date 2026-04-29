@@ -926,14 +926,14 @@ export async function POST(request: NextRequest) {
           } catch (e: any) { console.error('Refill check failed:', e.message) }
         }
 
-        // ZONE-1: Sync zone completion to zone_task_rotation + award points
+        // Zone parent rollup tap from the daily list = "I'm calling it complete"
+        // override (Q4 from Apr 28 audit). Helper already wrote the parent
+        // kid_daily_checklist row. We deliberately do NOT bulk-complete the
+        // underlying zone_task_rotation sub-tasks — audit fidelity > UX
+        // cleanliness. Sub-tasks stay actual; pattern-detection on
+        // completion_velocity_log can flag a kid mass-marking-done.
+        // Award points + return balance for the override action itself.
         if (eventId.startsWith('zone-') && newCompleted) {
-          await db.query(
-            `UPDATE zone_task_rotation SET completed_at = NOW()
-             WHERE kid_name = $1 AND assigned_date = $2 AND completed_at IS NULL`,
-            [kidName, today]
-          ).catch(e => console.error('Zone sync failed:', kidName, e.message))
-          // Award 10 points for zone task
           await db.query(
             `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason) VALUES ($1, 'earned', 10, $2)`,
             [kidName, `Zone chore: ${eventSummary || eventId}`]
@@ -942,23 +942,9 @@ export async function POST(request: NextRequest) {
             `UPDATE kid_points_balance SET current_points = current_points + 10, total_earned_all_time = total_earned_all_time + 10, updated_at = NOW() WHERE kid_name = $1`,
             [kidName]
           ).catch(e => console.error('Points balance update failed:', kidName, e.message))
-          // Check if all zone tasks are now complete
-          const allZone = await db.query(
-            `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE completed = TRUE)::int AS done
-             FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2 AND event_id LIKE 'zone-%'`,
-            [kidName, today]
-          ).catch(() => [{ total: 0, done: 0 }])
-          if (allZone[0]?.total > 0 && allZone[0]?.done === allZone[0]?.total) {
-            const capName = kidName.charAt(0).toUpperCase() + kidName.slice(1)
-            await createNotification({
-              title: `🧹 ${capName} finished all zone tasks!`,
-              message: `All ${allZone[0].total} zone chores done for today`,
-              source_type: 'zone_complete',
-              source_ref: `zone_complete_${kidName}_${today}`,
-              icon: '🧹',
-            }).catch(() => {})
-          }
-
+          // Note: zone-complete notification is fired from zone-tasks/route.ts
+          // when the actual last sub-task is checked off (correct denominator
+          // from zone_task_rotation count, fixes Apr 28 audit bug #7).
           try {
             const bal = await db.query(`SELECT current_points as balance FROM kid_points_balance WHERE kid_name = $1`, [kidName])
             return NextResponse.json({ success: true, completed: newCompleted, points_awarded: 10, new_balance: bal[0]?.balance || 0 })
