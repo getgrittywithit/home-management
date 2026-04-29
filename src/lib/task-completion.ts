@@ -12,6 +12,7 @@
  */
 
 import { transaction, TxQuery } from './database'
+import { PET_DAILY_TASKS } from './constants'
 
 // ── Category enumeration ──
 
@@ -91,7 +92,7 @@ export async function logTaskCompletion(
     await writeDomainLog(q, kid, date, completedAt, opts)
 
     // 3. Compute denominator + done count
-    return computeCategoryProgress(q, kid, date, opts.category)
+    return computeCategoryProgress(q, kid, date, opts)
   })
 }
 
@@ -164,18 +165,26 @@ async function writeDomainLog(
       // (pet_name, kid_name, task, care_date) WHERE all NOT NULL — the
       // 31 legacy uuid-shape rows have NULL on these columns and don't
       // collide with the new shape.
+      //
+      // After insert, sync the parent rollup: count household-wide DISTINCT
+      // completed tasks for this pet+date, compare to PET_DAILY_TASKS[pet]
+      // length, set parent rollup completed = (done == total). Mirrors
+      // syncZoneParentRollup so write/unwrite paths arrive at the same
+      // rollup state given the same end-state of pet_care_log rows.
       const petName = opts.meta?.pet_name
       if (!petName) throw new Error('logTaskCompletion(pet_care): meta.pet_name required')
       const notes = opts.meta?.notes ?? null
       await q(
-        `INSERT INTO pet_care_log (kid_name, pet_name, task, care_date, completed, notes, created_at)
-         VALUES ($1, $2, $3, $4, TRUE, $5, NOW())
+        `INSERT INTO pet_care_log (kid_name, pet_name, task, care_date, completed, completed_at, notes, created_at)
+         VALUES ($1, $2, $3, $4, TRUE, $5, $6, NOW())
          ON CONFLICT (pet_name, kid_name, task, care_date)
          WHERE pet_name IS NOT NULL AND kid_name IS NOT NULL AND task IS NOT NULL
          DO UPDATE SET completed = TRUE,
+                       completed_at = COALESCE(pet_care_log.completed_at, EXCLUDED.completed_at),
                        notes = COALESCE(EXCLUDED.notes, pet_care_log.notes)`,
-        [kid, petName.toLowerCase(), opts.taskKey, date, notes]
+        [kid, petName.toLowerCase(), opts.taskKey, date, completedAt.toISOString(), notes]
       )
+      await syncPetParentRollup(q, kid, petName.toLowerCase(), date)
       return
     }
 
@@ -227,6 +236,9 @@ async function unwriteDomainLog(
       // wart fix because pet care tracks per-kid contribution; clearing
       // the claim isn't enough — we want the row gone so re-tap by
       // a different kid creates a fresh per-kid row.
+      // Then re-sync parent rollup: another caretaker may still have a
+      // completed row for the same task/date, so the rollup may not need
+      // to flip back to false.
       const petName = opts.meta?.pet_name
       if (!petName) throw new Error('unlogTaskCompletion(pet_care): meta.pet_name required')
       await q(
@@ -234,6 +246,7 @@ async function unwriteDomainLog(
           WHERE kid_name = $1 AND pet_name = $2 AND task = $3 AND care_date = $4`,
         [kid, petName.toLowerCase(), opts.taskKey, date]
       )
+      await syncPetParentRollup(q, kid, petName.toLowerCase(), date)
       return
     }
 
@@ -258,9 +271,9 @@ async function computeCategoryProgress(
   q: TxQuery,
   kid: string,
   date: string,
-  category: CompletionCategory
+  opts: LogTaskCompletionOpts
 ): Promise<LogTaskCompletionResult> {
-  switch (category) {
+  switch (opts.category) {
     case 'belle_care': {
       // Per-task counting (kid_name overwrites on UPSERT, so per-kid filtering would
       // under-count when multiple kids touch tasks). Matches the existing semantic.
@@ -292,8 +305,26 @@ async function computeCategoryProgress(
       return { category_total: total, category_done: done, category_complete: total > 0 && done >= total }
     }
 
+    case 'pet_care': {
+      // Household-wide DISTINCT-task progress: count how many of the
+      // PET_DAILY_TASKS for this pet have at least one completed row
+      // today across all caretakers. (A task done by Amos OR Kaylee
+      // counts once.)
+      const petName = opts.meta?.pet_name?.toLowerCase()
+      const total = (petName && PET_DAILY_TASKS[petName]?.length) || 0
+      if (total === 0) {
+        return { category_total: 0, category_done: 0, category_complete: false }
+      }
+      const rows = await q(
+        `SELECT COUNT(DISTINCT task)::int AS done FROM pet_care_log
+          WHERE pet_name = $1 AND care_date = $2 AND completed = TRUE`,
+        [petName, date]
+      )
+      const done = rows[0]?.done ?? 0
+      return { category_total: total, category_done: done, category_complete: done >= total }
+    }
+
     case 'daily':
-    case 'pet_care':
     case 'zone':
     case 'homeschool':
       // Wired in subsequent migration commits. Return a safe zero so callers
@@ -435,6 +466,49 @@ async function syncZoneParentRollup(
 
 function humanizeZoneKey(key: string): string {
   return key.split('_').map(s => s ? s[0].toUpperCase() + s.slice(1) : s).join(' ')
+}
+
+// ── Pet care parent rollup sync ──
+//
+// Pet care has the same parent/sub-task shape as zones: a single
+// kid_daily_checklist row per kid per pet per day (event_id =
+// `pet-${pet}-${date}`) summarizes household-wide task completion. The
+// rollup auto-flips ✅ when DISTINCT completed tasks for that pet+date
+// match PET_DAILY_TASKS[pet].length. Multiple caretakers contributing
+// to the same task count once.
+//
+// Called by writeDomainLog/unwriteDomainLog for category 'pet_care' so
+// both INSERT and DELETE arrive at the same rollup state given the
+// same end-state of pet_care_log rows (fixes Step 2 commit 3 polish #3:
+// path-dependent rollup inconsistency).
+
+async function syncPetParentRollup(
+  q: TxQuery, kid: string, petName: string, date: string
+): Promise<void> {
+  const total = PET_DAILY_TASKS[petName]?.length ?? 0
+  let done = 0
+  if (total > 0) {
+    const rows = await q(
+      `SELECT COUNT(DISTINCT task)::int AS done FROM pet_care_log
+        WHERE pet_name = $1 AND care_date = $2 AND completed = TRUE`,
+      [petName, date]
+    )
+    done = rows[0]?.done ?? 0
+  }
+  const allDone = total > 0 && done >= total
+  const eventId = `pet-${petName}-${date}`
+  const summary = `${petName.charAt(0).toUpperCase() + petName.slice(1)} Care`
+  const completedAt = allDone ? new Date().toISOString() : null
+  await q(
+    `INSERT INTO kid_daily_checklist (child_name, event_date, event_id, event_summary, completed, completed_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (child_name, event_date, event_id)
+     DO UPDATE SET completed = EXCLUDED.completed,
+                   completed_at = CASE WHEN EXCLUDED.completed
+                                       THEN COALESCE(kid_daily_checklist.completed_at, EXCLUDED.completed_at)
+                                       ELSE NULL END`,
+    [kid, date, eventId, summary, allDone, completedAt]
+  )
 }
 
 // ── Event-id → category resolver ──

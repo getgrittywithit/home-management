@@ -789,7 +789,10 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Checklist API error:', error)
-    return NextResponse.json({ error: 'Failed to load checklist' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to load checklist', detail: errorDetail(error) },
+      { status: 500 }
+    )
   }
 }
 
