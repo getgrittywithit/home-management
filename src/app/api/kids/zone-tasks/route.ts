@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
 import { createNotification } from '@/lib/notifications'
 import { parseDateLocal } from '@/lib/date-local'
-import { logZoneSubtask, unlogZoneSubtask, logZoneCompleteAll } from '@/lib/task-completion'
+import { logZoneSubtask, unlogZoneSubtask, logZoneCompleteAll, logTaskCompletion } from '@/lib/task-completion'
 import { errorDetail } from '@/lib/route-errors'
 
 // ── Zone key mapping from checklist event summaries ──
@@ -738,16 +738,28 @@ export async function POST(request: NextRequest) {
       }
 
       // ── Log daily pet care task (any pet) ──
+      // Routes through the canonical fanout helper. Writes the new
+      // string-shape pet_care_log row + kid_daily_checklist parent rollup
+      // atomically. The legacy uuid-shape (pet_id / caretaker_id /
+      // task_type / task_description) is no longer written from here.
       case 'log_pet_care': {
         const { pet_key, task_key, completed_by, date, notes } = body
         if (!pet_key || !task_key || !completed_by) return NextResponse.json({ error: 'pet_key, task_key, completed_by required' }, { status: 400 })
         const careDate = date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
-        await db.query(
-          `INSERT INTO pet_care_log (id, pet_id, caretaker_id, task_type, task_description, completed_at)
-           VALUES (gen_random_uuid(), (SELECT id FROM pets WHERE LOWER(name) = $1 LIMIT 1),
-                   '00000000-0000-0000-0000-000000000000', $2, $3, NOW())`,
-          [pet_key.toLowerCase(), task_key, notes || `${task_key} by ${completed_by}`]
-        )
+        const pet = pet_key.toLowerCase()
+        const kid = completed_by.toLowerCase()
+        const petDisplay = pet.charAt(0).toUpperCase() + pet.slice(1)
+
+        await logTaskCompletion({
+          kid,
+          category: 'pet_care',
+          taskKey: task_key,
+          parentEventId: `pet-${pet}-${careDate}`,
+          parentEventSummary: `${petDisplay} Care`,
+          date: careDate,
+          meta: { pet_name: pet, notes: notes || undefined },
+        })
+
         return NextResponse.json({ success: true })
       }
 

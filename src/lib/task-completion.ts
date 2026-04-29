@@ -50,6 +50,7 @@ export interface LogTaskCompletionOpts {
     weekend_start?: string   // YYYY-MM-DD for belle_grooming
     stars_earned?: number    // homeschool_task_completions
     task_id?: string         // zone_task_rotation row id
+    notes?: string           // free-text note for pet_care
   }
 }
 
@@ -156,18 +157,42 @@ async function writeDomainLog(
       return
     }
 
-    case 'pet_care':
+    case 'pet_care': {
+      // Per-kid claim semantic (multiple caretakers per pet — Spike has
+      // Amos primary + Kaylee/Wyatt helpers; Midnight is Ellie + Hannah
+      // shared). UPSERT on the partial UNIQUE idx_pet_care_log_daily_unique
+      // (pet_name, kid_name, task, care_date) WHERE all NOT NULL — the
+      // 31 legacy uuid-shape rows have NULL on these columns and don't
+      // collide with the new shape.
+      const petName = opts.meta?.pet_name
+      if (!petName) throw new Error('logTaskCompletion(pet_care): meta.pet_name required')
+      const notes = opts.meta?.notes ?? null
+      await q(
+        `INSERT INTO pet_care_log (kid_name, pet_name, task, care_date, completed, notes, created_at)
+         VALUES ($1, $2, $3, $4, TRUE, $5, NOW())
+         ON CONFLICT (pet_name, kid_name, task, care_date)
+         WHERE pet_name IS NOT NULL AND kid_name IS NOT NULL AND task IS NOT NULL
+         DO UPDATE SET completed = TRUE,
+                       notes = COALESCE(EXCLUDED.notes, pet_care_log.notes)`,
+        [kid, petName.toLowerCase(), opts.taskKey, date, notes]
+      )
+      return
+    }
+
     case 'zone':
     case 'homeschool':
-      // Wired in subsequent migration commits (Step 2 of Phase B).
-      // For now these categories only fanout to kid_daily_checklist.
+      // Zone fanout to zone_task_rotation lives in logZoneSubtask /
+      // unlogZoneSubtask (sub-task path) — the parent rollup tap path
+      // handled by logTaskCompletion(category='zone') deliberately writes
+      // ONLY kid_daily_checklist (Q4: parent override doesn't bulk-complete
+      // sub-tasks). Homeschool wired in Step 2 commit 4.
       return
   }
 }
 
 async function unwriteDomainLog(
   q: TxQuery,
-  _kid: string,
+  kid: string,
   date: string,
   opts: LogTaskCompletionOpts
 ): Promise<void> {
@@ -196,7 +221,22 @@ async function unwriteDomainLog(
       return
     }
 
-    case 'pet_care':
+    case 'pet_care': {
+      // Per-kid claim semantic — DELETE the row on uncomplete (existing
+      // route's pattern). Diverges from belle_care's UPDATE+kid_name=NULL
+      // wart fix because pet care tracks per-kid contribution; clearing
+      // the claim isn't enough — we want the row gone so re-tap by
+      // a different kid creates a fresh per-kid row.
+      const petName = opts.meta?.pet_name
+      if (!petName) throw new Error('unlogTaskCompletion(pet_care): meta.pet_name required')
+      await q(
+        `DELETE FROM pet_care_log
+          WHERE kid_name = $1 AND pet_name = $2 AND task = $3 AND care_date = $4`,
+        [kid, petName.toLowerCase(), opts.taskKey, date]
+      )
+      return
+    }
+
     case 'zone':
     case 'homeschool':
       return

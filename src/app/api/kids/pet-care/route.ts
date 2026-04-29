@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/database'
+import { logTaskCompletion, unlogTaskCompletion } from '@/lib/task-completion'
+import { errorDetail } from '@/lib/route-errors'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -8,15 +10,17 @@ export async function GET(req: NextRequest) {
   if (!kid) return NextResponse.json({ error: 'kid_name required' }, { status: 400 })
 
   try {
+    // Read the new-shape rows directly. The 31 legacy uuid-shape rows have
+    // NULL on kid_name/pet_name/task and won't match this filter.
     const rows = await db.query(
-      `SELECT pcl.*, p.name AS pet_name FROM pet_care_log pcl
-       LEFT JOIN pets p ON p.id = pcl.pet_id
-       WHERE pcl.kid_name = $1 AND pcl.care_date = $2`,
+      `SELECT kid_name, pet_name, task, care_date, completed, completed_at, notes
+         FROM pet_care_log
+        WHERE kid_name = $1 AND care_date = $2 AND completed = TRUE`,
       [kid, date]
     ).catch(() => [])
     return NextResponse.json({ tasks: rows })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: 'Failed to load pet care', detail: errorDetail(e) }, { status: 500 })
   }
 }
 
@@ -24,34 +28,49 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { kid_name, pet_name, task, completed, notes } = body
-    if (!kid_name || !pet_name || !task) return NextResponse.json({ error: 'kid_name + pet_name + task required' }, { status: 400 })
+    if (!kid_name || !pet_name || !task) {
+      return NextResponse.json({ error: 'kid_name + pet_name + task required' }, { status: 400 })
+    }
 
     const kid = kid_name.toLowerCase()
+    const pet = pet_name.toLowerCase()
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
 
-    if (completed) {
-      await db.query(
-        `INSERT INTO pet_care_log (kid_name, pet_name, task, care_date, completed, notes, created_at)
-         VALUES ($1, $2, $3, $4, TRUE, $5, NOW())
-         ON CONFLICT (pet_name, kid_name, task, care_date) DO UPDATE SET completed = TRUE, notes = COALESCE($5, pet_care_log.notes)`,
-        [kid, pet_name.toLowerCase(), task, today, notes || null]
-      )
+    // Parent rollup event_id matches the seed in checklist/route.ts
+    // (`pet-spike-${date}`, `pet-hades-${date}`, `pet-midnight-${date}`).
+    const parentEventId = `pet-${pet}-${today}`
+    const petDisplay = pet.charAt(0).toUpperCase() + pet.slice(1)
+    const parentEventSummary = `${petDisplay} Care`
 
-      // Award stars
+    if (completed) {
+      await logTaskCompletion({
+        kid,
+        category: 'pet_care',
+        taskKey: task,
+        parentEventId,
+        parentEventSummary,
+        date: today,
+        meta: { pet_name: pet, notes: notes || undefined },
+      })
+      // Award a small star bonus for the contribution
       await db.query(
         `INSERT INTO kid_points_log (kid_name, transaction_type, points, reason)
          VALUES ($1, 'earned', 3, $2)`,
-        [kid, `Pet care: ${task} for ${pet_name}`]
+        [kid, `Pet care: ${task} for ${petDisplay}`]
       ).catch(() => {})
     } else {
-      await db.query(
-        `DELETE FROM pet_care_log WHERE kid_name = $1 AND pet_name = $2 AND task = $3 AND care_date = $4`,
-        [kid, pet_name.toLowerCase(), task, today]
-      )
+      await unlogTaskCompletion({
+        kid,
+        category: 'pet_care',
+        taskKey: task,
+        parentEventId,
+        date: today,
+        meta: { pet_name: pet },
+      })
     }
 
     return NextResponse.json({ success: true })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: 'Failed to save pet care', detail: errorDetail(e) }, { status: 500 })
   }
 }
