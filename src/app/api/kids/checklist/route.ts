@@ -7,6 +7,8 @@ import { checkAchievements } from '@/lib/achievement-checker'
 import { checkBonusStar } from '@/lib/bonus-stars'
 import { ALL_KIDS, HOMESCHOOL_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 import { parseDateLocal } from '@/lib/date-local'
+import { logTaskCompletion, unlogTaskCompletion, resolveChecklistEvent } from '@/lib/task-completion'
+import { errorDetail } from '@/lib/route-errors'
 
 // Belle care weekday assignments
 const BELLE_WEEKDAY: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -806,13 +808,32 @@ export async function POST(request: NextRequest) {
           [kidName, today, eventId]
         )
         const newCompleted = existing.length > 0 ? !existing[0].completed : true
-        await db.query(
-          `INSERT INTO kid_daily_checklist (child_name, event_date, event_id, event_summary, completed, completed_at)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           ON CONFLICT (child_name, event_date, event_id)
-           DO UPDATE SET completed = $5, completed_at = $6`,
-          [kidName, today, eventId, eventSummary || '', newCompleted, newCompleted ? new Date().toISOString() : null]
-        )
+
+        // Fanout: route through the canonical helper so domain logs (belle_care_log,
+        // belle_grooming_log, etc.) stay in sync with kid_daily_checklist. The
+        // resolver maps event_id back to the right category.
+        const resolved = resolveChecklistEvent(eventId)
+        let progress: { category_complete: boolean; category_total: number; category_done: number } | undefined
+        if (newCompleted) {
+          progress = await logTaskCompletion({
+            kid: kidName,
+            category: resolved.category,
+            taskKey: resolved.taskKey,
+            parentEventId: eventId,
+            parentEventSummary: eventSummary || '',
+            date: today,
+            meta: resolved.meta,
+          })
+        } else {
+          await unlogTaskCompletion({
+            kid: kidName,
+            category: resolved.category,
+            taskKey: resolved.taskKey,
+            parentEventId: eventId,
+            date: today,
+            meta: resolved.meta,
+          })
+        }
 
         // Auto-earn points when completing an Earn Money chore
         if (eventId.startsWith('earn-') && newCompleted) {
@@ -944,23 +965,18 @@ export async function POST(request: NextRequest) {
           } catch {}
         }
 
-        // Check if all Belle tasks are now complete (via checklist)
-        if (eventId.startsWith('belle-') && newCompleted) {
-          const allBelle = await db.query(
-            `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE completed = TRUE)::int AS done
-             FROM kid_daily_checklist WHERE child_name = $1 AND event_date = $2 AND event_id LIKE 'belle-%'`,
-            [kidName, today]
-          ).catch(() => [{ total: 0, done: 0 }])
-          if (allBelle[0]?.total > 0 && allBelle[0]?.done === allBelle[0]?.total) {
-            const capName = kidName.charAt(0).toUpperCase() + kidName.slice(1)
-            await createNotification({
-              title: `🐾 ${capName} finished all Belle tasks!`,
-              message: `All ${allBelle[0].total} Belle care tasks done for today`,
-              source_type: 'belle_complete',
-              source_ref: `belle_complete_${kidName}_${today}`,
-              icon: '🐾',
-            }).catch(() => {})
-          }
+        // Belle category-complete notification — denominator comes from the helper
+        // (getDailyTasks(date).length, 4 or 5), not a count of kid_daily_checklist
+        // belle-prefixed rows. Fixes Apr 28 audit bug #6 ("All 1 Belle care tasks done").
+        if (resolved.category === 'belle_care' && newCompleted && progress?.category_complete) {
+          const capName = kidName.charAt(0).toUpperCase() + kidName.slice(1)
+          await createNotification({
+            title: `🐾 ${capName} finished all Belle tasks!`,
+            message: `All ${progress.category_total} Belle care tasks done for today`,
+            source_type: 'belle_complete',
+            source_ref: `belle_complete_${kidName}_${today}`,
+            icon: '🐾',
+          }).catch(() => {})
         }
 
         // Return with points info if earned (earn-money chores)
@@ -1270,7 +1286,10 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Checklist POST error:', error)
-    return NextResponse.json({ error: 'Failed to process' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to process', detail: errorDetail(error) },
+      { status: 500 }
+    )
   }
 }
 

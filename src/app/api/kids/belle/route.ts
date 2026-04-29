@@ -4,6 +4,7 @@ import { createNotification } from '@/lib/notifications'
 import { BELLE_KIDS, BELLE_WEEKEND_ROTATION } from '@/lib/constants'
 import { parseDateLocal } from '@/lib/date-local'
 import { logTaskCompletion, unlogTaskCompletion } from '@/lib/task-completion'
+import { errorDetail } from '@/lib/route-errors'
 
 // Weekday assignments — fixed, same every week
 const WEEKDAY_MAP: Record<number, string> = { 1: 'kaylee', 2: 'amos', 3: 'hannah', 4: 'wyatt', 5: 'ellie' }
@@ -653,11 +654,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Surface error messages outside of production so verification doesn't have to
-// roundtrip through Postgres logs. Vercel sets VERCEL_ENV to 'preview' on
-// preview deploys and 'production' on prod URLs.
-function errorDetail(error: unknown): string | undefined {
-  if (process.env.VERCEL_ENV === 'production') return undefined
-  if (error instanceof Error) return error.message
-  return String(error)
-}

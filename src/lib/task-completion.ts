@@ -167,7 +167,7 @@ async function writeDomainLog(
 
 async function unwriteDomainLog(
   q: TxQuery,
-  kid: string,
+  _kid: string,
   date: string,
   opts: LogTaskCompletionOpts
 ): Promise<void> {
@@ -176,10 +176,10 @@ async function unwriteDomainLog(
       return
 
     case 'belle_care':
-      // Match the per-task uniqueness — uncomplete clears the row regardless of which
-      // kid claimed it (mirrors existing belle/route.ts:464 behavior).
+      // Per-task uniqueness — uncomplete clears the row regardless of who claimed it.
+      // Resets kid_name to NULL so a stale claim doesn't outlive the completed flag.
       await q(
-        `UPDATE belle_care_log SET completed = FALSE, completed_at = NULL
+        `UPDATE belle_care_log SET completed = FALSE, completed_at = NULL, kid_name = NULL
          WHERE care_date = $1 AND task = $2`,
         [date, opts.taskKey]
       )
@@ -189,9 +189,9 @@ async function unwriteDomainLog(
       const weekendStart = opts.meta?.weekend_start
       if (!weekendStart) throw new Error('unlogTaskCompletion(belle_grooming): meta.weekend_start required')
       await q(
-        `UPDATE belle_grooming_log SET completed = FALSE, completed_at = NULL
-          WHERE weekend_start = $1 AND task = $2 AND kid_name = $3`,
-        [weekendStart, opts.taskKey, kid]
+        `UPDATE belle_grooming_log SET completed = FALSE, completed_at = NULL, kid_name = NULL
+          WHERE weekend_start = $1 AND task = $2`,
+        [weekendStart, opts.taskKey]
       )
       return
     }
@@ -272,3 +272,59 @@ function saturdayOfWeek(dateStr: string): string {
 
 // Re-export the kid-name column map so seed/migration code can reference it.
 export const COMPLETION_KID_COLUMN = KID_COLUMN
+
+// ── Event-id → category resolver ──
+
+export interface ResolvedChecklistEvent {
+  category: CompletionCategory
+  taskKey: string
+  meta?: LogTaskCompletionOpts['meta']
+}
+
+/**
+ * Map a kid_daily_checklist `event_id` (as produced by the seed in
+ * src/app/api/kids/checklist/route.ts) back to the helper's category model.
+ * Used by the toggle handlers so a single tap fans out to the right domain log.
+ */
+export function resolveChecklistEvent(eventId: string): ResolvedChecklistEvent {
+  // Belle weekend grooming: belle-grooming-${task_dashed}-${YYYY-MM-DD}
+  let m = eventId.match(/^belle-grooming-(.+)-(\d{4}-\d{2}-\d{2})$/)
+  if (m) {
+    return {
+      category: 'belle_grooming',
+      taskKey: m[1].replace(/-/g, '_'),
+      meta: { weekend_start: m[2] },
+    }
+  }
+
+  // Belle daily care: belle-${task_dashed}-${YYYY-MM-DD}
+  m = eventId.match(/^belle-(.+)-(\d{4}-\d{2}-\d{2})$/)
+  if (m) {
+    return {
+      category: 'belle_care',
+      taskKey: m[1].replace(/-/g, '_'),
+    }
+  }
+
+  // Pet care: pet-${pet}-${YYYY-MM-DD} or pet-spike-helper-${YYYY-MM-DD}
+  m = eventId.match(/^pet-(spike-helper|spike|hades|midnight)-(\d{4}-\d{2}-\d{2})$/)
+  if (m) {
+    return {
+      category: 'pet_care',
+      taskKey: m[1],
+      meta: { pet_name: m[1].replace('-helper', '') },
+    }
+  }
+
+  // Zone parent rollup: zone-${time_of_day}-${YYYY-MM-DD} (morning/afternoon)
+  m = eventId.match(/^zone-(morning|afternoon)-(\d{4}-\d{2}-\d{2})$/)
+  if (m) {
+    return {
+      category: 'zone',
+      taskKey: eventId,
+    }
+  }
+
+  // Default: generic daily task — fanout writes only to kid_daily_checklist.
+  return { category: 'daily', taskKey: eventId }
+}
